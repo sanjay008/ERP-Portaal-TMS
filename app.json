@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "ERP Portaal TMS",
-    "slug": "ERP_Portaal_TMS",
+    "slug": "erp-portaal-tms",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -45,11 +45,35 @@
             "backgroundColor": "#000000"
           }
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera",
+          "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone",
+          "recordAudioAndroid": true
+        }
+      ],
+      [
+        "react-native-scanbot-barcode-scanner-sdk",
+        {
+          "iOSCameraUsageDescription": "Camera permission is needed to scan barcodes",
+          "androidCameraPermission": true,
+          "androidCameraFeature": true,
+          "mavenURLs": true
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "dd597380-74ed-49de-82e9-9fa233f840db"
+      }
+    },
+    "owner": "erpportaal"
   }
 }

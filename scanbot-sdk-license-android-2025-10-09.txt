@@ -1,0 +1,20 @@
+val LICENSE_KEY =
+  "OzexDAU091kkg3uiX03iXHwUqmQ4xc" +
+  "umvTbCwwB1sjg1kFHs6WjYyadRIJiM" +
+  "pbP+k+SVgSAnGcdUi5GCBtbrhqZDnw" +
+  "7QiWnmKgX4ow0rf+9OFc7eDqYBuluu" +
+  "y16NP7ea2Uetu4kfmQEWl4tsgR2xw5" +
+  "0pCllJBJdrmpwzKv7iUeyiOTHIHxEM" +
+  "1HELldj6WDkh0m0UjXxlODV8lfUdJj" +
+  "s6m/1ALY/804kD8ZglEXqT5QnVzjRE" +
+  "OEmMQVbrKpf969KIbXMrHWaDV7soDB" +
+  "4oALd3WhLZsgB9H6FzyD5IUTvOWkRG" +
+  "6LWMaM0vou0w7IpW3YjggEP1DLu2YV" +
+  "8YDYCfYgLflw==\nU2NhbmJvdFNESw" +
+  "pjb20uZXJwcG9ydGFhbC5FUlBfUG9y" +
+  "dGFhbF9UTVMKMTc2MDY1OTE5OQo4Mz" +
+  "g4NjA3CjE5\n";
+
+// Pass the license key to the Scanbot SDK
+// to initialize it.
+// Please refer to https://docs.scanbot.io

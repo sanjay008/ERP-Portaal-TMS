@@ -29,11 +29,16 @@ const clearAllData = async () => {
 
 export { clearAllData, getData, storeData };
 
+
+
+
 export const SimpleFlex = {
    flexDirection:'row',
    alignItems:'center',
-   gap:5
+   gap:10
 }
+
+
 
 
 export const {width,height} = useWindowDimensions();

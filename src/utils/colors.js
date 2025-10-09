@@ -1,4 +1,10 @@
 export const Colors = {
+  lightGreen:"#CBE7DA",
+  borderColor:"#28A745",
+  background:"#F3F4F4",
+  TabOrrange:"#ECB210",
+  BtnBg:"#F6F6F6",
+  darkText:"#68778A",
   black: "#000000",
   inActive:"#A5A6A9",
   white: "#FFFFFF",
@@ -50,7 +56,9 @@ export const Colors = {
   litegray2: "#ededed",
   hold:'#cfe2ff',
   closed:'#caffe5',
-  normal:'#fffbde'
+  normal:'#fffbde',
+  orderdark:'#616161',
+  otherBorder:"#A0A5B1"
 
 };
 //     #fffbde(normal)

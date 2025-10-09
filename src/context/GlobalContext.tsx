@@ -1,7 +1,7 @@
-import { View, Text } from "react-native";
 import React, { createContext, useState } from "react";
 export const GlobalContextData = createContext<any>(null);
 export default function GlobalContext({ children }: any) {
+  const [UserData,setUserData] = useState<object | any>(null)
   const [GOOGLE_API_KEY, setGOOGLE_API_KEY] = useState<string>("");
   const [CompanyLogo,setCompanyLogo] = useState<any>(null);
   const [Permission,setPermission] = useState<any []>([]);
@@ -12,7 +12,8 @@ export default function GlobalContext({ children }: any) {
         GOOGLE_API_KEY,setGOOGLE_API_KEY,
         CompanyLogo,setCompanyLogo,
         Permission,setPermission,
-        SelectLanguage,setSelectLanguage
+        SelectLanguage,setSelectLanguage,
+        UserData,setUserData
       }}
     >
       {children}

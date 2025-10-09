@@ -50,8 +50,23 @@ export const Images = {
   Chat: require("./image/Chat.png"),
   Profile: require("./image/Profile.png"),
   DeliveryIcon: require("./image/DeliveryIcon.png"),
+  calender: require("./image/calendar.png"),
+  location: require("./image/location.png"),
+  Done: require("./image/Done.png"),
+  WhatsApp: require("./image/whatssap.png"),
+  redWhatsApp: require("./image/redWhatsapp.png"),
+  MapsImage: require("./image/mapsImage.png"),
+  Scan: require("./image/Scan.png"),
+  Photos: require("./image/Photos.png"),
+  Flash: require("./image/Flash.png"),
+  Close: require("./image/close.png"),
+  ScannerCenter: require("./image/ScannerCenter.png"),
 
 
+
+// Audio
+
+  ScannerSound: require("./image/ScannerSound.mp3"),
 
 
   // Animations
