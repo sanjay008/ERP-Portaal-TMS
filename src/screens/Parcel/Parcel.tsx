@@ -4,15 +4,17 @@ import PickUpBox from "@/src/components/PickUpBox";
 import { Colors } from "@/src/utils/colors";
 import { SimpleFlex } from "@/src/utils/storeData";
 import React, { useState } from "react";
-import { FlatList, Text, TouchableOpacity, View } from "react-native";
+import { useTranslation } from "react-i18next";
+import { FlatList, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { styles } from "./styles";
 
 export default function Parcel({ navigation }: any) {
   const [SelectDate, setSelectDate] = useState<string>("");
   const [Region, setSelectRegion] = useState<any | {}>("");
   const [ActiveTab, setActiveTab] = useState<number>(1);
+  const { t } = useTranslation();
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.ContentContainerStyle} nestedScrollEnabled={true} bounces={false}>
       <CalenderDate date={SelectDate} setDate={setSelectDate} />
 
       <DropDownBox
@@ -29,7 +31,7 @@ export default function Parcel({ navigation }: any) {
             styles.Button,
             {
               backgroundColor:
-                ActiveTab === 1 ? Colors.TabOrrange : Colors.white,
+                ActiveTab === 1 ? Colors.primary : Colors.white,
             },
           ]}
           onPress={() => setActiveTab(1)}
@@ -40,7 +42,7 @@ export default function Parcel({ navigation }: any) {
               { color: ActiveTab === 1 ? Colors.white : Colors.black },
             ]}
           >
-            Pick Up
+            {t("In Warehouse")}
           </Text>
         </TouchableOpacity>
 
@@ -59,7 +61,7 @@ export default function Parcel({ navigation }: any) {
               { color: ActiveTab === 2 ? Colors.white : Colors.black },
             ]}
           >
-            Deliver
+            {t("Deliver")}
           </Text>
         </TouchableOpacity>
       </View>
@@ -70,9 +72,9 @@ export default function Parcel({ navigation }: any) {
         contentContainerStyle={styles.ContainerStyle}
         data={["", ""]}
         renderItem={({}) => {
-          return <PickUpBox onPress={() => navigation.navigate("Details")} />;
+          return <PickUpBox LableStatus={"Ready"} LacationProgress={false} onPress={() => navigation.navigate("Details")} />;
         }}
       />
-    </View>
+    </ScrollView>
   );
 }

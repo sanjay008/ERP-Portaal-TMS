@@ -1,94 +1,107 @@
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import React from "react";
+import { I18nextProvider, useTranslation } from "react-i18next";
 import { Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Images } from "../assets/images";
+import CustomHeader from "../components/CustomHeader";
 import Chat from "../screens/Chat/Chat";
 import LoadedScreens from "../screens/Loaded/LoadedScreens";
 import Parcel from "../screens/Parcel/Parcel";
 import Profile from "../screens/Profile/Profile";
+import i18n from "../screens/Translation/i18n";
 import { Colors } from "../utils/colors";
-import CustomHeader from "../components/CustomHeader";
 
 export default function BottomTabs() {
   const Tab = createBottomTabNavigator();
+  const { t } = useTranslation();
   return (
-    <SafeAreaView style={{ flex: 1, }}>
-      <Tab.Navigator
-        initialRouteName="Loaded"
-        screenOptions={{
-          tabBarStyle:{
-            height:70,
-            paddingTop:'2%'
-          },
-          header:({props}:any)=> <CustomHeader {...props}/>,
-          tabBarActiveTintColor:Colors.primary,
-          tabBarInactiveTintColor:Colors.inActive,
-          tabBarLabelStyle:{
-            fontSize:12,
-            fontFamily:'Medium',
-            marginTop:5
-          }
-        }}
-      >
-        <Tab.Screen name="Loaded" component={LoadedScreens} 
-        options={{
-          tabBarIcon:({size,color,focused})=> (
-            <Image 
-            source={Images.Loading}
-            style={{
-              width: 25,
-              height:25
+    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.white }}>
+      <I18nextProvider i18n={i18n}>
+        <Tab.Navigator
+          initialRouteName="Loaded"
+          screenOptions={{
+            tabBarStyle: {
+              height: 70,
+              paddingTop: "2%",
+            },
+            header: ({ props }: any) => <CustomHeader {...props} />,
+            tabBarActiveTintColor: Colors.primary,
+            tabBarInactiveTintColor: Colors.inActive,
+            tabBarLabelStyle: {
+              fontSize: 12,
+              fontFamily: "Medium",
+              marginTop: 5,
+            },
+          }}
+        >
+          <Tab.Screen
+            name={t("Loaded")}
+            component={LoadedScreens}
+            options={{
+              tabBarIcon: ({ size, color, focused }) => (
+                <Image
+                  source={Images.Loading}
+                  style={{
+                    width: 25,
+                    height: 25,
+                  }}
+                  tintColor={color}
+                />
+              ),
+              tabBarLabel:t("Loading"),
             }}
-            tintColor={color}
-            />
-          ),
-          tabBarLabel:'Loading'
-        }}
-        />
-        <Tab.Screen name="Parcel" component={Parcel} 
-        options={{
-          tabBarIcon:({size,color,focused})=> (
-            <Image 
-            source={Images.Parcel}
-            style={{
-              width: 25,
-              height:25
+          />
+          <Tab.Screen
+            name={t("Parcel")}
+            component={Parcel}
+            options={{
+              tabBarIcon: ({ size, color, focused }) => (
+                <Image
+                  source={Images.Parcel}
+                  style={{
+                    width: 25,
+                    height: 25,
+                  }}
+                  tintColor={color}
+                />
+              ),
             }}
-            tintColor={color}
-            />
-          )
-        }}
-        />
-        <Tab.Screen name="Chat" component={Chat} 
-        options={{
-          tabBarIcon:({size,color,focused})=> (
-            <Image 
-            source={Images.Chat}
-            style={{
-              width: 25,
-              height:25
+          />
+          <Tab.Screen
+            name={t("Chat")}
+            component={Chat}
+            options={{
+              tabBarIcon: ({ size, color, focused }) => (
+                <Image
+                  source={Images.Chat}
+                  style={{
+                    width: 25,
+                    height: 25,
+                  }}
+                  tintColor={color}
+                />
+              ),
             }}
-            tintColor={color}
-            />
-          )
-        }}
-        />
-        <Tab.Screen name="Profile" component={Profile} 
-        options={{
-          tabBarIcon:({size,color,focused})=> (
-            <Image 
-            source={Images.Profile}
-            style={{
-              width: 25,
-              height:25
+          />
+          <Tab.Screen
+            name={t("Profile")}
+            component={Profile}
+            options={{
+              tabBarIcon: ({ size, color, focused }) => (
+                <Image
+                  source={Images.user}
+                  style={{
+                    width: 25,
+                    height: 25,
+                  }}
+                  tintColor={color}
+                />
+              ),
             }}
-            tintColor={color}
-            />
-          )
-        }}
-        />
-      </Tab.Navigator>
+          />
+        </Tab.Navigator>
+      </I18nextProvider>
     </SafeAreaView>
   );
 }

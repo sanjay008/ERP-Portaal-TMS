@@ -1,52 +1,187 @@
+import apiConstants from "@/src/api/apiConstants";
 import { Images } from "@/src/assets/images";
-import ItemBox from "@/src/components/ItemBox";
+import CalenderDate from "@/src/components/CalenderDate";
+import DropDownBox from "@/src/components/DropDownBox";
+import { useErrorHandle } from "@/src/components/ErrorHandle";
+import Loader from "@/src/components/loading";
+import PickUpBox from "@/src/components/PickUpBox";
+import TwoTypeButton from "@/src/components/TwoTypeButton";
 import { GlobalContextData } from "@/src/context/GlobalContext";
-import { getData } from "@/src/utils/storeData";
+import ApiService from "@/src/utils/Apiservice";
+import { Colors } from "@/src/utils/colors";
+import { getData, token } from "@/src/utils/storeData";
 import Constants from "expo-constants";
 import * as Updates from "expo-updates";
-import React, { useContext, useEffect } from "react";
-import { StatusBar, View } from "react-native";
+import React, { useContext, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { FlatList, ScrollView, Text, View } from "react-native";
 import { styles } from "./style";
-export default function LoadedScreens() {
-  const {  UserData,setUserData} = useContext(GlobalContextData)
-async function checkForUpdate () {
-  if (!Constants.appOwnership || Constants.appOwnership === "expo") {
-    console.log("Skipping OTA update check in development");
-    return;
+
+export default function LoadedScreens({ navigation }: any) {
+  const { UserData, setUserData, Toast, setToast, AllRegion, setAllRegion } =
+    useContext(GlobalContextData);
+  const [SelectDate, setSelectDate] = useState<string>("");
+  const [selectRegionData, setSelectRegionData] = useState<any | {}>("");
+  const { ErrorHandle } = useErrorHandle();
+  const [AllPickUpData, setAllPickUpData] = useState<object[]>([]);
+  const RenderingRef = useRef(true);
+  const [IsLoading, setLoading] = useState(false);
+  const { t } = useTranslation();
+
+  async function checkForUpdate() {
+    if (!Constants.appOwnership || Constants.appOwnership === "expo") {
+      console.log("Skipping OTA update check in development");
+      return;
+    }
+
+    try {
+      const update = await Updates.checkForUpdateAsync();
+      if (update.isAvailable) {
+        await Updates.fetchUpdateAsync();
+        await Updates.reloadAsync();
+      }
+    } catch (e) {
+      console.log("Error checking updates:", e);
+    }
   }
 
-  try {
-    const update = await Updates.checkForUpdateAsync();
-    if (update.isAvailable) {
-      await Updates.fetchUpdateAsync();
-      await Updates.reloadAsync();
-    }
-  } catch (e) {
-    console.log("Error checking updates:", e);
-  }
-}
-const getUserData = async () =>{
-  try {
+  const getUserData = async () => {
+    try {
       let data = await getData("USERDATA");
-      setUserData(data?.data)
-      
-  } catch (error) {
-        console.log("get User Data Error:-",error);
-  }
-  
-}
+      setUserData(data?.data);
+    } catch (error) {
+      console.log("get User Data Error:-", error);
+    }
+  };
   useEffect(() => {
     checkForUpdate();
-    getUserData()
+    if (!UserData) {
+      getUserData();
+    }
   }, []);
-  return (
-    <View style={styles.container}>
-            <StatusBar barStyle="dark-content" backgroundColor={"#7EBF35"} />
 
+  useEffect(() => {
+    if (RenderingRef.current) {
+      RenderingRef.current = false;
+      return;
+    }
+
+    if (SelectDate && UserData) {
+      GetAllPickUpDataFun();
+    }
+  }, [SelectDate, UserData]);
+
+
+  const GetAllPickUpDataFun = async (user: any = null) => {
+    setLoading(true);
+    let userData = user ? user : UserData;
+    try {
+      let res = await ApiService(apiConstants.getOrderByDriver, {
+        customData: {
+          // token: userData?.user?.verify_token,
+          token: token,
+          role: userData?.user?.role,
+          // relaties_id: userData?.relaties?.id,
+          relaties_id: 1307,
+          user_id: userData?.user?.id,
+          // date: ApiFormatDate(SelectDate),
+          date:"2025-10-23",
+        },
+      });
+
+      if (Boolean(res.status)) {
+        setAllPickUpData(res?.data || []);
+        setSelectRegionData(res?.data[0] || []);
+      }
+    } catch (error) {
+      console.log("Get All PickUpData Error:-", error);
+      setToast({
+        top: 45,
+        text: ErrorHandle(error).message,
+        type: "error",
+        visible: true,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <ScrollView
+      style={styles.container}
+      scrollEnabled={AllPickUpData?.length > 0}
+      nestedScrollEnabled={true}
+      contentContainerStyle={styles.ContainerStyle}
+    >
       <View style={styles.ItemGap}>
-      <ItemBox icon={Images.Parcel} title="Load Parcel" color={"#7EBF35"} />
-      <ItemBox icon={Images.DeliveryIcon} title="Delivery" color={"#ECB210"} />
+        <CalenderDate date={SelectDate} setDate={setSelectDate} />
+        <View style={styles.Flex}>
+          <DropDownBox
+            data={AllPickUpData}
+            value={selectRegionData}
+            setValue={setSelectRegionData}
+            labelFieldKey="name"
+            valueFieldKey="id"
+            ContainerStyle={{ width: "82%" }}
+            // disbled={true}
+          />
+          <TwoTypeButton
+            onlyIcon={true}
+            Icon={Images.Scan}
+            style={{ width: 46, height: 46 }}
+            onPress={() => navigation.navigate("Scanner")}
+          />
+        </View>
+
+        <FlatList
+          data={selectRegionData?.pickup_orders || []}
+          ListEmptyComponent={() =>
+            IsLoading ? null : (
+              <View style={styles.FooterContainer}>
+                <Text style={[styles.Text, { color: Colors.darkText }]}>
+                  {t("No Order Found")}
+                </Text>
+              </View>
+            )
+          }
+          ListFooterComponent={() => {
+            return IsLoading ? (
+              <View style={styles.FooterContainer}>
+                <Loader />
+              </View>
+            ) : null;
+          }}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10} 
+          windowSize={5}
+          removeClippedSubviews={true} 
+          updateCellsBatchingPeriod={30}
+          getItemLayout={(data, index) => ({
+            length: 70,
+            offset: 70 * index,
+            index,
+          })}
+          scrollEnabled={false}
+          contentContainerStyle={{ gap: 15 }}
+          keyExtractor={(item, index) => `${index}`}
+          renderItem={({ item, index }) => {
+            
+            return (
+              <PickUpBox
+                index={index}
+                LableStatus={item?.tmsstatus?.status_name}
+                OrderId={item?.id}
+                ProductItem={item?.items}
+                LableBackground={item?.tmsstatus?.color}
+                onPress={() => navigation.navigate("Details",{item:item})}
+                start={item?.pickup_location}
+                end={item?.deliver_location}
+                customerData={item?.customer}
+              />
+            );
+          }}
+        />
       </View>
-    </View>
+    </ScrollView>
   );
 }

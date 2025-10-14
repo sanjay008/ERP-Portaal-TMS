@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Image, StyleSheet, View } from "react-native";
 import { Dropdown } from "react-native-element-dropdown";
 import { Images } from "../assets/images";
@@ -8,39 +9,43 @@ import { Colors } from "../utils/colors";
 type DropdownItem = {
   [key: string]: string | number;
 };
-
+  
 type Props = {
-  data: DropdownItem[];
+  data: DropdownItem[] | any;
   value: string | number | null;
   setValue: (value: string | number) => void;
   placeholder?: string;
   iconName?: keyof typeof Ionicons.glyphMap;
   labelFieldKey?: string;
   valueFieldKey?: string;
+  ContainerStyle?:object;
+  disbled?:boolean;
 };
 
 const DropDownBox: React.FC<Props> = ({
   data,
   value,
   setValue,
-  placeholder = "Select option",
+  placeholder = "Select Region",
   iconName = "location-outline",
-  labelFieldKey = "label",
-  valueFieldKey = "value",
+  labelFieldKey = "name",
+  valueFieldKey = "name",
+  ContainerStyle,
+  disbled=false,
 }) => {
+const { t } = useTranslation();
   return (
-    <View style={styles.container}>
+    <View style={[styles.container,ContainerStyle]}>
       <Dropdown
-        style={styles.dropdown}
+        disable={disbled}
+        style={[styles.dropdown,]}
         data={data}
         labelField={labelFieldKey}
         valueField={valueFieldKey}
-        placeholder={placeholder}
+        placeholder={t(placeholder)}
         value={value}
         onChange={(item) => {
-          if (item && item[valueFieldKey] !== undefined) {
-            setValue(item[valueFieldKey]);
-          }
+          setValue(item)
         }}
         renderLeftIcon={() => (
           <Image
@@ -59,7 +64,8 @@ const DropDownBox: React.FC<Props> = ({
 const styles = StyleSheet.create({
   container: {
     marginVertical: 10,
-    backgroundColor:Colors.white
+    backgroundColor:Colors.white,
+    borderRadius:7
   },
   dropdown: {
     height: 50,

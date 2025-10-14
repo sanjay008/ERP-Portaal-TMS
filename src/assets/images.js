@@ -61,6 +61,24 @@ export const Images = {
   Flash: require("./image/Flash.png"),
   Close: require("./image/close.png"),
   ScannerCenter: require("./image/ScannerCenter.png"),
+  RemoveParcel: require("./image/RemoveParcel.png"),
+  DeleteBtn: require("./image/DeleteBtn.png"),
+  Success: require("./image/Success.png"),
+  InValidScanner: require("./image/InValidScanner.png"),
+  Plain: require("./image/Plain.png"),
+  StartPoint: require("./image/StartPoint.png"),
+  EndPoint: require("./image/EndPoint.png"),
+  WrongIcon: require("./image/WrongIcon.png"),
+  ChatIcon: require("./image/ChatIcon.png"),
+  RightIcon: require("./image/RightIcon.png"),
+  Info: require("./image/Info.png"),
+  Privacy: require("./image/Privacy.png"),
+  Terms: require("./image/Terams.png"),
+  Phone: require("./image/Phone.png"),
+  DeleteAccount: require("./image/DeleteAccount.png"),
+  LogOutFullBox: require("./image/LogOutFullBox.png"),
+  OrderIconFull: require("./image/OrderIconFull.png"),
+  
 
 
 

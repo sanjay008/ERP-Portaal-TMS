@@ -58,8 +58,20 @@ export const Colors = {
   closed:'#caffe5',
   normal:'#fffbde',
   orderdark:'#616161',
-  otherBorder:"#A0A5B1"
+  otherBorder:"#A0A5B1",
+  modalBorder:"#EFEFEF",
+  
+  DarkLable:"#ECB210",
+  whiteGreen:"#DFF2E3",
 
+
+  // Status
+  PickupBg:"#FCF4DB",
+  PickupText:"#ECB210",
+  ReadyBg:"#DFF2E3",
+  ReadyText:"#28A745",
+  RemoveBg:"#FF00041A",
+  FullRed:"#FF0004",
 };
 //     #fffbde(normal)
 // #cfe2ff(hold)

@@ -1,10 +1,48 @@
-import React from "react";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
+import {
+  FlatList,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import Collapsible from "react-native-collapsible";
 import { Images } from "../assets/images";
 import { Colors } from "../utils/colors";
-
-export default function PickUpBox({ index, onPress }: any) {
+import { SimpleFlex } from "../utils/storeData";
+import ParcelBox from "./ParcelBox";
+import PickupPogressMap from "./PickupPogressMap";
+export default function PickUpBox({
+  index = 0,
+  onPress,
+  contact,
+  OrderId,
+  LacationProgress = true,
+  LableStatus = 'Pickup',
+  LableBackground=null,
+  ProductItem=[],
+  start,
+  end,
+  customerData=null,
+}: any) {
+  const { t } = useTranslation();
+  const [isCollapsed, setisCollapsed] = useState<boolean>(true);
   const pickup: boolean = false;
+
+const getStatusColor = (id: string | number) => {
+  switch (id) {
+    case 1:
+      return { bg: Colors.PickupBg, text: Colors.PickupText };
+    case 2:
+      return { bg: Colors.ReadyBg, text: Colors.ReadyText };
+    default:
+      return { bg: Colors.Boxgray, text:  Colors.black };
+  }
+};
+
   return (
     <Pressable
       style={[styles.container, pickup && styles.BorderOrBg]}
@@ -13,22 +51,102 @@ export default function PickUpBox({ index, onPress }: any) {
       <View style={[styles.Flex, { marginTop: 0 }]}>
         <View style={styles.TopContainer}>
           <View style={styles.NumberBox}>
-            <Text style={[styles.Text]}>1</Text>
+            <Text style={[styles.Text]}>{index + 1}</Text>
           </View>
+
           <View>
-            <Text style={[[styles.Text], { fontSize: 15 }]}>Tushar Variya</Text>
+            <Text style={[[styles.Text], { fontSize: 15 }]} numberOfLines={2}>{customerData?.display_name?.slice(0,20) || ""}</Text>
             <Text
               style={[styles.OrderIdText, pickup && { color: Colors.black }]}
             >
-              #000001
+              {`#${OrderId}` || 0}
             </Text>
           </View>
         </View>
-        {pickup && (
-          <Image source={Images.Done} style={{ width: 34, height: 34 }} />
-        )}
+
+        <View
+          style={[styles.LabelBox, { backgroundColor:LableBackground || Colors.Boxgray }]}
+        >
+          <Text
+            style={[
+              styles.OrderIdText,
+              {
+                fontSize: 14,
+                color:Colors.white,
+              },
+            ]}
+          >
+            {
+              LableStatus 
+            }
+          </Text>
+        </View>
       </View>
-      <View style={styles.Flex}>
+
+      <View style={[styles.Flex]}>
+        <Text style={styles.OrderIdText}>{t("Total Parcel")}</Text>
+        <View style={[SimpleFlex, { gap: 0 }]}>
+          <Text style={styles.Text}>{ProductItem?.length}</Text>
+          <TouchableOpacity
+            style={{
+              transform: [{ rotate: isCollapsed ? "0deg" : "180deg" }],
+              paddingHorizontal: 5,
+            }}
+            onPress={() => setisCollapsed((pre) => !pre)}
+          >
+            <Image source={Images.down} style={{ width: 18, height: 18 }} />
+          </TouchableOpacity>
+          {pickup && (
+            <Image source={Images.Done} style={{ width: 34, height: 34 }} />
+          )}
+        </View>
+      </View>
+      <Collapsible collapsed={isCollapsed}>
+        <View style={styles.TotalProductConatiner}>
+          <FlatList
+            data={ProductItem}
+            style={{ width: "100%", gap: 10 }}
+            contentContainerStyle={styles.ContentContainerStyle}
+            scrollEnabled={false}
+            keyExtractor={(item, index) => `${index}`}
+            renderItem={({ item, index }) => {
+              return (
+                <ParcelBox
+                  qty={item?.qty}
+                  index={index}
+                  data={{ check: true }}
+                  title={item?.tms_product_name}
+                />
+              );
+            }}
+          />
+        </View>
+      </Collapsible>
+      {LacationProgress && (
+        <View style={{ marginTop: 15 }}>
+          <PickupPogressMap
+            start={start}
+            end={end}
+          />
+        </View>
+      )}
+
+      {contact && (
+        <View style={styles.Flex}>
+          <Text style={styles.Text}>{t("Contact")}</Text>
+          <View style={SimpleFlex}>
+            <TouchableOpacity>
+              <Image source={Images.WhatsApp} style={styles.Icon} />
+            </TouchableOpacity>
+
+            <TouchableOpacity>
+              <Image source={Images.redWhatsApp} style={styles.Icon} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* <View style={styles.Flex}>
         <Text
           style={[
             styles.OrderIdText,
@@ -36,12 +154,12 @@ export default function PickUpBox({ index, onPress }: any) {
             pickup && { color: Colors.black },
           ]}
         >
-          Pickup
+          {t("Pickup")}
         </Text>
         <View style={styles.NumberBox}>
           <Text style={[styles.Text]}>3</Text>
         </View>
-      </View>
+      </View> */}
     </Pressable>
   );
 }
@@ -89,9 +207,24 @@ const styles = StyleSheet.create({
     fontFamily: "Medium",
   },
   Flex: {
+    width: "100%",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     marginTop: 15,
+  },
+  LabelBox: {
+    padding: 10,
+    borderRadius: 4,
+  },
+  TotalProductConatiner: {
+    marginVertical: 15,
+  },
+  ContentContainerStyle: {
+    gap: 10,
+  },
+  Icon: {
+    width: 28,
+    height: 28,
   },
 });

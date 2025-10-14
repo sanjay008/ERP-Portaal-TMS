@@ -5,7 +5,10 @@ export default function GlobalContext({ children }: any) {
   const [GOOGLE_API_KEY, setGOOGLE_API_KEY] = useState<string>("");
   const [CompanyLogo,setCompanyLogo] = useState<any>(null);
   const [Permission,setPermission] = useState<any []>([]);
-  const [SelectLanguage,setSelectLanguage] = useState<string>('')
+  const [SelectLanguage,setSelectLanguage] = useState<string>('');
+  const [Toast,setToast] = useState<object>({visible:false,height:null,text:"",type:"success"});
+  const [AllRegion,setAllRegion] = useState<object []>([]);
+  const [CompanysData,setCompanysData] = useState<string>("")
   return (
     <GlobalContextData.Provider
       value={{
@@ -13,7 +16,10 @@ export default function GlobalContext({ children }: any) {
         CompanyLogo,setCompanyLogo,
         Permission,setPermission,
         SelectLanguage,setSelectLanguage,
-        UserData,setUserData
+        UserData,setUserData,
+        Toast,setToast,
+        AllRegion,setAllRegion,
+        CompanysData,setCompanysData
       }}
     >
       {children}

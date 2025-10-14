@@ -1,16 +1,37 @@
 import React, { useState } from "react";
 import {
   Image,
+  ImageSourcePropType,
+  KeyboardTypeOptions,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
+  ViewStyle
 } from "react-native";
 import { RFValue } from "react-native-responsive-fontsize";
 import { Colors } from "../utils/colors";
 
-const Input = ({
+type Props = {
+  placeholder?: string;
+  onChangeText?: (text: string) => void;
+  value?: string;
+  iconSource?: ImageSourcePropType;
+  rightIcon?: ImageSourcePropType;
+  onPress?: () => void;
+  title?: string;
+  style?: ViewStyle;
+  error?: string;
+  maxLength?: number;
+  keyboardType?: KeyboardTypeOptions;
+  required?: boolean;
+  backgroundColor?: string;
+  height?: number;
+  multiline?: boolean;
+}
+
+const Input: React.FC<Props> = ({
   placeholder,
   onChangeText,
   value,
@@ -23,34 +44,38 @@ const Input = ({
   maxLength,
   keyboardType,
   required,
-  backgroundColor,
+  backgroundColor = Colors.white,
   height,
-  multiline,
+  multiline = false,
   ...rest
 }) => {
   const [isFocused, setIsFocused] = useState(false);
 
-  const handleFocus = () => {
-    setIsFocused(true);
-  };
-
-  const handleBlur = () => {
-    setIsFocused(false);
-  };
+  const handleFocus = () => setIsFocused(true);
+  const handleBlur = () => setIsFocused(false);
 
   return (
-    <View >
-      <View style={{flexDirection:'row',alignItems:'center'}}> 
-
-      {title && <Text style={styles.title}>{title}</Text>}
-      {required && (
-        <Text style={[styles.title, { marginTop: 0 }]}>
-          {required}
-          <Text style={{ color: Colors.red }}>*</Text>
-        </Text>
-      )}
+    <View>
+      <View style={{ flexDirection: "row", alignItems: "center" }}>
+        {title && <Text style={styles.title}>{title}</Text>}
+        {required && (
+          <Text style={[styles.title, { marginTop: 0 }]}>
+            <Text style={{ color: Colors.red }}>*</Text>
+          </Text>
+        )}
       </View>
-      <View style={[styles.container, style, isFocused && styles.focused, { backgroundColor: backgroundColor, height: multiline ? 100 : RFValue(45) }]}>
+
+      <View
+        style={[
+          styles.container,
+          style,
+          isFocused && styles.focused,
+          {
+            backgroundColor,
+            height: multiline ? RFValue(100) : RFValue(45),
+          },
+        ]}
+      >
         {iconSource && (
           <Image
             source={iconSource}
@@ -60,6 +85,7 @@ const Input = ({
             ]}
           />
         )}
+
         <TextInput
           value={value}
           onChangeText={onChangeText}
@@ -67,13 +93,14 @@ const Input = ({
           placeholderTextColor={Colors.textgray}
           keyboardType={keyboardType}
           placeholder={placeholder}
-          style={[styles.input, { height: multiline && 100 }]}
+          style={[styles.input, { height: multiline ? RFValue(100) : RFValue(45) }]}
           onFocus={handleFocus}
           onBlur={handleBlur}
-          textAlignVertical="top"
+          textAlignVertical={multiline ? "top" : "center"}
           multiline={multiline}
           {...rest}
         />
+
         {rightIcon && (
           <TouchableOpacity onPress={onPress}>
             <Image
@@ -86,7 +113,8 @@ const Input = ({
           </TouchableOpacity>
         )}
       </View>
-      <Text style={styles.error}>{error}</Text>
+
+      {error ? <Text style={styles.error}>{error}</Text> : null}
     </View>
   );
 };
@@ -103,7 +131,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 10,
     marginTop: RFValue(5),
-    
   },
   focused: {
     backgroundColor: Colors.primaryopacity,

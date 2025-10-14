@@ -12,14 +12,14 @@ import {
   View
 } from "react-native";
 // 
-
-import { RFValue } from "react-native-responsive-fontsize";
-
+import { Camera } from 'expo-camera';
+import * as ImagePicker from 'expo-image-picker';
+import DatePicker from "react-native-date-picker";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
+import { RFValue } from "react-native-responsive-fontsize";
 
 import { CommonActions } from "@react-navigation/native";
 import { useTranslation } from "react-i18next";
-import DatePicker from "react-native-date-picker";
 import Modal from "react-native-modal";
 import { SafeAreaView } from "react-native-safe-area-context";
 import SelectDropdown from "react-native-select-dropdown";
@@ -29,7 +29,7 @@ import { GlobalContextData } from "@/src/context/GlobalContext";
 // import "react-native-get-random-values";
 import apiConstants from "../../api/apiConstants";
 import { Images } from "../../assets/images";
-import ButtonComponent from "../../components/buttonComponent";
+import ButtonComponent from "../../components/buttonComponent.tsx";
 import Input from "../../components/input";
 import Loader from "../../components/loading";
 import { Colors } from "../../utils/colors";
@@ -193,21 +193,19 @@ const Staff = ({ navigation, route }) => {
 
 const openGallery = async () => {
   try {
-    // Ask for permission
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
+    if (status !== 'granted') {
       Alert.alert(
-        "Permission Denied",
-        "Gallery access is required to select photos.",
+        'Permission Denied',
+        'Gallery access is required to select photos.',
         [
-          { text: "Cancel", style: "cancel" },
-          { text: "Open Settings", onPress: () => ImagePicker.getMediaLibraryPermissionsAsync() },
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
         ]
       );
       return;
     }
 
-    // Launch gallery
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
@@ -216,74 +214,58 @@ const openGallery = async () => {
 
     if (!result.canceled) {
       setImage(result.assets);
-      setdepartmentError("");
+      setDepartmentError('');
       setModalOptionsVisible(false);
     }
   } catch (error) {
-    console.warn("Gallery error:", error);
+    console.warn('Gallery error:', error);
   }
 };
 
 
-const OpenCamera = async () => {
+const openCamera = async () => {
   try {
-    
     const { status } = await Camera.requestCameraPermissionsAsync();
 
-    if (status === "granted") {
-      console.log("Camera permission granted");
-      executeCamera(); 
-    } else if (status === "denied") {
-     
+    if (status !== 'granted') {
       Alert.alert(
-        "Permission Denied",
-        "Camera access is required to use this feature. Please enable it from the app settings.",
+        'Permission Required',
+        'Camera access is required to use this feature. Please enable it from app settings.',
         [
-          { text: "Cancel", style: "cancel" },
-          { text: "Open Settings", onPress: () => Linking.openSettings() },
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
         ]
       );
-    } else {
-     
-      Alert.alert(
-        "Permission Required",
-        "Camera access is permanently denied. Please enable it from app settings.",
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Open Settings", onPress: () => Linking.openSettings() },
-        ]
-      );
+      return;
     }
+
+    executeCamera();
   } catch (error) {
-    console.warn("Permission request error: ", error);
+    console.warn('Permission request error:', error);
   }
 };
+
 
 const executeCamera = async () => {
   try {
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
-      quality: 1,
       aspect: [1, 1], 
+      quality: 1,
       base64: false,
     });
 
-    if (result.canceled) {
-      console.log("User cancelled image picker");
-      return;
+    if (!result.canceled) {
+      const photo = result.assets[0];
+      console.log('Response URI: ', photo.uri);
+      setImage(result.assets);
+      setDepartmentError('');
+      setModalOptionsVisible(false);
     }
-
-    const photo = result.assets[0];
-    console.log("Response URI: ", photo.uri);
-
-    
-    setImage(result.assets);
-    setdepartmentError("");
-    setModalOptionsVisible(false);
   } catch (error) {
-    console.error("Camera Error: ", error);
-    Alert.alert("Error", "Failed to open camera. Please try again.");
+    console.error('Camera Error: ', error);
+    Alert.alert('Error', 'Failed to open camera. Please try again.');
   }
 };
 
@@ -575,7 +557,7 @@ const executeCamera = async () => {
                 style={styles.option}
                 onPress={() => {
                   setModalOptionsVisible(false);
-                  OpenCamera();
+                  openCamera();
                 }}
               >
                 <View style={styles.cameraimagebg}>
@@ -591,7 +573,7 @@ const executeCamera = async () => {
                 style={styles.option}
                 onPress={() => {
                   setModalOptionsVisible(true);
-                  OpenGallary();
+                  openGallery();
                 }}
               >
                 <View style={styles.galleryimagebg}>

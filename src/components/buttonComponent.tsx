@@ -3,6 +3,21 @@ import { StyleSheet, Text, TouchableOpacity } from "react-native";
 import { RFValue } from "react-native-responsive-fontsize";
 import { Colors } from "../utils/colors";
 
+type typeProps = {
+  width?: string | number | any;
+  title: string | any;
+  marginTop?: number | any;
+  marginBottom?: number | any;
+  backgroundColor?: string | any;
+  color?: string | any;
+  borderWidth?: number | any;
+  borderColor?: string | any;
+  top?: number | any;
+  disabled?: boolean | any;
+  fontSize?: number | any;
+  onPress?: () => void;
+}
+
 const ButtonComponent = ({
   width,
   title,
@@ -15,7 +30,7 @@ const ButtonComponent = ({
   borderColor,
   top,
   disabled,fontSize
-}) => {
+}:typeProps) => {
   return (
     <TouchableOpacity
     disabled={disabled}

@@ -1,24 +1,23 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { RFValue } from "react-native-responsive-fontsize";
-import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
-import * as Device from "expo-device";
-import { useTranslation } from "react-i18next";
 import { useFocusEffect } from "@react-navigation/native";
 import Constants from "expo-constants";
+import React, { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
+import { RFValue } from "react-native-responsive-fontsize";
 
 import {
-    Alert,
-    BackHandler,
-    Image,
-    Linking,
-    SafeAreaView,
-    StatusBar,
-    Text,
-    View,
+  Alert,
+  BackHandler,
+  Image,
+  Linking,
+  SafeAreaView,
+  StatusBar,
+  Text,
+  View,
 } from "react-native";
-import { Colors } from "../../utils/colors";
 import { Images } from "../../assets/images";
-import ButtonComponent from "../../components/buttonComponent";
+import ButtonComponent from "../../components/buttonComponent.tsx";
+import { Colors } from "../../utils/colors";
 import { styles } from "./style";
 
 

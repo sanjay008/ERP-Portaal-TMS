@@ -1,8 +1,15 @@
-  export const formatDate = (dateString:string) => {
+export const formatDate = (dateString: string, lang: string = "en") => {
+  try {
     const date = new Date(dateString);
-    const options = { day: "2-digit", month: "short", year: "numeric" };
-    const formatted = date
-      .toLocaleDateString("en-US", options)
-      .replace(/(\w+)\s(\d+),\s(\d+)/, "$2, $1 $3");
-    return formatted;
-  };
+    if (isNaN(date.getTime())) return dateString;
+
+    const day = date.getDate().toString().padStart(2, "0");
+    const month = date.toLocaleString(lang, { month: "short" });
+    const year = date.getFullYear();
+
+    return `${day} ${month} ${year}`;
+  } catch (err) {
+    console.error("Date format error:", err);
+    return dateString;
+  }
+};

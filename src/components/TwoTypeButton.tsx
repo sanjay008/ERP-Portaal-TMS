@@ -3,19 +3,28 @@ import { Image, StyleSheet, Text, TouchableOpacity } from "react-native";
 import { Colors } from "../utils/colors";
 
 type Props = {
-  Icon: string | any;
-  title: string;
+  Icon?: string | any;
+  title?: string;
   onPress?: () => void;
-  style?:object;
-  TitleStyle?:object,
-  IconStyle?:object
+  style?: object;
+  TitleStyle?: object;
+  IconStyle?: object;
+  onlyIcon?: boolean;
 };
 
-export default function TwoTypeButton({ Icon, title, onPress, style,TitleStyle,IconStyle}: Props) {
+export default function TwoTypeButton({
+  Icon,
+  title,
+  onPress,
+  style,
+  TitleStyle,
+  IconStyle,
+  onlyIcon = false,
+}: Props) {
   return (
-    <TouchableOpacity style={[styles.container,style]} onPress={onPress}>
-      <Image source={Icon} style={[styles.Icon,IconStyle]} />
-      <Text style={[styles.Title,TitleStyle]}>{title}</Text>
+    <TouchableOpacity style={[styles.container, style]} onPress={onPress}>
+      <Image source={Icon} style={[styles.Icon, IconStyle]} />
+      {!onlyIcon && <Text style={[styles.Title, TitleStyle]}>{title}</Text>}
     </TouchableOpacity>
   );
 }
@@ -26,8 +35,8 @@ const styles = StyleSheet.create({
     height: 40,
     backgroundColor: Colors.primary,
     borderRadius: 4,
-    flexDirection:'row',
-    gap:10,
+    flexDirection: "row",
+    gap: 10,
     justifyContent: "center",
     alignItems: "center",
   },

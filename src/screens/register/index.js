@@ -17,7 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import CountryPicker from "rn-country-picker";
 import apiConstants from "../../api/apiConstants";
 import { Images } from "../../assets/images";
-import ButtonComponent from "../../components/buttonComponent";
+import ButtonComponent from "../../components/buttonComponent.tsx";
 import Input from "../../components/input";
 import Loader from "../../components/loading";
 import ApiService from "../../utils/Apiservice";

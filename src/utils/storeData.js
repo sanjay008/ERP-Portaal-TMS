@@ -29,7 +29,7 @@ const clearAllData = async () => {
 
 export { clearAllData, getData, storeData };
 
-
+export const token = "lbws07ifTs076zQH4Jo3ktN8tWgaS9ASh";
 
 
 export const SimpleFlex = {

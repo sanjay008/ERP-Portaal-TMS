@@ -1,13 +1,15 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { FlatList, Image, StyleSheet, Text, View } from "react-native";
 import DashedLine from "react-native-dashed-line";
 import { Images } from "../assets/images";
 import { Colors } from "../utils/colors";
 import { SimpleFlex } from "../utils/storeData";
 export default function CommentViewBox({ data }: { data: object[] }) {
+  const { t } = useTranslation();
   return (
     <View style={styles.container}>
-      <Text style={styles.Heading}>{`${data?.length} Comments`}</Text>
+      <Text style={styles.Heading}>{`${data?.length}`} {t("Comments")}</Text>
 
       <FlatList
         // data={data}

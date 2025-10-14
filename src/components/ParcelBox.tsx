@@ -1,35 +1,41 @@
 import React from "react";
-import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useTranslation } from "react-i18next";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { Images } from "../assets/images";
 import { Colors } from "../utils/colors";
 import { SimpleFlex } from "../utils/storeData";
 
-export default function ParcelBox({index,data}:{index:number,data:any}) {
+type Props = {
+  index: number;
+  data: any;
+  qty?: number;
+  title?:string;
+};
 
+export default function ParcelBox({ index, data, qty = 0, title}: Props) {
+  const { t } = useTranslation();
   return (
-    <TouchableOpacity style={styles.container}>
+    <Pressable style={styles.container}>
       <View style={SimpleFlex}>
         <View style={styles.NumberBox}>
           <Text style={styles.Text}>{index + 1}</Text>
         </View>
-        <Text style={styles.Text}>Parcel</Text>
+        <Text style={styles.Text}>{title?.slice(0,10) || ""}</Text>
+        <Text style={styles.DarkText}>{`(${t("Qty")}: ${qty})`}</Text>
       </View>
-      {
-        data?.check && 
-        <Image 
-        source={Images.Done}
-        style={styles.NumberBox}
-        />
-      }
-    </TouchableOpacity>
+      {data?.check ? (
+        <Image source={Images.Done} style={styles.NumberBox} />
+      ) : (
+        <Image source={Images.Plain} style={styles.NumberBox} />
+      )}
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     width: "100%",
-    paddingHorizontal: 15,
-    paddingVertical:10,
+    padding: 10,
     backgroundColor: Colors.white,
     borderWidth: 1,
     borderColor: Colors.Boxgray,
@@ -39,9 +45,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 2.5,
     borderRadius: 7,
-    flexDirection:'row',
-    alignItems:'center',
-    justifyContent:'space-between'
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   NumberBox: {
     width: 40,
@@ -55,5 +61,10 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: "SemiBold",
     color: Colors.black,
+  },
+  DarkText: {
+    fontSize: 12,
+    fontFamily: "SemiBold",
+    color: Colors.darkText,
   },
 });

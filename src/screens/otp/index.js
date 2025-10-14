@@ -1,18 +1,18 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-    Alert,
-    Dimensions,
-    Image,
-    SafeAreaView,
-    StatusBar,
-    Text,
-    View
+  Alert,
+  Dimensions,
+  Image,
+  SafeAreaView,
+  StatusBar,
+  Text,
+  View
 } from "react-native";
 import { RFValue } from "react-native-responsive-fontsize";
 import apiConstants from "../../api/apiConstants";
 import { Images } from "../../assets/images";
-import ButtonComponent from "../../components/buttonComponent";
+import ButtonComponent from "../../components/buttonComponent.tsx";
 import Input from "../../components/input";
 import Loader from "../../components/loading";
 import ApiService from "../../utils/Apiservice";

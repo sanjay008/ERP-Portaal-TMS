@@ -1,16 +1,18 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Images } from "../assets/images";
 import { Colors } from "../utils/colors";
 import { SimpleFlex } from "../utils/storeData";
 
 export default function OrderDetailsBox() {
+  const { t } = useTranslation();
   return (
     <View style={styles.container}>
       <Text style={styles.Heading}>Tushar</Text>
       <Text style={styles.AddressText}>Schoutenstraat 70, 3771 CK Barneveld, Netherlands</Text>
       <View style={styles.Flex}>
-        <Text style={styles.Text}>Contact</Text>
+        <Text style={styles.Text}>{t("Contact")}</Text>
         <View style={SimpleFlex}>
           <TouchableOpacity>
             <Image source={Images.WhatsApp} style={styles.Icon} />

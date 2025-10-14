@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Image, Platform, StyleSheet, TextInput, View } from "react-native";
 import { Colors } from "../utils/colors";
 
@@ -23,11 +24,12 @@ export default function TwoTypeInput({
   InputStyle,
   edit=true,
 }: Props) {
+  const { t } = useTranslation();
   return (
     <View style={styles.container}>
       <Image source={Icon} style={[styles.Icon, IconStyle]} />
       <TextInput
-        placeholder={placeholder ? `${placeholder}` : "Write Comment"}
+        placeholder={placeholder ? `${placeholder}` : t("Write Comment")}
         placeholderTextColor={Colors.darkText}
         value={value}
         editable={edit}

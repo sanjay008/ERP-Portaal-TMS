@@ -58,7 +58,7 @@ export default function AddCommentModal({ IsVisible, setIsVisible }: Props) {
         <View style={styles.container}>
           <View style={styles.CommentBox}>
             <View style={styles.Flex}>
-              <Text style={styles.Text}>Write Comment</Text>
+              <Text style={styles.Text}>{t("Write Comment")}</Text>
               <TouchableOpacity style={styles.CloseButton} onPress={()=>setIsVisible(false)}>
                 <Image
                   source={Images.Close}

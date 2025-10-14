@@ -6,11 +6,12 @@ type Props = {
   icon: any;
   title: string;
   color: string;
+  onPress?:()=> void;
 };
 
-export default function ItemBox({ icon, title, color }: Props) {
+export default function ItemBox({ icon, title, color, onPress }: Props) {
   return (
-    <TouchableOpacity style={styles.container}>
+    <TouchableOpacity style={styles.container} onPress={onPress}>
       <View style={[styles.Box,{backgroundColor:color}]}>
         <Image source={icon} style={styles.IconStyle} />
       </View>

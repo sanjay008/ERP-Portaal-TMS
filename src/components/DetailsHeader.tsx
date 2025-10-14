@@ -25,13 +25,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    elevation: 3,
+    elevation: 0,
     shadowColor: Colors.black,
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.12,
-    shadowRadius: 2.5,
-
-    borderWidth: 0.3,
+    shadowRadius: 1.5,
+    borderBottomWidth: 0.3,
     borderColor: Colors.Boxgray,
   },
   BackIcon: {

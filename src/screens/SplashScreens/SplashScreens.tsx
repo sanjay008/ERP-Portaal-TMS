@@ -4,8 +4,8 @@ import { getData } from "@/src/utils/storeData";
 import * as Font from "expo-font";
 import React, { useContext, useEffect, useState } from "react";
 import { Image, StyleSheet, View } from "react-native";
+import apiConstants from "../../api/apiConstants";
 import ApiService from "../../utils/Apiservice";
-import apiConstants from "../../api/apiConstants"
 import i18n from "../Translation/i18n";
 export default function SplashScreens({ navigation }: any) {
   const [fontsLoaded, setFontsLoaded] = useState(false);
@@ -13,7 +13,8 @@ export default function SplashScreens({ navigation }: any) {
     GOOGLE_API_KEY,setGOOGLE_API_KEY,
     CompanyLogo,setCompanyLogo,
     Permission,setPermission,
-    SelectLanguage,setSelectLanguage
+    SelectLanguage,setSelectLanguage,
+    CompanysData,setCompanysData
   } = useContext(GlobalContextData);
 
   const loadFonts = async () => {
@@ -35,13 +36,18 @@ export default function SplashScreens({ navigation }: any) {
 
   const getAuthData = async () => {
     try {
-      const [auth, company, languages, logo] = await Promise.all([
+      const [auth, company, languages, logo,companyData] = await Promise.all([
       // const [auth, company, logo] = await Promise.all([
         getData("AUTH"),
         getData("USERDATA"),
         getData("userLanguage"),
         getData("COMPANYLOGO"),
+        getData("COMPANYLOGIN")
       ]);
+
+      if(companyData){
+      setCompanysData(companyData)
+      }
 
       if (languages) {
         await i18n.changeLanguage(languages);
@@ -49,10 +55,10 @@ export default function SplashScreens({ navigation }: any) {
       }
       if (logo) setCompanyLogo(logo);
 
-      // if (!languages) {
-      //   navigation.replace("Select");
-      //   return;
-      // }
+      if (!languages) {
+        navigation.replace("Select");
+        return;
+      }
 
       if (!auth) {
         navigation.replace("OnBoarding");
