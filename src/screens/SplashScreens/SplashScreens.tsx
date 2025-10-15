@@ -1,11 +1,11 @@
+import apiConstants from "@/src/api/apiConstants";
 import { Images } from "@/src/assets/images";
 import { GlobalContextData } from "@/src/context/GlobalContext";
+import ApiService from "@/src/utils/Apiservice";
 import { getData } from "@/src/utils/storeData";
 import * as Font from "expo-font";
 import React, { useContext, useEffect, useState } from "react";
 import { Image, StyleSheet, View } from "react-native";
-import apiConstants from "../../api/apiConstants";
-import ApiService from "../../utils/Apiservice";
 import i18n from "../Translation/i18n";
 export default function SplashScreens({ navigation }: any) {
   const [fontsLoaded, setFontsLoaded] = useState(false);
@@ -46,6 +46,8 @@ export default function SplashScreens({ navigation }: any) {
       ]);
 
       if(companyData){
+        // console.log("companyData",companyData);
+        
       setCompanysData(companyData)
       }
 
@@ -71,7 +73,7 @@ export default function SplashScreens({ navigation }: any) {
         console.log("Client data missing");
         navigation.replace("OnBoarding");
         return;
-      }
+      }else{
       if (company) {
         let permissionData;
         try {
@@ -100,8 +102,8 @@ export default function SplashScreens({ navigation }: any) {
         }
 
         navigation.replace("BottomTabs");
-        console.log("BottomScreens loaded:", auth);
       }
+        }
     } catch (error) {
       console.log("Permission or Auth error:", error);
     }

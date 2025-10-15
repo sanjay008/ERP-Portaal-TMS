@@ -35,6 +35,7 @@ export default function Profile({ navigation }: any) {
     RColor: "",
     Desctiption: "",
     onPress: "",
+    HeaderBgColor:""
   });
   const { t } = useTranslation();
 
@@ -55,11 +56,12 @@ export default function Profile({ navigation }: any) {
     setAlerModalOpen({
       visible: true,
       title: t("Log Out"),
-      Desctiption: t("Are you sure you want to Account LogOut?"),
+      Desctiption: t("Are you sure you want to log out your account?"),
       LButtonText: t("Cancel"),
       RButtonText: t("Log Out"),
       Icon: Images.LogOutFullBox,
       RButtonStyle: Colors.red,
+      HeaderBgColor:Colors.white,
       RColor: Colors.white,
       onPress: async () => {
         await AsyncStorage.clear();
@@ -68,30 +70,54 @@ export default function Profile({ navigation }: any) {
     });
   };
 
+  const DeleteAccountFun = async () =>{
+    setAlerModalOpen({
+      visible: true,
+      title: t("Delete Account"),
+      Desctiption: t("Are you sure you want to log out your delete account?"),
+      LButtonText: t("Cancel"),
+      RButtonText: t("Delete"),
+      Icon: Images.LogOutFullBox,
+      RButtonStyle: Colors.red,
+      HeaderBgColor:Colors.white,
+      RColor: Colors.white,
+      onPress: async () => {
+        await AsyncStorage.clear();
+        navigation?.replace("OnBoarding");
+      },
+    });
+  }
+
   const ProfileItems:ArrayProps [] = [
     {
       Background: Colors.primary,
       Icon: Images.Info,
       Title: t("About Us"),
-      onPress: () => {},
+      onPress: () => navigation.navigate("WebViewScreeens",{title:"About Us",url:`https://app.erpportaal.nl/about_app_info/${CurrentVersion}`}),
     },
     {
       Background: Colors.primary,
       Icon: Images.Privacy,
       Title: t("Privacy Policy"),
-      onPress: () => {},
+      onPress: () =>  navigation.navigate("WebViewScreeens",{title:"Privacy Policy",url:""}),
     },
     {
       Background: Colors.primary,
       Icon: Images.Terms,
       Title: t("Terms & Conditions"),
-      onPress: () => {},
+      onPress: () =>  navigation.navigate("WebViewScreeens",{title:"Terms & Conditions",url:""}),
     },
     {
       Background: Colors.primary,
       Icon: Images.Phone,
       Title: t("Contact Us"),
-      onPress: () => {},
+      onPress: () =>  navigation.navigate("WebViewScreeens",{title:"Contact Us",url:""}),
+    },
+    {
+      Background: Colors.primary,
+      Icon: Images.LangaugeIcon,
+      Title: t("Language"),
+      onPress: () => navigation.navigate("Language"),
     },
     {
       Background: Colors.RemoveBg,
@@ -103,7 +129,7 @@ export default function Profile({ navigation }: any) {
       Background: Colors.FullRed,
       Icon: Images.DeleteAccount,
       Title: t("Delete Account"),
-      onPress: () => {},
+      onPress: () => DeleteAccountFun(),
     },
   ];
 
@@ -165,6 +191,7 @@ export default function Profile({ navigation }: any) {
         LTextColor={AlertModalOpen.LColor}
         onPress={AlertModalOpen.onPress}
         Description={AlertModalOpen.Desctiption}
+        HeaderBgColor={AlertModalOpen.HeaderBgColor}
       />
     </View>
   );

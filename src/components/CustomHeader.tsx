@@ -1,16 +1,9 @@
 import React, { useContext } from "react";
 import { useTranslation } from "react-i18next";
 import { Image, StyleSheet, Text, View } from "react-native";
-import Menu, {
-  MenuOption,
-  MenuOptions,
-  MenuTrigger,
-} from "react-native-popup-menu";
 import { Images } from "../assets/images";
 import { GlobalContextData } from "../context/GlobalContext";
-import i18n from "../screens/Translation/i18n";
 import { Colors } from "../utils/colors";
-import { storeData } from "../utils/storeData";
 export default function CustomHeader() {
   const {
     GOOGLE_API_KEY,
@@ -21,97 +14,30 @@ export default function CustomHeader() {
     setPermission,
     SelectLanguage,
     setSelectLanguage,
+    UserData,setUserData
   } = useContext(GlobalContextData);
   const { t } = useTranslation();
 
-  const onMenuAction = async (lang: string) => {
-    try {
-      await storeData("userLanguage", lang);
-      await i18n.changeLanguage(lang);
-      setSelectLanguage(lang);
-    } catch (error) {
-      console.warn("Language change error:", error);
-    }
-  };
+  
 
   return (
     <View style={styles.container}>
       <Image source={Images.logo} style={styles.logo} resizeMode="contain" />
-      <Menu>
-        <MenuTrigger>
-          <View style={[styles.SimpleFlex, { backgroundColor: "transparent" }]}>
-            <Text
-              style={[
-                styles.menuText,
-                {
-                  backgroundColor: "transparent",
-                  includeFontPadding: false,
-                },
-              ]}
-              selectable={false}
-            >
-              {SelectLanguage === "en" ? "English" : "Netherlands"}
-            </Text>
-            <Image
-              source={Images.down}
-              style={{ width: 20, height: 20, tintColor: "#000" }}
-              resizeMode="contain"
-            />
-          </View>
-        </MenuTrigger>
-
-        <MenuOptions
-          customStyles={{
-            optionsContainer: {
-              backgroundColor: Colors.white,
-              borderRadius: 8,
-              paddingVertical: 5,
-              shadowColor: "#000",
-              shadowOpacity: 0.15,
-              shadowRadius: 5,
-              elevation: 3,
-            },
-          }}
-        >
-          <MenuOption
-            onSelect={() => onMenuAction("en")}
-            customStyles={{
-              optionWrapper: styles.option,
-            }}
-          >
-            <Text
-              style={[
-                styles.optionText,
-                {
-                  color: SelectLanguage === "en" ? Colors.primary : "#000",
-                  fontWeight: SelectLanguage === "en" ? "bold" : "normal",
-                },
-              ]}
-            >
-              {t("English")}
-            </Text>
-          </MenuOption>
-
-          <MenuOption
-            onSelect={() => onMenuAction("nl")}
-            customStyles={{
-              optionWrapper: styles.option,
-            }}
-          >
-            <Text
-              style={[
-                styles.optionText,
-                {
-                  color: SelectLanguage === "nl" ? Colors.primary : "#000",
-                  fontWeight: SelectLanguage === "nl" ? "bold" : "normal",
-                },
-              ]}
-            >
-              {t("Netherland")}
-            </Text>
-          </MenuOption>
-        </MenuOptions>
-      </Menu>
+      <View style={styles.SimpleFlex}>
+        {
+          UserData?.user?.profile_image ?
+          <Image 
+          source={{uri:UserData?.user?.profile_image}}
+          style={styles.DriverImage}
+          />
+          :
+           <Image 
+          source={Images.userblanck}
+          style={styles.DriverImage}
+          />
+        }
+        <Text style={styles.menuText}>{UserData?.user?.username}</Text>
+      </View>
     </View>
   );
 }
@@ -141,11 +67,13 @@ const styles = StyleSheet.create({
     height: 40,
   },
   menuText: {
-    fontSize: 16,
+    
+    fontSize: 10,
     color: Colors.black,
     fontFamily: "Medium",
   },
   SimpleFlex: {
+    maxHeight: '45%',
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
@@ -160,4 +88,9 @@ const styles = StyleSheet.create({
     color: Colors.black,
     fontFamily: "Medium",
   },
+  DriverImage:{
+    width:30,
+    height:30,
+    borderRadius:120,
+  }
 });

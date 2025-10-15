@@ -78,6 +78,10 @@ export const Images = {
   DeleteAccount: require("./image/DeleteAccount.png"),
   LogOutFullBox: require("./image/LogOutFullBox.png"),
   OrderIconFull: require("./image/OrderIconFull.png"),
+  LangaugeIcon: require("./image/LangaugeIcon.png"),
+  Check: require("./image/Check.png"),
+  DropIcon: require("./image/DropIcon.png"),
+  UploadPhoto: require("./image/UploadPhoto.png"),
   
 
 

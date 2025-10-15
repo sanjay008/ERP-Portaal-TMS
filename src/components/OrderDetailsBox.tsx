@@ -13,7 +13,7 @@ export default function OrderDetailsBox() {
       <Text style={styles.AddressText}>Schoutenstraat 70, 3771 CK Barneveld, Netherlands</Text>
       <View style={styles.Flex}>
         <Text style={styles.Text}>{t("Contact")}</Text>
-        <View style={SimpleFlex}>
+        <View style={SimpleFlex.Flex}>
           <TouchableOpacity>
             <Image source={Images.WhatsApp} style={styles.Icon} />
           </TouchableOpacity>

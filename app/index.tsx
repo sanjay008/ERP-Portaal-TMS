@@ -2,7 +2,9 @@ import BottomTabs from "@/src/bottomTabs/BottomTabs";
 import LayoutHeader from "@/src/components/_LayoutHeader";
 import GlobalContext from "@/src/context/GlobalContext";
 import Chat from "@/src/screens/Chat/Chat";
+import DeliveryScreens from "@/src/screens/Delivery/DeliveryScreens";
 import DetailsScreens from "@/src/screens/Details/DetailsScreens";
+import LanguageScreens from "@/src/screens/Language/LanguageScreens";
 import LoadedScreens from "@/src/screens/Loaded/LoadedScreens";
 import MapsScreens from "@/src/screens/Maps/MapsScreens";
 import NoInternet from "@/src/screens/NoInternet/NoInternet";
@@ -11,9 +13,12 @@ import Profile from "@/src/screens/Profile/Profile";
 import ScannerScreens from "@/src/screens/Scanner/ScannerScreens";
 import SelectLanguage from "@/src/screens/selectionLan/Selectionlan";
 import SplashScreens from "@/src/screens/SplashScreens/SplashScreens";
+import i18n from "@/src/screens/Translation/i18n";
+import WebViewScreeens from "@/src/screens/WebView/WebViewScreeens";
 import NetInfo from "@react-native-community/netinfo";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import React, { useEffect, useState } from "react";
+import { I18nextProvider } from "react-i18next";
 import { MenuProvider } from "react-native-popup-menu";
 import OnBoarding from "../src/screens/onbording";
 import Otp from "../src/screens/otp";
@@ -42,7 +47,7 @@ export default function Index() {
 
   return (
     <>
- 
+      <I18nextProvider i18n={i18n}>
     <MenuProvider>
       <GlobalContext>
         {isConnected ? (
@@ -68,6 +73,9 @@ export default function Index() {
             <Stack.Screen name="Chat" component={withLayoutHeader(Chat)} />
             <Stack.Screen name="Profile" component={withLayoutHeader(Profile)} />
             <Stack.Screen name="MapsScreens" component={withLayoutHeader(MapsScreens)} />
+            <Stack.Screen name="Language" component={withLayoutHeader(LanguageScreens)} />
+            <Stack.Screen name="Delivery" component={withLayoutHeader(DeliveryScreens)} />
+            <Stack.Screen name="WebViewScreeens" component={withLayoutHeader(WebViewScreeens)} />
           </Stack.Navigator>
         ) : (
           <Stack.Navigator
@@ -82,7 +90,7 @@ export default function Index() {
         )}
       </GlobalContext>
       </MenuProvider>
-      
+      </I18nextProvider>
     </>
   );
 }

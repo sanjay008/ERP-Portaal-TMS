@@ -10,8 +10,9 @@ import { GlobalContextData } from "@/src/context/GlobalContext";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
 import { getData, token } from "@/src/utils/storeData";
-import Constants from "expo-constants";
-import * as Updates from "expo-updates";
+// import * as Updates from "expo-updates";
+import { ApiFormatDate } from "@/src/components/ApiFormatDate";
+import { useIsFocused } from "@react-navigation/native";
 import React, { useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FlatList, ScrollView, Text, View } from "react-native";
@@ -27,23 +28,23 @@ export default function LoadedScreens({ navigation }: any) {
   const RenderingRef = useRef(true);
   const [IsLoading, setLoading] = useState(false);
   const { t } = useTranslation();
+  const Focused = useIsFocused();
+  // async function checkForUpdate() {
+  //   if (!Constants.appOwnership || Constants.appOwnership === "expo") {
+  //     console.log("Skipping OTA update check in development");
+  //     return;
+  //   }
 
-  async function checkForUpdate() {
-    if (!Constants.appOwnership || Constants.appOwnership === "expo") {
-      console.log("Skipping OTA update check in development");
-      return;
-    }
-
-    try {
-      const update = await Updates.checkForUpdateAsync();
-      if (update.isAvailable) {
-        await Updates.fetchUpdateAsync();
-        await Updates.reloadAsync();
-      }
-    } catch (e) {
-      console.log("Error checking updates:", e);
-    }
-  }
+  //   try {
+  //     const update = await Updates.checkForUpdateAsync();
+  //     if (update.isAvailable) {
+  //       await Updates.fetchUpdateAsync();
+  //       await Updates.reloadAsync();
+  //     }
+  //   } catch (e) {
+  //     console.log("Error checking updates:", e);
+  //   }
+  // }
 
   const getUserData = async () => {
     try {
@@ -54,7 +55,7 @@ export default function LoadedScreens({ navigation }: any) {
     }
   };
   useEffect(() => {
-    checkForUpdate();
+    // checkForUpdate();
     if (!UserData) {
       getUserData();
     }
@@ -69,10 +70,11 @@ export default function LoadedScreens({ navigation }: any) {
     if (SelectDate && UserData) {
       GetAllPickUpDataFun();
     }
-  }, [SelectDate, UserData]);
-
+  }, [SelectDate, UserData, Focused]);
 
   const GetAllPickUpDataFun = async (user: any = null) => {
+    // setSelectRegionData([]);
+    // setAllPickUpData([]);
     setLoading(true);
     let userData = user ? user : UserData;
     try {
@@ -84,14 +86,24 @@ export default function LoadedScreens({ navigation }: any) {
           // relaties_id: userData?.relaties?.id,
           relaties_id: 1307,
           user_id: userData?.user?.id,
-          // date: ApiFormatDate(SelectDate),
-          date:"2025-10-23",
+          date: ApiFormatDate(SelectDate),
+          // date:"2025-10-23",
         },
       });
 
       if (Boolean(res.status)) {
+        console.log("current Data", selectRegionData);
+
         setAllPickUpData(res?.data || []);
-        setSelectRegionData(res?.data[0] || []);
+
+        if (!selectRegionData || selectRegionData === "") {
+          setSelectRegionData(res?.data?.[0] || {});
+        } else {
+          const pre = res?.data?.find(
+            (el: any) => el?.id === selectRegionData?.id
+          );
+          setSelectRegionData(pre || res?.data?.[0] || {});
+        }
       }
     } catch (error) {
       console.log("Get All PickUpData Error:-", error);
@@ -129,58 +141,62 @@ export default function LoadedScreens({ navigation }: any) {
             onlyIcon={true}
             Icon={Images.Scan}
             style={{ width: 46, height: 46 }}
-            onPress={() => navigation.navigate("Scanner")}
+            onPress={() =>
+              navigation.navigate("Scanner", { fun: GetAllPickUpDataFun })
+            }
           />
         </View>
 
-        <FlatList
-          data={selectRegionData?.pickup_orders || []}
-          ListEmptyComponent={() =>
-            IsLoading ? null : (
-              <View style={styles.FooterContainer}>
-                <Text style={[styles.Text, { color: Colors.darkText }]}>
-                  {t("No Order Found")}
-                </Text>
-              </View>
-            )
-          }
-          ListFooterComponent={() => {
-            return IsLoading ? (
-              <View style={styles.FooterContainer}>
-                <Loader />
-              </View>
-            ) : null;
-          }}
-          initialNumToRender={10}
-          maxToRenderPerBatch={10} 
-          windowSize={5}
-          removeClippedSubviews={true} 
-          updateCellsBatchingPeriod={30}
-          getItemLayout={(data, index) => ({
-            length: 70,
-            offset: 70 * index,
-            index,
-          })}
-          scrollEnabled={false}
-          contentContainerStyle={{ gap: 15 }}
-          keyExtractor={(item, index) => `${index}`}
-          renderItem={({ item, index }) => {
-            
-            return (
-              <PickUpBox
-                index={index}
-                LableStatus={item?.tmsstatus?.status_name}
-                OrderId={item?.id}
-                ProductItem={item?.items}
-                LableBackground={item?.tmsstatus?.color}
-                onPress={() => navigation.navigate("Details",{item:item})}
-                start={item?.pickup_location}
-                end={item?.deliver_location}
-                customerData={item?.customer}
-              />
-            );
-          }}
-        />
+        {selectRegionData && AllPickUpData?.length > 0 && (
+          <FlatList
+            data={selectRegionData?.pickup_orders || []}
+            ListEmptyComponent={() =>
+              IsLoading ? null : (
+                <View style={styles.FooterContainer}>
+                  <Text style={[styles.Text, { color: Colors.darkText }]}>
+                    {t("No Order Found")}
+                  </Text>
+                </View>
+              )
+            }
+            ListFooterComponent={() => {
+              return IsLoading ? (
+                <View style={styles.FooterContainer}>
+                  <Loader />
+                </View>
+              ) : null;
+            }}
+            initialNumToRender={10}
+            maxToRenderPerBatch={10}
+            windowSize={5}
+            removeClippedSubviews={true}
+            updateCellsBatchingPeriod={30}
+            getItemLayout={(data, index) => ({
+              length: 70,
+              offset: 70 * index,
+              index,
+            })}
+            scrollEnabled={false}
+            contentContainerStyle={{ gap: 15 }}
+            keyExtractor={(item, index) => `${index}`}
+            renderItem={({ item, index }) => {
+              return (
+                <PickUpBox
+                  index={index}
+                  LableStatus={item?.tmsstatus?.status_name}
+                  OrderId={item?.id}
+                  ProductItem={item?.items}
+                  LableBackground={item?.tmsstatus?.color}
+                  onPress={() => navigation.navigate("Details", { item: item })}
+                  start={item?.pickup_location}
+                  end={item?.deliver_location}
+                  customerData={item?.customer}
+                  statusData={item?.tmsstatus}
+                />
+              );
+            }}
+          />
+        )}
       </View>
     </ScrollView>
   );

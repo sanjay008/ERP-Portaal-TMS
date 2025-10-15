@@ -1,7 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
-import { Images } from "../assets/images";
 import { Colors } from "../utils/colors";
 import { SimpleFlex } from "../utils/storeData";
 
@@ -9,25 +8,46 @@ type Props = {
   index: number;
   data: any;
   qty?: number;
-  title?:string;
+  title?: string;
+  Icon?: string;
+  statusData?:any;
 };
 
-export default function ParcelBox({ index, data, qty = 0, title}: Props) {
+export default function ParcelBox({
+  index,
+  data,
+  qty = 0,
+  title,
+  Icon,
+  statusData=null,
+}: Props) {
+  
+
   const { t } = useTranslation();
   return (
     <Pressable style={styles.container}>
-      <View style={SimpleFlex}>
+      <View style={SimpleFlex.Flex}>
         <View style={styles.NumberBox}>
           <Text style={styles.Text}>{index + 1}</Text>
         </View>
-        <Text style={styles.Text}>{title?.slice(0,10) || ""}</Text>
+        <Text style={styles.Text}>{title?.slice(0, 10) || ""}</Text>
         <Text style={styles.DarkText}>{`(${t("Qty")}: ${qty})`}</Text>
       </View>
-      {data?.check ? (
-        <Image source={Images.Done} style={styles.NumberBox} />
-      ) : (
-        <Image source={Images.Plain} style={styles.NumberBox} />
-      )}
+      {/* {!(statusData?.status_name == data?.tmsstatus?.status_name) ? ( */}
+        <View
+          style={[
+            styles.Status,
+            {
+              backgroundColor: data?.tmsstatus?.color || Colors.background,
+            },
+          ]}
+        >
+          <Image source={{ uri: Icon }} style={styles.Icon}  tintColor={Colors.black}/>
+          {/* <Image source={Images.Check} style={styles.Icon} /> */}
+        </View>
+      {/* //  ) : (
+      //    <View style={styles.NumberBox} />
+      //  )} */}
     </Pressable>
   );
 }
@@ -66,5 +86,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: "SemiBold",
     color: Colors.darkText,
+  },
+  Status: {
+    width: 30,
+    height: 30,
+    backgroundColor: Colors.background,
+    borderRadius: 4,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  Icon: {
+    width: 18,
+    height: 18,
   },
 });

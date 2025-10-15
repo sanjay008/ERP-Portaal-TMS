@@ -1,15 +1,13 @@
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import React from "react";
-import { I18nextProvider, useTranslation } from "react-i18next";
+import { useTranslation } from "react-i18next";
 import { Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Images } from "../assets/images";
 import CustomHeader from "../components/CustomHeader";
-import Chat from "../screens/Chat/Chat";
 import LoadedScreens from "../screens/Loaded/LoadedScreens";
 import Parcel from "../screens/Parcel/Parcel";
 import Profile from "../screens/Profile/Profile";
-import i18n from "../screens/Translation/i18n";
 import { Colors } from "../utils/colors";
 
 export default function BottomTabs() {
@@ -17,7 +15,7 @@ export default function BottomTabs() {
   const { t } = useTranslation();
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.white }}>
-      <I18nextProvider i18n={i18n}>
+      
         <Tab.Navigator
           initialRouteName="Loaded"
           screenOptions={{
@@ -68,7 +66,7 @@ export default function BottomTabs() {
               ),
             }}
           />
-          <Tab.Screen
+          {/* <Tab.Screen
             name={t("Chat")}
             component={Chat}
             options={{
@@ -83,7 +81,7 @@ export default function BottomTabs() {
                 />
               ),
             }}
-          />
+          /> */}
           <Tab.Screen
             name={t("Profile")}
             component={Profile}
@@ -101,7 +99,7 @@ export default function BottomTabs() {
             }}
           />
         </Tab.Navigator>
-      </I18nextProvider>
+      
     </SafeAreaView>
   );
 }

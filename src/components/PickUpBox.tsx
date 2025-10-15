@@ -19,29 +19,37 @@ export default function PickUpBox({
   index = 0,
   onPress,
   contact,
-  OrderId,
+  OrderId='00',
   LacationProgress = true,
-  LableStatus = 'Pickup',
-  LableBackground=null,
-  ProductItem=[],
+  LableStatus = "Pickup",
+  LableBackground = null,
+  ProductItem = [],
   start,
   end,
-  customerData=null,
+  customerData = null,
+  StatusIcon = null,
+  statusData = null,
+  IndexActive=true
 }: any) {
   const { t } = useTranslation();
   const [isCollapsed, setisCollapsed] = useState<boolean>(true);
   const pickup: boolean = false;
 
-const getStatusColor = (id: string | number) => {
-  switch (id) {
-    case 1:
-      return { bg: Colors.PickupBg, text: Colors.PickupText };
-    case 2:
-      return { bg: Colors.ReadyBg, text: Colors.ReadyText };
-    default:
-      return { bg: Colors.Boxgray, text:  Colors.black };
-  }
+ const getDirectDropboxLink = (sharedLink: string) => {
+  if (!sharedLink) return "";
+  
+  let url = sharedLink
+    .replace("www.dropbox.com", "dl.dropboxusercontent.com")
+    .replace("dropbox.com", "dl.dropboxusercontent.com");
+  
+  url = url.replace(/[?&](dl|raw)=\d/, "");
+
+  url += (url.includes("?") ? "&" : "?") + "raw=1";
+
+  return url;
 };
+
+
 
   return (
     <Pressable
@@ -51,11 +59,19 @@ const getStatusColor = (id: string | number) => {
       <View style={[styles.Flex, { marginTop: 0 }]}>
         <View style={styles.TopContainer}>
           <View style={styles.NumberBox}>
-            <Text style={[styles.Text]}>{index + 1}</Text>
+            {
+              IndexActive ?
+              <Text style={[styles.Text]}>{index + 1}</Text>
+              :
+              <Text style={[styles.Text]}>{index}</Text>
+
+            }
           </View>
 
           <View>
-            <Text style={[[styles.Text], { fontSize: 15 }]} numberOfLines={2}>{customerData?.display_name?.slice(0,20) || ""}</Text>
+            <Text style={[[styles.Text], { fontSize: 15 }]} numberOfLines={2}>
+              {customerData?.display_name?.slice(0, 20) || ""}
+            </Text>
             <Text
               style={[styles.OrderIdText, pickup && { color: Colors.black }]}
             >
@@ -65,27 +81,34 @@ const getStatusColor = (id: string | number) => {
         </View>
 
         <View
-          style={[styles.LabelBox, { backgroundColor:LableBackground || Colors.Boxgray }]}
+          style={[
+            styles.LabelBox,
+            {
+              backgroundColor: LableBackground || Colors.Boxgray,
+              maxWidth: "38%",
+              alignItems: "center",
+              justifyContent: "center",
+            },
+          ]}
         >
           <Text
             style={[
               styles.OrderIdText,
               {
+              textAlign:'center',
                 fontSize: 14,
-                color:Colors.white,
+                color: Colors.black,
               },
             ]}
           >
-            {
-              LableStatus 
-            }
+            {LableStatus}
           </Text>
         </View>
       </View>
 
       <View style={[styles.Flex]}>
         <Text style={styles.OrderIdText}>{t("Total Parcel")}</Text>
-        <View style={[SimpleFlex, { gap: 0 }]}>
+        <View style={[SimpleFlex.Flex, { gap: 0 }]}>
           <Text style={styles.Text}>{ProductItem?.length}</Text>
           <TouchableOpacity
             style={{
@@ -96,8 +119,11 @@ const getStatusColor = (id: string | number) => {
           >
             <Image source={Images.down} style={{ width: 18, height: 18 }} />
           </TouchableOpacity>
-          {pickup && (
-            <Image source={Images.Done} style={{ width: 34, height: 34 }} />
+          {StatusIcon && (
+            <Image
+              source={{ uri: getDirectDropboxLink(StatusIcon) }}
+              style={styles.NumberBox}
+            />
           )}
         </View>
       </View>
@@ -114,8 +140,10 @@ const getStatusColor = (id: string | number) => {
                 <ParcelBox
                   qty={item?.qty}
                   index={index}
-                  data={{ check: true }}
+                  data={item}
                   title={item?.tms_product_name}
+                  statusData={statusData}
+                  Icon={getDirectDropboxLink(item?.tmsstatus?.shared_link)}
                 />
               );
             }}
@@ -124,17 +152,14 @@ const getStatusColor = (id: string | number) => {
       </Collapsible>
       {LacationProgress && (
         <View style={{ marginTop: 15 }}>
-          <PickupPogressMap
-            start={start}
-            end={end}
-          />
+          <PickupPogressMap start={start} end={end} />
         </View>
       )}
 
       {contact && (
         <View style={styles.Flex}>
           <Text style={styles.Text}>{t("Contact")}</Text>
-          <View style={SimpleFlex}>
+          <View style={SimpleFlex.Flex}>
             <TouchableOpacity>
               <Image source={Images.WhatsApp} style={styles.Icon} />
             </TouchableOpacity>
@@ -185,8 +210,9 @@ const styles = StyleSheet.create({
   },
   TopContainer: {
     flexDirection: "row",
-    gap: 15,
+    gap: 10,
     alignItems: "center",
+    width: "60%",
   },
   NumberBox: {
     width: 40,

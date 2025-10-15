@@ -26,6 +26,7 @@ module.exports = {
     getOrderByDriver: `${baseUrlnew}tms-driver/get-tms-order-by-region`,
     Verify_status: `${baseUrlnew}tms-driver/verify-order-item-status`,
     status_update: `${baseUrlnew}tms-driver/update-order-item-status`,
+    status_list: `${baseUrlnew}tms-driver/get-tms-status-list`,
 
 };
 

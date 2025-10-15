@@ -19,60 +19,88 @@ import ParcelBox from "./ParcelBox";
 type Props = {
   style?: object;
   InfoTitle?: string;
-  data?: object;
   LButtonStyle?: object;
   RButtonStyle?: object;
   LText?: string;
   RText?: string;
+  visible?: boolean;
+  type?: number;
+  onPress?: () => void;
+  onClose?: () => void;
+  personData?: object []| any;
+  OrderId?: number;
 };
 
 export default function ScannerInfoModal({
   style,
   InfoTitle,
-  data,
   LButtonStyle,
   RButtonStyle,
   LText,
   RText,
+  visible,
+  type = 0,
+  onPress,
+  onClose,
+  personData = [],
+  OrderId = 0,
 }: Props) {
   const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const [isCollapsed, setisCollapsed] = useState<boolean>(true);
   const pickup: any = false;
+  console.log("type",type);
+  
   return (
     <Modal
-      isVisible={true}
+      isVisible={visible}
       animationIn={"bounceInUp"}
       animationOut={"bounceOutDown"}
       style={[styles.container, style]}
     >
       <View style={styles.ContentView}>
         <View style={styles.InfoContainer}>
-          <Text style={styles.Text}>{InfoTitle || t("Order Delivery Info")}</Text>
+          <Text style={styles.Text}>
+            {InfoTitle || t("Order Delivery Info")}
+          </Text>
         </View>
 
-        
-          <View style={styles.OrderView}>
-            <View style={[styles.Flex]}>
-              <View style={styles.TopContainer}>
-                <View style={styles.NumberBox}>
+        <View style={styles.OrderView}>
+          <View style={[styles.Flex]}>
+            <View style={styles.TopContainer}>
+              <View
+                style={[
+                  styles.NumberBox,
+                  (type == 1  ||type == 2) && { backgroundColor: Colors.green },
+                ]}
+              >
+                {type == 0 ? (
                   <Text style={[styles.Text]}>{1}</Text>
-                </View>
-
-                <View>
-                  <Text style={[[styles.Text], { fontSize: 15 }]}>
-                    Tushar Variya
-                  </Text>
-                  <Text
-                    style={[
-                      styles.OrderIdText,
-                      pickup && { color: Colors.black },
-                    ]}
-                  >
-                    #000001
-                  </Text>
-                </View>
+                ) : (
+                  <Image
+                    source={Images.user}
+                    style={{ width: 20, height: 20 }}
+                    tintColor={Colors.white}
+                  />
+                )}
               </View>
+
+              <View>
+                <Text style={[[styles.Text], { fontSize: 15 }]}>
+                  {personData?.customer?.display_name || ""}
+                </Text>
+                <Text
+                  style={[
+                    styles.OrderIdText,
+                    pickup && { color: Colors.black },
+                  ]}
+                >
+                  {`#${OrderId}`}
+                </Text>
+              </View>
+            </View>
+
+            {type == 0 && (
               <View style={[SimpleFlex, { gap: 0 }]}>
                 <Text style={styles.Text}>3</Text>
                 <TouchableOpacity
@@ -88,58 +116,84 @@ export default function ScannerInfoModal({
                   />
                 </TouchableOpacity>
               </View>
-            </View>
-
-            <Collapsible collapsed={isCollapsed}>
-              <View style={styles.TotalProductConatiner}>
-                <FlatList
-                  data={["", "", ""]}
-                  style={{ width: "100%", gap: 10 }}
-                  contentContainerStyle={styles.ContentContainerStyle}
-                  scrollEnabled={false}
-                  keyExtractor={(item, index) => `${index}`}
-                  renderItem={({ item, index }) => {
-                    return (
-                      <ParcelBox
-                        qty={index + 1}
-                        index={index}
-                        data={{ check: true }}
-                      />
-                    );
-                  }}
-                />
-              </View>
-            </Collapsible>
-
-            <View style={[styles.Flex, { marginTop: 15 }]}>
-              <Text style={styles.DarkText}>{t("Delivery Date")}</Text>
-              <Text style={styles.Text}>{"October 14, 2025"}</Text>
-            </View>
-
-            <DashedLine
-              dashLength={4}
-              dashThickness={1}
-              dashGap={2}
-              dashColor={Colors.orderdark}
-              style={styles.DasheLine}
-            />
-
-            <View style={styles.Flex}>
-              <Text style={styles.DarkText}>{t("Region")}</Text>
-              <Text style={styles.Text}>{"East Netherland"}</Text>
-            </View>
+            )}
           </View>
-        
+          {(type == 0 || type == 2) && (
+            <>
+            {
+              (type == 0) &&
+              <Collapsible collapsed={isCollapsed}>
+                <View style={styles.TotalProductConatiner}>
+                  <FlatList
+                    data={["", "", ""]}
+                    style={{ width: "100%", gap: 10 }}
+                    contentContainerStyle={styles.ContentContainerStyle}
+                    scrollEnabled={false}
+                    keyExtractor={(item, index) => `${index}`}
+                    renderItem={({ item, index }) => {
+                      return (
+                        <ParcelBox
+                          qty={index + 1}
+                          index={index}
+                          data={{ check: true }}
+                        />
+                      );
+                    }}
+                  />
+                </View>
+              </Collapsible>
+            }
 
-        <View style={[styles.Flex,styles.LastButtonContainer]}>
-          <TouchableOpacity style={[styles.Button, LButtonStyle]}>
-            <Text style={styles.Text}>{LText || t("NO")}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.Button, RButtonStyle]}>
-            <Text style={styles.Text}>{RText || t("Ok")}</Text>
-          </TouchableOpacity>
+
+              <View style={[styles.Flex, { marginTop: 15 }]}>
+                <Text style={styles.DarkText}>{t("Delivery Date")}</Text>
+                <Text style={styles.Text}>{personData?.deliver_date}</Text>
+              </View>
+
+              <DashedLine
+                dashLength={4}
+                dashThickness={1}
+                dashGap={2}
+                dashColor={Colors.orderdark}
+                style={styles.DasheLine}
+              />
+
+              <View style={styles.Flex}>
+                <Text style={styles.DarkText}>{t("Region")}</Text>
+                <Text style={styles.Text}>{`${personData?.delivery_region_data?.name || ""}-${personData?.deliver_postcode}`}</Text>
+              </View>
+            </>
+          )}
         </View>
 
+        {
+          (type == 1 || type == 2) && personData?.items?.length > 0 &&
+          <View style={{padding:10}}>
+            <ParcelBox title={personData?.items[0]?.tms_product_name || ""} qty={personData?.items[0]?.qty || 0} data={personData?.items[0]} index={1} />
+          </View>
+        }
+
+        <View style={[styles.Flex, styles.LastButtonContainer]}>
+          <TouchableOpacity
+            style={[
+              styles.Button,
+              LButtonStyle,
+              { width: RText !== "" && RText ? "48%" : "60%" },
+              !(RText !== "" && RText) && { marginHorizontal: "auto" },
+            ]}
+            onPress={onClose}
+          >
+            <Text style={styles.Text}>{LText || t("Cancel")}</Text>
+          </TouchableOpacity>
+          {RText !== "" && RText && (
+            <TouchableOpacity
+              style={[styles.Button, RButtonStyle]}
+              onPress={onPress}
+            >
+              <Text style={styles.Text}>{RText || t("Ok")}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     </Modal>
   );
@@ -150,7 +204,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    
   },
   ContentView: {
     width: "100%",
@@ -213,15 +266,15 @@ const styles = StyleSheet.create({
   DasheLine: {
     marginVertical: 15,
   },
-  LastButtonContainer:{
-    padding:15
+  LastButtonContainer: {
+    padding: 15,
   },
   Button: {
     width: "48%",
     height: 45,
     backgroundColor: Colors.background,
     borderRadius: 4,
-    justifyContent:'center',
-    alignItems:'center'
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

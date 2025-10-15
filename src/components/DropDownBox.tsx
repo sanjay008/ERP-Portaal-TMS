@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import React from "react";
+import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Image, StyleSheet, View } from "react-native";
 import { Dropdown } from "react-native-element-dropdown";
@@ -9,7 +9,7 @@ import { Colors } from "../utils/colors";
 type DropdownItem = {
   [key: string]: string | number;
 };
-  
+
 type Props = {
   data: DropdownItem[] | any;
   value: string | number | null;
@@ -18,8 +18,8 @@ type Props = {
   iconName?: keyof typeof Ionicons.glyphMap;
   labelFieldKey?: string;
   valueFieldKey?: string;
-  ContainerStyle?:object;
-  disbled?:boolean;
+  ContainerStyle?: object;
+  disbled?: boolean;
 };
 
 const DropDownBox: React.FC<Props> = ({
@@ -31,26 +31,41 @@ const DropDownBox: React.FC<Props> = ({
   labelFieldKey = "name",
   valueFieldKey = "name",
   ContainerStyle,
-  disbled=false,
+  disbled = false,
 }) => {
-const { t } = useTranslation();
+  const { t } = useTranslation();
+    const [isFocus, setIsFocus] = useState(false);
   return (
-    <View style={[styles.container,ContainerStyle]}>
+    <View style={[styles.container, ContainerStyle]}>
       <Dropdown
         disable={disbled}
-        style={[styles.dropdown,]}
+        style={[styles.dropdown]}
         data={data}
         labelField={labelFieldKey}
         valueField={valueFieldKey}
         placeholder={t(placeholder)}
         value={value}
         onChange={(item) => {
-          setValue(item)
+          setValue(item);
+        }}
+            onFocus={() => {
+          setIsFocus(true);
+    
+        }}
+        onBlur={() => {
+          setIsFocus(false);
+    
         }}
         renderLeftIcon={() => (
           <Image
             source={Images.location}
             style={{ width: 22, height: 22, marginRight: 10 }}
+          />
+        )}
+        renderRightIcon={() => (
+          <Image
+            source={Images.DropIcon}
+            style={{ width: 20, height: 20,transform:[{rotate:isFocus ? '180deg' : '0deg'}]}}
           />
         )}
         placeholderStyle={styles.placeholderStyle}
@@ -64,8 +79,8 @@ const { t } = useTranslation();
 const styles = StyleSheet.create({
   container: {
     marginVertical: 10,
-    backgroundColor:Colors.white,
-    borderRadius:7
+    backgroundColor: Colors.white,
+    borderRadius: 7,
   },
   dropdown: {
     height: 50,
@@ -91,6 +106,8 @@ const styles = StyleSheet.create({
   },
   itemTextStyle: {
     fontSize: 15,
+    color: Colors.black,
+    fontFamily: "regular",
   },
 });
 

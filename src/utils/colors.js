@@ -60,7 +60,7 @@ export const Colors = {
   orderdark:'#616161',
   otherBorder:"#A0A5B1",
   modalBorder:"#EFEFEF",
-  
+  languageborder:"#BCC7D5",
   DarkLable:"#ECB210",
   whiteGreen:"#DFF2E3",
 

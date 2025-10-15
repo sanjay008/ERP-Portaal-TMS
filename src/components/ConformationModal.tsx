@@ -17,8 +17,9 @@ type Props = {
   LeftBGColor?: string | any;
   RightButtonIcon?: React.ReactNode | any;
   Description?: string;
-  LTextColor?: any;
-  RTextColor?: any;
+  LTextColor?: string;
+  RTextColor?: string;
+  HeaderBgColor?:string
   onPress?: () => void;
 };
 export default function ConformationModal({
@@ -34,6 +35,7 @@ export default function ConformationModal({
   Description,
   LTextColor,
   RTextColor,
+  HeaderBgColor,
   onPress,
 }: Props) {
   const { t } = useTranslation();
@@ -47,13 +49,13 @@ export default function ConformationModal({
       style={{ margin: 0, justifyContent: "center", alignItems: "center" }}
     >
       <View style={styles.Container}>
-        <View style={styles.Header}>
+        <View style={[styles.Header,HeaderBgColor && {backgroundColor:HeaderBgColor}]}>
           <Image source={Icon || Images.DeleteBtn} style={styles.Icon} />
           <View style={{width:'90%'}}>
-            <Text style={styles.Text}>{Title || t("Title")}</Text>
+            <Text style={[styles.Text,{ fontSize: ((Text ?? '').length > 20) ? 8 : 14 ,width:'90%'}]}>{Title || t("Title")}</Text>
             {(Description || "").length > 0 && (
-              <Text style={styles.Description}>
-                {Description || t("Desctiption")}
+              <Text style={[styles.Description, { fontSize: ((Description ?? '').length > 30) ? 12 : 14 }]}>
+                {Description?.slice(0,80) || t("Desctiption")}
               </Text>
             )}
           </View>
@@ -62,7 +64,8 @@ export default function ConformationModal({
           <TouchableOpacity
             style={[
               styles.ButtonStyle,
-              { backgroundColor: LeftBGColor || Colors.Boxgray },
+              { backgroundColor: LeftBGColor || Colors.Boxgray,width: RightButtonText!=="" && RightButtonText ? '48%' : '80%',},
+              !(RightButtonText!=="" && RightButtonText) && {marginHorizontal:'auto'}
             ]}
             onPress={onClose}
           >
@@ -72,7 +75,9 @@ export default function ConformationModal({
               {LeftButtonText || t("Cancel")}
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity
+            {
+              RightButtonText!=="" && RightButtonText &&
+                   <TouchableOpacity
             style={[
               styles.ButtonStyle,
               { backgroundColor: RightBgColor || Colors.Boxgray },
@@ -96,6 +101,7 @@ export default function ConformationModal({
               {RightButtonText || t("Okay")}
             </Text>
           </TouchableOpacity>
+            }
         </View>
       </View>
     </Modal>
@@ -147,6 +153,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     gap: 10,
+    flexDirection:'row',
   },
   ButtonText: {
     fontSize: 15,

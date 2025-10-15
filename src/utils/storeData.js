@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useWindowDimensions } from 'react-native';
+import { StyleSheet, useWindowDimensions } from 'react-native';
 
 const storeData = async (key, value) => {
   try {
@@ -32,11 +32,15 @@ export { clearAllData, getData, storeData };
 export const token = "lbws07ifTs076zQH4Jo3ktN8tWgaS9ASh";
 
 
-export const SimpleFlex = {
+export const SimpleFlex = StyleSheet.create({
+  Flex: {
    flexDirection:'row',
    alignItems:'center',
-   gap:10
+   gap:10,
 }
+});
+
+
 
 
 

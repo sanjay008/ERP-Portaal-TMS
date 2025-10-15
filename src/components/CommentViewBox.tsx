@@ -19,7 +19,7 @@ export default function CommentViewBox({ data }: { data: object[] }) {
         scrollEnabled={false}
         renderItem={({item,index}) => (
           <View style={styles.CommentBox}>
-            <View style={SimpleFlex}>
+            <View style={SimpleFlex.Flex}>
               <Image source={Images.Profile} style={styles.ImageProfile} />
 
               <View>

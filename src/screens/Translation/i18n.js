@@ -28,7 +28,6 @@ export const languagedata = async () => {
         interpolation: { escapeValue: false },
       });
 
-      console.log("Language Data Initialized");
     } else {
       console.log("Invalid API response");
     }
