@@ -112,7 +112,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius:7,
     borderTopRightRadius:7,
     padding:10,
-    height: 45,
     justifyContent: "center",
     overflow: "hidden",
     shadowColor: Colors.black,
@@ -136,6 +135,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: Colors.black,
     fontFamily: "Medium",
+    flex:1
   },
   line: {
     height: 2.5,

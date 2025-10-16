@@ -82,6 +82,7 @@ export const Images = {
   Check: require("./image/Check.png"),
   DropIcon: require("./image/DropIcon.png"),
   UploadPhoto: require("./image/UploadPhoto.png"),
+  GalleryIcon: require("./image/GalleryIcon.png"),
   
 
 

@@ -10,7 +10,7 @@ import TwoTypeButton from "@/src/components/TwoTypeButton";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
-import { SimpleFlex, token, width } from "@/src/utils/storeData";
+import { SimpleFlex, token } from "@/src/utils/storeData";
 import React, { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -51,10 +51,24 @@ export default function Parcel({ navigation }: any) {
           // date:"2025-10-23",
         },
       });
-      if (Boolean(res.status)) {
+      // if (Boolean(res.status)) {
+      //   setAllData(res?.data || []);
+      //   setSelectRegion(res?.data[0] || []);
+      //   // console.log("Final Data",res?.data[0]);
+      // }
+        if (Boolean(res.status)) {
+        console.log("current Data", Region);
+
         setAllData(res?.data || []);
-        setSelectRegion(res?.data[0] || []);
-        // console.log("Final Data",res?.data[0]);
+
+        if (!Region || Region === "") {
+          setSelectRegion(res?.data?.[0] || {});
+        } else {
+          const pre = res?.data?.find(
+            (el: any) => el?.id === Region?.id
+          );
+          setSelectRegion(pre || res?.data?.[0] || {});
+        }
       }
     } catch (error) {
       console.log("Get All PickUpData Error:-", error);
@@ -106,6 +120,8 @@ export default function Parcel({ navigation }: any) {
     }
 
     if (SelectDate !== "" && ActiveTab !== null) {
+    setAllData([])
+    setSelectRegion("")
       GetAllPickUpDataFun(ActiveTab);
     }
   }, [SelectDate]);
@@ -120,27 +136,31 @@ export default function Parcel({ navigation }: any) {
     >
       <CalenderDate date={SelectDate} setDate={setSelectDate} />
 
-      <View style={styles.Flex}>
+      <View style={[styles.Flex,{marginTop:'2%'}]}>
         <DropDownBox
           data={AllData}
           value={Region}
           setValue={setSelectRegion}
           labelFieldKey="name"
           valueFieldKey="id"
-          ContainerStyle={{ width: "82%" }}
+          ContainerStyle={{    flex:1/1.05, }}
           // disbled={true}
         />
+        <View style={{width:46,height:46}}>
+
         <TwoTypeButton
           onlyIcon={true}
           Icon={Images.Scan}
-          style={{ width: 46, height: 46 }}
+          style={{ width: '100%', height: '100%' }}
           onPress={() => navigation.navigate("Scanner",{fun:GetAllPickUpDataFun})}
-        />
+          />
+          </View>
       </View>
 
-      <View style={[SimpleFlex.Flex,{width:width,margin:-15,marginTop:10,}]}>
+      <View style={[SimpleFlex.Flex,{flex:1,margin:-15,marginTop:10,}]}>
         <FlatList
           horizontal
+          showsHorizontalScrollIndicator={false}
           contentContainerStyle={[styles.ContentContainerStyleCatogryStatus]}
           data={AllStatusData || []}
           initialNumToRender={10}

@@ -13,6 +13,8 @@ import { getData, token } from "@/src/utils/storeData";
 // import * as Updates from "expo-updates";
 import { ApiFormatDate } from "@/src/components/ApiFormatDate";
 import { useIsFocused } from "@react-navigation/native";
+import Constants from 'expo-constants';
+import * as Updates from "expo-updates";
 import React, { useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FlatList, ScrollView, Text, View } from "react-native";
@@ -29,22 +31,22 @@ export default function LoadedScreens({ navigation }: any) {
   const [IsLoading, setLoading] = useState(false);
   const { t } = useTranslation();
   const Focused = useIsFocused();
-  // async function checkForUpdate() {
-  //   if (!Constants.appOwnership || Constants.appOwnership === "expo") {
-  //     console.log("Skipping OTA update check in development");
-  //     return;
-  //   }
+  async function checkForUpdate() {
+    if (!Constants.appOwnership || Constants.appOwnership === "expo") {
+      console.log("Skipping OTA update check in development");
+      return;
+    }
 
-  //   try {
-  //     const update = await Updates.checkForUpdateAsync();
-  //     if (update.isAvailable) {
-  //       await Updates.fetchUpdateAsync();
-  //       await Updates.reloadAsync();
-  //     }
-  //   } catch (e) {
-  //     console.log("Error checking updates:", e);
-  //   }
-  // }
+    try {
+      const update = await Updates.checkForUpdateAsync();
+      if (update.isAvailable) {
+        await Updates.fetchUpdateAsync();
+        await Updates.reloadAsync();
+      }
+    } catch (e) {
+      console.log("Error checking updates:", e);
+    }
+  }
 
   const getUserData = async () => {
     try {
@@ -55,7 +57,7 @@ export default function LoadedScreens({ navigation }: any) {
     }
   };
   useEffect(() => {
-    // checkForUpdate();
+    checkForUpdate();
     if (!UserData) {
       getUserData();
     }
@@ -68,9 +70,11 @@ export default function LoadedScreens({ navigation }: any) {
     }
 
     if (SelectDate && UserData) {
+      setAllPickUpData([]);
+      setSelectRegionData("");
       GetAllPickUpDataFun();
     }
-  }, [SelectDate, UserData, Focused]);
+  }, [SelectDate, UserData, ]);
 
   const GetAllPickUpDataFun = async (user: any = null) => {
     // setSelectRegionData([]);
@@ -134,7 +138,7 @@ export default function LoadedScreens({ navigation }: any) {
             setValue={setSelectRegionData}
             labelFieldKey="name"
             valueFieldKey="id"
-            ContainerStyle={{ width: "82%" }}
+            ContainerStyle={{ flex:1/1.05 }}
             // disbled={true}
           />
           <TwoTypeButton
@@ -147,7 +151,7 @@ export default function LoadedScreens({ navigation }: any) {
           />
         </View>
 
-        {selectRegionData && AllPickUpData?.length > 0 && (
+        {selectRegionData && AllPickUpData?.length > 0 ? (
           <FlatList
             data={selectRegionData?.pickup_orders || []}
             ListEmptyComponent={() =>
@@ -196,6 +200,12 @@ export default function LoadedScreens({ navigation }: any) {
               );
             }}
           />
+        ) : IsLoading ? null : (
+          <View style={styles.FooterContainer}>
+            <Text style={[styles.Text, { color: Colors.darkText }]}>
+              {t("No Order Found")}
+            </Text>
+          </View>
         )}
       </View>
     </ScrollView>

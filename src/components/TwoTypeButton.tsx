@@ -32,7 +32,7 @@ export default function TwoTypeButton({
 const styles = StyleSheet.create({
   container: {
     width: "48%",
-    height: 40,
+    height: 45,
     backgroundColor: Colors.primary,
     borderRadius: 4,
     flexDirection: "row",
@@ -46,8 +46,8 @@ const styles = StyleSheet.create({
     color: Colors.white,
   },
   Icon: {
-    width: 24,
-    height: 24,
+    width: '60%',
+    height: '60%',
     tintColor: Colors.white,
   },
 });

@@ -102,7 +102,10 @@ export default function DeliveryScreens({ route, navigation}: any) {
     DropDataSet();
   },[item])
 
-  const StatusUpdateFun = async (data: any) => {
+  const StatusUpdateFun = async (selectReason:string) => {
+    console.log(selectReason);
+    // return
+    
     try {
       let res = await ApiService(apiConstants.status_update, {
         customData: {
@@ -110,8 +113,8 @@ export default function DeliveryScreens({ route, navigation}: any) {
           role: UserData?.user?.role,
           relaties_id: 1307,
           user_id: UserData?.user?.id,
-          item_id: data?.item_id,
-          order_id: data?.order_id,
+          item_id:item?.order_data?.items[0]?.id,
+          order_id: item?.order_data?.items[0]?.tms_order_id,
         },
       });
       if (res?.status) {
@@ -139,6 +142,7 @@ export default function DeliveryScreens({ route, navigation}: any) {
           end={item?.order_data?.deliver_location}
           customerData={item?.order_data?.customer}
           statusData={item?.order_data?.tmsstatus}
+          DeliveryLable = {true}
         />
 
         <View style={{ marginTop: 10 }}>
@@ -149,6 +153,7 @@ export default function DeliveryScreens({ route, navigation}: any) {
             setValue={setSelectPlace}
             labelFieldKey="name"
             valueFieldKey="id"
+            fun={StatusUpdateFun}
             ContainerStyle={{ width: "100%" }}
             // disbled={true}
           />

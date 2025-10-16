@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FlatList,
   Image,
+  Linking,
   Pressable,
   StyleSheet,
   Text,
@@ -11,6 +12,7 @@ import {
 } from "react-native";
 import Collapsible from "react-native-collapsible";
 import { Images } from "../assets/images";
+import { GlobalContextData } from "../context/GlobalContext";
 import { Colors } from "../utils/colors";
 import { SimpleFlex } from "../utils/storeData";
 import ParcelBox from "./ParcelBox";
@@ -19,7 +21,7 @@ export default function PickUpBox({
   index = 0,
   onPress,
   contact,
-  OrderId='00',
+  OrderId = "00",
   LacationProgress = true,
   LableStatus = "Pickup",
   LableBackground = null,
@@ -29,25 +31,70 @@ export default function PickUpBox({
   customerData = null,
   StatusIcon = null,
   statusData = null,
-  IndexActive=true
+  IndexActive = true,
+  DeliveryLable = false,
 }: any) {
   const { t } = useTranslation();
   const [isCollapsed, setisCollapsed] = useState<boolean>(true);
   const pickup: boolean = false;
+  const { setToast } = useContext(GlobalContextData);
+  const getDirectDropboxLink = (sharedLink: string) => {
+    if (!sharedLink) return "";
 
- const getDirectDropboxLink = (sharedLink: string) => {
-  if (!sharedLink) return "";
-  
-  let url = sharedLink
-    .replace("www.dropbox.com", "dl.dropboxusercontent.com")
-    .replace("dropbox.com", "dl.dropboxusercontent.com");
-  
-  url = url.replace(/[?&](dl|raw)=\d/, "");
+    let url = sharedLink
+      .replace("www.dropbox.com", "dl.dropboxusercontent.com")
+      .replace("dropbox.com", "dl.dropboxusercontent.com");
 
-  url += (url.includes("?") ? "&" : "?") + "raw=1";
+    url = url.replace(/[?&](dl|raw)=\d/, "");
 
-  return url;
+    url += (url.includes("?") ? "&" : "?") + "raw=1";
+
+    return url;
+  };
+
+const WhatsaapRedirectFun = async (type: number) => {
+  try {
+    let countryCode = customerData?.country_code || "";
+    if (!countryCode.startsWith("+")) {
+      countryCode = `+${countryCode}`;
+    }
+
+    const phoneNumber = `${countryCode}${customerData?.mobiel || ""}`;
+    const message = t("Hello! This is a test message.");
+    let url = "";
+
+    if (type === 1) {
+      url = `https://api.whatsapp.com/send/?phone=${phoneNumber.replace("+", "")}&type=phone_number&app_absent=0`;
+    } else if (type === 2) {
+      const encodedMsg = encodeURIComponent(message);
+      url = `https://api.whatsapp.com/send/?phone=${phoneNumber.replace(
+        "+",
+        ""
+      )}&text=${encodedMsg}&type=phone_number&app_absent=0`;
+    } else {
+      setToast({
+        top: 45,
+        text: t("Invalid type — please pass 1 or 2 only."),
+        type: "error",
+        visible: true,
+      });
+      return;
+    }
+
+    console.log(url);
+    await Linking.openURL(url);
+  } catch (error) {
+    console.log("WhatsApp redirect error:", error);
+    setToast({
+      top: 45,
+      text: t("Something went wrong while opening WhatsApp."),
+      type: "error",
+      visible: true,
+    });
+  }
 };
+
+
 
 
 
@@ -59,13 +106,11 @@ export default function PickUpBox({
       <View style={[styles.Flex, { marginTop: 0 }]}>
         <View style={styles.TopContainer}>
           <View style={styles.NumberBox}>
-            {
-              IndexActive ?
+            {IndexActive ? (
               <Text style={[styles.Text]}>{index + 1}</Text>
-              :
+            ) : (
               <Text style={[styles.Text]}>{index}</Text>
-
-            }
+            )}
           </View>
 
           <View>
@@ -95,7 +140,7 @@ export default function PickUpBox({
             style={[
               styles.OrderIdText,
               {
-              textAlign:'center',
+                textAlign: "center",
                 fontSize: 14,
                 color: Colors.black,
               },
@@ -106,14 +151,16 @@ export default function PickUpBox({
         </View>
       </View>
 
-      <View style={[styles.Flex]}>
+      <View style={[styles.Flex, { marginTop: 0 }]}>
         <Text style={styles.OrderIdText}>{t("Total Parcel")}</Text>
         <View style={[SimpleFlex.Flex, { gap: 0 }]}>
           <Text style={styles.Text}>{ProductItem?.length}</Text>
           <TouchableOpacity
             style={{
               transform: [{ rotate: isCollapsed ? "0deg" : "180deg" }],
-              paddingHorizontal: 5,
+              paddingHorizontal: 10,
+              paddingVertical: 10,
+              // borderWidth:1,
             }}
             onPress={() => setisCollapsed((pre) => !pre)}
           >
@@ -152,7 +199,11 @@ export default function PickUpBox({
       </Collapsible>
       {LacationProgress && (
         <View style={{ marginTop: 15 }}>
-          <PickupPogressMap start={start} end={end} />
+          <PickupPogressMap
+            start={start}
+            end={end}
+            DeliveryLable={DeliveryLable}
+          />
         </View>
       )}
 
@@ -160,11 +211,11 @@ export default function PickUpBox({
         <View style={styles.Flex}>
           <Text style={styles.Text}>{t("Contact")}</Text>
           <View style={SimpleFlex.Flex}>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => WhatsaapRedirectFun(1)}>
               <Image source={Images.WhatsApp} style={styles.Icon} />
             </TouchableOpacity>
 
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => WhatsaapRedirectFun(2)}>
               <Image source={Images.redWhatsApp} style={styles.Icon} />
             </TouchableOpacity>
           </View>

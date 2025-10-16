@@ -10,7 +10,7 @@ type Props = {
   qty?: number;
   title?: string;
   Icon?: string;
-  statusData?:any;
+  statusData?: any;
 };
 
 export default function ParcelBox({
@@ -19,32 +19,36 @@ export default function ParcelBox({
   qty = 0,
   title,
   Icon,
-  statusData=null,
+  statusData = null,
 }: Props) {
-  
-
   const { t } = useTranslation();
   return (
     <Pressable style={styles.container}>
       <View style={SimpleFlex.Flex}>
-        <View style={styles.NumberBox}>
+        <View style={[styles.NumberBox,]}>
           <Text style={styles.Text}>{index + 1}</Text>
         </View>
-        <Text style={styles.Text}>{title?.slice(0, 10) || ""}</Text>
-        <Text style={styles.DarkText}>{`(${t("Qty")}: ${qty})`}</Text>
+        <Text style={[styles.Text, { fontSize: (title?.length ?? 0) > 25 ? 12 : 14,width:'70%', }]}>
+          {title || ""}
+        </Text>
+        {/* <Text style={styles.DarkText}>{`(${t("Qty")}: ${qty})`}</Text> */}
       </View>
       {/* {!(statusData?.status_name == data?.tmsstatus?.status_name) ? ( */}
-        <View
-          style={[
-            styles.Status,
-            {
-              backgroundColor: data?.tmsstatus?.color || Colors.background,
-            },
-          ]}
-        >
-          <Image source={{ uri: Icon }} style={styles.Icon}  tintColor={Colors.black}/>
-          {/* <Image source={Images.Check} style={styles.Icon} /> */}
-        </View>
+      <View
+        style={[
+          styles.Status,
+          {
+            backgroundColor: data?.tmsstatus?.color || Colors.background,
+          },
+        ]}
+      >
+        <Image
+          source={{ uri: Icon }}
+          style={styles.Icon}
+          tintColor={Colors.black}
+        />
+        {/* <Image source={Images.Check} style={styles.Icon} /> */}
+      </View>
       {/* //  ) : (
       //    <View style={styles.NumberBox} />
       //  )} */}

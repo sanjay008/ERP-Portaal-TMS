@@ -7,9 +7,10 @@ import { Colors } from "../utils/colors";
 type Props = {
   start: string;
   end: string;
+  DeliveryLable:boolean;
 };
 
-export default function PickupPogressMap({ start = "", end = "" }: Props) {
+export default function PickupPogressMap({ start = "", end = "" , DeliveryLable=false}: Props) {
   const { t } = useTranslation();
   return (
     <View style={styles.container}>
@@ -31,7 +32,7 @@ export default function PickupPogressMap({ start = "", end = "" }: Props) {
         <View style={styles.locateName}>
           <Text style={styles.DarkText}>{t("Pick Up")}</Text>
 
-          <Text style={styles.DarkText}>{t("Warehouse")}</Text>
+          <Text style={styles.DarkText}>{DeliveryLable ? t("To Deliver") : t("Warehouse")}</Text>
         </View>
       </View>
       <View style={styles.AddressContainer}>

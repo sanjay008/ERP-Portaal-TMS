@@ -1,17 +1,37 @@
 import { useNavigation } from "@react-navigation/native";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Images } from "../assets/images";
 import { Colors } from "../utils/colors";
+import { SimpleFlex } from "../utils/storeData";
 
-export default function DetailsHeader({ title }: { title: string }) {
-    const {goBack} = useNavigation<any>();
+export default function DetailsHeader({
+  title,
+  button = false,
+  buttonText = "",
+  onPress,
+}: {
+  title: string;
+  button?: boolean;
+  buttonText?:string;
+  onPress?:()=>void;
+}) {
+  const { goBack } = useNavigation<any>();
+  const { t } = useTranslation();
   return (
     <View style={styles.container}>
-      <TouchableOpacity onPress={goBack}>
-        <Image source={Images.back} style={styles.BackIcon} />
-      </TouchableOpacity>
-      <Text style={styles.Title}>{title}</Text>
+      <View style={SimpleFlex.Flex}>
+        <TouchableOpacity onPress={goBack}>
+          <Image source={Images.back} style={styles.BackIcon} />
+        </TouchableOpacity>
+        <Text style={styles.Title}>{title}</Text>
+      </View>
+      {button && (
+        <TouchableOpacity style={styles.Button} onPress={onPress}>
+          <Text style={styles.Text}>{buttonText || t("title")}</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -32,6 +52,7 @@ const styles = StyleSheet.create({
     shadowRadius: 1.5,
     borderBottomWidth: 0.3,
     borderColor: Colors.Boxgray,
+    justifyContent:'space-between'
   },
   BackIcon: {
     width: 34,
@@ -42,4 +63,15 @@ const styles = StyleSheet.create({
     fontFamily: "SemiBold",
     color: Colors.black,
   },
+  Button:{
+    paddingVertical:10,
+    paddingHorizontal:15,
+    borderRadius:4,
+    backgroundColor:Colors.red
+  },
+  Text:{
+    fontSize:14,
+    fontFamily:"Medium",
+    color:Colors.white
+  }
 });

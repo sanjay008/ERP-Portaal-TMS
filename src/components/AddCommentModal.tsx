@@ -20,9 +20,10 @@ import { height, width } from "../utils/storeData";
 type Props = {
   IsVisible: boolean;
   setIsVisible: (value: boolean) => void;
+  fun?:(value:string)=> void;
 };
 
-export default function AddCommentModal({ IsVisible, setIsVisible }: Props) {
+export default function AddCommentModal({ IsVisible, setIsVisible, fun}: Props) {
   const { t } = useTranslation();
   const [comment, setComment] = useState<string>("");
   const [Description, setDescrition] = useState<string>("");
@@ -31,10 +32,14 @@ export default function AddCommentModal({ IsVisible, setIsVisible }: Props) {
 
 
   const CommentFun = async()=>{
+    setCommentError("");
     if(Description.trim()==""){
         setCommentError(t("Enter a comment"))
         return
     }
+    fun?.(Description);
+    setDescrition("");
+    setIsVisible(false)
   }
   return (
     <Modal
@@ -44,7 +49,7 @@ export default function AddCommentModal({ IsVisible, setIsVisible }: Props) {
       style={{ margin: 0 }}
       onBackdropPress={() => {setIsVisible(false)}}
       onBackButtonPress={() => {setIsVisible(false)}}
-      useNativeDriver
+      useNativeDriver 
       avoidKeyboard
     >
       <KeyboardAwareScrollView

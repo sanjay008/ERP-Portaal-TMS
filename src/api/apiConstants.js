@@ -27,6 +27,7 @@ module.exports = {
     Verify_status: `${baseUrlnew}tms-driver/verify-order-item-status`,
     status_update: `${baseUrlnew}tms-driver/update-order-item-status`,
     status_list: `${baseUrlnew}tms-driver/get-tms-status-list`,
+    store_image_comment: `${baseUrlnew}tms-driver/store-tms-comment-img`,
 
 };
 

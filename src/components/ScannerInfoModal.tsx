@@ -49,7 +49,6 @@ export default function ScannerInfoModal({
   const navigation = useNavigation<any>();
   const [isCollapsed, setisCollapsed] = useState<boolean>(true);
   const pickup: any = false;
-  console.log("type",type);
   
   return (
     <Modal
@@ -101,7 +100,7 @@ export default function ScannerInfoModal({
             </View>
 
             {type == 0 && (
-              <View style={[SimpleFlex, { gap: 0 }]}>
+              <View style={[SimpleFlex.Flex, { gap: 0 }]}>
                 <Text style={styles.Text}>3</Text>
                 <TouchableOpacity
                   style={{

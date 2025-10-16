@@ -7,9 +7,20 @@ import { Colors } from "@/src/utils/colors.js";
 import { height, token, width } from "@/src/utils/storeData";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Audio } from "expo-av";
-import { Camera, CameraType, CameraView } from "expo-camera";
+import {
+  Camera,
+  CameraType,
+  CameraView,
+  useCameraPermissions,
+} from "expo-camera";
 import { goBack } from "expo-router/build/global-state/routing";
-import React, { useCallback, useContext, useEffect, useState } from "react";
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import {
   Image,
@@ -19,8 +30,9 @@ import {
   View,
 } from "react-native";
 
-export default function ScannerScreens({ navigation,route }: any) {
+export default function ScannerScreens({ navigation, route }: any) {
   const { fun } = route?.params || "";
+  const [permission, requestPermission] = useCameraPermissions();
   const [ConformationModalOpen, setConformationModal] = useState<any>({
     visible: false,
     title: "",
@@ -42,6 +54,7 @@ export default function ScannerScreens({ navigation,route }: any) {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [lastDetectedBarcode, setLastDetectedBarcode] = useState<string>("");
   const [flashEnabled, setFlashEnabled] = useState<boolean>(false);
+  const cameraRef = useRef(null);
   const [GetConformationQuestion, setGetConformationQuestion] =
     useState<string>("");
   const [facing, setFacing] = useState<CameraType>("back");
@@ -56,9 +69,14 @@ export default function ScannerScreens({ navigation,route }: any) {
   useEffect(() => {
     (async () => {
       const { status } = await Camera.requestCameraPermissionsAsync();
+
       setHasPermission(status === "granted");
     })();
-  }, []);
+    if (!permission) return;
+    if (!permission.granted) {
+      requestPermission();
+    }
+  }, [permission]);
 
   const onBarcodeScanned = useCallback(
     async ({ data, type }: { data: string; type: string }) => {
@@ -175,6 +193,8 @@ export default function ScannerScreens({ navigation,route }: any) {
   return (
     <View style={styles.container}>
       <CameraView
+        ref={cameraRef}
+        enableTorch={flashEnabled}
         style={StyleSheet.absoluteFill}
         onBarcodeScanned={onBarcodeScanned}
         barcodeScannerSettings={{

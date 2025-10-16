@@ -20,6 +20,7 @@ type Props = {
   valueFieldKey?: string;
   ContainerStyle?: object;
   disbled?: boolean;
+  fun?:(value:any) => void;
 };
 
 const DropDownBox: React.FC<Props> = ({
@@ -32,6 +33,7 @@ const DropDownBox: React.FC<Props> = ({
   valueFieldKey = "name",
   ContainerStyle,
   disbled = false,
+  fun,
 }) => {
   const { t } = useTranslation();
     const [isFocus, setIsFocus] = useState(false);
@@ -44,9 +46,11 @@ const DropDownBox: React.FC<Props> = ({
         labelField={labelFieldKey}
         valueField={valueFieldKey}
         placeholder={t(placeholder)}
+        containerStyle={[styles.container,{width:'92%'}]}
         value={value}
         onChange={(item) => {
           setValue(item);
+          fun?.(item)
         }}
             onFocus={() => {
           setIsFocus(true);

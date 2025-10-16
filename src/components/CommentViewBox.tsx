@@ -5,41 +5,49 @@ import DashedLine from "react-native-dashed-line";
 import { Images } from "../assets/images";
 import { Colors } from "../utils/colors";
 import { SimpleFlex } from "../utils/storeData";
+import { formatDate } from "./DateFormate";
 export default function CommentViewBox({ data }: { data: object[] }) {
   const { t } = useTranslation();
   return (
     <View style={styles.container}>
-      <Text style={styles.Heading}>{`${data?.length}`} {t("Comments")}</Text>
+      <Text style={styles.Heading}>
+        {`${data?.length}`} {t("Comments")}
+      </Text>
 
       <FlatList
         // data={data}
-        data={["",""]}
+        data={data}
         style={styles.Container}
         contentContainerStyle={styles.ContentStyle}
         scrollEnabled={false}
-        renderItem={({item,index}) => (
-          <View style={styles.CommentBox}>
-            <View style={SimpleFlex.Flex}>
-              <Image source={Images.Profile} style={styles.ImageProfile} />
+        renderItem={({ item, index }: any) => {
+           if (item.log_type !== 'item_comment') return null;
+          return (
+            <View style={styles.CommentBox}>
+              <View style={SimpleFlex.Flex}>
+                <Image source={Images.Profile} style={styles.ImageProfile} />
 
-              <View>
-                <Text style={styles.Text}>Mathilde Langevin</Text>
-                <Text style={styles.DarkText}>4 days ago</Text>
+                <View>
+                  <Text style={styles.Text}>Mathilde Langevin</Text>
+                  <Text style={styles.DarkText}>{formatDate(item?.created_at)}</Text>
+                </View>
               </View>
-            </View>
 
-            <Text style={[styles.DarkText, { marginTop: 10 }]}>
-              Look... I feel like I'm running out of ways to explain.
-            </Text>
-            <DashedLine
-              dashLength={6}
-              dashThickness={2}
-              dashGap={5}
-              style={styles.Dashed}
-              dashColor={Colors.Boxgray}
-            />
-          </View>
-        )}
+              <Text style={[styles.DarkText, { marginTop: 10 }]}>
+               {
+                item?.comment || ""
+               }
+              </Text>
+              <DashedLine
+                dashLength={6}
+                dashThickness={2}
+                dashGap={5}
+                style={styles.Dashed}
+                dashColor={Colors.Boxgray}
+              />
+            </View>
+          );
+        }}
       />
     </View>
   );
@@ -56,7 +64,6 @@ const styles = StyleSheet.create({
   },
   CommentBox: {
     width: "100%",
-    
   },
   ImageProfile: {
     width: 40,
@@ -78,11 +85,10 @@ const styles = StyleSheet.create({
     marginTop: 15,
     color: Colors.Boxgray,
   },
-  Container:{
-    marginTop:15
+  Container: {
+    marginTop: 15,
   },
-  ContentStyle:{
-    gap:15,
-
+  ContentStyle: {
+    gap: 15,
   },
 });

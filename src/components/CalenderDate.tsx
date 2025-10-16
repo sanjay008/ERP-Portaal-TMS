@@ -278,12 +278,14 @@ export default function CalenderDate({ date, setDate }: Props) {
       </View>
 
       {/* Calendar Button */}
+      <View style={{width:46,height:46}}>
       <TouchableOpacity
         style={styles.Calender}
         onPress={() => setVisible(true)}
       >
-        <Image source={Images.calender} style={{ width: 22, height: 22 }} />
+        <Image source={Images.calender} style={{ width: '50%', height: '50%' }} />
       </TouchableOpacity>
+      </View>
 
       {/* Calendar Modal */}
       <Modal
@@ -345,13 +347,15 @@ export default function CalenderDate({ date, setDate }: Props) {
 // ---- Styles ---- //
 const styles = StyleSheet.create({
   container: {
-    width: "100%",
+    // width: width,
+    width:'100%',
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    // borderWidth:1
   },
   DateShowContainer: {
-    width: "82%",
+    flex:1/1.05,
     height: 50,
     borderRadius: 10,
     borderWidth: 1.2,
@@ -379,8 +383,8 @@ const styles = StyleSheet.create({
     fontFamily: "regular",
   },
   Calender: {
-    width: 46,
-    height: 46,
+    width: '100%',
+    height: '100%',
     borderRadius: 8,
     backgroundColor: Colors.primary,
     justifyContent: "center",
