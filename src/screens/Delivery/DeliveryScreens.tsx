@@ -14,6 +14,7 @@ import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
 import { token, width } from "@/src/utils/storeData";
 import axios from "axios";
+// import { Image } from "expo-image";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import React, { useContext, useEffect, useState } from "react";
@@ -23,15 +24,14 @@ import {
   FlatList,
   Image,
   Pressable,
-  TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styles } from "./style";
 export default function DeliveryScreens({ route, navigation }: any) {
   const { item, fun } = route?.params || "";
-  
-  const [ItemsData,setItemsData] = useState<any>(null);
+
+  const [ItemsData, setItemsData] = useState<any>(null);
   const [DropData, setDropData] = useState<object[]>([]);
   const [SelectPlace, setSelectPlace] = useState<object | any>(null);
   const { ErrorHandle } = useErrorHandle();
@@ -108,11 +108,8 @@ export default function DeliveryScreens({ route, navigation }: any) {
     setDropData(dataArray);
   };
 
-
- 
-
   const StatusUpdateFun = async (selectReason: any) => {
-     setIsLoading(true)
+    setIsLoading(true);
     try {
       let res = await ApiService(apiConstants.status_update, {
         customData: {
@@ -132,17 +129,15 @@ export default function DeliveryScreens({ route, navigation }: any) {
       }
     } catch (error) {
       console.log("Status Update Error:", error);
-        setToast({
+      setToast({
         top: 45,
         text: ErrorHandle(error).message,
         type: "error",
         visible: true,
       });
+    } finally {
+      setIsLoading(false);
     }
-    finally{
-    setIsLoading(false)
-    }
-   
   };
 
   const AddImageOrCommentFun = async (comment: string = "", data = []) => {
@@ -193,7 +188,6 @@ export default function DeliveryScreens({ route, navigation }: any) {
         }
       );
       if (Boolean(res?.data.status)) {
-        
         setToast({
           top: 45,
           text: res?.data?.message,
@@ -251,7 +245,7 @@ export default function DeliveryScreens({ route, navigation }: any) {
         },
       });
       if (res?.status) {
-        setItemsData(res?.data)
+        setItemsData(res?.data);
         setPlaceSelectToHideShow(res?.data?.tmsstatus?.id > 4);
         console.log("Success!", res);
       }
@@ -260,12 +254,12 @@ export default function DeliveryScreens({ route, navigation }: any) {
     }
   };
 
-  useEffect(()=>{
-    if(item){
+  useEffect(() => {
+    if (item) {
       // GetIdByOrderFun();
-      DropDataSet()
+      DropDataSet();
     }
-  },[item])
+  }, [item]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -273,38 +267,56 @@ export default function DeliveryScreens({ route, navigation }: any) {
       <View style={styles.ContentContainer}>
         <PickUpBox
           IndexActive={false}
-          index={ItemsData ? ItemsData?.id  : item?.order_data?.id}
-          LableStatus={ItemsData ? ItemsData?.tmsstatus?.status_name  : item?.order_data?.tmsstatus?.status_name}
-          OrderId={ItemsData ? ItemsData?.id  : item?.order_data?.id}
-          ProductItem={ItemsData ? ItemsData?.items  : item?.order_data?.items}
-          LableBackground={ItemsData ? ItemsData?.tmsstatus?.color  : item?.order_data?.tmsstatus?.color}
-          start={ItemsData ? ItemsData?.pickup_location  : item?.order_data?.pickup_location}
-          end={ItemsData ? ItemsData?.deliver_location  : item?.order_data?.deliver_location}
-          customerData={ItemsData ? ItemsData?.customer  : item?.order_data?.customer}
-          statusData={ItemsData ? ItemsData?.tmsstatus  : item?.order_data?.tmsstatus}
+          index={ItemsData ? ItemsData?.id : item?.order_data?.id}
+          LableStatus={
+            ItemsData
+              ? ItemsData?.tmsstatus?.status_name
+              : item?.order_data?.tmsstatus?.status_name
+          }
+          OrderId={ItemsData ? ItemsData?.id : item?.order_data?.id}
+          ProductItem={ItemsData ? ItemsData?.items : item?.order_data?.items}
+          LableBackground={
+            ItemsData
+              ? ItemsData?.tmsstatus?.color
+              : item?.order_data?.tmsstatus?.color
+          }
+          start={
+            ItemsData
+              ? ItemsData?.pickup_location
+              : item?.order_data?.pickup_location
+          }
+          end={
+            ItemsData
+              ? ItemsData?.deliver_location
+              : item?.order_data?.deliver_location
+          }
+          customerData={
+            ItemsData ? ItemsData?.customer : item?.order_data?.customer
+          }
+          statusData={
+            ItemsData ? ItemsData?.tmsstatus : item?.order_data?.tmsstatus
+          }
           DeliveryLable={true}
         />
 
-      {
-        !PlaceSelectToHideShow &&
-        <View style={{ marginTop: 10 }}>
-          <DropDownBox
-            data={DropData || []}
-            placeholder={t("Select Place")}
-            value={SelectPlace}
-            setValue={setSelectPlace}
-            labelFieldKey="name"
-            valueFieldKey="id"
-            fun={StatusUpdateFun}
-            ContainerStyle={{ width: "100%" }}
-            // disbled={true}
-          />
-        </View>
-      }
-
+        {!PlaceSelectToHideShow && (
+          <View style={{ marginTop: 10 }}>
+            <DropDownBox
+              data={DropData || []}
+              placeholder={t("Select Place")}
+              value={SelectPlace}
+              setValue={setSelectPlace}
+              labelFieldKey="name"
+              valueFieldKey="id"
+              fun={StatusUpdateFun}
+              ContainerStyle={{ width: "100%" }}
+              // disbled={true}
+            />
+          </View>
+        )}
 
         {PlaceSelectToHideShow && (
-          <View style={{marginTop:10}}>
+          <View style={{ marginTop: 10 }}>
             <View style={[styles.Flex, { marginBottom: 10 }]}>
               <TwoTypeButton
                 Icon={Images.Photos}
@@ -330,15 +342,6 @@ export default function DeliveryScreens({ route, navigation }: any) {
                 renderItem={({ item, index }) => {
                   return (
                     <View style={styles.Image}>
-                      <TouchableOpacity
-                        style={styles.RemoveButton}
-                        onPress={() => CloseDocument(index)}
-                      >
-                        <Image
-                          source={Images?.RemoveParcel}
-                          style={{ width: "100%", height: "100%" }}
-                        />
-                      </TouchableOpacity>
                       <Image
                         source={{ uri: item }}
                         style={{

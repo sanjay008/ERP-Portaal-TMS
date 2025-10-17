@@ -14,6 +14,7 @@ import { GlobalContextData } from "@/src/context/GlobalContext";
 import { Colors } from "@/src/utils/colors";
 import { token } from "@/src/utils/storeData";
 import axios from "axios";
+// import { Image } from "expo-image";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { StatusBar } from "expo-status-bar";
@@ -22,12 +23,12 @@ import { useTranslation } from "react-i18next";
 import {
   Alert,
   FlatList,
+  Image,
   Pressable,
   ScrollView,
   Text,
-  View
+  View,
 } from "react-native";
-import FastImage from "react-native-fast-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styles } from "./styles";
 export default function DetailsScreens({ navigation, route }: any) {
@@ -264,7 +265,7 @@ export default function DetailsScreens({ navigation, route }: any) {
 
         <FlatList
           horizontal
-          style={{ flexGrow:1,margin:-15,marginVertical:10}}
+          style={{ flexGrow: 1, margin: -15, marginVertical: 10 }}
           ListEmptyComponent={() => (
             <View style={styles.FooterContainer}>
               <Text style={[styles.Text, { color: Colors.darkText }]}>
@@ -282,19 +283,20 @@ export default function DetailsScreens({ navigation, route }: any) {
             offset: 70 * index,
             index,
           })}
-          contentContainerStyle={{ gap: 10, paddingRight: 50,paddingLeft:15 }}
+          contentContainerStyle={{ gap: 10, paddingRight: 50, paddingLeft: 15 }}
           data={getMergedImages(item, AllSelectImage)}
           renderItem={({ item, index }) => {
             const uri = item.shared_link
               ? getDirectDropboxLink(item.shared_link)
               : item.uri;
-              if (!uri) return null;
+            if (!uri) return null;
             return (
               <View style={styles.Image}>
-                <FastImage
-                  source={{ uri: uri,priority:FastImage.priority.normal }}
-                  style={{ borderRadius: 7, width: "100%", height: "100%" }}
-                  resizeMode={FastImage.resizeMode.cover}
+                <Image
+                  source={{ uri }}
+                  style={{ borderRadius: 7, width: "100%", height: "100%" ,}}
+                  
+                  
                 />
               </View>
             );
