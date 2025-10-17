@@ -23,5 +23,10 @@ export const styles = StyleSheet.create({
     right:10,
     top:10,
     zIndex: 50,
-  }
+  },
+    Flex: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
 });

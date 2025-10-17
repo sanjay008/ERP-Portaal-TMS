@@ -12,7 +12,7 @@ import TwoTypeButton from "@/src/components/TwoTypeButton";
 import TwoTypeInput from "@/src/components/TwoTypeInput";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import { Colors } from "@/src/utils/colors";
-import { token, width } from "@/src/utils/storeData";
+import { token } from "@/src/utils/storeData";
 import axios from "axios";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
@@ -264,7 +264,7 @@ export default function DetailsScreens({ navigation, route }: any) {
 
         <FlatList
           horizontal
-          style={{ width: width }}
+          style={{ flexGrow:1,margin:-15,marginVertical:10}}
           ListEmptyComponent={() => (
             <View style={styles.FooterContainer}>
               <Text style={[styles.Text, { color: Colors.darkText }]}>
@@ -282,7 +282,7 @@ export default function DetailsScreens({ navigation, route }: any) {
             offset: 70 * index,
             index,
           })}
-          contentContainerStyle={{ gap: 10, paddingRight: 50 }}
+          contentContainerStyle={{ gap: 10, paddingRight: 50,paddingLeft:15 }}
           data={getMergedImages(item, AllSelectImage)}
           renderItem={({ item, index }) => {
             const uri = item.shared_link

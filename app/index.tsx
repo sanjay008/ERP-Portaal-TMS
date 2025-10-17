@@ -64,7 +64,7 @@ export default function Index() {
             <Stack.Screen name="Password" component={Password} />
             <Stack.Screen name="Register" component={Register} />
             <Stack.Screen name="Staff" component={Staff} />
-            <Stack.Screen name="Details" component={withLayoutHeader(DetailsScreens)} />
+            <Stack.Screen name="Details" component={withLayoutHeader(DetailsScreens)} options={{statusBarAnimation:'slide'}}/>
             <Stack.Screen name="BottomTabs" component={withLayoutHeader(BottomTabs)} />
             <Stack.Screen name="Scanner" component={withLayoutHeader(ScannerScreens)} />
             <Stack.Screen name="Select" component={withLayoutHeader(SelectLanguage)} />

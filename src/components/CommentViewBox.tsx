@@ -28,7 +28,7 @@ export default function CommentViewBox({ data }: { data: object[] }) {
                 <Image source={Images.Profile} style={styles.ImageProfile} />
 
                 <View>
-                  <Text style={styles.Text}>Mathilde Langevin</Text>
+                  <Text style={styles.Text}>{item?.tmsdriverdata?.display_name}</Text>
                   <Text style={styles.DarkText}>{formatDate(item?.created_at)}</Text>
                 </View>
               </View>

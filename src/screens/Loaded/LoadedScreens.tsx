@@ -13,7 +13,7 @@ import { getData, token } from "@/src/utils/storeData";
 // import * as Updates from "expo-updates";
 import { ApiFormatDate } from "@/src/components/ApiFormatDate";
 import { useIsFocused } from "@react-navigation/native";
-import Constants from 'expo-constants';
+import Constants from "expo-constants";
 import * as Updates from "expo-updates";
 import React, { useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -23,6 +23,7 @@ import { styles } from "./style";
 export default function LoadedScreens({ navigation }: any) {
   const { UserData, setUserData, Toast, setToast, AllRegion, setAllRegion } =
     useContext(GlobalContextData);
+  const RefHandle = useRef(null);
   const [SelectDate, setSelectDate] = useState<string>("");
   const [selectRegionData, setSelectRegionData] = useState<any | {}>("");
   const { ErrorHandle } = useErrorHandle();
@@ -74,7 +75,7 @@ export default function LoadedScreens({ navigation }: any) {
       setSelectRegionData("");
       GetAllPickUpDataFun();
     }
-  }, [SelectDate, UserData, ]);
+  }, [SelectDate, UserData]);
 
   const GetAllPickUpDataFun = async (user: any = null) => {
     // setSelectRegionData([]);
@@ -106,6 +107,7 @@ export default function LoadedScreens({ navigation }: any) {
           const pre = res?.data?.find(
             (el: any) => el?.id === selectRegionData?.id
           );
+
           setSelectRegionData(pre || res?.data?.[0] || {});
         }
       }
@@ -129,7 +131,7 @@ export default function LoadedScreens({ navigation }: any) {
       nestedScrollEnabled={true}
       contentContainerStyle={styles.ContainerStyle}
     >
-      <View style={styles.ItemGap}>
+      <View style={styles.ItemGap} ref={RefHandle}>
         <CalenderDate date={SelectDate} setDate={setSelectDate} />
         <View style={styles.Flex}>
           <DropDownBox
@@ -138,7 +140,7 @@ export default function LoadedScreens({ navigation }: any) {
             setValue={setSelectRegionData}
             labelFieldKey="name"
             valueFieldKey="id"
-            ContainerStyle={{ flex:1/1.05 }}
+            ContainerStyle={{ flex: 1 / 1.05 }}
             // disbled={true}
           />
           <TwoTypeButton

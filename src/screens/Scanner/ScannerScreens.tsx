@@ -1,11 +1,14 @@
 import apiConstants from "@/src/api/apiConstants";
 import { Images } from "@/src/assets/images";
+import { useErrorHandle } from "@/src/components/ErrorHandle";
+import LoadingModal from "@/src/components/LoadingModal";
 import ScannerInfoModal from "@/src/components/ScannerInfoModal";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors.js";
 import { height, token, width } from "@/src/utils/storeData";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { useIsFocused } from "@react-navigation/native";
 import { Audio } from "expo-av";
 import {
   Camera,
@@ -31,8 +34,9 @@ import {
 } from "react-native";
 
 export default function ScannerScreens({ navigation, route }: any) {
-  const { fun } = route?.params || "";
+  const { fun = () => {} } = route?.params || {};
   const [permission, requestPermission] = useCameraPermissions();
+  const [IsLoading, setIsLoading] = useState<boolean>(false);
   const [ConformationModalOpen, setConformationModal] = useState<any>({
     visible: false,
     title: "",
@@ -49,6 +53,7 @@ export default function ScannerScreens({ navigation, route }: any) {
     onPress: "",
     personData: [],
     type: 1,
+    ProductItem:[],
   });
 
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
@@ -58,14 +63,14 @@ export default function ScannerScreens({ navigation, route }: any) {
   const [GetConformationQuestion, setGetConformationQuestion] =
     useState<string>("");
   const [facing, setFacing] = useState<CameraType>("back");
-  const { UserData } = useContext(GlobalContextData);
+  const { UserData, setToast } = useContext(GlobalContextData);
   const { t } = useTranslation();
-
+   const { ErrorHandle } = useErrorHandle();
   const playBeep = useCallback(async () => {
     const { sound } = await Audio.Sound.createAsync(Images.ScannerSound);
     await sound.playAsync();
   }, []);
-
+const Focused = useIsFocused();
   useEffect(() => {
     (async () => {
       const { status } = await Camera.requestCameraPermissionsAsync();
@@ -76,7 +81,13 @@ export default function ScannerScreens({ navigation, route }: any) {
     if (!permission.granted) {
       requestPermission();
     }
-  }, [permission]);
+    if(ConformationModalOpen?.visible){
+      setConformationModal((prev: any[]) => ({
+            ...prev,
+            visible: false,
+          }))
+    }
+  }, [permission,Focused]);
 
   const onBarcodeScanned = useCallback(
     async ({ data, type }: { data: string; type: string }) => {
@@ -122,7 +133,6 @@ export default function ScannerScreens({ navigation, route }: any) {
           role: UserData?.user?.role,
           relaties_id: 1307,
           user_id: UserData?.user?.id,
-          // user_id: 316,
           item_id: data?.item_id,
           order_id: data?.order_id,
         },
@@ -138,14 +148,15 @@ export default function ScannerScreens({ navigation, route }: any) {
           RButtonStyle: Colors.primary,
           RColor: Colors.white,
           personData: res?.data?.order_data || [],
-          ConformationModalOpen: data?.order_id,
+          order_id: data?.order_id,
+          ProductItem:res?.data?.order_data?.items || [], 
           type: res?.data?.order_data?.tmsstatus?.id == 2 ? 2 : 1,
         };
 
         if (res?.data?.isscaned) {
           if (res?.data?.order_data?.tmsstatus?.id == 4) {
             modalConfig.onPress = async () => {
-              navigation.navigate("Delivery", { item: res?.data });
+              navigation.navigate("Delivery", { item: res?.data,fun });
             };
           } else {
             modalConfig.onPress = async () => {
@@ -169,6 +180,17 @@ export default function ScannerScreens({ navigation, route }: any) {
   };
 
   const StatusUpdateFun = async (data: any) => {
+    // console.log("Status Update Request Data",{
+    //       token: token,
+    //       role: UserData?.user?.role,
+    //       relaties_id: 1307,
+    //       user_id: UserData?.user?.id,
+    //       item_id: data?.item_id,
+    //       order_id: data?.order_id,
+    //     });
+
+    setIsLoading(true);
+
     try {
       let res = await ApiService(apiConstants.status_update, {
         customData: {
@@ -187,6 +209,14 @@ export default function ScannerScreens({ navigation, route }: any) {
       }
     } catch (error) {
       console.log("Status Update Error:", error);
+      setToast({
+        top: 45,
+        text: ErrorHandle(error).message,
+        type: "error",
+        visible: true,
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -233,27 +263,6 @@ export default function ScannerScreens({ navigation, route }: any) {
         </TouchableOpacity>
       </View>
 
-      {/* <ConformationModal
-        IsVisible={ConformationModalOpen?.visible}
-        onClose={() =>
-          setConformationModal((prev: any[]) => ({
-            ...prev,
-            visible: false,
-          }))
-        }
-        Title={ConformationModalOpen.title}
-        Icon={ConformationModalOpen.Icon}
-        LeftButtonText={ConformationModalOpen.LButtonText}
-        RightButtonText={ConformationModalOpen.RButtonText}
-        RightBgColor={ConformationModalOpen.RButtonStyle}
-        LeftBGColor={ConformationModalOpen.LButtonStyle}
-        RightButtonIcon={ConformationModalOpen.RButtonIcon}
-        RTextColor={ConformationModalOpen.RColor}
-        LTextColor={ConformationModalOpen.LColor}
-        onPress={ConformationModalOpen.onPress}
-        Description={ConformationModalOpen.Desctiption}
-      /> */}
-
       <ScannerInfoModal
         InfoTitle={ConformationModalOpen.title}
         type={ConformationModalOpen?.type || 0}
@@ -262,6 +271,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         RText={ConformationModalOpen.RButtonText}
         LText={ConformationModalOpen.LButtonText}
         onPress={ConformationModalOpen.onPress}
+        ProductItem={ConformationModalOpen?.ProductItem}
         OrderId={ConformationModalOpen.order_id}
         onClose={() =>
           setConformationModal((prev: any[]) => ({
@@ -270,6 +280,8 @@ export default function ScannerScreens({ navigation, route }: any) {
           }))
         }
       />
+      <LoadingModal visible={IsLoading} message={t("Please wait…")} />
+
     </View>
   );
 }

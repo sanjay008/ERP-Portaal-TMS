@@ -113,14 +113,14 @@ const WhatsaapRedirectFun = async (type: number) => {
             )}
           </View>
 
-          <View>
-            <Text style={[[styles.Text], { fontSize: 15 }]} numberOfLines={2}>
-              {customerData?.display_name?.slice(0, 20) || ""}
-            </Text>
+          <View style={{flex:1}}>
+            <Text style={[[styles.Text], { fontSize: customerData?.display_name?.length > 25 ? 12  : 15,flex:1 }]} >
+              {customerData?.display_name || ""}
             <Text
               style={[styles.OrderIdText, pickup && { color: Colors.black }]}
             >
-              {`#${OrderId}` || 0}
+              {`\n#${OrderId}` || 0}
+            </Text>
             </Text>
           </View>
         </View>

@@ -28,6 +28,7 @@ module.exports = {
     status_update: `${baseUrlnew}tms-driver/update-order-item-status`,
     status_list: `${baseUrlnew}tms-driver/get-tms-status-list`,
     store_image_comment: `${baseUrlnew}tms-driver/store-tms-comment-img`,
+    get_order_data_by_id: `${baseUrlnew}tms-driver/get-order-data-by-id`,
 
 };
 

@@ -10,7 +10,10 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.erpportaal.ERP-Portaal-TMS"
+      "bundleIdentifier": "com.erpportaal.ERP-Portaal-TMS",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -21,7 +24,11 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.erpportaal.ERP_Portaal_TMS"
+      "package": "com.erpportaal.ERP_Portaal_TMS",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "updates": {
       "enabled": true,
@@ -54,16 +61,15 @@
           "recordAudioAndroid": true
         }
       ],
-        [
-      "expo-build-properties",
-      {
-        "android": {
-          "kotlinVersion": "2.1.20"
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "kotlinVersion": "2.1.20"
+          }
         }
-      }
-    ]
+      ]
     ],
-    
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true

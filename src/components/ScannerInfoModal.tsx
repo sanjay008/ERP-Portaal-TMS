@@ -15,6 +15,7 @@ import Modal from "react-native-modal";
 import { Images } from "../assets/images";
 import { Colors } from "../utils/colors";
 import { SimpleFlex } from "../utils/storeData";
+import { getDirectDropboxLink } from "./DropBoxUrlGet";
 import ParcelBox from "./ParcelBox";
 type Props = {
   style?: object;
@@ -27,8 +28,9 @@ type Props = {
   type?: number;
   onPress?: () => void;
   onClose?: () => void;
-  personData?: object []| any;
+  personData?: object[] | any;
   OrderId?: number;
+  ProductItem?: any;
 };
 
 export default function ScannerInfoModal({
@@ -44,12 +46,13 @@ export default function ScannerInfoModal({
   onClose,
   personData = [],
   OrderId = 0,
+  ProductItem = null,
 }: Props) {
   const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const [isCollapsed, setisCollapsed] = useState<boolean>(true);
   const pickup: any = false;
-  
+
   return (
     <Modal
       isVisible={visible}
@@ -70,7 +73,7 @@ export default function ScannerInfoModal({
               <View
                 style={[
                   styles.NumberBox,
-                  (type == 1  ||type == 2) && { backgroundColor: Colors.green },
+                  (type == 1 || type == 2) && { backgroundColor: Colors.green },
                 ]}
               >
                 {type == 0 ? (
@@ -119,30 +122,33 @@ export default function ScannerInfoModal({
           </View>
           {(type == 0 || type == 2) && (
             <>
-            {
-              (type == 0) &&
-              <Collapsible collapsed={isCollapsed}>
-                <View style={styles.TotalProductConatiner}>
-                  <FlatList
-                    data={["", "", ""]}
-                    style={{ width: "100%", gap: 10 }}
-                    contentContainerStyle={styles.ContentContainerStyle}
-                    scrollEnabled={false}
-                    keyExtractor={(item, index) => `${index}`}
-                    renderItem={({ item, index }) => {
-                      return (
-                        <ParcelBox
-                          qty={index + 1}
-                          index={index}
-                          data={{ check: true }}
-                        />
-                      );
-                    }}
-                  />
-                </View>
-              </Collapsible>
-            }
-
+              {type == 0 && (
+                <Collapsible collapsed={isCollapsed}>
+                  <View style={styles.TotalProductConatiner}>
+                    <FlatList
+                      data={ProductItem}
+                      style={{ width: "100%", gap: 10 }}
+                      contentContainerStyle={styles.ContentContainerStyle}
+                      scrollEnabled={false}
+                      keyExtractor={(item, index) => `${index}`}
+                      renderItem={({ item, index }) => {
+                        return (
+                          <ParcelBox
+                            qty={item?.qty}
+                            index={index}
+                            data={item}
+                            title={item?.tms_product_name}
+                            
+                            Icon={getDirectDropboxLink(
+                              item?.tmsstatus?.shared_link
+                            )}
+                          />
+                        );
+                      }}
+                    />
+                  </View>
+                </Collapsible>
+              )}
 
               <View style={[styles.Flex, { marginTop: 15 }]}>
                 <Text style={styles.DarkText}>{t("Delivery Date")}</Text>
@@ -159,18 +165,24 @@ export default function ScannerInfoModal({
 
               <View style={styles.Flex}>
                 <Text style={styles.DarkText}>{t("Region")}</Text>
-                <Text style={styles.Text}>{`${personData?.delivery_region_data?.name || ""}-${personData?.deliver_postcode}`}</Text>
+                <Text style={styles.Text}>{`${
+                  personData?.delivery_region_data?.name || ""
+                }-${personData?.deliver_postcode}`}</Text>
               </View>
             </>
           )}
         </View>
 
-        {
-          (type == 1 || type == 2) && personData?.items?.length > 0 &&
-          <View style={{padding:10}}>
-            <ParcelBox title={personData?.items[0]?.tms_product_name || ""} qty={personData?.items[0]?.qty || 0} data={personData?.items[0]} index={1} />
+        {(type == 1 || type == 2) && personData?.items?.length > 0 && (
+          <View style={{ padding: 10 }}>
+            <ParcelBox
+              title={personData?.items[0]?.tms_product_name || ""}
+              qty={personData?.items[0]?.qty || 0}
+              data={personData?.items[0]}
+              index={1}
+            />
           </View>
-        }
+        )}
 
         <View style={[styles.Flex, styles.LastButtonContainer]}>
           <TouchableOpacity
