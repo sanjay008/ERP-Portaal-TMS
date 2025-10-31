@@ -97,6 +97,7 @@ const Register = ({ navigation, route }) => {
           const GOOGLE_API_KEY = data.data.default_company?.project_google_maps_api_key;
           storeData("COMPANYLOGO", logoUrl);
           setCompanyLogo(logoUrl)
+         await storeData("google_maps_api_key",GOOGLE_API_KEY)
           storeData("GOOGLE_API_KEY", GOOGLE_API_KEY);
           setcompanylogo(logoUrl);
           setLogo(logoUrl);
@@ -257,61 +258,45 @@ const Register = ({ navigation, route }) => {
             <>
               <Text style={styles.title}>{t("WhatsApp nummer")}</Text>
               <View style={styles.country}>
-                {/* <CountryPicker
-                  countryFlagStyle={{
-                    height: 20,
-                    width: 28,
-                    marginRight: 2,
-                  }}
-                  disable={false}
-                  animationType={"slide"}
-                  language="en"
-                  containerStyle={{
-                    ...styles.pickerStyle,
-                  }}
-                  pickerTitleStyle={styles.pickerTitleStyle}
-                  dropDownImage={Images.down}
-                  selectedCountryTextStyle={styles.selectedCountryTextStyle}
-                  dropDownImageStyle={{ tintColor: Colors.black }}
-                  countryNameTextStyle={styles.countryNameTextStyle}
-                  pickerTitle={t("Selecteer land")}
-                  hideCountryFlag={false}
-                  hideCountryCode={false}
-                  searchBarStyle={styles.searchBarStyle}
-                  countryCode={countryCode}
-                  selectedValue={selectedValue}
-                /> */}
-                <CountryPicker
-                  countryFlagStyle={{
-                    height: 20,
-                    width: 28,
-                    marginRight: 2,
-                  }}
-                  disable={false}
-                  animationType={"slide"}
-                  language="en"
-                  pickerContainerStyle={[styles.pickerStyle]} //
-                  pickerTitleStyle={styles.pickerTitleStyle}
-                  dropDownIcon={Images.down} //
-                  selectedCountryTextStyle={styles.selectedCountryTextStyle}
-                  dropDownIconStyle={{ tintColor: Colors.black }}
-                  countryNameTextStyle={styles.countryNameTextStyle}
-                  searchBarPlaceHolder={t("Selecteer land")} //
-                  hideCountryFlag={false}
-                  hideCountryCode={false}
-                  searchBarContainerStyle={styles.searchBarStyle} //
-                  searchInputStyle={{ color: Colors.black }}
-                  countryCode={countryCode} //
-                  selectedValue={selectedValue} //
-                />
+                <View style={{ width: '35%', }}>
+                  <CountryPicker
+                    countryFlagStyle={{
+                      height: 22,
+                      width: 32,
+                      marginRight: 8,
+                      borderRadius: 4,
+                    }}
+                    disable={false}
+                    animationType="slide"
+                    language="en"
+                    pickerContainerStyle={styles.pickerStyle}
+                    pickerTitleStyle={styles.pickerTitleStyle}
+                    dropDownIcon={Images.down}
+                    selectedCountryTextStyle={styles.selectedCountryTextStyle}
+                    dropDownIconStyle={{ tintColor: Colors.black }}
+                    countryNameTextStyle={styles.countryNameTextStyle}
+                    searchBarPlaceHolder={t("Selecteer land")}
+                    hideCountryFlag={false}
+                    hideCountryCode={false}
+                    searchBarContainerStyle={styles.searchBarStyle}
+                    searchInputStyle={{ color: Colors.black }}
+                    countryCode={countryCode}
+                    selectedValue={selectedValue}
+                  />
+                </View>
                 <TextInput
                   value={number}
                   onChangeText={handleTextChange}
                   placeholderTextColor={Colors.textgray}
                   keyboardType="number-pad"
                   style={styles.input}
+                  placeholder={t("Enter phone number")}
                 />
               </View>
+
+
+
+
               <Text style={styles.error}>{numbererror}</Text>
             </>
           )}
@@ -349,7 +334,7 @@ const Register = ({ navigation, route }) => {
 
                           pickerContainerStyle={[styles.pickerStyle]}
                           pickerTitleStyle={styles.pickerTitleStyle}
-                          dropDownIcon={Images.down} //
+                          dropDownIcon={Images.down}
                           selectedCountryTextStyle={
                             styles.selectedCountryTextStyle
                           }

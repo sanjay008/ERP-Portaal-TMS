@@ -19,7 +19,8 @@ import { useTranslation } from "react-i18next";
 import { FlatList, ScrollView, Text, View } from "react-native";
 import { styles } from "./style";
 
-export default function LoadedScreens({ navigation }: any) {
+export default function LoadedScreens({ navigation, route}: any) {
+  const { refresh } = route?.params || {};
   const { UserData, setUserData, Toast, setToast, AllRegion, setAllRegion } =
     useContext(GlobalContextData);
   const RefHandle = useRef(null);
@@ -64,17 +65,17 @@ export default function LoadedScreens({ navigation }: any) {
   }, []);
 
   useEffect(() => {
-    if (RenderingRef.current) {
-      RenderingRef.current = false;
-      return;
-    }
+    // if (RenderingRef.current) {
+    //   RenderingRef.current = false;
+    //   return;
+    // }
 
     if (SelectDate && UserData) {
       setAllPickUpData([]);
       setSelectRegionData("");
       GetAllPickUpDataFun();
     }
-  }, [SelectDate, UserData]);
+  }, [SelectDate, UserData,refresh]);
 
   const GetAllPickUpDataFun = async (user: any = null) => {
     // setSelectRegionData([]);
@@ -94,9 +95,10 @@ export default function LoadedScreens({ navigation }: any) {
           // date:"2025-10-23",
         },
       });
+        // console.log("current Data", res);
 
       if (Boolean(res.status)) {
-        console.log("current Data", selectRegionData);
+        console.log("current Data", res);
 
         setAllPickUpData(res?.data || []);
 
@@ -201,7 +203,10 @@ export default function LoadedScreens({ navigation }: any) {
               );
             }}
           />
-        ) : IsLoading ? null : (
+        ) : IsLoading ? 
+         <View style={styles.FooterContainer}>
+                  <Loader />
+                </View> : (
           <View style={styles.FooterContainer}>
             <Text style={[styles.Text, { color: Colors.darkText }]}>
               {t("No Order Found")}

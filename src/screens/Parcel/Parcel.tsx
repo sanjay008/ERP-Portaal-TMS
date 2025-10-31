@@ -22,7 +22,9 @@ import {
 } from "react-native";
 import { styles } from "./styles";
 
-export default function Parcel({ navigation }: any) {
+export default function Parcel({ navigation, route }: any) {
+  const { refresh } = route?.params || {};
+
   const [AllStatusData, setAllStatusData] = useState<object []>([]);
   const [AllData, setAllData] = useState<object []>([]);
   const [SelectDate, setSelectDate] = useState<string>("");
@@ -124,7 +126,7 @@ export default function Parcel({ navigation }: any) {
     setSelectRegion("")
       GetAllPickUpDataFun(ActiveTab);
     }
-  }, [SelectDate]);
+  }, [SelectDate,refresh]);
 
   return (
     <ScrollView

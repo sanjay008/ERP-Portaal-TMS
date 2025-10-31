@@ -25,13 +25,18 @@
       "package": "com.erpportaal.ERP_Portaal_TMS",
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
     "updates": {
       "enabled": true,
       "checkAutomatically": "ON_LOAD",
-      "fallbackToCacheTimeout": 0
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/d0a43802-1278-4e75-b889-97cd3ef9eae1"
     },
     "web": {
       "output": "static",
@@ -80,6 +85,9 @@
         "projectId": "d0a43802-1278-4e75-b889-97cd3ef9eae1"
       }
     },
-    "owner": "erpportaal"
+    "owner": "erpportaal",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    }
   }
 }

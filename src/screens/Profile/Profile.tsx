@@ -11,11 +11,11 @@ import { FlatList, Image, Text, View } from "react-native";
 import { styles } from "./styles";
 
 type ArrayProps = {
-      Background: string;
-      Icon: any;
-      Title:string;
-      onPress: () => void;
-}
+  Background: string;
+  Icon: any;
+  Title: string;
+  onPress: () => void;
+};
 
 export default function Profile({ navigation }: any) {
   const { UserData, setUserData, Toast, setToast, CompanysData } =
@@ -35,7 +35,7 @@ export default function Profile({ navigation }: any) {
     RColor: "",
     Desctiption: "",
     onPress: "",
-    HeaderBgColor:""
+    HeaderBgColor: "",
   });
   const { t } = useTranslation();
 
@@ -61,7 +61,7 @@ export default function Profile({ navigation }: any) {
       RButtonText: t("Log Out"),
       Icon: Images.LogOutFullBox,
       RButtonStyle: Colors.red,
-      HeaderBgColor:Colors.white,
+      HeaderBgColor: Colors.white,
       RColor: Colors.white,
       onPress: async () => {
         await AsyncStorage.clear();
@@ -70,7 +70,7 @@ export default function Profile({ navigation }: any) {
     });
   };
 
-  const DeleteAccountFun = async () =>{
+  const DeleteAccountFun = async () => {
     setAlerModalOpen({
       visible: true,
       title: t("Delete Account"),
@@ -79,39 +79,55 @@ export default function Profile({ navigation }: any) {
       RButtonText: t("Delete"),
       Icon: Images.LogOutFullBox,
       RButtonStyle: Colors.red,
-      HeaderBgColor:Colors.white,
+      HeaderBgColor: Colors.white,
       RColor: Colors.white,
       onPress: async () => {
         await AsyncStorage.clear();
         navigation?.replace("OnBoarding");
       },
     });
-  }
+  };
 
-  const ProfileItems:ArrayProps [] = [
+  const ProfileItems: ArrayProps[] = [
     {
       Background: Colors.primary,
       Icon: Images.Info,
       Title: t("About Us"),
-      onPress: () => navigation.navigate("WebViewScreeens",{title:"About Us",url:`https://app.erpportaal.nl/about_app_info/${CurrentVersion}`}),
+      onPress: () =>
+        navigation.navigate("WebViewScreeens", {
+          title: "About Us",
+          url: `https://app.erpportaal.nl/about_app_info/${CurrentVersion}`,
+        }),
     },
     {
       Background: Colors.primary,
       Icon: Images.Privacy,
       Title: t("Privacy Policy"),
-      onPress: () =>  navigation.navigate("WebViewScreeens",{title:"Privacy Policy",url:""}),
+      onPress: () =>
+        navigation.navigate("WebViewScreeens", {
+          title: "Privacy Policy",
+          url: "",
+        }),
     },
     {
       Background: Colors.primary,
       Icon: Images.Terms,
       Title: t("Terms & Conditions"),
-      onPress: () =>  navigation.navigate("WebViewScreeens",{title:"Terms & Conditions",url:""}),
+      onPress: () =>
+        navigation.navigate("WebViewScreeens", {
+          title: "Terms & Conditions",
+          url: "",
+        }),
     },
     {
       Background: Colors.primary,
       Icon: Images.Phone,
       Title: t("Contact Us"),
-      onPress: () =>  navigation.navigate("WebViewScreeens",{title:"Contact Us",url:""}),
+      onPress: () =>
+        navigation.navigate("WebViewScreeens", {
+          title: "Contact Us",
+          url: "",
+        }),
     },
     {
       Background: Colors.primary,
@@ -133,8 +149,9 @@ export default function Profile({ navigation }: any) {
     },
   ];
 
-  // UseEffect Fun Calling:-
+  
 
+ 
   useEffect(() => {
     retrieveAppVersion();
   }, []);

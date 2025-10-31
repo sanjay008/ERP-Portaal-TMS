@@ -1,15 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  Alert,
-  Dimensions,
-  Image,
-  SafeAreaView,
-  StatusBar,
-  Text,
-  View
+    Alert,
+    Dimensions,
+    Image,
+    StatusBar,
+    Text,
+    View
 } from "react-native";
 import { RFValue } from "react-native-responsive-fontsize";
+import { SafeAreaView } from "react-native-safe-area-context";
 import apiConstants from "../../api/apiConstants";
 import { Images } from "../../assets/images";
 import ButtonComponent from "../../components/buttonComponent.tsx";
@@ -95,6 +95,9 @@ const Otp = ({ navigation, route }) => {
                     setTimeout(() => {
                         setLoding(false);
                     }, 1000);
+                            let data = await getData("USERDATA");
+                           
+
                     if (register == "true") {
                         navigation.navigate("Staff", {
                             logo: logo,
@@ -108,7 +111,7 @@ const Otp = ({ navigation, route }) => {
                         storeData("AUTH", true);
                         storeData("USERDATA", data);
                         console.log("otp data.....", data);
-                        navigation.navigate("Home");
+                        navigation.navigate("BottomTabs");
                         // navigation.navigate("BottamScreens");
                     }
                 } else {
@@ -175,8 +178,8 @@ const Otp = ({ navigation, route }) => {
                 ]}
             />
             <View style={styles.container}>
-                <Text style={[styles.wellcome,{width:'60%',marginHorizontal:'auto'}]}>{t("verifiëren")}</Text>
-                <Text style={[styles.dis,{width:'60%',marginHorizontal:'auto'}]}>{t("Voer OTP in")}</Text>
+                <Text style={[styles.wellcome,{marginLeft:10}]}>{t("verifiëren")}</Text>
+                <Text style={[styles.dis,{marginLeft:10}]}>{t("Voer OTP in")}</Text>
                 <Input
                     value={otp}
                     placeholder="*"

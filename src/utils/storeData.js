@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { StyleSheet, useWindowDimensions } from 'react-native';
+import { Dimensions, StyleSheet } from 'react-native';
 
 const storeData = async (key, value) => {
   try {
@@ -45,4 +45,4 @@ export const SimpleFlex = StyleSheet.create({
 
 
 
-export const {width,height} = useWindowDimensions();
+export const { height, width } = Dimensions.get("window");

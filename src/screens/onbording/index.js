@@ -6,15 +6,15 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view
 import { RFValue } from "react-native-responsive-fontsize";
 
 import {
-  Alert,
-  BackHandler,
-  Image,
-  Linking,
-  SafeAreaView,
-  StatusBar,
-  Text,
-  View,
+    Alert,
+    BackHandler,
+    Image,
+    Linking,
+    StatusBar,
+    Text,
+    View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Images } from "../../assets/images";
 import ButtonComponent from "../../components/buttonComponent.tsx";
 import { Colors } from "../../utils/colors";
@@ -108,15 +108,16 @@ const retrieveAppVersion = async () => {
             <View
                 style={{
                     position: "absolute",
-                    bottom: 10,
+                    bottom: '5%',
                     width: "90%",
                     alignSelf: "center",
+                    gap:10
                 }}
             >
                 <ButtonComponent
                     onPress={() => navigation.navigate("Register", { typee: "Register" })}
                     marginTop={RFValue(50)}
-                    title={t("Registreren")}
+                    title={t("Registrere")+"n"}
                 />
                 <ButtonComponent
                     onPress={() => navigation.navigate("Register", { typee: "Login" })}

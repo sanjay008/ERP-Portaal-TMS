@@ -2,8 +2,13 @@ import React, { useContext, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Dimensions,
+  FlatList,
   Image,
+  Keyboard,
   Linking,
+  Platform,
+  Pressable,
+  ScrollView,
   // SafeAreaView,
   StatusBar,
   StyleSheet,
@@ -12,9 +17,10 @@ import {
   View
 } from "react-native";
 // 
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { Camera } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
-import DatePicker from "react-native-date-picker";
+
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { RFValue } from "react-native-responsive-fontsize";
 
@@ -27,6 +33,7 @@ import ApiService from "../../utils/Apiservice";
 // import { RegisterBackContext } from "../../utils/GoBackContext";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 // import "react-native-get-random-values";
+import axios from "axios";
 import apiConstants from "../../api/apiConstants";
 import { Images } from "../../assets/images";
 import ButtonComponent from "../../components/buttonComponent.tsx";
@@ -38,12 +45,15 @@ import { getData, storeData } from "../../utils/storeData";
 // const GOOGLE_API_KEY = "AIzaSyBVCjdibPBQN8s0Iy06ITwgMvrRZZRLcog";
 
 const Staff = ({ navigation, route }) => {
-    const {
-            GOOGLE_API_KEY,setGOOGLE_API_KEY,
-            CompanyLogo,setCompanyLogo,
-            Permission,setPermission,
-            SelectLanguage,setSelectLanguage
-          } = useContext(GlobalContextData);
+  const {
+    GOOGLE_API_KEY, setGOOGLE_API_KEY,
+    CompanyLogo, setCompanyLogo,
+    Permission, setPermission,
+    SelectLanguage, setSelectLanguage
+  } = useContext(GlobalContextData);
+  console.log("GOOGLE_API_KEY", GOOGLE_API_KEY);
+
+  const ref = useRef();
   const { width } = Dimensions.get("screen");
   const { logo } = route.params || "";
   const { userId } = route.params || "";
@@ -93,11 +103,22 @@ const Staff = ({ navigation, route }) => {
   const [dateerror, setDateError] = useState("");
   const [date, setDate] = useState(null);
   const [open, setOpen] = useState(false);
+  const [SuggestionAddress, setSuggestionAddress] = useState([]);
 
 
   const handleSelectItem = (selectedItem, index) => {
     setSelectedItem(selectedItem);
     setSaluteError("");
+  };
+
+  const getValidDate = (date) => {
+    if (!date) return new Date(1990, 0, 1);
+    const parts = date.split("-");
+    if (parts.length === 3) {
+      const [y, m, d] = parts.map(Number);
+      return new Date(y, m - 1, d);
+    }
+    return new Date(1990, 0, 1);
   };
 
   const FristNext = () => {
@@ -191,150 +212,170 @@ const Staff = ({ navigation, route }) => {
     }
   };
 
-const openGallery = async () => {
-  try {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert(
-        'Permission Denied',
-        'Gallery access is required to select photos.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Open Settings', onPress: () => Linking.openSettings() },
-        ]
-      );
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.8,
-    });
-
-    if (!result.canceled) {
-      setImage(result.assets);
-      setDepartmentError('');
-      setModalOptionsVisible(false);
-    }
-  } catch (error) {
-    console.warn('Gallery error:', error);
-  }
-};
-
-
-const openCamera = async () => {
-  try {
-    const { status } = await Camera.requestCameraPermissionsAsync();
-
-    if (status !== 'granted') {
-      Alert.alert(
-        'Permission Required',
-        'Camera access is required to use this feature. Please enable it from app settings.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Open Settings', onPress: () => Linking.openSettings() },
-        ]
-      );
-      return;
-    }
-
-    executeCamera();
-  } catch (error) {
-    console.warn('Permission request error:', error);
-  }
-};
-
-
-const executeCamera = async () => {
-  try {
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1], 
-      quality: 1,
-      base64: false,
-    });
-
-    if (!result.canceled) {
-      const photo = result.assets[0];
-      console.log('Response URI: ', photo.uri);
-      setImage(result.assets);
-      setDepartmentError('');
-      setModalOptionsVisible(false);
-    }
-  } catch (error) {
-    console.error('Camera Error: ', error);
-    Alert.alert('Error', 'Failed to open camera. Please try again.');
-  }
-};
-
-  const onRegister = async () => {
-    if (!image) {
-      setdepartmentError("Selecteer profile");
-      console.log("profile");
-    } else {
-      setLoding(true);
-      try {
-        const data = await ApiService(apiConstants.createUserWithRelaties, {
-          customData: {
-            token: verify_token,
-            user_id: userId,
-            relaties_type: type,
-            relaties_type_id: typeId,
-            aanhef: selectedItem.title,
-            voornaam: fname,
-            voorvoegsel: mname,
-            achternaam: lname,
-            email: email,
-            address: address,
-            department: null,
-            category_id: category_id,
-            bedrijfsnaam: one ? one : null,
-            woning_name: three ? three : null,
-            voertuig_project: four ? focus : null,
-            profile_image: image
-              ? {
-                uri: image[0].uri,
-                name: "image",
-                type: image[0].type,
-              }
-              : "",
-            birth_place: birthaddress,
-            birth_date: date,
-          },
-        });
-        if (data.status) {
-          storeData("USERDATA", data);
-          console.log("userdata", data.user);
-          storeData("LOGIN", true);
-          storeData("AUTH", true);
-          setTimeout(() => {
-            setLoding(false);
-            navigation.dispatch(
-              CommonActions.reset({
-                index: 0,
-                // routes: [{ name: "BottamScreens" }],
-                routes: [{ name: "Home" }],
-              })
-            );
-            // setModalVisible(true);
-          }, 1000);
-        } else {
-          console.log("false");
-          setTimeout(() => {
-            setLoding(false);
-          }, 1000);
-          console.log("----------cvfvf--", data);
-          Alert.alert("Oops!", data.message, [
-            { text: "OK", onPress: () => console.log("OK Pressed") },
-          ]);
-        }
-      } catch (err) {
-        console.log("Error fetching create:", err);
+  const openGallery = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission Denied',
+          'Gallery access is required to select photos.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+          ]
+        );
+        return;
       }
+
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: "images",
+        allowsMultipleSelection: true,
+        quality: 1,
+      });
+
+      if (!result.canceled) {
+        setImage(result.assets);
+        setdepartmentError('');
+        setModalOptionsVisible(false);
+      }
+    } catch (error) {
+      console.warn('Gallery error:', error);
     }
   };
+
+
+  const openCamera = async () => {
+    try {
+      const { status } = await Camera.requestCameraPermissionsAsync();
+
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission Required',
+          'Camera access is required to use this feature. Please enable it from app settings.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+          ]
+        );
+        return;
+      }
+
+      executeCamera();
+    } catch (error) {
+      console.warn('Permission request error:', error);
+    }
+  };
+
+
+  const executeCamera = async () => {
+    try {
+      // 🔹 Step 1: Ask for camera permission
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission required", "Please allow camera access.");
+        return;
+      }
+
+      // 🔹 Step 2: Launch camera
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: "images",
+        allowsMultipleSelection: true,
+        quality: 1,
+      });
+
+      // 🔹 Step 3: Handle result
+      if (!result.canceled) {
+        const photo = result.assets[0];
+        console.log("Camera Photo URI:", photo.uri);
+
+        // Set photo to state (your logic)
+        setImage(result.assets);
+        setdepartmentError("");
+        setModalOptionsVisible(false);
+      }
+    } catch (error) {
+      console.error("Camera Error:", error);
+      Alert.alert("Error", "Failed to open camera. Please try again.");
+    }
+  };
+
+  const onRegister = async () => {
+    // 🔹 Validate image selection
+    if (!image || image.length === 0) {
+      setdepartmentError("Selecteer profile");
+      console.log("Profile image missing");
+      return;
+    }
+
+    setLoding(true);
+
+    try {
+      // 🔹 Prepare image properly
+      const profileImage = {
+        uri: image[0].uri,
+        name: image[0].fileName || "profile.jpg",
+        type:
+          image[0].type && image[0].type.startsWith("image/")
+            ? image[0].type
+            : "image/jpeg",
+      };
+
+      // 🔹 Prepare data payload
+      const payload = {
+        token: verify_token,
+        user_id: userId,
+        relaties_type: type,
+        relaties_type_id: typeId,
+        aanhef: selectedItem?.title || "",
+        voornaam: fname || "",
+        voorvoegsel: mname || "",
+        achternaam: lname || "",
+        email: email || "",
+        address: address || "",
+        department: null,
+        category_id: category_id || "",
+        bedrijfsnaam: one || null,
+        woning_name: three || null,
+        voertuig_project: four || focus || null,
+        profile_image: profileImage,
+        birth_place: birthaddress || "",
+        birth_date: date || "",
+      };
+
+      // 🔹 API call
+      const data = await ApiService(apiConstants.createUserWithRelaties, {
+        customData: payload,
+      });
+
+      // 🔹 Handle response
+      if (data?.status) {
+        console.log("User created:", data.user);
+        await storeData("USERDATA", data);
+        await storeData("LOGIN", true);
+        await storeData("AUTH", true);
+
+        setTimeout(() => {
+          setLoding(false);
+          navigation.dispatch(
+            CommonActions.reset({
+              index: 0,
+              routes: [{ name: "BottomTabs" }],
+            })
+          );
+        }, 1000);
+      } else {
+        console.log("API returned false:", data);
+        Alert.alert("Oops!", data?.message || "Something went wrong");
+        setLoding(false);
+      }
+    } catch (err) {
+      console.error("Error in createUserWithRelaties:", err);
+      Alert.alert("Error", "Failed to register user. Please try again.");
+      setLoding(false);
+    }
+  };
+
 
   const Department_List = async () => {
     try {
@@ -449,11 +490,27 @@ const executeCamera = async () => {
     return `${day}-${month}-${year}`;
   };
 
+  // const handleDateChange = (selectedDate) => {
+  //   const formattedDate = formatDateToDDMMYYYY(selectedDate);
+  //   const formattedDateee = selectedDate.toISOString().split("T")[0];
+  //   console.log("===== Formatted Date:", formattedDateee);
+  //   setDate(formattedDateee);
+  //   setOpen(false);
+  //   setDateError("");
+  // };
+
   const handleDateChange = (selectedDate) => {
-    const formattedDate = formatDateToDDMMYYYY(selectedDate);
-    const formattedDateee = selectedDate.toISOString().split("T")[0];
-    console.log("===== Formatted Date:", formattedDateee);
-    setDate(formattedDateee);
+    if (!selectedDate) return;
+
+    const localDate = new Date(selectedDate);
+    const year = localDate.getFullYear();
+    const month = String(localDate.getMonth() + 1).padStart(2, "0");
+    const day = String(localDate.getDate()).padStart(2, "0");
+
+    const formattedDate = `${year}-${month}-${day}`;
+    console.log("Selected Date:", formattedDate);
+
+    setDate(formattedDate);
     setOpen(false);
     setDateError("");
   };
@@ -493,9 +550,51 @@ const executeCamera = async () => {
     } catch (error) {
       console.log("Error fetching permission:", error);
     } finally {
-      setLoading(false);
+      setLoding(false);
     }
   };
+
+  const handleSearch = async (text) => {
+    if (text.length < 3 || text.length > 25) return null;
+    try {
+      const res = await axios.get(
+        'https://maps.googleapis.com/maps/api/place/autocomplete/json',
+        {
+          params: {
+            input: text,
+            key: GOOGLE_API_KEY,
+          },
+        }
+      );
+      // Alert.alert("")
+      console.log("res Suggest", res);
+
+      setSuggestionAddress(res.data.predictions);
+      return text;
+    } catch (err) {
+      console.warn('Suggestion Error:', err);
+    }
+  };
+
+  const handleSelect = async (place) => {
+    try {
+      const res = await axios.get(
+        "https://maps.googleapis.com/maps/api/place/details/json",
+        {
+          params: {
+            key: GOOGLE_API_KEY,
+            place_id: place?.place_id,
+          },
+        }
+      );
+
+      setAddress(place?.description);
+      setSuggestionAddress([]);
+    } catch (err) {
+      console.warn("Place Detail Error:", err);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar backgroundColor={Colors.white} barStyle={"dark-content"} />
@@ -505,7 +604,7 @@ const executeCamera = async () => {
         showsVerticalScrollIndicator={false}
         bounces={false}
         enableOnAndroid
-        extraScrollHeight={70}
+        extraScrollHeight={80}
         keyboardShouldPersistTaps="handled"
         style={styles.subContainer}
       >
@@ -735,23 +834,105 @@ const executeCamera = async () => {
                       </Text>
                     </TouchableOpacity>
                     <Text style={styles.error}>{dateerror}</Text>
-                    <DatePicker
-                      modal
-                      mode="date"
-                      date={date ? new Date(date) : new Date("1990")}
-                      open={open}
-                      locale="en-GB"
-                      is24hourSource="locale"
-                      androidVariant="nativeAndroid"
-                      onConfirm={handleDateChange}
-                      onCancel={() => {
-                        setOpen(false);
-                      }}
-                      title={t("Voer geboortedatum in")}
-                      confirmText="Select"
-                      dividerColor={Colors.primary}
-                      buttonColor={Colors.primary}
-                    />
+
+                    {open && (
+                      <Modal visible={open} transparent animationType="slide" style={{ margin: 0 }}>
+                        <View
+                          style={{
+                            flex: 1,
+                            justifyContent: "flex-end",
+                            backgroundColor: "rgba(0,0,0,0.5)",
+                          }}
+                        >
+                          <View
+                            style={{
+                              backgroundColor: Colors.white,
+                              borderTopLeftRadius: 20,
+                              borderTopRightRadius: 20,
+                              padding: 16,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontSize: 16,
+                                fontFamily: "Medium",
+
+                                marginBottom: 8,
+                              }}
+                            >
+                              {t("Voer geboortedatum in")}
+                            </Text>
+
+                            <DateTimePicker
+                              value={getValidDate(date)}
+                              mode="date"
+                              display={Platform.OS === "ios" ? "spinner" : "calendar"}
+                              locale="en-GB"
+                              maximumDate={new Date()}
+                              onChange={(event, selectedDate) => {
+
+                                if (Platform.OS === "android") {
+                                  if (event.type === "set" && selectedDate) {
+                                    handleDateChange(selectedDate);
+                                  } else if (event.type === "dismissed") {
+                                    setOpen(false);
+                                  }
+                                } else if (Platform.OS === "ios") {
+
+                                  if (selectedDate) {
+                                    const localDate = new Date(selectedDate);
+                                    const year = localDate.getFullYear();
+                                    const month = String(localDate.getMonth() + 1).padStart(2, "0");
+                                    const day = String(localDate.getDate()).padStart(2, "0");
+                                    const formattedDate = `${year}-${month}-${day}`;
+                                    setDate(formattedDate);
+                                  }
+                                }
+                              }}
+                            />
+
+
+                            {Platform.OS === "ios" && (
+                              <View
+                                style={{
+                                  flexDirection: "row",
+                                  justifyContent: "space-between",
+                                  marginTop: 16,
+                                }}
+                              >
+                                <TouchableOpacity
+                                  onPress={() => setOpen(false)}
+                                  style={{
+                                    flex: 1,
+                                    paddingVertical: 12,
+                                    marginRight: 6,
+                                    backgroundColor: Colors.Boxgray,
+                                    borderRadius: 10,
+                                    alignItems: "center",
+                                  }}
+                                >
+                                  <Text style={{ color: Colors.black }}>{t("Cancel")}</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                  onPress={() => handleDateChange(new Date(date))}
+                                  style={{
+                                    flex: 1,
+                                    paddingVertical: 12,
+                                    marginLeft: 6,
+                                    backgroundColor: Colors.primary,
+                                    borderRadius: 10,
+                                    alignItems: "center",
+                                  }}
+                                >
+                                  <Text style={{ color: Colors.white }}>{t("Select")}</Text>
+                                </TouchableOpacity>
+                              </View>
+                            )}
+                          </View>
+                        </View>
+                      </Modal>
+                    )}
                   </View>
 
                   <Input
@@ -775,8 +956,8 @@ const executeCamera = async () => {
                       setOpen(false), FristNext();
                     }}
                     // onPress={FristNext}
-                    marginTop={RFValue(10)}
-                    marginBottom={RFValue(10)}
+                    marginTop={RFValue(15)}
+                    marginBottom={RFValue(20)}
                     title={t("Volgende")}
                   />
                 </>
@@ -800,17 +981,53 @@ const executeCamera = async () => {
                   >
                     {t("Adres")}
                   </Text> */}
+                  <View>
+                    <Input
+                      value={address}
+                      onChangeText={(txt) => {
+                        setAddress(txt), setAddressError("");
+                        handleSearch(txt)
+                      }}
+                      title={t("Adres")}
+                      error={addressError}
+                      iconSource={Images.location}
+                    />
 
-                  <Input
-                    value={address}
-                    onChangeText={(txt) => {
-                      setAddress(txt), setAddressError("");
-                    }}
-                    title={t("Adres")}
-                    error={addressError}
-                    iconSource={Images.location}
-                  />
-
+                    {
+                      SuggestionAddress?.length > 0 && address?.length > 3 &&
+                      <ScrollView style={styles.Fixed} showsVerticalScrollIndicator={false} bounces={false}>
+                        <FlatList
+                          initialNumToRender={20}
+                          maxToRenderPerBatch={20}
+                          windowSize={10}
+                          keyboardShouldPersistTaps='handled'
+                          removeClippedSubviews={true}
+                          data={SuggestionAddress}
+                          renderItem={({ item }) => (
+                            <Pressable style={styles.SuggestEl} onPress={() => {
+                              handleSelect(item); console.log(item);
+                              Keyboard.dismiss();
+                            }}>
+                              <Text style={styles.SuggestText}>{`${item?.description}`}</Text>
+                            </Pressable>
+                          )}
+                        />
+                      </ScrollView>
+                    }
+                    {/* Error message */}
+                    {addressError ? (
+                      <Text
+                        style={{
+                          color: Colors.error,
+                          fontSize: 12,
+                          marginTop: 4,
+                          marginLeft: 5,
+                        }}
+                      >
+                        {addressError}
+                      </Text>
+                    ) : null}
+                  </View>
                   <ButtonComponent
                     onPress={SecondNext}
                     marginTop={RFValue(35)}
@@ -824,18 +1041,25 @@ const executeCamera = async () => {
             <>
               <TouchableOpacity
                 onPress={() => setModalOptionsVisible(true)}
-                style={{ alignSelf: "center", marginVertical: 15, borderWidth: 1, borderRadius: 120 }}
+                style={{ alignSelf: "center", marginVertical: 15, }}
               >
                 <Image
-                  source={image ? { uri: image[0].uri } : Images.addImage}
+                  source={image ? { uri: image[0].uri } : Images.userblanck}
                   style={{ height: 100, width: 100, borderRadius: 7 }}
                 />
               </TouchableOpacity>
               <Text style={styles.error}>{departmentError}</Text>
 
               <ButtonComponent
-                onPress={onRegister}
+                onPress={() => setModalOptionsVisible(true)}
                 marginTop={RFValue(50)}
+                marginBottom={RFValue(10)}
+                title={t("Choose profile image")}
+              />
+
+              <ButtonComponent
+                onPress={onRegister}
+                marginTop={RFValue(10)}
                 marginBottom={RFValue(10)}
                 title={t("Registreren")}
               />
@@ -1035,7 +1259,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   subContainer: {
-    flex: 1,
+    flexGrow: 1,
   },
   dropdownButtonStyle: {
     height: RFValue(45),
@@ -1113,6 +1337,43 @@ const styles = StyleSheet.create({
     marginTop: RFValue(5),
     color: Colors.black,
     fontFamily: 'regular',
+  },
+  Fixed: {
+    width: '100%',
+    borderRadius: RFValue(4),
+    maxHeight: RFValue(90),
+    // ✅ iOS Shadow
+    shadowColor: Colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+
+    // ✅ Android Shadow
+    elevation: 4,
+
+
+    backgroundColor: Colors.white,
+    position: 'absolute',
+    top: '100%',
+    zIndex: 9999,
+    borderWidth: 1,
+    borderColor: Colors.border
+  },
+  SuggestEl: {
+    width: '100%',
+    height: RFValue(30),
+    borderBottomWidth: 0.5,
+    borderColor: Colors.border,
+    backgroundColor: Colors.white,
+    justifyContent: 'center',
+    paddingHorizontal: RFValue(10)
+    // alignItems:'center'
+  },
+  SuggestText: {
+    fontSize: RFValue(10),
+    fontWeight: '500',
+    fontFamily: "Medium",
+    color: Colors.black
   },
   textInput: {
     fontSize: 15,

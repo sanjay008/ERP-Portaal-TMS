@@ -7,15 +7,14 @@ import * as Font from "expo-font";
 import React, { useContext, useEffect, useState } from "react";
 import { Image, StyleSheet, View } from "react-native";
 import i18n from "../Translation/i18n";
-
 export default function SplashScreens({ navigation }: any) {
   const [fontsLoaded, setFontsLoaded] = useState(false);
   const {
-    setGOOGLE_API_KEY,
-    setCompanyLogo,
-    setPermission,
-    setSelectLanguage,
-    setCompanysData,
+    GOOGLE_API_KEY,setGOOGLE_API_KEY,
+    CompanyLogo,setCompanyLogo,
+    Permission,setPermission,
+    SelectLanguage,setSelectLanguage,
+    CompanysData,setCompanysData
   } = useContext(GlobalContextData);
 
   const loadFonts = async () => {
@@ -37,71 +36,91 @@ export default function SplashScreens({ navigation }: any) {
 
   const getAuthData = async () => {
     try {
-      const [auth, company, languages, logo, companyData] = await Promise.all([
+      const [auth, company, languages, logo,companyData] = await Promise.all([
         getData("AUTH"),
         getData("USERDATA"),
         getData("userLanguage"),
         getData("COMPANYLOGO"),
-        getData("COMPANYLOGIN"),
+        getData("COMPANYLOGIN")
       ]);
 
-      if (companyData) setCompanysData(companyData);
-      if (logo) setCompanyLogo(logo);
+      if(companyData){
+      setCompanysData(companyData)
+      }
 
-      // Language Check
       if (languages) {
         await i18n.changeLanguage(languages);
         setSelectLanguage(languages);
-      } else {
+      }
+      if (logo) setCompanyLogo(logo);
+
+      if (!languages) {
         navigation.replace("Select");
-        return null;
+        return;
       }
 
-      // Auth Check
       if (!auth) {
         navigation.replace("OnBoarding");
-        return null;
+        console.log("Login required");
+        return;
       }
 
       const client = company?.data?.user;
       if (!client) {
+        console.log("Client data missing");
         navigation.replace("OnBoarding");
-        return null;
-      }
+        return;
+      }else{
+      if (company) {
+        let permissionData;
+        try {
+          permissionData = await ApiService(apiConstants.permission, {
+            customData: {
+              token: client.verify_token,
+              role: client.role,
+              relaties_id: company?.data?.relaties?.id,
+              user_id: client.id,
+            },
+          });
+        } catch (apiError) {
+          console.log("API fetch error:", apiError);
+          navigation.replace("BottomTabs");
+          return;
+        }
 
-      // Permissions Fetch
-      let permissionData = null;
-      try {
-        permissionData = await ApiService(apiConstants.permission, {
-          customData: {
-            token: client?.verify_token ?? "",
-            role: client?.role ?? "",
-            relaties_id: company?.data?.relaties?.id ?? "",
-            user_id: client?.id ?? "",
-          },
-        });
-      } catch (apiError) {
+        if (permissionData?.status) {
+          const Permission = permissionData.data;
+          setPermission(Permission);
+
+          
+            navigation.replace("BottomTabs");
+            return;
+          
+        }
+
         navigation.replace("BottomTabs");
-        return null;
       }
-
-      if (permissionData?.status) {
-        setPermission(permissionData.data);
-      }
-
-      navigation.replace("BottomTabs");
+        }
     } catch (error) {
-      console.log("Splash Init Error:", error);
-      navigation.replace("OnBoarding");
+      console.log("Permission or Auth error:", error);
     }
   };
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (fontsLoaded) getAuthData();
-    }, 1200);
-    return () => clearTimeout(timer);
-  }, [fontsLoaded]);
+    setTimeout(() => {
+      getAuthData();
+    }, 2000);
+  }, []);
+
+  // useEffect(() => {
+  //   let timer: any;
+  //   if (fontsLoaded) {
+  //     timer = setTimeout(() => {
+  //       navigation.replace("BottomTabs");
+  //     }, 1500);
+  //   }
+  //   return () => clearTimeout(timer);
+  // }, [fontsLoaded]);
 
   return (
     <View style={styles.container}>
@@ -109,7 +128,10 @@ export default function SplashScreens({ navigation }: any) {
     </View>
   );
 }
-
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
 });

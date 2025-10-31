@@ -3,13 +3,7 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import React, { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  Alert,
-  Image,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Alert, Image, StyleSheet, Text, View } from "react-native";
 import { RFValue } from "react-native-responsive-fontsize";
 import SelectDropdown from "react-native-select-dropdown";
 import apiConstants from "../../api/apiConstants";
@@ -17,7 +11,7 @@ import { Images } from "../../assets/images";
 import ButtonComponent from "../../components/buttonComponent";
 import ApiService from "../../utils/Apiservice";
 import { Colors } from "../../utils/colors";
-import { storeData } from "../../utils/storeData";
+import { getData, storeData } from "../../utils/storeData";
 import i18n from "../Translation/i18n";
 
 type RootStackParamList = {
@@ -25,7 +19,10 @@ type RootStackParamList = {
   // Add more screens if needed
 };
 
-type NavigationProp = NativeStackNavigationProp<RootStackParamList, "OnBoarding">;
+type NavigationProp = NativeStackNavigationProp<
+  RootStackParamList,
+  "OnBoarding"
+>;
 
 interface LanguageItem {
   language_name: string;
@@ -34,18 +31,21 @@ interface LanguageItem {
 
 const SelectLanguage: React.FC = () => {
   const { t } = useTranslation();
-  const navigation = useNavigation<NavigationProp>();
+  const navigation = useNavigation<NavigationProp | any>();
   const {
-    GOOGLE_API_KEY,setGOOGLE_API_KEY,
-    CompanyLogo,setCompanyLogo,
-    Permission,setPermission,
-    SelectLanguage,setSelectLanguage
+    GOOGLE_API_KEY,
+    setGOOGLE_API_KEY,
+    CompanyLogo,
+    setCompanyLogo,
+    Permission,
+    setPermission,
+    SelectLanguage,
+    setSelectLanguage,
   } = useContext(GlobalContextData);
   const [currentLanguage, setCurrentLanguage] = useState<string | null>(null);
   const [isLanguageValid, setIsLanguageValid] = useState<boolean>(true);
   const [languages, setLanguages] = useState<LanguageItem[]>([]);
 
- 
   // Fetch language list
   const fetchLanguages = async () => {
     try {
@@ -87,7 +87,13 @@ const SelectLanguage: React.FC = () => {
       Alert.alert(t("Validation Error"), t("Please select a language"));
       return;
     }
-    navigation.navigate("OnBoarding");
+
+    let data = await getData("USERDATA");
+    if (data) {
+      navigation.navigate("BottomTabs");
+    } else {
+      navigation.navigate("OnBoarding");
+    }
   };
 
   return (
@@ -114,9 +120,7 @@ const SelectLanguage: React.FC = () => {
             ]}
           >
             <Text style={styles.dropdownButtonTxtStyle}>
-              {selectedItem
-                ? selectedItem.language_name
-                : t("SelectLanguage")}
+              {selectedItem ? selectedItem.language_name : t("SelectLanguage")}
             </Text>
             <Image
               source={Images.down}
@@ -124,7 +128,11 @@ const SelectLanguage: React.FC = () => {
             />
           </View>
         )}
-        renderItem={(item: LanguageItem, index: number, isSelected: boolean) => (
+        renderItem={(
+          item: LanguageItem,
+          index: number,
+          isSelected: boolean
+        ) => (
           <View
             style={[
               styles.dropdownItemStyle,

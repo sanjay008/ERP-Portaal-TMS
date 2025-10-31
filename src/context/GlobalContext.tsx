@@ -27,7 +27,7 @@ export default function GlobalContext({ children }: any) {
         UserData, setUserData,
         Toast, setToast,
         AllRegion, setAllRegion,
-        CompanysData, setCompanysData
+        CompanysData, setCompanysData,
       }}
     >
       {children}

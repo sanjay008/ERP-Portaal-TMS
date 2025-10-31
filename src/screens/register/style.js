@@ -1,4 +1,4 @@
-import { Platform, StyleSheet } from "react-native";
+import { StyleSheet } from "react-native";
 import { RFValue } from "react-native-responsive-fontsize";
 import { heightPercentageToDP } from "react-native-responsive-screen";
 import { Colors } from "../../utils/colors";
@@ -36,7 +36,7 @@ export const styles = StyleSheet.create({
       flex: 1,
     },
     country: {
-      height: Platform.OS == 'android'?heightPercentageToDP(9) : heightPercentageToDP(7),
+      height: RFValue(45),
       width:'100%',
       alignItems: "center",
       flexDirection: "row",
@@ -45,7 +45,8 @@ export const styles = StyleSheet.create({
       borderRadius: 10,
       borderColor: Colors.litegray,
       borderWidth: 1.3,
-      alignSelf:'center'
+      overflow:'hidden'
+      // alignSelf:'center'
     },
     pickerTitleStyle: {
       justifyContent: "center",
@@ -57,6 +58,7 @@ export const styles = StyleSheet.create({
     },
     pickerStyle: {
       // marginLeft: 20,
+      // width:'50%',
       height: heightPercentageToDP(6),
       borderColor: Colors.white,
       alignItems: "center",
@@ -99,13 +101,66 @@ export const styles = StyleSheet.create({
       marginTop: 15,
       marginLeft:RFValue(100)
     },
-    input: {
-      color: Colors.black,
-      fontFamily: 'regular',
-      width: "69%",
-      height: heightPercentageToDP(7),
-      fontSize:14
-    },
+  country: {
+    height: RFValue(48),
+    width: "100%",
+    alignItems: "center",
+    flexDirection: "row",
+    marginTop: 24,
+    backgroundColor: Colors.white,
+    borderRadius: 10,
+    borderColor: Colors.litegray,
+    borderWidth: 1.3,
+    paddingHorizontal: 10,
+  },
+
+  pickerStyle: {
+    // flexShrink: 0, // prevent shrinking
+    justifyContent: "center",
+    borderWidth:0,
+    height:heightPercentageToDP(6),
+    width:'80%',
+  },
+
+  pickerTitleStyle: {
+    textAlign: "center",
+    fontWeight: "bold",
+    color: Colors.black,
+    fontFamily: "regular",
+  },
+
+  selectedCountryTextStyle: {
+    fontFamily: "regular",
+    fontSize: 14,
+    color: Colors.black,
+  },
+
+  countryNameTextStyle: {
+    fontSize: 14,
+    color: Colors.black,
+  },
+
+  input: {
+    width:'90%',// flex: 1,
+    color: Colors.black,
+    fontFamily: "regular",
+    backgroundColor: "transparent",
+    fontSize: 14,
+    paddingLeft: 8,
+    height: "100%", 
+  },
+  searchBarStyle: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.litegray,
+  },
+
+  error: {
+    color: Colors.red,
+    fontSize: 13,
+    fontFamily: "regular",
+    marginTop: 8,
+    marginLeft: 4,
+  },
     loginwithemail: {
       color: Colors.primary,
       fontFamily: 'SemiBold',
