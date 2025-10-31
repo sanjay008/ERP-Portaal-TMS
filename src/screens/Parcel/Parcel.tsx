@@ -11,7 +11,7 @@ import { GlobalContextData } from "@/src/context/GlobalContext";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
 import { SimpleFlex, token } from "@/src/utils/storeData";
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FlatList,
@@ -25,8 +25,8 @@ import { styles } from "./styles";
 export default function Parcel({ navigation, route }: any) {
   const { refresh } = route?.params || {};
 
-  const [AllStatusData, setAllStatusData] = useState<object []>([]);
-  const [AllData, setAllData] = useState<object []>([]);
+  const [AllStatusData, setAllStatusData] = useState<object[]>([]);
+  const [AllData, setAllData] = useState<object[]>([]);
   const [SelectDate, setSelectDate] = useState<string>("");
   const [Region, setSelectRegion] = useState<any | {}>("");
   const [ActiveTab, setActiveTab] = useState<object | any>(null);
@@ -35,9 +35,11 @@ export default function Parcel({ navigation, route }: any) {
   const { UserData, setUserData, Toast, setToast } =
     useContext(GlobalContextData);
 
+  const flatListRef = useRef<FlatList>(null);
+
   const { ErrorHandle } = useErrorHandle();
 
-  const GetAllPickUpDataFun = async (status:any = null) => {
+  const GetAllPickUpDataFun = async (status: any = null) => {
     setLoading(true);
     try {
       let res = await ApiService(apiConstants.getOrderByDriver, {
@@ -58,7 +60,7 @@ export default function Parcel({ navigation, route }: any) {
       //   setSelectRegion(res?.data[0] || []);
       //   // console.log("Final Data",res?.data[0]);
       // }
-        if (Boolean(res.status)) {
+      if (Boolean(res.status)) {
         console.log("current Data", Region);
 
         setAllData(res?.data || []);
@@ -66,9 +68,7 @@ export default function Parcel({ navigation, route }: any) {
         if (!Region || Region === "") {
           setSelectRegion(res?.data?.[0] || {});
         } else {
-          const pre = res?.data?.find(
-            (el: any) => el?.id === Region?.id
-          );
+          const pre = res?.data?.find((el: any) => el?.id === Region?.id);
           setSelectRegion(pre || res?.data?.[0] || {});
         }
       }
@@ -122,11 +122,11 @@ export default function Parcel({ navigation, route }: any) {
     }
 
     if (SelectDate !== "" && ActiveTab !== null) {
-    setAllData([])
-    setSelectRegion("")
+      setAllData([]);
+      setSelectRegion("");
       GetAllPickUpDataFun(ActiveTab);
     }
-  }, [SelectDate,refresh]);
+  }, [SelectDate, refresh]);
 
   return (
     <ScrollView
@@ -138,30 +138,32 @@ export default function Parcel({ navigation, route }: any) {
     >
       <CalenderDate date={SelectDate} setDate={setSelectDate} />
 
-      <View style={[styles.Flex,{marginTop:'2%'}]}>
+      <View style={[styles.Flex, { marginTop: "2%" }]}>
         <DropDownBox
           data={AllData}
           value={Region}
           setValue={setSelectRegion}
           labelFieldKey="name"
           valueFieldKey="id"
-          ContainerStyle={{    flex:1/1.05, }}
+          ContainerStyle={{ flex: 1 / 1.05 }}
           // disbled={true}
         />
-        <View style={{width:46,height:46}}>
-
-        <TwoTypeButton
-          onlyIcon={true}
-          Icon={Images.Scan}
-          style={{ width: '100%', height: '100%' }}
-          onPress={() => navigation.navigate("Scanner",{fun:GetAllPickUpDataFun})}
+        <View style={{ width: 46, height: 46 }}>
+          <TwoTypeButton
+            onlyIcon={true}
+            Icon={Images.Scan}
+            style={{ width: "100%", height: "100%" }}
+            onPress={() =>
+              navigation.navigate("Scanner", { fun: GetAllPickUpDataFun })
+            }
           />
-          </View>
+        </View>
       </View>
 
-      <View style={[SimpleFlex.Flex,{flex:1,margin:-15,marginTop:10,}]}>
+      <View style={[SimpleFlex.Flex, { flex: 1, margin: -15, marginTop: 10 }]}>
         <FlatList
           horizontal
+          ref={flatListRef}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={[styles.ContentContainerStyleCatogryStatus]}
           data={AllStatusData || []}
@@ -184,12 +186,18 @@ export default function Parcel({ navigation, route }: any) {
               onPress={() => {
                 GetAllPickUpDataFun(item);
                 setActiveTab(item);
+                setActiveTab(item);
+                GetAllPickUpDataFun(item);
+                flatListRef.current?.scrollToIndex({
+                  index,
+                  animated: true,
+                  viewPosition: 0.5, 
+                });
               }}
             >
               <Text
                 style={[
                   styles.Text,
-                  // { color: ActiveTab?.id === item?.id ? Colors.white : Colors.black },
                   { color: Colors.black },
                 ]}
               >
@@ -197,6 +205,14 @@ export default function Parcel({ navigation, route }: any) {
               </Text>
             </TouchableOpacity>
           )}
+          onScrollToIndexFailed={(info) => {
+            setTimeout(() => {
+              flatListRef.current?.scrollToIndex({
+                index: info.index,
+                animated: true,
+              });
+            }, 200);
+          }}
         />
       </View>
 
@@ -221,7 +237,7 @@ export default function Parcel({ navigation, route }: any) {
         }}
         contentContainerStyle={styles.ContainerStyle}
         data={Region?.deliver_orders || []}
-        renderItem={({item,index}) => {
+        renderItem={({ item, index }) => {
           return (
             <PickUpBox
               index={index}
