@@ -45,7 +45,6 @@ export default function Profile({ navigation }: any) {
         Constants.expoConfig?.version ||
         Constants.manifest?.version ||
         "Unknown";
-      console.log("App version:", version);
       setCurrentVersion(version);
     } catch (error) {
       console.error("Error retrieving app version:", error);
@@ -65,6 +64,8 @@ export default function Profile({ navigation }: any) {
       RColor: Colors.white,
       onPress: async () => {
         await AsyncStorage.clear();
+        console.log("UserData",UserData);
+        setUserData(null)
         navigation?.replace("OnBoarding");
       },
     });
@@ -153,6 +154,8 @@ export default function Profile({ navigation }: any) {
 
  
   useEffect(() => {
+    console.log(UserData);
+    
     retrieveAppVersion();
   }, []);
 

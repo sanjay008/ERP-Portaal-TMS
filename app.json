@@ -2,7 +2,7 @@
   "expo": {
     "name": "ERP_Portaal_TMS_Driver",
     "slug": "erp-portaal-tms-driver",
-    "version": "1.0.0",
+    "version": "25.11.05",
     "jsEngine": "hermes",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -10,10 +10,18 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
+      "config": {
+        "googleMapsApiKey": "AIzaSyBZQz7G7yJ_DSSpUBs0XbVjSKHSf_HbCqQ"
+      },
       "supportsTablet": true,
       "bundleIdentifier": "com.erpportaal.ERP-Portaal-TMS-Driver"
     },
     "android": {
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyBZQz7G7yJ_DSSpUBs0XbVjSKHSf_HbCqQ"
+        }
+      },
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/icon.png",
@@ -72,8 +80,16 @@
           }
         }
       ],
+      [
+        "expo-maps",
+        {
+          "requestLocationPermission": true,
+          "locationPermission": "Allow $(PRODUCT_NAME) to use your location"
+        }
+      ],
       "expo-audio",
       "expo-video"
+     
     ],
     "experiments": {
       "typedRoutes": true,

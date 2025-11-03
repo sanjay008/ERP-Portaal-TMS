@@ -2,13 +2,13 @@ import { GlobalContextData } from "@/src/context/GlobalContext";
 import React, { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  Alert,
-  Dimensions,
-  Image,
-  SafeAreaView,
-  StatusBar,
-  Text,
-  View
+    Alert,
+    Dimensions,
+    Image,
+    SafeAreaView,
+    StatusBar,
+    Text,
+    View
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { RFValue } from "react-native-responsive-fontsize";
@@ -24,6 +24,7 @@ import { styles } from "./style";
 
 const Password = ({ route, navigation }) => {
       const {
+        setUserData,
         GOOGLE_API_KEY,setGOOGLE_API_KEY,
         CompanyLogo,setCompanyLogo,
         Permission,setPermission,
@@ -71,8 +72,8 @@ const Password = ({ route, navigation }) => {
 
                 setLoading(false);
                 console.log("password successful");
-                storeData("USERDATA", data);
-                storeData("AUTH", true);
+               await storeData("USERDATA", data);
+               await storeData("AUTH", true);
 
 
                 let Client = data?.data?.user;
@@ -85,23 +86,18 @@ const Password = ({ route, navigation }) => {
                     },
                 });
                 let Permission = datas?.data;
+                //  setUserData(data?.user)
                 setPermission(Permission);
                 // Alert.alert("A")
 
-                if (Permission?.pos_header_product_icon?.read != '1') {
+                
                     navigation.reset({
                         index: 0,
                         routes: [{ name: "BottomTabs" }],
                     });
                     
                     return;
-                }
-                navigation.reset({
-                    index: 0,
-                    routes: [{ name: "BottomTabs" }],
-                });
                 
-                // navigation.navigate("BottamScreens");
             } else {
                 setLoading(false);
                 Alert.alert("Oops!", data.message, [

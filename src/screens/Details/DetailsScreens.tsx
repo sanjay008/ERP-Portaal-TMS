@@ -56,32 +56,31 @@ export default function DetailsScreens({ navigation, route }: any) {
     onPress: "",
   });
 
-const openCamera = async () => {
-  try {
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert(t("Permission required", "Please allow camera access"));
-      return;
+  const openCamera = async () => {
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(t("Permission required", "Please allow camera access"));
+        return;
+      }
+
+      let result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        quality: 1,
+      });
+
+      if (!result.canceled) {
+        const imagesToSend = result.assets.map((asset, index) => ({
+          uri: asset.uri,
+          name: asset.fileName || `image_${Date.now()}.jpg`,
+          type: asset.type === "image" ? "image/jpeg" : asset.type,
+        }));
+        setAllSelectImage((pre) => [...pre, ...imagesToSend]);
+      }
+    } catch (err) {
+      console.log(err);
     }
-
-    let result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      quality: 1,
-    });
-
-    if (!result.canceled) {
-      const imagesToSend = result.assets.map((asset, index) => ({
-        uri: asset.uri,
-        name: asset.fileName || `image_${Date.now()}.jpg`,
-        type: asset.type === "image" ? "image/jpeg" : asset.type,
-      }));
-      setAllSelectImage((pre) => [...pre, ...imagesToSend]);
-    }
-  } catch (err) {
-    console.log(err);
-  }
-};
-
+  };
 
   const openGallery = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -208,27 +207,28 @@ const openCamera = async () => {
     return url;
   };
 
- function getMergedImages(item: any, AllSelectImage: any[]) {
-  const safeImages = Array.isArray(AllSelectImage) ? AllSelectImage : [];
+  function getMergedImages(item: any, AllSelectImage: any[]) {
+    const safeImages = Array.isArray(AllSelectImage) ? AllSelectImage : [];
 
-  if (!item || !Array.isArray(item?.tmslogdata_itemcomment)) {
-    return [...safeImages];
+    if (!item || !Array.isArray(item?.tmslogdata_itemcomment)) {
+      return [...safeImages];
+    }
+
+    const backendImages = item.tmslogdata_itemcomment
+      .filter(
+        (el: any) => Array.isArray(el?.tmsimgdata) && el.tmsimgdata.length > 0
+      )
+      .flatMap((el: any) => el.tmsimgdata)
+      .map((img: any) => ({
+        // Ensure URI format
+        uri: img?.shared_link
+          ? getDirectDropboxLink(img.shared_link)
+          : img?.uri ?? "",
+      }))
+      .filter((img) => img.uri !== "");
+
+    return [...backendImages, ...safeImages];
   }
-
-  const backendImages = item.tmslogdata_itemcomment
-    .filter((el: any) => Array.isArray(el?.tmsimgdata) && el.tmsimgdata.length > 0)
-    .flatMap((el: any) => el.tmsimgdata)
-    .map((img: any) => ({
-      // Ensure URI format
-      uri: img?.shared_link
-        ? getDirectDropboxLink(img.shared_link)
-        : img?.uri ?? "",
-    }))
-    .filter((img) => img.uri !== "");
-
-  return [...backendImages, ...safeImages];
-}
-
 
   const BackOrderFun = async () => {};
 
@@ -260,7 +260,7 @@ const openCamera = async () => {
           contact={true}
         />
 
-        <MapsViewBox />
+        <MapsViewBox onPress={() => navigation.navigate("MapScreens")} />
 
         <View style={styles.Flex}>
           <TwoTypeButton

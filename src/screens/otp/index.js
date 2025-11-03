@@ -91,12 +91,11 @@ const Otp = ({ navigation, route }) => {
                     },
                 });
                 if (data.status) {
+
                     storeData("LOGIN", true);
                     setTimeout(() => {
                         setLoding(false);
                     }, 1000);
-                            let data = await getData("USERDATA");
-                           
 
                     if (register == "true") {
                         navigation.navigate("Staff", {
@@ -109,10 +108,9 @@ const Otp = ({ navigation, route }) => {
                         });
                     } else {
                         storeData("AUTH", true);
-                        storeData("USERDATA", data);
                         console.log("otp data.....", data);
+                        await storeData("USERDATA", data)
                         navigation.navigate("BottomTabs");
-                        // navigation.navigate("BottamScreens");
                     }
                 } else {
                     console.log("false");
@@ -178,8 +176,8 @@ const Otp = ({ navigation, route }) => {
                 ]}
             />
             <View style={styles.container}>
-                <Text style={[styles.wellcome,{marginLeft:10}]}>{t("verifiëren")}</Text>
-                <Text style={[styles.dis,{marginLeft:10}]}>{t("Voer OTP in")}</Text>
+                <Text style={[styles.wellcome, { marginLeft: 10 }]}>{t("verifiëren")}</Text>
+                <Text style={[styles.dis, { marginLeft: 10 }]}>{t("Voer OTP in")}</Text>
                 <Input
                     value={otp}
                     placeholder="*"

@@ -111,6 +111,13 @@ export default function index() {
                   name="WebViewScreeens"
                   component={withLayoutHeader(WebViewScreeens)}
                 />
+                <Stack.Screen
+                  name="MapScreens"
+                  options={{
+                    animation:'slide_from_right'
+                  }}
+                  component={withLayoutHeader(MapsScreens)}
+                />
               </Stack.Navigator>
             ) : (
               <Stack.Navigator

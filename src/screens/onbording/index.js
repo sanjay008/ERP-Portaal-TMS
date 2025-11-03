@@ -59,9 +59,8 @@ const retrieveAppVersion = async () => {
   try {
     const version =
       Constants.expoConfig?.version ||
-      Constants.manifest?.version || // fallback for older SDKs
+      Constants.manifest?.version || 
       "Unknown";
-    console.log("App version:", version);
     setAppVersion(version);
   } catch (error) {
     console.error("Error retrieving app version:", error);
@@ -107,10 +106,9 @@ const retrieveAppVersion = async () => {
             </KeyboardAwareScrollView>
             <View
                 style={{
-                    position: "absolute",
-                    bottom: '5%',
+                    marginHorizontal:'auto',
                     width: "90%",
-                    alignSelf: "center",
+                    marginBottom:50,
                     gap:10
                 }}
             >

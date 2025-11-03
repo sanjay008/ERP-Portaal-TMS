@@ -5,12 +5,17 @@ import { Images } from "../assets/images";
 import { Colors } from "../utils/colors";
 import { width } from "../utils/storeData";
 
-export default function MapsViewBox({ data }: any) {
+type MapsData = {
+  data?:string [] | any,
+  onPress?:()=> void,
+}
+
+export default function MapsViewBox({ data, onPress }: MapsData) {
   const { t } = useTranslation();
   return (
     <View style={styles.container}>
       <Image source={Images.MapsImage} style={styles.MapStyle} />
-      <TouchableOpacity style={styles.Button}>
+      <TouchableOpacity style={styles.Button} onPress={onPress}>
         <Text style={styles.Text}>{t("Start")}</Text>
       </TouchableOpacity>
     </View>

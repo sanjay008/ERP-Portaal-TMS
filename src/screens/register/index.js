@@ -47,6 +47,7 @@ const Register = ({ navigation, route }) => {
   const [showEmail, setShowEmail] = useState(false);
   const [showWhatsApp, setShowWhatsapp] = useState(true);
   const {
+    setUserData,
     GOOGLE_API_KEY, setGOOGLE_API_KEY,
     CompanyLogo, setCompanyLogo,
     Permission, setPermission,
@@ -179,7 +180,7 @@ const Register = ({ navigation, route }) => {
         },
       });
       if (data.status) {
-        storeData("USERDATA", data);
+        await storeData("USERDATA", data);
 
         if (data.data.user.enable_2fa == 1) {
           setTimeout(() => {
@@ -195,6 +196,7 @@ const Register = ({ navigation, route }) => {
           setTimeout(() => {
             setLoding(false);
           }, 1000);
+            
           navigation.navigate("Password", {
             logo: logo,
             verify_token: data.data.user.verify_token,
@@ -207,6 +209,7 @@ const Register = ({ navigation, route }) => {
             setLoding(false);
           }, 1000);
           storeData("AUTH", true);
+          
           navigation.replace("BottomTabs");
           // navigation.replace("BottamScreens");
         }
