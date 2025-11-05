@@ -1,5 +1,6 @@
 import apiConstants from "@/src/api/apiConstants";
 import { Images } from "@/src/assets/images";
+import { ApiFormatDate } from "@/src/components/ApiFormatDate";
 import CalenderDate from "@/src/components/CalenderDate";
 import DropDownBox from "@/src/components/DropDownBox";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
@@ -10,10 +11,7 @@ import { GlobalContextData } from "@/src/context/GlobalContext";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
 import { getData, token } from "@/src/utils/storeData";
-// import * as Updates from "expo-updates";
-import { ApiFormatDate } from "@/src/components/ApiFormatDate";
 import { useIsFocused } from "@react-navigation/native";
-// import * as Updates from "expo-updates";
 import React, { useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FlatList, ScrollView, Text, View } from "react-native";
@@ -59,7 +57,7 @@ export default function LoadedScreens({ navigation, route}: any) {
   };
   useEffect(() => {
     // checkForUpdate();
-    if (!UserData) {
+    if (UserData==null) {
       getUserData();
     }
   }, []);
@@ -98,8 +96,6 @@ export default function LoadedScreens({ navigation, route}: any) {
         // console.log("current Data", res);
 
       if (Boolean(res.status)) {
-        console.log("current Data", res);
-
         setAllPickUpData(res?.data || []);
 
         if (!selectRegionData || selectRegionData === "") {

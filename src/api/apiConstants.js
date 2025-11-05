@@ -29,6 +29,8 @@ module.exports = {
     status_list: `${baseUrlnew}tms-driver/get-tms-status-list`,
     store_image_comment: `${baseUrlnew}tms-driver/store-tms-comment-img`,
     get_order_data_by_id: `${baseUrlnew}tms-driver/get-order-data-by-id`,
+    get_AllSlideDataApi: `${baseUrlnew}tms-home/get-tms-home-slider`,
+    getMultipleOrderData: `${baseUrlnew}tms-driver/get-multiple-orders-data-by-ids`,
 
 };
 

@@ -8,6 +8,7 @@ import { Images } from "../assets/images";
 import CustomHeader from "../components/CustomHeader";
 import Loader from "../components/loading";
 import { GlobalContextData } from "../context/GlobalContext";
+import HomeScreens from "../screens/Home/HomeScreens";
 import LoadedScreens from "../screens/Loaded/LoadedScreens";
 import Parcel from "../screens/Parcel/Parcel";
 import Profile from "../screens/Profile/Profile";
@@ -28,7 +29,9 @@ export default function BottomTabs() {
       try {
         let data = await getData("USERDATA");
         setUserData(data?.data);
-        getPermision(data?.data);
+        if(Permission?.length == 0){
+          getPermision(data?.data);
+        }
       } catch (error) {
         console.log("get User Data Error:-", error);
       }
@@ -74,7 +77,7 @@ export default function BottomTabs() {
         <Tab.Navigator
           initialRouteName={
             Permission?.tms_driver_loaded_and_parcel_menu?.read == "1"
-              ? "Loaded"
+              ? "Home"
               : "Profile"
           }
           screenOptions={{
@@ -95,6 +98,30 @@ export default function BottomTabs() {
             },
           }}
         >
+          <Tab.Screen
+            name="Home"
+            component={HomeScreens}
+            options={{
+              title: t("Home"),
+              tabBarLabel: t("Home"),
+              tabBarIcon: ({ color }) => (
+                <Image
+                  source={Images.Loading}
+                  style={{ width: 25, height: 25 }}
+                  tintColor={color}
+                />
+              ),
+            }}
+            listeners={({ navigation }) => ({
+              tabPress: (e) => {
+                const state = navigation.getState();
+                const focusedRouteName = state.routes[state.index].name;
+                if (focusedRouteName === "Home") {
+                  navigation.navigate("Home", { refresh: Date.now() });
+                }
+              },
+            })}
+          />
           {Permission?.tms_driver_loaded_and_parcel_menu?.read == "1" && (
             <Tab.Screen
               name="Loaded"

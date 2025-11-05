@@ -51,8 +51,8 @@ export const styles = StyleSheet.create({
     marginVertical: 15,
   },
   FooterContainer: {
-    width: "100%",
-    height: width,
+    width: width - 20,
+    height: width / 2,
     justifyContent: "center",
     alignItems: "center",
   },

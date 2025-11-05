@@ -1,14 +1,21 @@
 import apiConstants from "@/src/api/apiConstants";
 import { Images } from "@/src/assets/images";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
+import Loader from "@/src/components/loading";
 import LoadingModal from "@/src/components/LoadingModal";
+import PickUpBox from "@/src/components/PickUpBox";
 import ScannerInfoModal from "@/src/components/ScannerInfoModal";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors.js";
 import { height, token, width } from "@/src/utils/storeData";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import BottomSheet, {
+  BottomSheetFlatList,
+  BottomSheetView,
+} from "@gorhom/bottom-sheet";
 import { useIsFocused } from "@react-navigation/native";
+import axios from "axios";
 import { Audio } from "expo-av";
 import {
   Camera,
@@ -28,10 +35,12 @@ import { useTranslation } from "react-i18next";
 import {
   Image,
   StyleSheet,
+  Text,
   TouchableOpacity,
   Vibration,
   View,
 } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 export default function ScannerScreens({ navigation, route }: any) {
   const { fun = () => {} } = route?.params || {};
@@ -53,42 +62,45 @@ export default function ScannerScreens({ navigation, route }: any) {
     onPress: "",
     personData: [],
     type: 1,
-    ProductItem:[],
+    ProductItem: [],
   });
 
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [lastDetectedBarcode, setLastDetectedBarcode] = useState<string>("");
   const [flashEnabled, setFlashEnabled] = useState<boolean>(false);
+  const [AllRecentScanData, setAllRecentScanData] = useState<number[]>([]);
+  const [AllScanedData, setAllScanedData] = useState<object[]>([]);
+  const [DataLoader, setDataLoader] = useState(false);
   const cameraRef = useRef(null);
+  const bottomSheetRef = useRef<BottomSheet>(null);
   const [GetConformationQuestion, setGetConformationQuestion] =
     useState<string>("");
   const [facing, setFacing] = useState<CameraType>("back");
   const { UserData, setToast } = useContext(GlobalContextData);
   const { t } = useTranslation();
-   const { ErrorHandle } = useErrorHandle();
+  const { ErrorHandle } = useErrorHandle();
   const playBeep = useCallback(async () => {
     const { sound } = await Audio.Sound.createAsync(Images.ScannerSound);
     await sound.playAsync();
   }, []);
-const Focused = useIsFocused();
-useEffect(() => {
-  (async () => {
-    const { status } = await Camera.requestCameraPermissionsAsync();
-    setHasPermission(status === "granted");
-  })();
+  const Focused = useIsFocused();
+  useEffect(() => {
+    (async () => {
+      const { status } = await Camera.requestCameraPermissionsAsync();
+      setHasPermission(status === "granted");
+    })();
 
-  if (permission && permission.granted === false) {
-    requestPermission();
-  }
+    if (permission && permission.granted === false) {
+      requestPermission();
+    }
 
-  if (ConformationModalOpen?.visible) {
-    setConformationModal((prev: any) => ({
-      ...prev,
-      visible: false,
-    }));
-  }
-}, [permission, Focused]);
-
+    if (ConformationModalOpen?.visible) {
+      setConformationModal((prev: any) => ({
+        ...prev,
+        visible: false,
+      }));
+    }
+  }, [permission, Focused]);
 
   const onBarcodeScanned = useCallback(
     async ({ data, type }: { data: string; type: string }) => {
@@ -138,6 +150,14 @@ useEffect(() => {
           order_id: data?.order_id,
         },
       });
+      // setAllRecentScanData((prev) => {
+      //   if (prev.includes(data.order_id)) {
+      //     return prev.filter((id) => id !== data.order_id);
+      //   } else {
+      //     return [...prev, data.order_id];
+      //   }
+      // });
+
       console.log("res", res);
 
       if (Boolean(res?.status)) {
@@ -150,14 +170,14 @@ useEffect(() => {
           RColor: Colors.white,
           personData: res?.data?.order_data || [],
           order_id: data?.order_id,
-          ProductItem:res?.data?.order_data?.items || [], 
+          ProductItem: res?.data?.order_data?.items || [],
           type: res?.data?.order_data?.tmsstatus?.id == 2 ? 2 : 1,
         };
 
         if (res?.data?.isscaned) {
           if (res?.data?.order_data?.tmsstatus?.id == 4) {
             modalConfig.onPress = async () => {
-              navigation.navigate("Delivery", { item: res?.data,fun });
+              navigation.navigate("Delivery", { item: res?.data, fun });
             };
           } else {
             modalConfig.onPress = async () => {
@@ -181,17 +201,8 @@ useEffect(() => {
   };
 
   const StatusUpdateFun = async (data: any) => {
-    // console.log("Status Update Request Data",{
-    //       token: token,
-    //       role: UserData?.user?.role,
-    //       relaties_id: 1307,
-    //       user_id: UserData?.user?.id,
-    //       item_id: data?.item_id,
-    //       order_id: data?.order_id,
-    //     });
-
     setIsLoading(true);
-
+    let copy = [...AllRecentScanData];
     try {
       let res = await ApiService(apiConstants.status_update, {
         customData: {
@@ -206,7 +217,19 @@ useEffect(() => {
       if (res?.status) {
         console.log("Success!", res);
         fun();
-        goBack();
+        // goBack();
+        setAllRecentScanData((prev) => {
+          if (prev.includes(data.order_id)) {
+            return prev.filter((id) => id !== data.order_id); // remove if already there
+          }
+          copy = [...prev, data.order_id];
+          return [...prev, data.order_id]; // add if not there
+        });
+          setConformationModal((prev: any[]) => ({
+            ...prev,
+            visible: false,
+          }))
+        await GetScanedOrderDataLatestFun(copy);
       }
     } catch (error) {
       console.log("Status Update Error:", error);
@@ -221,8 +244,63 @@ useEffect(() => {
     }
   };
 
+  const GetScanedOrderDataLatestFun = async (data: any) => {
+    setDataLoader(true);
+    const formData = new FormData();
+
+    formData.append("token", token);
+    formData.append("user_id", UserData?.user?.id);
+    formData.append("role", UserData?.user?.role);
+    formData.append("relaties_id", "1307");
+
+    // Assuming AllRecentScanData or some array like dataIds[] contains the IDs
+    data.forEach((id: any) => {
+      console.log("id", id);
+
+      formData.append("order_ids[]", id);
+    });
+
+    console.log("Multiple Data reqData", formData);
+    console.log("AllRecentScanData", data);
+
+    try {
+      const response = await axios.post(
+        apiConstants.getMultipleOrderData,
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
+      let res = response?.data;
+      if (Boolean(res.status)) {
+        setAllScanedData(res?.data || []);
+      }
+    } catch (error: any) {
+      console.log("Get Scaned Data Error:-", error?.message);
+      if (axios.isAxiosError(error)) {
+        console.log({
+          message: error.message,
+          status: error.response?.status,
+          response: error.response?.data,
+        });
+      } else {
+        console.log("Unexpected Error:", error);
+      }
+      setToast({
+        top: 45,
+        text: ErrorHandle(error).message,
+        type: "error",
+        visible: true,
+      });
+    } finally {
+      setDataLoader(false);
+    }
+  };
+
   return (
-    <View style={styles.container}>
+    <GestureHandlerRootView style={styles.container}>
       <CameraView
         ref={cameraRef}
         enableTorch={flashEnabled}
@@ -282,8 +360,46 @@ useEffect(() => {
         }
       />
       <LoadingModal visible={IsLoading} message={t("Please wait…")} />
-
-    </View>
+      <BottomSheet snapPoints={["15%", "90%"]} ref={bottomSheetRef}>
+        <BottomSheetView style={styles.contentContainer}>
+          <BottomSheetFlatList
+          style={{width:width,margin:0}}
+            data={AllScanedData}
+            ListFooterComponent={() =>
+              DataLoader && (
+                <View style={styles.ListFooterContainer}>
+                  <Loader />
+                </View>
+              )
+            }
+            ListEmptyComponent={() =>
+              !DataLoader && (
+                <View style={styles.ListFooterContainer}>
+                  <Text style={styles.Text}>{t("No Scan Order")}</Text>
+                </View>
+              )
+            }
+            keyExtractor={(item:any,index:number) => `${index}`}
+            renderItem={({ item, index }: any) => (
+              <PickUpBox
+                index={index}
+                LableStatus={item?.tmsstatus?.status_name}
+                OrderId={item?.id}
+                ProductItem={item?.items}
+                LableBackground={item?.tmsstatus?.color}
+                // onPress={() => navigation.navigate("Details", { item: item })}
+                start={item?.pickup_location}
+                end={item?.deliver_location}
+                customerData={item?.customer}
+                statusData={item?.tmsstatus}
+                LacationProgress={false}
+              />
+            )}
+            contentContainerStyle={styles.contentContainer}
+          />
+        </BottomSheetView>
+      </BottomSheet>
+    </GestureHandlerRootView>
   );
 }
 
@@ -309,5 +425,22 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     tintColor: Colors.white,
+  },
+  contentContainer: {
+    flex: 1,
+    padding: 15,
+    alignItems: "center",
+    gap: 10,
+  },
+  ListFooterContainer: {
+    width: "100%",
+    height: width / 2,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  Text: {
+    fontSize: 14,
+    fontFamily: "Medium",
+    color: Colors.black,
   },
 });

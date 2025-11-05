@@ -72,6 +72,7 @@ export const Colors = {
   ReadyText:"#28A745",
   RemoveBg:"#FF00041A",
   FullRed:"#FF0004",
+  MapLine:"#06C167",
 };
 //     #fffbde(normal)
 // #cfe2ff(hold)

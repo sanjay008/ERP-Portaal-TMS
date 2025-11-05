@@ -83,6 +83,8 @@ export const Images = {
   DropIcon: require("./image/DropIcon.png"),
   UploadPhoto: require("./image/UploadPhoto.png"),
   GalleryIcon: require("./image/GalleryIcon.png"),
+  MapsMarkerVehicalIcon: require("./image/MapsMarkerVehicalIcon.png"),
+  DestinationMarker: require("./image/DestinationMarker.png"),
   
 
 

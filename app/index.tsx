@@ -4,6 +4,7 @@ import GlobalContext from "@/src/context/GlobalContext";
 import Chat from "@/src/screens/Chat/Chat";
 import DeliveryScreens from "@/src/screens/Delivery/DeliveryScreens";
 import DetailsScreens from "@/src/screens/Details/DetailsScreens";
+import FilterScreen from "@/src/screens/FilterDataScreen/FilterScreen";
 import LanguageScreens from "@/src/screens/Language/LanguageScreens";
 import LoadedScreens from "@/src/screens/Loaded/LoadedScreens";
 import MapsScreens from "@/src/screens/Maps/MapsScreens";
@@ -117,6 +118,13 @@ export default function index() {
                     animation:'slide_from_right'
                   }}
                   component={withLayoutHeader(MapsScreens)}
+                />
+                <Stack.Screen
+                  name="FilterScreen"
+                  options={{
+                    animation:'slide_from_right'
+                  }}
+                  component={withLayoutHeader(FilterScreen)}
                 />
               </Stack.Navigator>
             ) : (

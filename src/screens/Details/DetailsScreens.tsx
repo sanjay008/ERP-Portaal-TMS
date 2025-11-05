@@ -14,6 +14,7 @@ import { GlobalContextData } from "@/src/context/GlobalContext";
 import { Colors } from "@/src/utils/colors";
 import { token } from "@/src/utils/storeData";
 import axios from "axios";
+import * as IntentLauncher from "expo-intent-launcher";
 // import { Image } from "expo-image";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
@@ -24,10 +25,11 @@ import {
   Alert,
   FlatList,
   Image,
+  Platform,
   Pressable,
   ScrollView,
   Text,
-  View,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styles } from "./styles";
@@ -55,32 +57,60 @@ export default function DetailsScreens({ navigation, route }: any) {
     Desctiption: "",
     onPress: "",
   });
+const openCamera = async () => {
+  try {
+    const { granted } = await ImagePicker.requestCameraPermissionsAsync();
+    if (!granted) {
+      Alert.alert("Permission required", "Please allow camera access");
+      return;
+    }
 
-  const openCamera = async () => {
-    try {
-      const permission = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert(t("Permission required", "Please allow camera access"));
-        return;
-      }
-
-      let result = await ImagePicker.launchCameraAsync({
-        allowsEditing: true,
+    if (Platform.OS === "android") {
+      await IntentLauncher.startActivityAsync("android.media.action.STILL_IMAGE_CAMERA");
+    } else {
+         const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: false,
         quality: 1,
       });
 
-      if (!result.canceled) {
-        const imagesToSend = result.assets.map((asset, index) => ({
+      if (!result.canceled && result.assets?.length) {
+        const imagesToSend = result.assets.map((asset) => ({
           uri: asset.uri,
           name: asset.fileName || `image_${Date.now()}.jpg`,
-          type: asset.type === "image" ? "image/jpeg" : asset.type,
+          type: asset.type || "image/jpeg",
         }));
-        setAllSelectImage((pre) => [...pre, ...imagesToSend]);
+        setAllSelectImage((prev) => [...prev, ...imagesToSend]);
       }
-    } catch (err) {
-      console.log(err);
     }
-  };
+  } catch (err) {
+    console.log("Camera open error:", err);
+  }
+};
+  // const openCamera = async () => {
+  //   try {
+  //     const permission = await ImagePicker.requestCameraPermissionsAsync();
+  //     if (!permission.granted) {
+  //       Alert.alert(t("Permission required", "Please allow camera access"));
+  //       return;
+  //     }
+
+  //     let result = await ImagePicker.launchCameraAsync({
+  //       allowsEditing: true,
+  //       quality: 1,
+  //     });
+
+  //     if (!result.canceled) {
+  //       const imagesToSend = result.assets.map((asset, index) => ({
+  //         uri: asset.uri,
+  //         name: asset.fileName || `image_${Date.now()}.jpg`,
+  //         type: asset.type === "image" ? "image/jpeg" : asset.type,
+  //       }));
+  //       setAllSelectImage((pre) => [...pre, ...imagesToSend]);
+  //     }
+  //   } catch (err) {
+  //     console.log(err);
+  //   }
+  // };
 
   const openGallery = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -260,7 +290,7 @@ export default function DetailsScreens({ navigation, route }: any) {
           contact={true}
         />
 
-        <MapsViewBox onPress={() => navigation.navigate("MapScreens")} />
+        <MapsViewBox onPress={() => navigation.navigate("MapScreens",{data:item})} />
 
         <View style={styles.Flex}>
           <TwoTypeButton
@@ -278,13 +308,16 @@ export default function DetailsScreens({ navigation, route }: any) {
           />
         </View>
 
+        {
+          getMergedImages(item, AllSelectImage)?.length > 0 &&
+
         <FlatList
           horizontal
           style={{ flexGrow: 1, margin: -15, marginVertical: 10 }}
           ListEmptyComponent={() => (
             <View style={styles.FooterContainer}>
               <Text style={[styles.Text, { color: Colors.darkText }]}>
-                {t("No Order Found")}
+                {t("No Photos")}
               </Text>
             </View>
           )}
@@ -335,6 +368,7 @@ export default function DetailsScreens({ navigation, route }: any) {
             item.id?.toString() || index.toString()
           }
         />
+        }
 
         <Pressable onPress={() => setComment(true)}>
           <TwoTypeInput
