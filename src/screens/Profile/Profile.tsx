@@ -3,6 +3,7 @@ import ConformationModal from "@/src/components/ConformationModal";
 import ProfileItem from "@/src/components/ProfileItem";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import { Colors } from "@/src/utils/colors";
+import { storeData } from "@/src/utils/storeData";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import React, { useContext, useEffect, useState } from "react";
@@ -18,7 +19,7 @@ type ArrayProps = {
 };
 
 export default function Profile({ navigation }: any) {
-  const { UserData, setUserData, Toast, setToast, CompanysData } =
+  const { UserData, setUserData, Toast, setToast, CompanysData, setPermission} =
     useContext(GlobalContextData);
   const [CurrentVersion, setCurrentVersion] = useState<number>(1);
   const [AlertModalOpen, setAlerModalOpen] = useState<any>({
@@ -44,7 +45,7 @@ export default function Profile({ navigation }: any) {
       const version =
         Constants.expoConfig?.version ||
         Constants.manifest?.version ||
-        "Unknown";
+        "Beta";
       setCurrentVersion(version);
     } catch (error) {
       console.error("Error retrieving app version:", error);
@@ -66,6 +67,8 @@ export default function Profile({ navigation }: any) {
         await AsyncStorage.clear();
         console.log("UserData",UserData);
         setUserData(null)
+        setPermission([]);
+        await storeData("userLanguage",'en');
         navigation?.replace("OnBoarding");
       },
     });
@@ -142,20 +145,12 @@ export default function Profile({ navigation }: any) {
       Title: t("Log Out"),
       onPress: () => OnLogOutFun(),
     },
-    {
-      Background: Colors.FullRed,
-      Icon: Images.DeleteAccount,
-      Title: t("Delete Account"),
-      onPress: () => DeleteAccountFun(),
-    },
   ];
 
   
 
  
   useEffect(() => {
-    console.log(UserData);
-    
     retrieveAppVersion();
   }, []);
 

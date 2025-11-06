@@ -12,11 +12,11 @@ import {
 import DashedLine from "react-native-dashed-line";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import Modal from "react-native-modal";
-import { RFValue } from "react-native-responsive-fontsize";
 import { Images } from "../assets/images";
 import { GlobalContextData } from "../context/GlobalContext";
 import { Colors } from "../utils/colors";
-import { height, width } from "../utils/storeData";
+import { height } from "../utils/storeData";
+import { SafeAreaView } from "react-native-safe-area-context";
 type Props = {
   IsVisible: boolean;
   setIsVisible: (value: boolean) => void;
@@ -46,21 +46,21 @@ export default function AddCommentModal({ IsVisible, setIsVisible, fun}: Props) 
       isVisible={IsVisible}
       animationIn={"bounceInUp"}
       animationOut={"bounceOutDown"}
-      style={{ margin: 0 }}
+      style={{ margin: 0 ,}}
       onBackdropPress={() => {setIsVisible(false)}}
       onBackButtonPress={() => {setIsVisible(false)}}
       useNativeDriver 
       avoidKeyboard
     >
       <KeyboardAwareScrollView
-        style={{ flex: 1 }}
-        extraHeight={60}
-        contentContainerStyle={{ flexGrow: 1 }}
+        style={{ flexGrow: 1 }}
+        // extraHeight={100}
+        contentContainerStyle={{ flex: 1 }}
         enableOnAndroid={true}
-        extraScrollHeight={150} 
+       extraScrollHeight={170}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container}>
           <View style={styles.CommentBox}>
             <View style={styles.Flex}>
               <Text style={styles.Text}>{t("Write Comment")}</Text>
@@ -121,7 +121,7 @@ export default function AddCommentModal({ IsVisible, setIsVisible, fun}: Props) 
               </Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </SafeAreaView>
       </KeyboardAwareScrollView>
     </Modal>
   );
@@ -129,17 +129,19 @@ export default function AddCommentModal({ IsVisible, setIsVisible, fun}: Props) 
 
 const styles = StyleSheet.create({
   container: {
-    width: width,
+    flex:1,
     height: height,
     justifyContent: "flex-end",
     margin: 0,
   },
   CommentBox: {
-    width: width,
+    // width: width,
     padding: 15,
+    // height:'80%',
     backgroundColor: Colors.background,
     borderTopRightRadius: 10,
     borderTopLeftRadius: 10,
+    paddingBottom:20
   },
   Text: {
     fontSize: 14,
@@ -191,7 +193,7 @@ const styles = StyleSheet.create({
   },
   Button: {
     width: "100%",
-    height: RFValue(40),
+    height: 50,
     backgroundColor: Colors.primary,
     borderRadius: 7,
     justifyContent: "center",

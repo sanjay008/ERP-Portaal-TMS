@@ -15,6 +15,13 @@ export const styles = StyleSheet.create({
   FlatStyle: {
     marginTop: 10,
   },
+  BackButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 4,
+    backgroundColor: Colors.red,
+    alignSelf:'flex-start'
+  },
   ContainerStyle: {
     gap: 15,
   },

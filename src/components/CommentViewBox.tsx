@@ -6,7 +6,7 @@ import { Images } from "../assets/images";
 import { Colors } from "../utils/colors";
 import { SimpleFlex } from "../utils/storeData";
 import { formatDate } from "./DateFormate";
-export default function CommentViewBox({ data }: { data: object[] }) {
+export default function CommentViewBox({ data=[] }: { data: object[] }) {
   const { t } = useTranslation();
   return (
     <View style={styles.container}>

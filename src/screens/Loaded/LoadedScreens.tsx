@@ -1,12 +1,10 @@
 import apiConstants from "@/src/api/apiConstants";
-import { Images } from "@/src/assets/images";
 import { ApiFormatDate } from "@/src/components/ApiFormatDate";
 import CalenderDate from "@/src/components/CalenderDate";
 import DropDownBox from "@/src/components/DropDownBox";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
 import Loader from "@/src/components/loading";
 import PickUpBox from "@/src/components/PickUpBox";
-import TwoTypeButton from "@/src/components/TwoTypeButton";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
@@ -86,8 +84,8 @@ export default function LoadedScreens({ navigation, route}: any) {
           // token: userData?.user?.verify_token,
           token: token,
           role: userData?.user?.role,
-          // relaties_id: userData?.relaties?.id,
-          relaties_id: 1307,
+          relaties_id: userData?.relaties?.id,
+     
           user_id: userData?.user?.id,
           date: ApiFormatDate(SelectDate),
           // date:"2025-10-23",
@@ -137,17 +135,17 @@ export default function LoadedScreens({ navigation, route}: any) {
             setValue={setSelectRegionData}
             labelFieldKey="name"
             valueFieldKey="id"
-            ContainerStyle={{ flex: 1 / 1.05 }}
+            ContainerStyle={{ flex: 1 }}
             // disbled={true}
           />
-          <TwoTypeButton
+          {/* <TwoTypeButton
             onlyIcon={true}
             Icon={Images.Scan}
             style={{ width: 46, height: 46 }}
             onPress={() =>
               navigation.navigate("Scanner", { fun: GetAllPickUpDataFun })
             }
-          />
+          /> */}
         </View>
 
         {selectRegionData && AllPickUpData?.length > 0 ? (

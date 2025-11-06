@@ -85,6 +85,8 @@ export const Images = {
   GalleryIcon: require("./image/GalleryIcon.png"),
   MapsMarkerVehicalIcon: require("./image/MapsMarkerVehicalIcon.png"),
   DestinationMarker: require("./image/DestinationMarker.png"),
+  refresh: require("./image/refresh.png"),
+  Home: require("./image/home.png"),
   
 
 

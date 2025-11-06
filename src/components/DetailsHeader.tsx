@@ -5,19 +5,22 @@ import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Images } from "../assets/images";
 import { Colors } from "../utils/colors";
 import { SimpleFlex } from "../utils/storeData";
+import TwoTypeButton from "./TwoTypeButton";
 
 export default function DetailsHeader({
   title,
   button = false,
   buttonText = "",
   onPress,
+  Scan=false,
 }: {
   title: string;
   button?: boolean;
   buttonText?:string;
   onPress?:()=>void;
+  Scan?:boolean;
 }) {
-  const { goBack } = useNavigation<any>();
+  const { goBack, navigate} = useNavigation<any>();
   const { t } = useTranslation();
   return (
     <View style={styles.container}>
@@ -27,11 +30,18 @@ export default function DetailsHeader({
         </TouchableOpacity>
         <Text style={styles.Title}>{title}</Text>
       </View>
-      {button && (
-        <TouchableOpacity style={styles.Button} onPress={onPress}>
-          <Text style={styles.Text}>{buttonText || t("title")}</Text>
-        </TouchableOpacity>
-      )}
+      {
+        Scan && 
+           <TwoTypeButton
+                    onlyIcon={true}
+                    Icon={Images.Scan}
+                    style={{ width: 46, height: 46 }}
+                    onPress={() =>
+                      navigate("Scanner",)
+                    }
+                  />
+      }
+   
     </View>
   );
 }

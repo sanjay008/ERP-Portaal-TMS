@@ -16,6 +16,7 @@ import { token } from "@/src/utils/storeData";
 import axios from "axios";
 import * as IntentLauncher from "expo-intent-launcher";
 // import { Image } from "expo-image";
+import ApiService from "@/src/utils/Apiservice";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { StatusBar } from "expo-status-bar";
@@ -29,7 +30,8 @@ import {
   Pressable,
   ScrollView,
   Text,
-  View
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styles } from "./styles";
@@ -38,6 +40,7 @@ export default function DetailsScreens({ navigation, route }: any) {
   const { ErrorHandle } = useErrorHandle();
   const { UserData, setUserData, Toast, setToast } =
     useContext(GlobalContextData);
+  const [ItemsData, setItemsData] = useState(item);
   const [comment, setComment] = useState<boolean | any>(false);
   const [AllSelectImage, setAllSelectImage] = useState<any[]>([]);
   const [IsLoading, setIsLoading] = useState<boolean>(false);
@@ -57,35 +60,37 @@ export default function DetailsScreens({ navigation, route }: any) {
     Desctiption: "",
     onPress: "",
   });
-const openCamera = async () => {
-  try {
-    const { granted } = await ImagePicker.requestCameraPermissionsAsync();
-    if (!granted) {
-      Alert.alert("Permission required", "Please allow camera access");
-      return;
-    }
-
-    if (Platform.OS === "android") {
-      await IntentLauncher.startActivityAsync("android.media.action.STILL_IMAGE_CAMERA");
-    } else {
-         const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: false,
-        quality: 1,
-      });
-
-      if (!result.canceled && result.assets?.length) {
-        const imagesToSend = result.assets.map((asset) => ({
-          uri: asset.uri,
-          name: asset.fileName || `image_${Date.now()}.jpg`,
-          type: asset.type || "image/jpeg",
-        }));
-        setAllSelectImage((prev) => [...prev, ...imagesToSend]);
+  const openCamera = async () => {
+    try {
+      const { granted } = await ImagePicker.requestCameraPermissionsAsync();
+      if (!granted) {
+        Alert.alert("Permission required", "Please allow camera access");
+        return;
       }
+
+      if (Platform.OS === "android") {
+        await IntentLauncher.startActivityAsync(
+          "android.media.action.STILL_IMAGE_CAMERA"
+        );
+      } else {
+        const result = await ImagePicker.launchCameraAsync({
+          allowsEditing: false,
+          quality: 1,
+        });
+
+        if (!result.canceled && result.assets?.length) {
+          const imagesToSend = result.assets.map((asset) => ({
+            uri: asset.uri,
+            name: asset.fileName || `image_${Date.now()}.jpg`,
+            type: asset.type || "image/jpeg",
+          }));
+          setAllSelectImage((prev) => [...prev, ...imagesToSend]);
+        }
+      }
+    } catch (err) {
+      console.log("Camera open error:", err);
     }
-  } catch (err) {
-    console.log("Camera open error:", err);
-  }
-};
+  };
   // const openCamera = async () => {
   //   try {
   //     const permission = await ImagePicker.requestCameraPermissionsAsync();
@@ -155,6 +160,26 @@ const openCamera = async () => {
     });
   };
 
+  const GetIdByOrderFun = async () => {
+    try {
+      let res = await ApiService(apiConstants.get_order_data_by_id, {
+        customData: {
+          token: token,
+          role: UserData?.user?.role,
+          relaties_id: UserData?.relaties?.id,
+          user_id: UserData?.user?.id,
+          order_id: ItemsData?.id || ItemsData?.order_data?.id,
+        },
+      });
+      if (res?.status) {
+        setItemsData(res?.data);
+        console.log("Success!", res);
+      }
+    } catch (error) {
+      console.log("GetIdByOrderFun Error:-", error);
+    }
+  };
+
   const AddImageOrCommentFun = async (comment: string = "", data = []) => {
     setIsLoading(true);
     try {
@@ -162,7 +187,7 @@ const openCamera = async () => {
 
       formData.append("token", token);
       formData.append("role", UserData?.user?.role);
-      formData.append("relaties_id", 1307);
+      formData.append("relaties_id", UserData?.relaties?.id);
       formData.append("user_id", UserData?.user?.id);
       formData.append("order_comment", comment?.trim());
       formData.append("order_id", item?.id);
@@ -193,6 +218,8 @@ const openCamera = async () => {
           type: img.type || "image/jpeg",
         } as any);
       }
+
+
       let res: any = await axios.post(
         apiConstants.store_image_comment,
         formData,
@@ -202,6 +229,9 @@ const openCamera = async () => {
           },
         }
       );
+
+      console.log("respone commm", res);
+      await GetIdByOrderFun();
       if (Boolean(res?.data.status)) {
         setToast({
           top: 45,
@@ -255,7 +285,7 @@ const openCamera = async () => {
           ? getDirectDropboxLink(img.shared_link)
           : img?.uri ?? "",
       }))
-      .filter((img) => img.uri !== "");
+      .filter((img: any) => img.uri !== "");
 
     return [...backendImages, ...safeImages];
   }
@@ -267,8 +297,10 @@ const openCamera = async () => {
       <StatusBar backgroundColor="white" />
       <DetailsHeader
         title={t("Delivery")}
-        button={true}
-        buttonText={item?.tmsstatus?.id == 1 ? t("Back Order") : t("Missed")}
+        // button={true}
+        // Scan={true}
+        // onPress={}
+        // buttonText={item?.tmsstatus?.id == 1 ? t("Back Order") : t("Missed")}
       />
 
       <ScrollView
@@ -279,18 +311,37 @@ const openCamera = async () => {
         contentContainerStyle={[styles.ContainerStyle, { paddingBottom: 50 }]}
         bounces={false}
       >
+        <View style={styles.Flex}>
+          <TouchableOpacity style={[styles.BackButton]} onPress={BackOrderFun}>
+            <Text style={[styles.Text, { color: Colors.white }]}>
+              {ItemsData?.tmsstatus?.id == 1
+                ? t("Back Order")
+                : t("Missed") || t("title")}
+            </Text>
+          </TouchableOpacity>
+          <TwoTypeButton
+            onlyIcon={true}
+            Icon={Images.Scan}
+            style={{ width: 46, height: 46 }}
+            onPress={() =>
+              navigation.navigate("Scanner", { fun: GetIdByOrderFun })
+            }
+          />
+        </View>
         <PickUpBox
-          LableStatus={item?.tmsstatus?.status_name}
-          OrderId={item?.id}
-          ProductItem={item?.items}
-          LableBackground={item?.tmsstatus?.color}
-          start={item?.pickup_location}
-          end={item?.deliver_location}
-          customerData={item?.customer}
+          LableStatus={ItemsData?.tmsstatus?.status_name}
+          OrderId={ItemsData?.id}
+          ProductItem={ItemsData?.items}
+          LableBackground={ItemsData?.tmsstatus?.color}
+          start={ItemsData?.pickup_location}
+          end={ItemsData?.deliver_location}
+          customerData={ItemsData?.customer}
           contact={true}
         />
 
-        <MapsViewBox onPress={() => navigation.navigate("MapScreens",{data:item})} />
+        <MapsViewBox
+          onPress={() => navigation.navigate("MapScreens", { data: ItemsData })}
+        />
 
         <View style={styles.Flex}>
           <TwoTypeButton
@@ -308,67 +359,69 @@ const openCamera = async () => {
           />
         </View>
 
-        {
-          getMergedImages(item, AllSelectImage)?.length > 0 &&
-
-        <FlatList
-          horizontal
-          style={{ flexGrow: 1, margin: -15, marginVertical: 10 }}
-          ListEmptyComponent={() => (
-            <View style={styles.FooterContainer}>
-              <Text style={[styles.Text, { color: Colors.darkText }]}>
-                {t("No Photos")}
-              </Text>
-            </View>
-          )}
-          initialNumToRender={10}
-          maxToRenderPerBatch={10}
-          windowSize={5}
-          removeClippedSubviews={true}
-          updateCellsBatchingPeriod={30}
-          getItemLayout={(data, index) => ({
-            length: 70,
-            offset: 70 * index,
-            index,
-          })}
-          contentContainerStyle={{ gap: 10, paddingRight: 50, paddingLeft: 15 }}
-          data={getMergedImages(item, AllSelectImage)}
-          renderItem={({ item, index }) => {
-            const uri = item?.shared_link
-              ? getDirectDropboxLink(item?.shared_link)
-              : item?.uri;
-
-            return (
-              <View style={styles.Image}>
-                {uri ? (
-                  <Image
-                    source={{ uri }}
-                    style={{ borderRadius: 7, width: "100%", height: "100%" }}
-                  />
-                ) : (
-                  <View
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      borderRadius: 7,
-                      backgroundColor: "#ddd",
-                      justifyContent: "center",
-                      alignItems: "center",
-                    }}
-                  >
-                    <Text style={{ fontSize: 10, color: "#666" }}>
-                      No Image
-                    </Text>
-                  </View>
-                )}
+        {getMergedImages(ItemsData, AllSelectImage)?.length > 0 && (
+          <FlatList
+            horizontal
+            style={{ flexGrow: 1, margin: -15, marginVertical: 10 }}
+            ListEmptyComponent={() => (
+              <View style={styles.FooterContainer}>
+                <Text style={[styles.Text, { color: Colors.darkText }]}>
+                  {t("No Photos")}
+                </Text>
               </View>
-            );
-          }}
-          keyExtractor={(item, index) =>
-            item.id?.toString() || index.toString()
-          }
-        />
-        }
+            )}
+            initialNumToRender={10}
+            maxToRenderPerBatch={10}
+            windowSize={5}
+            removeClippedSubviews={true}
+            updateCellsBatchingPeriod={30}
+            getItemLayout={(data, index) => ({
+              length: 70,
+              offset: 70 * index,
+              index,
+            })}
+            contentContainerStyle={{
+              gap: 10,
+              paddingRight: 50,
+              paddingLeft: 15,
+            }}
+            data={getMergedImages(ItemsData, AllSelectImage)}
+            renderItem={({ item, index }) => {
+              const uri = item?.shared_link
+                ? getDirectDropboxLink(item?.shared_link)
+                : item?.uri;
+
+              return (
+                <View style={styles.Image}>
+                  {uri ? (
+                    <Image
+                      source={{ uri }}
+                      style={{ borderRadius: 7, width: "100%", height: "100%" }}
+                    />
+                  ) : (
+                    <View
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        borderRadius: 7,
+                        backgroundColor: "#ddd",
+                        justifyContent: "center",
+                        alignItems: "center",
+                      }}
+                    >
+                      <Text style={{ fontSize: 10, color: "#666" }}>
+                        {t("No Image")}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              );
+            }}
+            keyExtractor={(item, index) =>
+              item.id?.toString() || index.toString()
+            }
+          />
+        )}
 
         <Pressable onPress={() => setComment(true)}>
           <TwoTypeInput
@@ -378,7 +431,7 @@ const openCamera = async () => {
           />
         </Pressable>
 
-        <CommentViewBox data={item?.tmslogdata_itemcomment} />
+        <CommentViewBox data={ItemsData?.tmslogdata_itemcomment} />
       </ScrollView>
       <AddCommentModal
         IsVisible={comment}

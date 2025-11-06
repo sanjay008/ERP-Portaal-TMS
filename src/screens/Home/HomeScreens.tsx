@@ -28,8 +28,8 @@ export default function HomeScreens({ navigation, route }: any) {
           // token: userData?.user?.verify_token,
           token: token,
           role: UserData?.user?.role,
-          //   relaties_id: userData?.relaties?.id,
-          relaties_id: 1307,
+            relaties_id: UserData?.relaties?.id,
+ 
           user_id: UserData?.user?.id,
         },
       });

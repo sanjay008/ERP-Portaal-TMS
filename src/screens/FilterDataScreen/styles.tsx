@@ -38,4 +38,21 @@ export const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  RefreshButton:{
+    width: 46,
+    height:46,
+    backgroundColor:Colors.primary,
+    borderRadius:6,
+    justifyContent:'center',
+    alignItems:'center',
+    position:'absolute',
+    bottom:'10%',
+    right: '5%',
+    zIndex: 999,
+  },
+  RefreshIcon:{
+    width:'50%',
+    height:'50%',
+    tintColor:Colors.white
+  }
 });

@@ -5,7 +5,6 @@ import CustomHeader from "@/src/components/CustomHeader";
 import DropDownBox from "@/src/components/DropDownBox";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
 import PickUpBox from "@/src/components/PickUpBox";
-import TwoTypeButton from "@/src/components/TwoTypeButton";
 import Loader from "@/src/components/loading";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import ApiService from "@/src/utils/Apiservice";
@@ -14,7 +13,7 @@ import { token } from "@/src/utils/storeData";
 import { useIsFocused } from "@react-navigation/native";
 import React, { useCallback, useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FlatList, Text, View } from "react-native";
+import { FlatList, Image, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styles } from "./styles";
 
@@ -30,147 +29,150 @@ export default function FilterScreen({ navigation, route }: any) {
   const [selectRegionData, setSelectRegionData] = useState<any | null>(null);
   const { ErrorHandle } = useErrorHandle();
 
-const getFilterDataFun = useCallback(async () => {
-  try {
-    setLoading(true);
+  const getFilterDataFun = useCallback(async () => {
+    try {
+      setLoading(true);
 
-    
+      const payload = {
+        token,
+        role: UserData?.user?.role,
+          relaties_id: UserData?.relaties?.id,
+        user_id: UserData?.user?.id,
+        date: SelectDate,
+        type: item?.type || "",
+      };
 
-    const payload = {
-      token,
-      role: UserData?.user?.role,
-      relaties_id: 1307,
-      user_id: UserData?.user?.id,
-      date:SelectDate,
-      type: item?.type || "",
-    };
+      const response = await ApiService(apiConstants.getOrderByDriver, {
+        customData: payload,
+      });
 
-    const response = await ApiService(apiConstants.getOrderByDriver, {
-      customData: payload,
-    });
+      if (response?.status) {
+        const data = response?.data || [];
 
-    if (response?.status) {
-      const data = response?.data || [];
+        setAllFilterDataGet(data);
 
-      setAllFilterDataGet(data);
+        const selectedRegion =
+          data.find((el: any) => el?.id === selectRegionData?.id) ||
+          data[0] ||
+          {};
 
-      const selectedRegion =
-        data.find((el: any) => el?.id === selectRegionData?.id) || data[0] || {};
+        setSelectRegionData(selectedRegion);
+      } else {
+        setAllFilterDataGet([]);
+        setSelectRegionData({});
+      }
+    } catch (error) {
+      console.error("Get FilterWise Data Error:", error);
 
-      setSelectRegionData(selectedRegion);
-    } else {
-      
-      setAllFilterDataGet([]);
-      setSelectRegionData({});
+      setToast({
+        top: 45,
+        text: ErrorHandle(error)?.message || "Something went wrong",
+        type: "error",
+        visible: true,
+      });
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error("Get FilterWise Data Error:", error);
-
-    setToast({
-      top: 45,
-      text: ErrorHandle(error)?.message || "Something went wrong",
-      type: "error",
-      visible: true,
-    });
-  } finally {
-    setLoading(false);
-  }
-}, [SelectDate, UserData]);
+  }, [SelectDate, UserData]);
 
   useEffect(() => {
-    if(UserData!==null && Focused && SelectDate){
+    if (UserData !== null && Focused && SelectDate) {
       getFilterDataFun();
     }
-    
-  }, [SelectDate,UserData]);
+  }, [SelectDate, UserData]);
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.wrapper}>
-      <View style={styles.Header}>
-        <CustomHeader />
-      </View>
-      <CalenderDate date={SelectDate} setDate={setSelectDate} />
-
-      <View style={styles.Flex}>
-        <DropDownBox
-          data={AllFilterData}
-          value={selectRegionData}
-          setValue={setSelectRegionData}
-          labelFieldKey="name"
-          valueFieldKey="id"
-          ContainerStyle={{ flex: 1 / 1.05 }}
-          // disbled={true}
-        />
-        <TwoTypeButton
-          onlyIcon={true}
-          Icon={Images.Scan}
-          style={{ width: 46, height: 46 }}
-          onPress={() =>
-            navigation.navigate("Scanner", { fun: getFilterDataFun })
-          }
-        />
-      </View>
-
-      {selectRegionData && AllFilterData?.length > 0 ? (
-        <FlatList
-          data={selectRegionData?.pickup_orders || []}
-          ListEmptyComponent={() =>
-            IsLoading ? null : (
-              <View style={styles.FooterContainer}>
-                <Text style={[styles.Text, { color: Colors.darkText }]}>
-                  {t("No Order Found")}
-                </Text>
-              </View>
-            )
-          }
-          ListFooterComponent={() => {
-            return IsLoading ? (
-              <View style={styles.FooterContainer}>
-                <Loader />
-              </View>
-            ) : null;
-          }}
-          initialNumToRender={10}
-          maxToRenderPerBatch={10}
-          windowSize={5}
-          removeClippedSubviews={true}
-          updateCellsBatchingPeriod={30}
-          getItemLayout={(data, index) => ({
-            length: 70,
-            offset: 70 * index,
-            index,
-          })}
-          scrollEnabled={false}
-          contentContainerStyle={{ gap: 15 }}
-          keyExtractor={(item, index) => `${index}`}
-          renderItem={({ item, index }) => {
-            return (
-              <PickUpBox
-                index={index}
-                LableStatus={item?.tmsstatus?.status_name}
-                OrderId={item?.id}
-                ProductItem={item?.items}
-                LableBackground={item?.tmsstatus?.color}
-                onPress={() => navigation.navigate("Details", { item: item })}
-                start={item?.pickup_location}
-                end={item?.deliver_location}
-                customerData={item?.customer}
-                statusData={item?.tmsstatus}
-              />
-            );
-          }}
-        />
-      ) : IsLoading ? (
-        <View style={styles.FooterContainer}>
-          <Loader />
+        
+        <View style={styles.Header}>
+          <CustomHeader />
         </View>
-      ) : (
-        <View style={styles.FooterContainer}>
-          <Text style={[styles.Text, { color: Colors.darkText }]}>
-            {t("No Order Found")}
-          </Text>
+        <TouchableOpacity style={styles.RefreshButton} onPress={getFilterDataFun}>
+          <Image source={Images.refresh} style={styles.RefreshIcon}/>
+        </TouchableOpacity>
+        <CalenderDate date={SelectDate} setDate={setSelectDate} />
+
+        <View style={styles.Flex}>
+          <DropDownBox
+            data={AllFilterData}
+            value={selectRegionData}
+            setValue={setSelectRegionData}
+            labelFieldKey="name"
+            valueFieldKey="id"
+            ContainerStyle={{ flex: 1  }}
+            // disbled={true}
+          />
+          {/* <TwoTypeButton
+            onlyIcon={true}
+            Icon={Images.Scan}
+            style={{ width: 46, height: 46 }}
+            onPress={() =>
+              navigation.navigate("Scanner", { fun: getFilterDataFun })
+            }
+          /> */}
         </View>
-      )}
+
+        {selectRegionData && AllFilterData?.length > 0 ? (
+          <FlatList
+            data={selectRegionData?.pickup_orders || []}
+            ListEmptyComponent={() =>
+              IsLoading ? null : (
+                <View style={styles.FooterContainer}>
+                  <Text style={[styles.Text, { color: Colors.darkText }]}>
+                    {t("No Order Found")}
+                  </Text>
+                </View>
+              )
+            }
+            ListFooterComponent={() => {
+              return IsLoading ? (
+                <View style={styles.FooterContainer}>
+                  <Loader />
+                </View>
+              ) : null;
+            }}
+            initialNumToRender={10}
+            maxToRenderPerBatch={10}
+            windowSize={5}
+            removeClippedSubviews={true}
+            updateCellsBatchingPeriod={30}
+            getItemLayout={(data, index) => ({
+              length: 70,
+              offset: 70 * index,
+              index,
+            })}
+            scrollEnabled={false}
+            contentContainerStyle={{ gap: 15, paddingBottom:50}}
+            keyExtractor={(item, index) => `${index}`}
+            renderItem={({ item, index }) => {
+              return (
+                <PickUpBox
+                  index={index}
+                  LableStatus={item?.tmsstatus?.status_name}
+                  OrderId={item?.id}
+                  ProductItem={item?.items}
+                  LableBackground={item?.tmsstatus?.color}
+                  onPress={() => navigation.navigate("Details", { item: item })}
+                  start={item?.pickup_location}
+                  end={item?.deliver_location}
+                  customerData={item?.customer}
+                  statusData={item?.tmsstatus}
+                />
+              );
+            }}
+          />
+        ) : IsLoading ? (
+          <View style={styles.FooterContainer}>
+            <Loader />
+          </View>
+        ) : (
+          <View style={styles.FooterContainer}>
+            <Text style={[styles.Text, { color: Colors.darkText }]}>
+              {t("No Order Found")}
+            </Text>
+          </View>
+        )}
       </View>
     </SafeAreaView>
   );

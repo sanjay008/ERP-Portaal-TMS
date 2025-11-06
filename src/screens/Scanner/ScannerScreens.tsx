@@ -144,7 +144,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         customData: {
           token: token,
           role: UserData?.user?.role,
-          relaties_id: 1307,
+          relaties_id: UserData?.relaties?.id,
           user_id: UserData?.user?.id,
           item_id: data?.item_id,
           order_id: data?.order_id,
@@ -208,7 +208,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         customData: {
           token: token,
           role: UserData?.user?.role,
-          relaties_id: 1307,
+          relaties_id: UserData?.relaties?.id,
           user_id: UserData?.user?.id,
           item_id: data?.item_id,
           order_id: data?.order_id,

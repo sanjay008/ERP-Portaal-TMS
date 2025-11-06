@@ -14,28 +14,28 @@ export default function CustomHeader() {
     setPermission,
     SelectLanguage,
     setSelectLanguage,
-    UserData,setUserData
+    UserData,
+    setUserData,
   } = useContext(GlobalContextData);
   const { t } = useTranslation();
 
-  
-
   return (
     <View style={styles.container}>
-      <Image source={Images.logo} style={styles.logo} resizeMode="contain" />
+      <Image
+        source={{ uri: CompanyLogo }}
+        style={styles.logo}
+        resizeMode="contain"
+      />
+      {/* <Image source={Images.logo} style={styles.logo} resizeMode="contain" /> */}
       <View style={styles.SimpleFlex}>
-        {
-          UserData?.user?.profile_image ?
-          <Image 
-          source={{uri:UserData?.user?.profile_image}}
-          style={styles.DriverImage}
+        {UserData?.user?.profile_image ? (
+          <Image
+            source={{ uri: UserData?.user?.profile_image }}
+            style={styles.DriverImage}
           />
-          :
-           <Image 
-          source={Images.userblanck}
-          style={styles.DriverImage}
-          />
-        }
+        ) : (
+          <Image source={Images.userblanck} style={styles.DriverImage} />
+        )}
         <Text style={styles.menuText}>{UserData?.user?.username}</Text>
       </View>
     </View>
@@ -63,17 +63,17 @@ const styles = StyleSheet.create({
     borderColor: Colors.Boxgray,
   },
   logo: {
-    width: 175,
+    width: 120,
     height: 40,
+    resizeMode: "contain",
   },
   menuText: {
-    
     fontSize: 10,
     color: Colors.black,
     fontFamily: "Medium",
   },
   SimpleFlex: {
-    maxHeight: '45%',
+    maxHeight: "45%",
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
@@ -88,9 +88,9 @@ const styles = StyleSheet.create({
     color: Colors.black,
     fontFamily: "Medium",
   },
-  DriverImage:{
-    width:30,
-    height:30,
-    borderRadius:120,
-  }
+  DriverImage: {
+    width: 30,
+    height: 30,
+    borderRadius: 120,
+  },
 });

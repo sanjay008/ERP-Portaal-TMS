@@ -121,9 +121,6 @@ export default function index() {
                 />
                 <Stack.Screen
                   name="FilterScreen"
-                  options={{
-                    animation:'slide_from_right'
-                  }}
                   component={withLayoutHeader(FilterScreen)}
                 />
               </Stack.Navigator>

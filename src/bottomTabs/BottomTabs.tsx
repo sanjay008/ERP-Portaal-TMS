@@ -75,11 +75,12 @@ export default function BottomTabs() {
         </View>
       ) : (
         <Tab.Navigator
-          initialRouteName={
-            Permission?.tms_driver_loaded_and_parcel_menu?.read == "1"
-              ? "Home"
-              : "Profile"
-          }
+          initialRouteName={"Home"}
+          // initialRouteName={
+          //   Permission?.tms_driver_loaded_and_parcel_menu?.read == "1"
+          //     ? "Home"
+          //     : "Profile"
+          // }
           screenOptions={{
             tabBarStyle: {
               height: height * 0.09,
@@ -106,7 +107,7 @@ export default function BottomTabs() {
               tabBarLabel: t("Home"),
               tabBarIcon: ({ color }) => (
                 <Image
-                  source={Images.Loading}
+                  source={Images.Home}
                   style={{ width: 25, height: 25 }}
                   tintColor={color}
                 />

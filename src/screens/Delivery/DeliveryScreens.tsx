@@ -115,7 +115,8 @@ export default function DeliveryScreens({ route, navigation }: any) {
         customData: {
           token: token,
           role: UserData?.user?.role,
-          relaties_id: 1307,
+        
+          relaties_id: UserData?.relaties?.id,
           user_id: UserData?.user?.id,
           item_id: item?.order_data?.items[0]?.id,
           order_id: item?.order_data?.items[0]?.tms_order_id,
@@ -238,7 +239,8 @@ export default function DeliveryScreens({ route, navigation }: any) {
         customData: {
           token: token,
           role: UserData?.user?.role,
-          relaties_id: 1307,
+          relaties_id: UserData?.relaties?.id,
+
           user_id: UserData?.user?.id,
           item_id: "",
           order_id: item?.order_data?.id,

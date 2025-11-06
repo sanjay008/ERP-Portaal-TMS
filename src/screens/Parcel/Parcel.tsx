@@ -47,8 +47,7 @@ export default function Parcel({ navigation, route }: any) {
           // token: userData?.user?.verify_token,
           token: token,
           role: UserData?.user?.role,
-          // relaties_id: UserData?.relaties?.id,
-          relaties_id: 1307,
+          relaties_id: UserData?.relaties?.id,
           user_id: UserData?.user?.id,
           date: ApiFormatDate(SelectDate),
           status_id: status?.id,
@@ -89,11 +88,9 @@ export default function Parcel({ navigation, route }: any) {
     try {
       let res = await ApiService(apiConstants.status_list, {
         customData: {
-          // token: userData?.user?.verify_token,
           token: token,
           role: UserData?.user?.role,
-          // relaties_id: UserData?.relaties?.id,
-          relaties_id: 1307,
+          relaties_id: UserData?.relaties?.id,
           user_id: UserData?.user?.id,
         },
       });
