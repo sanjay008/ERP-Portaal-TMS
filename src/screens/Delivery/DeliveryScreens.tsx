@@ -175,7 +175,7 @@ export default function DeliveryScreens({ route, navigation }: any) {
 
         formData.append("doc[]", {
           uri: compressed.uri,
-          name: img.name || `image_${Date.now()}.jpg`,
+          name: `image_${Date.now()}.jpg`,
           type: img.type || "image/jpeg",
         } as any);
       }

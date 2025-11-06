@@ -33,6 +33,7 @@ export default function PickUpBox({
   statusData = null,
   IndexActive = true,
   DeliveryLable = false,
+  backOrder = false,
 }: any) {
   const { t } = useTranslation();
   const [isCollapsed, setisCollapsed] = useState<boolean>(true);
@@ -41,7 +42,7 @@ export default function PickUpBox({
   const getDirectDropboxLink = (sharedLink: string) => {
     if (!sharedLink) return "";
 
-    let url = sharedLink
+    let url:string = sharedLink
       .replace("www.dropbox.com", "dl.dropboxusercontent.com")
       .replace("dropbox.com", "dl.dropboxusercontent.com");
 
@@ -191,6 +192,7 @@ const WhatsaapRedirectFun = async (type: number) => {
                   title={item?.tms_product_name}
                   statusData={statusData}
                   Icon={getDirectDropboxLink(item?.tmsstatus?.shared_link)}
+                  backOrder={backOrder ? item?.item_label!==null : false}
                 />
               );
             }}

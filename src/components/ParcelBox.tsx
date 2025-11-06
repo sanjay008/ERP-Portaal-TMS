@@ -2,56 +2,87 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { Colors } from "../utils/colors";
-import { SimpleFlex } from "../utils/storeData";
 
 type Props = {
   index: number;
   data: any;
   qty?: number;
   title?: string;
-  Icon?: string;
+  Icon?: string | null;
   statusData?: any;
+  backOrder?: boolean;
+  onPress?: () => void;
 };
 
 export default function ParcelBox({
   index,
   data,
   qty = 0,
-  title,
-  Icon,
+  title = "",
+  Icon='',
   statusData = null,
+  backOrder = false,
+  onPress,
 }: Props) {
   const { t } = useTranslation();
+
+    const getDirectDropboxLink = (sharedLink: string) => {
+    if (!sharedLink) return "";
+
+    let url = sharedLink
+      .replace("www.dropbox.com", "dl.dropboxusercontent.com")
+      .replace("dropbox.com", "dl.dropboxusercontent.com");
+
+    url = url.replace(/[?&](dl|raw)=\d/, "");
+
+    url += (url.includes("?") ? "&" : "?") + "raw=1";
+
+    return url;
+  };
+
+  const displayTitle =
+    title.length > 70 ? title.slice(0, 67).trim() + "..." : title;
+
   return (
-    <Pressable style={styles.container}>
-      <View style={SimpleFlex.Flex}>
-        <View style={[styles.NumberBox,]}>
+    <Pressable style={styles.container} onPress={onPress}>
+      <View style={styles.LeftSection}>
+        <View style={styles.NumberBox}>
           <Text style={styles.Text}>{index + 1}</Text>
         </View>
-        <Text style={[styles.Text, { fontSize: (title?.length ?? 0) > 25 ? 12 : 14,width:'70%', }]}>
-          {title || ""}
+
+        <Text
+          numberOfLines={3}
+          style={[
+            styles.Text,
+            styles.TitleText,
+            { fontSize: title.length > 40 ? 12 : 13 },
+          ]}
+        >
+          {displayTitle}
         </Text>
-        {/* <Text style={styles.DarkText}>{`(${t("Qty")}: ${qty})`}</Text> */}
       </View>
-      {/* {!(statusData?.status_name == data?.tmsstatus?.status_name) ? ( */}
-      <View
-        style={[
-          styles.Status,
-          {
-            backgroundColor: data?.tmsstatus?.color || Colors.background,
-          },
-        ]}
-      >
-        <Image
-          source={{ uri: Icon }}
-          style={styles.Icon}
-          tintColor={Colors.black}
-        />
-        {/* <Image source={Images.Check} style={styles.Icon} /> */}
+
+      <View style={styles.RightSection}>
+        {/* {backOrder && !!data?.item_label && (
+          <Text style={styles.LabelText}>{data.item_label}</Text>
+        )} */}
+
+        <View
+          style={[
+            styles.Status,
+            { backgroundColor: data?.tmsstatus?.color || Colors.background },
+          ]}
+        >
+         
+            <Image
+              source={{ uri: Icon || getDirectDropboxLink(data?.tmsstatus?.shared_link)}}
+              style={styles.Icon}
+              resizeMode="contain"
+              tintColor={Colors.black}
+            />
+          
+        </View>
       </View>
-      {/* //  ) : (
-      //    <View style={styles.NumberBox} />
-      //  )} */}
     </Pressable>
   );
 }
@@ -59,46 +90,74 @@ export default function ParcelBox({
 const styles = StyleSheet.create({
   container: {
     width: "100%",
-    padding: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     backgroundColor: Colors.white,
     borderWidth: 1,
     borderColor: Colors.Boxgray,
-    elevation: 3,
+    elevation: 2,
     shadowColor: Colors.gray,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.12,
     shadowRadius: 2.5,
-    borderRadius: 7,
+    borderRadius: 8,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    marginBottom: 8,
   },
+
+  LeftSection: {
+    flex: 0.8, 
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  RightSection: {
+    flex: 0.3, 
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    
+  },
+
   NumberBox: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     backgroundColor: Colors.BtnBg,
-    borderRadius: 4,
+    borderRadius: 6,
     justifyContent: "center",
     alignItems: "center",
   },
+
   Text: {
-    fontSize: 15,
+    fontSize: 14,
     fontFamily: "SemiBold",
     color: Colors.black,
   },
-  DarkText: {
-    fontSize: 12,
+
+  TitleText: {
+    marginLeft: 10,
+    flexShrink: 1,
+    flexWrap: "wrap",
+  },
+
+  LabelText: {
+    fontSize: 10,
     fontFamily: "SemiBold",
     color: Colors.darkText,
+    textAlign: "right",
+    marginRight: 8,
   },
+
   Status: {
     width: 30,
     height: 30,
-    backgroundColor: Colors.background,
     borderRadius: 4,
     justifyContent: "center",
     alignItems: "center",
   },
+
   Icon: {
     width: 18,
     height: 18,

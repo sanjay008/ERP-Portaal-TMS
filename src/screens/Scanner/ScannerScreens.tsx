@@ -392,6 +392,7 @@ export default function ScannerScreens({ navigation, route }: any) {
                 end={item?.deliver_location}
                 customerData={item?.customer}
                 statusData={item?.tmsstatus}
+                // StatusIcon={item?.tmsstatus?.shared_link}
                 LacationProgress={false}
               />
             )}

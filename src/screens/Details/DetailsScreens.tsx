@@ -43,6 +43,7 @@ export default function DetailsScreens({ navigation, route }: any) {
   const [ItemsData, setItemsData] = useState(item);
   const [comment, setComment] = useState<boolean | any>(false);
   const [AllSelectImage, setAllSelectImage] = useState<any[]>([]);
+  const [LableLoading, setLableLoading] = useState<boolean>(false);
   const [IsLoading, setIsLoading] = useState<boolean>(false);
   const { t } = useTranslation();
   const [AlertModalOpen, setAlerModalOpen] = useState<any>({
@@ -173,7 +174,7 @@ export default function DetailsScreens({ navigation, route }: any) {
       });
       if (res?.status) {
         setItemsData(res?.data);
-        console.log("Success!", res);
+        // console.log("Success!", res);
       }
     } catch (error) {
       console.log("GetIdByOrderFun Error:-", error);
@@ -214,11 +215,10 @@ export default function DetailsScreens({ navigation, route }: any) {
 
         formData.append("doc[]", {
           uri: compressed.uri,
-          name: img.name || `image_${Date.now()}.jpg`,
+          name: `image_${Date.now()}.jpg`,
           type: img.type || "image/jpeg",
         } as any);
       }
-
 
       let res: any = await axios.post(
         apiConstants.store_image_comment,
@@ -290,7 +290,41 @@ export default function DetailsScreens({ navigation, route }: any) {
     return [...backendImages, ...safeImages];
   }
 
-  const BackOrderFun = async () => {};
+  const BackOrderFun = async (lable: string) => {
+    setLableLoading(true);
+    try {
+      let res = await ApiService(apiConstants.missed_backorder, {
+        customData: {
+          token: token,
+          role: UserData?.user?.role,
+          relaties_id: UserData?.relaties?.id,
+          user_id: UserData?.user?.id,
+          order_id: ItemsData?.id || ItemsData?.order_data?.id,
+          item_lable: lable,
+        },
+      });
+      if (res?.status) {
+        // console.log("Success!", res);
+        setToast({
+          top: 45,
+          text: res?.message,
+          type: "success",
+          visible: true,
+        });
+        GetIdByOrderFun();
+      }
+    } catch (error) {
+      console.log("Lable Change Data Error:-", error);
+      setToast({
+        top: 45,
+        text: ErrorHandle(error).message,
+        type: "error",
+        visible: true,
+      });
+    } finally {
+      setLableLoading(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -312,11 +346,18 @@ export default function DetailsScreens({ navigation, route }: any) {
         bounces={false}
       >
         <View style={styles.Flex}>
-          <TouchableOpacity style={[styles.BackButton]} onPress={BackOrderFun}>
+          <TouchableOpacity
+            style={[styles.BackButton]}
+            onPress={() =>
+              BackOrderFun(
+                ItemsData?.tmsstatus?.id == 1 ? "Backorder" : "Missed"
+              )
+            }
+          >
             <Text style={[styles.Text, { color: Colors.white }]}>
               {ItemsData?.tmsstatus?.id == 1
                 ? t("Back Order")
-                : t("Missed") || t("title")}
+                : t("Missing") || t("title")}
             </Text>
           </TouchableOpacity>
           <TwoTypeButton
@@ -459,7 +500,10 @@ export default function DetailsScreens({ navigation, route }: any) {
         Description={AlertModalOpen.Desctiption}
       />
 
-      <LoadingModal visible={IsLoading} message={t("Please wait…")} />
+      <LoadingModal
+        visible={IsLoading || LableLoading}
+        message={t("Please wait…")}
+      />
     </SafeAreaView>
   );
 }

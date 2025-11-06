@@ -138,7 +138,6 @@ export default function ScannerInfoModal({
                             index={index}
                             data={item}
                             title={item?.tms_product_name}
-                            
                             Icon={getDirectDropboxLink(
                               item?.tmsstatus?.shared_link
                             )}

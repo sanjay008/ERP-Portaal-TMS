@@ -25,7 +25,7 @@ export default function CommentViewBox({ data=[] }: { data: object[] }) {
           return (
             <View style={styles.CommentBox}>
               <View style={SimpleFlex.Flex}>
-                <Image source={Images.Profile} style={styles.ImageProfile} />
+                <Image source={Images.userblanck} style={styles.ImageProfile} />
 
                 <View>
                   <Text style={styles.Text}>{item?.tmsdriverdata?.display_name}</Text>
