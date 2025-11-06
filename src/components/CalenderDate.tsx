@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Image, Pressable, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { Calendar, LocaleConfig } from "react-native-calendars";
 import Modal from "react-native-modal";
 import { Images } from "../assets/images";
@@ -76,7 +76,6 @@ export default function CalenderDate({ date, setDate }: Props) {
 
   return (
     <View style={styles.container}>
-      {/* Date Display Box */}
       <Pressable
         style={[
           styles.DateShowContainer,
@@ -97,14 +96,14 @@ export default function CalenderDate({ date, setDate }: Props) {
       </Pressable>
 
       {/* Calendar Button */}
-      <View style={{width:46,height:46}}>
+      {/* <View style={{width:46,height:46}}>
       <TouchableOpacity
         style={styles.Calender}
         onPress={() => setVisible(true)}
       >
         <Image source={Images.calender} style={{ width: '50%', height: '50%' }} />
       </TouchableOpacity>
-      </View>
+      </View> */}
 
       {/* Calendar Modal */}
       <Modal
@@ -174,7 +173,7 @@ const styles = StyleSheet.create({
     // borderWidth:1
   },
   DateShowContainer: {
-    flex:1/1.05,
+    flex:1,
     height: 50,
     borderRadius: 10,
     borderWidth: 1.2,

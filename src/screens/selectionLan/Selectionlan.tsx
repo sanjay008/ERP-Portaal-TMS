@@ -42,7 +42,7 @@ const SelectLanguage: React.FC = () => {
     SelectLanguage,
     setSelectLanguage,
   } = useContext(GlobalContextData);
-  const [currentLanguage, setCurrentLanguage] = useState<string | null>(null);
+  const [currentLanguage, setCurrentLanguage] = useState<string | null>('Netherland');
   const [isLanguageValid, setIsLanguageValid] = useState<boolean>(true);
   const [languages, setLanguages] = useState<LanguageItem[]>([]);
 
@@ -51,6 +51,9 @@ const SelectLanguage: React.FC = () => {
     try {
       const data = await ApiService(apiConstants.langauge, {});
       console.log("language", data);
+      await storeData("userLanguage", 'nl');
+      await i18n.changeLanguage('nl');
+      setSelectLanguage('nl');
 
       if (data?.status && Array.isArray(data.data)) {
         setLanguages(data.data);
@@ -120,7 +123,7 @@ const SelectLanguage: React.FC = () => {
             ]}
           >
             <Text style={styles.dropdownButtonTxtStyle}>
-              {selectedItem ? selectedItem.language_name : t("SelectLanguage")}
+              {selectedItem ? selectedItem.language_name : t("nl")}
             </Text>
             <Image
               source={Images.down}

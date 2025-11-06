@@ -19,7 +19,7 @@ type ArrayProps = {
 };
 
 export default function Profile({ navigation }: any) {
-  const { UserData, setUserData, Toast, setToast, CompanysData, setPermission} =
+  const { UserData, setUserData, Toast, setToast, CompanysData, setPermission,SelectLanguage} =
     useContext(GlobalContextData);
   const [CurrentVersion, setCurrentVersion] = useState<number>(1);
   const [AlertModalOpen, setAlerModalOpen] = useState<any>({
@@ -68,7 +68,7 @@ export default function Profile({ navigation }: any) {
         console.log("UserData",UserData);
         setUserData(null)
         setPermission([]);
-        await storeData("userLanguage",'en');
+        await storeData("userLanguage",SelectLanguage);
         navigation?.replace("OnBoarding");
       },
     });
@@ -146,9 +146,6 @@ export default function Profile({ navigation }: any) {
       onPress: () => OnLogOutFun(),
     },
   ];
-
-  
-
  
   useEffect(() => {
     retrieveAppVersion();

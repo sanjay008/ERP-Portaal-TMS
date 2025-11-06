@@ -13,7 +13,7 @@ import { token } from "@/src/utils/storeData";
 import { useIsFocused } from "@react-navigation/native";
 import React, { useCallback, useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FlatList, Image, Text, TouchableOpacity, View } from "react-native";
+import { FlatList, Image, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styles } from "./styles";
 
@@ -79,7 +79,7 @@ export default function FilterScreen({ navigation, route }: any) {
     if (UserData !== null && Focused && SelectDate) {
       getFilterDataFun();
     }
-  }, [SelectDate, UserData]);
+  }, [SelectDate, UserData,Focused]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -88,9 +88,8 @@ export default function FilterScreen({ navigation, route }: any) {
         <View style={styles.Header}>
           <CustomHeader />
         </View>
-        <TouchableOpacity style={styles.RefreshButton} onPress={getFilterDataFun}>
-          <Image source={Images.refresh} style={styles.RefreshIcon}/>
-        </TouchableOpacity>
+        <ScrollView style={{flex:1,marginTop:-20,paddingTop:15}} contentContainerStyle={styles.ContainerStyle}>
+
         <CalenderDate date={SelectDate} setDate={setSelectDate} />
 
         <View style={styles.Flex}>
@@ -132,6 +131,7 @@ export default function FilterScreen({ navigation, route }: any) {
                 </View>
               ) : null;
             }}
+            scrollEnabled={false}
             initialNumToRender={10}
             maxToRenderPerBatch={10}
             windowSize={5}
@@ -142,8 +142,7 @@ export default function FilterScreen({ navigation, route }: any) {
               offset: 70 * index,
               index,
             })}
-            scrollEnabled={false}
-            contentContainerStyle={{ gap: 15, paddingBottom:50}}
+            contentContainerStyle={{ gap: 15, }}
             keyExtractor={(item, index) => `${index}`}
             renderItem={({ item, index }) => {
               return (
@@ -173,7 +172,11 @@ export default function FilterScreen({ navigation, route }: any) {
             </Text>
           </View>
         )}
+        </ScrollView>
       </View>
+              <TouchableOpacity style={styles.RefreshButton} onPress={getFilterDataFun}>
+          <Image source={Images.refresh} style={styles.RefreshIcon}/>
+        </TouchableOpacity>
     </SafeAreaView>
   );
 }

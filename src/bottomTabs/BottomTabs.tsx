@@ -20,11 +20,15 @@ export default function BottomTabs() {
   const Tab = createBottomTabNavigator();
   const { t } = useTranslation();
   const [IsLoading, setLoading] = useState<boolean>(false);
-  const { Permission, setPermission, UserData, setUserData, setCompanysData } =
+  const { Permission, setPermission, UserData, setUserData, setCompanysData, SelectLanguage, setSelectLanguage} =
     useContext(GlobalContextData);
   useEffect(() => {
     const getUserData = async () => {
       let compay = await getData("COMPANYLOGIN");
+      if(!SelectLanguage){
+        let languagesData = await getData("userLanguage");
+        setSelectLanguage(languagesData)
+      }
       setCompanysData(compay);
       try {
         let data = await getData("USERDATA");
