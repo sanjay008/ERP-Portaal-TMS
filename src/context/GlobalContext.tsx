@@ -7,6 +7,7 @@ export default function GlobalContext({ children }: any) {
   const [GOOGLE_API_KEY, setGOOGLE_API_KEY] = useState<string>("");
   const [CompanyLogo, setCompanyLogo] = useState<any>(null);
   const [Permission, setPermission] = useState<any[]>([]);
+  const [SelectCurrentDate,setSelectCurrentDate] = useState();
   const [SelectLanguage, setSelectLanguage] = useState<string>("");
   const [Toast, setToast] = useState({
     visible: false,
@@ -28,6 +29,7 @@ export default function GlobalContext({ children }: any) {
         Toast, setToast,
         AllRegion, setAllRegion,
         CompanysData, setCompanysData,
+        SelectCurrentDate,setSelectCurrentDate
       }}
     >
       {children}

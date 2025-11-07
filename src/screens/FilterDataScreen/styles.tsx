@@ -11,6 +11,7 @@ export const styles = StyleSheet.create({
     flex:1,
     backgroundColor:Colors.background,
     padding: 15,
+    marginBottom:-15
   },
   Header:{
     margin:-15,

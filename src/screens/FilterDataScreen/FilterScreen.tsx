@@ -5,6 +5,7 @@ import CustomHeader from "@/src/components/CustomHeader";
 import DropDownBox from "@/src/components/DropDownBox";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
 import PickUpBox from "@/src/components/PickUpBox";
+import TwoTypeButton from "@/src/components/TwoTypeButton";
 import Loader from "@/src/components/loading";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import ApiService from "@/src/utils/Apiservice";
@@ -27,8 +28,16 @@ import { styles } from "./styles";
 export default function FilterScreen({ navigation, route }: any) {
   const { item } = route?.params || "";
   const Focused = useIsFocused();
-  const { UserData, setUserData, Toast, setToast, AllRegion, setAllRegion } =
-    useContext(GlobalContextData);
+  const {
+    UserData,
+    setUserData,
+    Toast,
+    setToast,
+    AllRegion,
+    setAllRegion,
+    SelectCurrentDate,
+    setSelectCurrentDate,
+  } = useContext(GlobalContextData);
   const [SelectDate, setSelectDate] = useState<string>("");
   const [IsLoading, setLoading] = useState<boolean>(false);
   const [AllFilterData, setAllFilterDataGet] = useState<object[]>([]);
@@ -60,19 +69,19 @@ export default function FilterScreen({ navigation, route }: any) {
         const previousSelected = newData.find(
           (el: any) => el?.id === selectRegionData?.id
         );
-
+        
         if (previousSelected) {
-  
           setSelectRegionData(previousSelected);
         } else if (newData.length > 0) {
-
           setSelectRegionData(newData[0]);
+          // console.log("Final All Data",newData,[
+          //       ...(newData[0]?.pickup_orders ?? []),
+          //       ...(selectRegionData?.deliver_orders ?? []),
+          //     ]);
         } else {
-  
           setSelectRegionData({});
         }
       } else {
-       
         setAllFilterDataGet([]);
         setSelectRegionData({});
       }
@@ -93,6 +102,9 @@ export default function FilterScreen({ navigation, route }: any) {
   useEffect(() => {
     if (UserData !== null && Focused && SelectDate) {
       getFilterDataFun();
+      if (SelectDate) {
+        setSelectCurrentDate(SelectDate);
+      }
     }
   }, [SelectDate, UserData, Focused]);
 
@@ -115,22 +127,26 @@ export default function FilterScreen({ navigation, route }: any) {
               setValue={setSelectRegionData}
               labelFieldKey="name"
               valueFieldKey="id"
-              ContainerStyle={{ flex: 1 }}
+              ContainerStyle={{ flex: 1 / 1.05 }}
+
               // disbled={true}
             />
-            {/* <TwoTypeButton
-            onlyIcon={true}
-            Icon={Images.Scan}
-            style={{ width: 46, height: 46 }}
-            onPress={() =>
-              navigation.navigate("Scanner", { fun: getFilterDataFun })
-            }
-          /> */}
+            <TwoTypeButton
+              onlyIcon={true}
+              Icon={Images.Scan}
+              style={{ width: 46, height: 46 }}
+              onPress={() =>
+                navigation.navigate("Scanner", { fun: getFilterDataFun })
+              }
+            />
           </View>
 
           {selectRegionData && AllFilterData?.length > 0 ? (
             <FlatList
-              data={selectRegionData?.pickup_orders || []}
+              data={[
+                ...(selectRegionData?.pickup_orders ?? []),
+                ...(selectRegionData?.deliver_orders ?? []),
+              ]}
               ListEmptyComponent={() =>
                 IsLoading ? null : (
                   <View style={styles.FooterContainer}>

@@ -24,6 +24,7 @@ export default function BottomTabs() {
     useContext(GlobalContextData);
   useEffect(() => {
     const getUserData = async () => {
+      
       let compay = await getData("COMPANYLOGIN");
       if(!SelectLanguage){
         let languagesData = await getData("userLanguage");

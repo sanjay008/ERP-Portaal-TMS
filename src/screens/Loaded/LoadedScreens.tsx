@@ -17,7 +17,7 @@ import { styles } from "./style";
 
 export default function LoadedScreens({ navigation, route}: any) {
   const { refresh } = route?.params || {};
-  const { UserData, setUserData, Toast, setToast, AllRegion, setAllRegion } =
+  const { UserData, setUserData, Toast, setToast, AllRegion, setAllRegion, SelectCurrentDate,setSelectCurrentDate} =
     useContext(GlobalContextData);
   const RefHandle = useRef(null);
   const [SelectDate, setSelectDate] = useState<string>("");
@@ -70,6 +70,7 @@ export default function LoadedScreens({ navigation, route}: any) {
       setAllPickUpData([]);
       setSelectRegionData("");
       GetAllPickUpDataFun();
+      setSelectCurrentDate(SelectDate)
     }
   }, [SelectDate, UserData,refresh]);
 

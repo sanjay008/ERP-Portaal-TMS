@@ -36,6 +36,8 @@ export default function index() {
       setIsConnected(state.isConnected);
     });
 
+   
+
     return () => unsubscribe();
   }, []);
 
@@ -115,7 +117,7 @@ export default function index() {
                 <Stack.Screen
                   name="MapScreens"
                   options={{
-                    animation:'slide_from_right'
+                    animation: "slide_from_right",
                   }}
                   component={withLayoutHeader(MapsScreens)}
                 />

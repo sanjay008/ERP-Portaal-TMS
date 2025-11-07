@@ -1,5 +1,6 @@
 import apiConstants from "@/src/api/apiConstants";
 import { Images } from "@/src/assets/images";
+import { ApiFormatDate } from "@/src/components/ApiFormatDate";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
 import Loader from "@/src/components/loading";
 import LoadingModal from "@/src/components/LoadingModal";
@@ -71,12 +72,16 @@ export default function ScannerScreens({ navigation, route }: any) {
   const [AllRecentScanData, setAllRecentScanData] = useState<number[]>([]);
   const [AllScanedData, setAllScanedData] = useState<object[]>([]);
   const [DataLoader, setDataLoader] = useState(false);
+  const [UpdateStatusHandle, setUpdateStatusHandle] = useState<null | boolean>(
+    null
+  );
   const cameraRef = useRef(null);
   const bottomSheetRef = useRef<BottomSheet>(null);
   const [GetConformationQuestion, setGetConformationQuestion] =
     useState<string>("");
   const [facing, setFacing] = useState<CameraType>("back");
-  const { UserData, setToast } = useContext(GlobalContextData);
+  const { UserData, setToast, SelectCurrentDate, setSelectCurrentDate } =
+    useContext(GlobalContextData);
   const { t } = useTranslation();
   const { ErrorHandle } = useErrorHandle();
   const playBeep = useCallback(async () => {
@@ -106,11 +111,10 @@ export default function ScannerScreens({ navigation, route }: any) {
     async ({ data, type }: { data: string; type: string }) => {
       try {
         if (data && data !== lastDetectedBarcode) {
-          console.log("QR Data:", data);
-          setLastDetectedBarcode(data);
-
           let parsedData = {};
           try {
+            console.log("QR Data:", data);
+            setLastDetectedBarcode(data);
             parsedData = JSON.parse(data);
           } catch {
             throw new Error("Invalid QR data");
@@ -148,17 +152,9 @@ export default function ScannerScreens({ navigation, route }: any) {
           user_id: UserData?.user?.id,
           item_id: data?.item_id,
           order_id: data?.order_id,
+          date: ApiFormatDate(SelectCurrentDate),
         },
       });
-      // setAllRecentScanData((prev) => {
-      //   if (prev.includes(data.order_id)) {
-      //     return prev.filter((id) => id !== data.order_id);
-      //   } else {
-      //     return [...prev, data.order_id];
-      //   }
-      // });
-
-      console.log("res", res);
 
       if (Boolean(res?.status)) {
         const modalConfig: any = {
@@ -181,7 +177,7 @@ export default function ScannerScreens({ navigation, route }: any) {
             };
           } else {
             modalConfig.onPress = async () => {
-              await StatusUpdateFun(data);
+              await StatusUpdateFun(data, res?.data?.isscaned);
             };
           }
 
@@ -194,13 +190,27 @@ export default function ScannerScreens({ navigation, route }: any) {
 
         setGetConformationQuestion(res?.data || "");
         setConformationModal(modalConfig);
+      } else {
+        setToast({
+          top: 45,
+          text: res?.message,
+          type: "error",
+          visible: true,
+        });
       }
     } catch (error) {
       console.log("Error in QuestiongetApi:", error);
+      setToast({
+        top: 45,
+        text: ErrorHandle(error).message,
+        type: "error",
+        visible: true,
+      });
     }
   };
 
-  const StatusUpdateFun = async (data: any) => {
+  const StatusUpdateFun = async (data: any, scan = false) => {
+    if (!scan) return null;
     setIsLoading(true);
     let copy = [...AllRecentScanData];
     try {
@@ -217,18 +227,17 @@ export default function ScannerScreens({ navigation, route }: any) {
       if (res?.status) {
         console.log("Success!", res);
         fun();
-        // goBack();
         setAllRecentScanData((prev) => {
           if (prev.includes(data.order_id)) {
-            return prev.filter((id) => id !== data.order_id); // remove if already there
+            return prev.filter((id) => id !== data.order_id);
           }
           copy = [...prev, data.order_id];
-          return [...prev, data.order_id]; // add if not there
+          return [...prev, data.order_id];
         });
-          setConformationModal((prev: any[]) => ({
-            ...prev,
-            visible: false,
-          }))
+        setConformationModal((prev: any[]) => ({
+          ...prev,
+          visible: false,
+        }));
         await GetScanedOrderDataLatestFun(copy);
       }
     } catch (error) {
@@ -251,17 +260,13 @@ export default function ScannerScreens({ navigation, route }: any) {
     formData.append("token", token);
     formData.append("user_id", UserData?.user?.id);
     formData.append("role", UserData?.user?.role);
-    formData.append("relaties_id", "1307");
+    formData.append("relaties_id", UserData?.relaties?.id);
 
-    // Assuming AllRecentScanData or some array like dataIds[] contains the IDs
     data.forEach((id: any) => {
       console.log("id", id);
 
       formData.append("order_ids[]", id);
     });
-
-    console.log("Multiple Data reqData", formData);
-    console.log("AllRecentScanData", data);
 
     try {
       const response = await axios.post(
@@ -276,6 +281,7 @@ export default function ScannerScreens({ navigation, route }: any) {
       let res = response?.data;
       if (Boolean(res.status)) {
         setAllScanedData(res?.data || []);
+        return 0;
       }
     } catch (error: any) {
       console.log("Get Scaned Data Error:-", error?.message);
@@ -363,7 +369,7 @@ export default function ScannerScreens({ navigation, route }: any) {
       <BottomSheet snapPoints={["15%", "90%"]} ref={bottomSheetRef}>
         <BottomSheetView style={styles.contentContainer}>
           <BottomSheetFlatList
-          style={{width:width,margin:0}}
+            style={{ width: width, margin: 0 }}
             data={AllScanedData}
             ListFooterComponent={() =>
               DataLoader && (
@@ -379,7 +385,7 @@ export default function ScannerScreens({ navigation, route }: any) {
                 </View>
               )
             }
-            keyExtractor={(item:any,index:number) => `${index}`}
+            keyExtractor={(item: any, index: number) => `${index}`}
             renderItem={({ item, index }: any) => (
               <PickUpBox
                 index={index}

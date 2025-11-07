@@ -32,7 +32,7 @@ export default function Parcel({ navigation, route }: any) {
   const [ActiveTab, setActiveTab] = useState<object | any>(null);
   const { t } = useTranslation();
   const [IsLoading, setLoading] = useState<boolean>(false);
-  const { UserData, setUserData, Toast, setToast } =
+  const { UserData, setUserData, Toast, setToast, SelectCurrentDate,setSelectCurrentDate} =
     useContext(GlobalContextData);
 
   const flatListRef = useRef<FlatList>(null);
@@ -120,6 +120,7 @@ export default function Parcel({ navigation, route }: any) {
 
     if (SelectDate !== "" && ActiveTab !== null) {
       setAllData([]);
+      setSelectCurrentDate(SelectDate)
       setSelectRegion("");
       GetAllPickUpDataFun(ActiveTab);
     }

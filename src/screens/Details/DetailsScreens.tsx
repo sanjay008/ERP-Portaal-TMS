@@ -231,8 +231,9 @@ export default function DetailsScreens({ navigation, route }: any) {
       );
 
       console.log("respone commm", res);
-      await GetIdByOrderFun();
+   
       if (Boolean(res?.data.status)) {
+           await GetIdByOrderFun();
         setToast({
           top: 45,
           text: res?.data?.message,

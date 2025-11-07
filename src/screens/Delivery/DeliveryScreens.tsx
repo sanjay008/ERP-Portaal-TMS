@@ -1,6 +1,5 @@
 import apiConstants from "@/src/api/apiConstants";
 import { Images } from "@/src/assets/images";
-import AddCommentModal from "@/src/components/AddCommentModal";
 import ConformationModal from "@/src/components/ConformationModal";
 import DetailsHeader from "@/src/components/DetailsHeader";
 import DropDownBox from "@/src/components/DropDownBox";
@@ -15,6 +14,8 @@ import { Colors } from "@/src/utils/colors";
 import { token, width } from "@/src/utils/storeData";
 import axios from "axios";
 // import { Image } from "expo-image";
+import AddCommentModal from "@/src/components/AddCommentModal";
+import CommentViewBox from "@/src/components/CommentViewBox";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import React, { useContext, useEffect, useState } from "react";
@@ -24,7 +25,8 @@ import {
   FlatList,
   Image,
   Pressable,
-  View
+  ScrollView,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styles } from "./style";
@@ -115,7 +117,7 @@ export default function DeliveryScreens({ route, navigation }: any) {
         customData: {
           token: token,
           role: UserData?.user?.role,
-        
+
           relaties_id: UserData?.relaties?.id,
           user_id: UserData?.user?.id,
           item_id: item?.order_data?.items[0]?.id,
@@ -124,8 +126,14 @@ export default function DeliveryScreens({ route, navigation }: any) {
         },
       });
       if (res?.status) {
-        GetIdByOrderFun();
+        await GetIdByOrderFun();
         fun();
+        setToast({
+          top: 45,
+          text: res?.message || t("Status Update Success!"),
+          type: "success",
+          visible: true,
+        });
         console.log("Success!", res);
       }
     } catch (error) {
@@ -142,17 +150,35 @@ export default function DeliveryScreens({ route, navigation }: any) {
   };
 
   const AddImageOrCommentFun = async (comment: string = "", data = []) => {
+    if (!SelectPlace) {
+      setToast({
+        top: 45,
+        text: t("Please select a reason."),
+        type: "error",
+        visible: true,
+      });
+      return;
+    }
+
+    if (!Array.isArray(AllSelectImage) || AllSelectImage.length === 0) {
+      setToast({
+        top: 45,
+        text: t("Please select at least one picture."),
+        type: "error",
+        visible: true,
+      });
+      return;
+    }
     setIsLoading(true);
     try {
       let formData: any = new FormData();
 
       formData.append("token", token);
       formData.append("role", UserData?.user?.role);
-      formData.append("relaties_id", 1307);
+      formData.append("relaties_id", UserData?.relaties?.id);
       formData.append("user_id", UserData?.user?.id);
       formData.append("order_comment", comment?.trim());
-      formData.append("order_id", item?.id);
-      formData.append("item_id", "");
+      formData.append("order_id", ItemsData?.id);
 
       const imagesToSend = data && data.length > 0 ? data : AllSelectImage;
 
@@ -189,6 +215,7 @@ export default function DeliveryScreens({ route, navigation }: any) {
         }
       );
       if (Boolean(res?.data.status)) {
+        await GetIdByOrderFun();
         setToast({
           top: 45,
           text: res?.data?.message,
@@ -240,14 +267,13 @@ export default function DeliveryScreens({ route, navigation }: any) {
           token: token,
           role: UserData?.user?.role,
           relaties_id: UserData?.relaties?.id,
-
           user_id: UserData?.user?.id,
-          item_id: "",
-          order_id: item?.order_data?.id,
+          order_id: item?.order_data?.items[0]?.tms_order_id,
         },
       });
       if (res?.status) {
         setItemsData(res?.data);
+        // let productLatestData = res?.data?.items?.find(el => el?.id == item?.id)
         setPlaceSelectToHideShow(res?.data?.tmsstatus?.id > 4);
         console.log("Success!", res);
       }
@@ -256,9 +282,50 @@ export default function DeliveryScreens({ route, navigation }: any) {
     }
   };
 
+  const getDirectDropboxLink = (sharedLink: string) => {
+    if (!sharedLink) return "";
+
+    let url = sharedLink
+      .replace("www.dropbox.com", "dl.dropboxusercontent.com")
+      .replace("dropbox.com", "dl.dropboxusercontent.com");
+
+    url = url.replace(/[?&](dl|raw)=\d/, "");
+
+    url += (url.includes("?") ? "&" : "?") + "raw=1";
+
+    return url;
+  };
+
+  function getMergedImages(item: any, AllSelectImage: any[]) {
+    const safeImages = Array.isArray(AllSelectImage) ? AllSelectImage : [];
+
+    if (!item || !Array.isArray(item?.tmslogdata_itemcomment)) {
+      return [...safeImages];
+    }
+
+    const backendImages = item.tmslogdata_itemcomment
+      .filter(
+        (el: any) => Array.isArray(el?.tmsimgdata) && el.tmsimgdata.length > 0
+      )
+      .flatMap((el: any) => el?.tmsimgdata)
+      .map((img: any) => ({
+        // Ensure URI format
+        uri: img?.shared_link
+          ? getDirectDropboxLink(img.shared_link)
+          : img?.uri ?? "",
+      }))
+      .filter((img: any) => img.uri !== "");
+    console.log("Proper Images", [...backendImages, ...safeImages]);
+
+    return [...backendImages, ...safeImages];
+  }
+
   useEffect(() => {
     if (item) {
       // GetIdByOrderFun();
+      GetIdByOrderFun();
+      console.log("item Data", item);
+
       DropDataSet();
     }
   }, [item]);
@@ -266,42 +333,61 @@ export default function DeliveryScreens({ route, navigation }: any) {
   return (
     <SafeAreaView style={styles.container}>
       <DetailsHeader title={t("Which order did you place?")} />
-      <View style={styles.ContentContainer}>
+      <ScrollView
+        style={styles.ContentContainer}
+        contentContainerStyle={{ paddingBottom: 50 }}
+      >
         <PickUpBox
           IndexActive={false}
-          index={ItemsData ? ItemsData?.id : item?.order_data?.id}
+          index={
+            ItemsData && ItemsData !== null
+              ? ItemsData?.id
+              : item?.order_data?.id
+          }
           LableStatus={
-            ItemsData
+            ItemsData && ItemsData !== null
               ? ItemsData?.tmsstatus?.status_name
               : item?.order_data?.tmsstatus?.status_name
           }
-          OrderId={ItemsData ? ItemsData?.id : item?.order_data?.id}
-          ProductItem={ItemsData ? ItemsData?.items : item?.order_data?.items}
+          OrderId={
+            ItemsData && ItemsData !== null
+              ? ItemsData?.id
+              : item?.order_data?.id
+          }
+          ProductItem={
+            ItemsData && ItemsData !== null
+              ? ItemsData?.items
+              : item?.order_data?.items
+          }
           LableBackground={
-            ItemsData
+            ItemsData && ItemsData !== null
               ? ItemsData?.tmsstatus?.color
               : item?.order_data?.tmsstatus?.color
           }
           start={
-            ItemsData
+            ItemsData && ItemsData !== null
               ? ItemsData?.pickup_location
               : item?.order_data?.pickup_location
           }
           end={
-            ItemsData
+            ItemsData && ItemsData !== null
               ? ItemsData?.deliver_location
               : item?.order_data?.deliver_location
           }
           customerData={
-            ItemsData ? ItemsData?.customer : item?.order_data?.customer
+            ItemsData && ItemsData !== null
+              ? ItemsData?.customer
+              : item?.order_data?.customer
           }
           statusData={
-            ItemsData ? ItemsData?.tmsstatus : item?.order_data?.tmsstatus
+            ItemsData && ItemsData !== null
+              ? ItemsData?.tmsstatus
+              : item?.order_data?.tmsstatus
           }
           DeliveryLable={true}
         />
 
-        {!PlaceSelectToHideShow && (
+        {!PlaceSelectToHideShow && SelectPlace == null && (
           <View style={{ marginTop: 10 }}>
             <DropDownBox
               data={DropData || []}
@@ -310,65 +396,73 @@ export default function DeliveryScreens({ route, navigation }: any) {
               setValue={setSelectPlace}
               labelFieldKey="name"
               valueFieldKey="id"
-              fun={StatusUpdateFun}
+              // fun={StatusUpdateFun}
               ContainerStyle={{ width: "100%" }}
               // disbled={true}
             />
           </View>
         )}
 
-        {PlaceSelectToHideShow && (
-          <View style={{ marginTop: 10 }}>
-            <View style={[styles.Flex, { marginBottom: 10 }]}>
-              <TwoTypeButton
-                Icon={Images.Photos}
-                title={t("Camera")}
-                style={{ width: "48%" }}
-                onPress={openCamera}
-                IconStyle={{ width: 22, height: 22 }}
-              />
-              <TwoTypeButton
-                Icon={Images.GalleryIcon}
-                title={t("Upload Photo")}
-                onPress={openGallery}
-                IconStyle={{ width: 22, height: 22 }}
-              />
-            </View>
-
-            {AllSelectImage?.length > 0 && (
-              <FlatList
-                horizontal
-                style={{ width: width }}
-                contentContainerStyle={{ gap: 10, paddingRight: 20 }}
-                data={AllSelectImage}
-                renderItem={({ item, index }) => {
-                  return (
-                    <View style={styles.Image}>
-                      <Image
-                        source={{ uri: item }}
-                        style={{
-                          borderRadius: 7,
-                          width: "100%",
-                          height: "100%",
-                        }}
-                      />
-                    </View>
-                  );
-                }}
-              />
-            )}
-
-            <Pressable onPress={() => setComment(true)}>
-              <TwoTypeInput
-                Icon={Images.comment}
-                placeholder={t("Write Comment")}
-                edit={false}
-              />
-            </Pressable>
+        <View style={{ marginTop: 20 }}>
+          <View style={[styles.Flex, { marginVertical: 20 }]}>
+            <TwoTypeButton
+              Icon={Images.Photos}
+              title={t("Camera")}
+              style={{ width: "48%" }}
+              onPress={openCamera}
+              IconStyle={{ width: 22, height: 22 }}
+            />
+            <TwoTypeButton
+              Icon={Images.GalleryIcon}
+              title={t("Upload Photo")}
+              onPress={openGallery}
+              IconStyle={{ width: 22, height: 22 }}
+            />
           </View>
-        )}
-      </View>
-      <AddCommentModal IsVisible={comment} setIsVisible={setComment} />
+
+          {getMergedImages(ItemsData, AllSelectImage)?.length && ItemsData && (
+            <FlatList
+              horizontal
+              style={{ width: width }}
+              contentContainerStyle={{ gap: 10, paddingRight: 20 }}
+              data={getMergedImages(ItemsData, AllSelectImage)}
+              renderItem={({ item, index }) => {
+                return (
+                  <View style={styles.Image}>
+                    <Image
+                      source={{ uri: item?.uri || "" }}
+                      style={{
+                        borderRadius: 7,
+                        width: "100%",
+                        height: "100%",
+                      }}
+                    />
+                  </View>
+                );
+              }}
+            />
+          )}
+
+          <Pressable
+            style={{ marginVertical: 15 }}
+            onPress={() => setComment(true)}
+          >
+            <TwoTypeInput
+              Icon={Images.comment}
+              placeholder={t("Write Comment")}
+              edit={false}
+            />
+          </Pressable>
+        </View>
+
+        <AddCommentModal
+          IsVisible={comment}
+          setIsVisible={setComment}
+          fun={AddImageOrCommentFun}
+        />
+
+        <CommentViewBox data={ItemsData?.tmslogdata_itemcomment} />
+      </ScrollView>
 
       <ConformationModal
         IsVisible={AlertModalOpen?.visible}
