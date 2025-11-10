@@ -9,6 +9,7 @@ export default function GlobalContext({ children }: any) {
   const [Permission, setPermission] = useState<any[]>([]);
   const [SelectCurrentDate,setSelectCurrentDate] = useState();
   const [SelectLanguage, setSelectLanguage] = useState<string>("");
+  const [DeliveyDataSave,setDeliveyDataSave] = useState<any>(null);
   const [Toast, setToast] = useState({
     visible: false,
     text: "",
@@ -17,6 +18,7 @@ export default function GlobalContext({ children }: any) {
   });
   const [AllRegion, setAllRegion] = useState<any[]>([]);
   const [CompanysData, setCompanysData] = useState<string>("");
+  const [GloblyTypeSlide,setGloblyTypeSlide] = useState("");
 
   return (
     <GlobalContextData.Provider
@@ -29,7 +31,9 @@ export default function GlobalContext({ children }: any) {
         Toast, setToast,
         AllRegion, setAllRegion,
         CompanysData, setCompanysData,
-        SelectCurrentDate,setSelectCurrentDate
+        SelectCurrentDate,setSelectCurrentDate,
+        DeliveyDataSave,setDeliveyDataSave,
+        GloblyTypeSlide,setGloblyTypeSlide
       }}
     >
       {children}

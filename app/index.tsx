@@ -1,10 +1,12 @@
 import BottomTabs from "@/src/bottomTabs/BottomTabs";
 import LayoutHeader from "@/src/components/_LayoutHeader";
+import CustomCamera from "@/src/components/CustomCamera";
 import GlobalContext from "@/src/context/GlobalContext";
 import Chat from "@/src/screens/Chat/Chat";
 import DeliveryScreens from "@/src/screens/Delivery/DeliveryScreens";
 import DetailsScreens from "@/src/screens/Details/DetailsScreens";
 import FilterScreen from "@/src/screens/FilterDataScreen/FilterScreen";
+import HomeScreens from "@/src/screens/Home/HomeScreens";
 import LanguageScreens from "@/src/screens/Language/LanguageScreens";
 import LoadedScreens from "@/src/screens/Loaded/LoadedScreens";
 import MapsScreens from "@/src/screens/Maps/MapsScreens";
@@ -35,8 +37,6 @@ export default function index() {
     const unsubscribe = NetInfo.addEventListener((state: any) => {
       setIsConnected(state.isConnected);
     });
-
-   
 
     return () => unsubscribe();
   }, []);
@@ -115,6 +115,10 @@ export default function index() {
                   component={withLayoutHeader(WebViewScreeens)}
                 />
                 <Stack.Screen
+                  name="Home"
+                  component={withLayoutHeader(HomeScreens)}
+                />
+                <Stack.Screen
                   name="MapScreens"
                   options={{
                     animation: "slide_from_right",
@@ -124,6 +128,10 @@ export default function index() {
                 <Stack.Screen
                   name="FilterScreen"
                   component={withLayoutHeader(FilterScreen)}
+                />
+                <Stack.Screen
+                  name="Camera"
+                  component={withLayoutHeader(CustomCamera)}
                 />
               </Stack.Navigator>
             ) : (

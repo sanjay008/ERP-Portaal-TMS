@@ -44,7 +44,7 @@ import {
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 export default function ScannerScreens({ navigation, route }: any) {
-  const { fun = () => {} } = route?.params || {};
+  const { fun = () => {}, type } = route?.params ?? {};
   const [permission, requestPermission] = useCameraPermissions();
   const [IsLoading, setIsLoading] = useState<boolean>(false);
   const [ConformationModalOpen, setConformationModal] = useState<any>({
@@ -90,6 +90,8 @@ export default function ScannerScreens({ navigation, route }: any) {
   }, []);
   const Focused = useIsFocused();
   useEffect(() => {
+    console.log("MAinType",type);
+    
     (async () => {
       const { status } = await Camera.requestCameraPermissionsAsync();
       setHasPermission(status === "granted");
@@ -117,6 +119,12 @@ export default function ScannerScreens({ navigation, route }: any) {
             setLastDetectedBarcode(data);
             parsedData = JSON.parse(data);
           } catch {
+            setToast({
+              top: 45,
+              text: t("Invalid QR data"),
+              type: "error",
+              visible: true,
+            });
             throw new Error("Invalid QR data");
           }
 
@@ -142,7 +150,6 @@ export default function ScannerScreens({ navigation, route }: any) {
   );
 
   const QuestiongetApi = async (data: any) => {
-    console.log("Item ID:", data?.item_id);
     try {
       let res = await ApiService(apiConstants.Verify_status, {
         customData: {
@@ -153,6 +160,7 @@ export default function ScannerScreens({ navigation, route }: any) {
           item_id: data?.item_id,
           order_id: data?.order_id,
           date: ApiFormatDate(SelectCurrentDate),
+          type:type
         },
       });
 
@@ -208,13 +216,12 @@ export default function ScannerScreens({ navigation, route }: any) {
       });
     }
   };
-
   const StatusUpdateFun = async (data: any, scan = false) => {
     if (!scan) return null;
     setIsLoading(true);
-    let copy = [...AllRecentScanData];
+
     try {
-      let res = await ApiService(apiConstants.status_update, {
+      const res = await ApiService(apiConstants.status_update, {
         customData: {
           token: token,
           role: UserData?.user?.role,
@@ -224,21 +231,30 @@ export default function ScannerScreens({ navigation, route }: any) {
           order_id: data?.order_id,
         },
       });
+
       if (res?.status) {
         console.log("Success!", res);
         fun();
+
         setAllRecentScanData((prev) => {
-          if (prev.includes(data.order_id)) {
-            return prev.filter((id) => id !== data.order_id);
+          if (prev.includes(data?.order_id)) {
+            return prev;
           }
-          copy = [...prev, data.order_id];
-          return [...prev, data.order_id];
+          return [...prev, data?.order_id];
         });
-        setConformationModal((prev: any[]) => ({
+        setConformationModal((prev: any) => ({
           ...prev,
           visible: false,
         }));
-        await GetScanedOrderDataLatestFun(copy);
+        const updatedCopy = [...AllRecentScanData, data?.order_id];
+        await GetScanedOrderDataLatestFun(updatedCopy);
+      } else {
+        setToast({
+          top: 45,
+          text: res?.message,
+          type: "error",
+          visible: true,
+        });
       }
     } catch (error) {
       console.log("Status Update Error:", error);
@@ -252,6 +268,50 @@ export default function ScannerScreens({ navigation, route }: any) {
       setIsLoading(false);
     }
   };
+
+  // const StatusUpdateFun = async (data: any, scan = false) => {
+  //   let copy = [...AllRecentScanData];
+  //   if (!scan) return null;
+  //   setIsLoading(true);
+  //   try {
+  //     let res = await ApiService(apiConstants.status_update, {
+  //       customData: {
+  //         token: token,
+  //         role: UserData?.user?.role,
+  //         relaties_id: UserData?.relaties?.id,
+  //         user_id: UserData?.user?.id,
+  //         item_id: data?.item_id,
+  //         order_id: data?.order_id,
+  //       },
+  //     });
+  //     if (res?.status) {
+  //       console.log("Success!", res);
+  //       fun();
+  //       setAllRecentScanData((prev) => {
+  //         if (prev.includes(data.order_id)) {
+  //           return prev.filter((id) => id !== data.order_id);
+  //         }
+  //         copy = [...prev, data.order_id];
+  //         return [...prev, data.order_id];
+  //       });
+  //       setConformationModal((prev: any[]) => ({
+  //         ...prev,
+  //         visible: false,
+  //       }));
+  //       await GetScanedOrderDataLatestFun(copy);
+  //     }
+  //   } catch (error) {
+  //     console.log("Status Update Error:", error);
+  //     setToast({
+  //       top: 45,
+  //       text: ErrorHandle(error).message,
+  //       type: "error",
+  //       visible: true,
+  //     });
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
 
   const GetScanedOrderDataLatestFun = async (data: any) => {
     setDataLoader(true);
@@ -282,6 +342,13 @@ export default function ScannerScreens({ navigation, route }: any) {
       if (Boolean(res.status)) {
         setAllScanedData(res?.data || []);
         return 0;
+      } else {
+        setToast({
+          top: 45,
+          text: res?.message,
+          type: "error",
+          visible: true,
+        });
       }
     } catch (error: any) {
       console.log("Get Scaned Data Error:-", error?.message);
@@ -313,16 +380,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         style={StyleSheet.absoluteFill}
         onBarcodeScanned={onBarcodeScanned}
         barcodeScannerSettings={{
-          barcodeTypes: [
-            "qr",
-            "aztec",
-            "ean8",
-            "ean13",
-            "pdf417",
-            "upc_e",
-            "code39",
-            "code93",
-          ],
+          barcodeTypes: ["qr"],
         }}
       />
 

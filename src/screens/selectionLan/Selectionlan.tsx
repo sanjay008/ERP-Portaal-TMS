@@ -42,7 +42,7 @@ const SelectLanguage: React.FC = () => {
     SelectLanguage,
     setSelectLanguage,
   } = useContext(GlobalContextData);
-  const [currentLanguage, setCurrentLanguage] = useState<string | null>('Netherland');
+  const [currentLanguage, setCurrentLanguage] = useState<string | null>('Nederlands');
   const [isLanguageValid, setIsLanguageValid] = useState<boolean>(true);
   const [languages, setLanguages] = useState<LanguageItem[]>([]);
 
@@ -123,7 +123,7 @@ const SelectLanguage: React.FC = () => {
             ]}
           >
             <Text style={styles.dropdownButtonTxtStyle}>
-              {selectedItem ? selectedItem.language_name : t("nl")}
+              {selectedItem ? selectedItem.language_name : t("Nederlands")}
             </Text>
             <Image
               source={Images.down}

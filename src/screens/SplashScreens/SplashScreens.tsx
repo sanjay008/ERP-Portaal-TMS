@@ -36,22 +36,24 @@ export default function SplashScreens({ navigation }: any) {
 
   const getAuthData = async () => {
     try {
-      const [auth, company, languages, logo,companyData] = await Promise.all([
+      const [languages, auth, company, logo,companyData] = await Promise.all([
+        getData("userLanguage"),
         getData("AUTH"),
         getData("USERDATA"),
-        getData("userLanguage"),
         getData("COMPANYLOGO"),
         getData("COMPANYLOGIN")
       ]);
+
+       if (languages) {
+        await i18n.changeLanguage(languages);
+        setSelectLanguage(languages);
+      }
 
       if(companyData){
       setCompanysData(companyData)
       }
 
-      if (languages) {
-        await i18n.changeLanguage(languages);
-        setSelectLanguage(languages);
-      }
+     
       if (logo) setCompanyLogo(logo);
 
       if (!languages) {

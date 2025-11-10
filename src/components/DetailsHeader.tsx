@@ -9,39 +9,37 @@ import TwoTypeButton from "./TwoTypeButton";
 
 export default function DetailsHeader({
   title,
-  button = false,
+  Backbutton = true,
   buttonText = "",
   onPress,
-  Scan=false,
+  Scan = false,
 }: {
   title: string;
-  button?: boolean;
-  buttonText?:string;
-  onPress?:()=>void;
-  Scan?:boolean;
+  Backbutton?: boolean;
+  buttonText?: string;
+  onPress?: () => void;
+  Scan?: boolean;
 }) {
-  const { goBack, navigate} = useNavigation<any>();
+  const { goBack, navigate } = useNavigation<any>();
   const { t } = useTranslation();
   return (
     <View style={styles.container}>
       <View style={SimpleFlex.Flex}>
-        <TouchableOpacity onPress={goBack}>
-          <Image source={Images.back} style={styles.BackIcon} />
-        </TouchableOpacity>
+        {Backbutton && (
+          <TouchableOpacity onPress={goBack}>
+            <Image source={Images.back} style={styles.BackIcon} />
+          </TouchableOpacity>
+        )}
         <Text style={styles.Title}>{title}</Text>
       </View>
-      {
-        Scan && 
-           <TwoTypeButton
-                    onlyIcon={true}
-                    Icon={Images.Scan}
-                    style={{ width: 46, height: 46 }}
-                    onPress={() =>
-                      navigate("Scanner",)
-                    }
-                  />
-      }
-   
+      {Scan && (
+        <TwoTypeButton
+          onlyIcon={true}
+          Icon={Images.Scan}
+          style={{ width: 46, height: 46 }}
+          onPress={() => navigate("Scanner")}
+        />
+      )}
     </View>
   );
 }
@@ -62,7 +60,7 @@ const styles = StyleSheet.create({
     shadowRadius: 1.5,
     borderBottomWidth: 0.3,
     borderColor: Colors.Boxgray,
-    justifyContent:'space-between'
+    justifyContent: "space-between",
   },
   BackIcon: {
     width: 34,
@@ -73,15 +71,15 @@ const styles = StyleSheet.create({
     fontFamily: "SemiBold",
     color: Colors.black,
   },
-  Button:{
-    paddingVertical:10,
-    paddingHorizontal:15,
-    borderRadius:4,
-    backgroundColor:Colors.red
+  Button: {
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 4,
+    backgroundColor: Colors.red,
   },
-  Text:{
-    fontSize:14,
-    fontFamily:"Medium",
-    color:Colors.white
-  }
+  Text: {
+    fontSize: 14,
+    fontFamily: "Medium",
+    color: Colors.white,
+  },
 });

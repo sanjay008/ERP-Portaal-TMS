@@ -26,7 +26,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { styles } from "./styles";
 
 export default function FilterScreen({ navigation, route }: any) {
-  const { item } = route?.params || "";
+  const { item } = route?.params || {};
+  const [SlideType,setSlideType] = useState(item);
   const Focused = useIsFocused();
   const {
     UserData,
@@ -44,7 +45,9 @@ export default function FilterScreen({ navigation, route }: any) {
   const { t } = useTranslation();
   const [selectRegionData, setSelectRegionData] = useState<any | null>(null);
   const { ErrorHandle } = useErrorHandle();
-
+  const [ScanBTNAvailble, setScanBTNAvailble] = useState<boolean>(
+    !(item?.item_title == "Pickup / Dropoff")
+  );
   const getFilterDataFun = useCallback(async () => {
     try {
       setLoading(true);
@@ -62,14 +65,14 @@ export default function FilterScreen({ navigation, route }: any) {
         customData: payload,
       });
 
-      if (response?.status && Array.isArray(response?.data)) {
+      if (response?.status) {
         const newData = response.data;
         setAllFilterDataGet(newData);
 
         const previousSelected = newData.find(
           (el: any) => el?.id === selectRegionData?.id
         );
-        
+
         if (previousSelected) {
           setSelectRegionData(previousSelected);
         } else if (newData.length > 0) {
@@ -84,6 +87,12 @@ export default function FilterScreen({ navigation, route }: any) {
       } else {
         setAllFilterDataGet([]);
         setSelectRegionData({});
+        // setToast({
+        //   top: 45,
+        //   text: response?.message || "Something went wrong",
+        //   type: "error",
+        //   visible: true,
+        // });
       }
     } catch (error) {
       console.error("Get FilterWise Data Error:", error);
@@ -106,6 +115,8 @@ export default function FilterScreen({ navigation, route }: any) {
         setSelectCurrentDate(SelectDate);
       }
     }
+    setSlideType(item?.type)
+    // console.log("Types",item?.type);
   }, [SelectDate, UserData, Focused]);
 
   return (
@@ -127,18 +138,18 @@ export default function FilterScreen({ navigation, route }: any) {
               setValue={setSelectRegionData}
               labelFieldKey="name"
               valueFieldKey="id"
-              ContainerStyle={{ flex: 1 / 1.05 }}
-
-              // disbled={true}
+              ContainerStyle={{ flex: ScanBTNAvailble ? 1 / 1.05 : 1 }}
             />
-            <TwoTypeButton
-              onlyIcon={true}
-              Icon={Images.Scan}
-              style={{ width: 46, height: 46 }}
-              onPress={() =>
-                navigation.navigate("Scanner", { fun: getFilterDataFun })
-              }
-            />
+            {ScanBTNAvailble && (
+              <TwoTypeButton
+                onlyIcon={true}
+                Icon={Images.Scan}
+                style={{ width: 46, height: 46 }}
+                onPress={() =>
+                  navigation.navigate("Scanner", { fun: getFilterDataFun,type: SlideType})
+                }
+              />
+            )}
           </View>
 
           {selectRegionData && AllFilterData?.length > 0 ? (
@@ -184,9 +195,10 @@ export default function FilterScreen({ navigation, route }: any) {
                     OrderId={item?.id}
                     ProductItem={item?.items}
                     LableBackground={item?.tmsstatus?.color}
-                    onPress={() =>
-                      navigation.navigate("Details", { item: item })
-                    }
+                    onPress={() => {
+                      if (ScanBTNAvailble) return;
+                      navigation.navigate("Details", { item, type:SlideType});
+                    }}
                     start={item?.pickup_location}
                     end={item?.deliver_location}
                     customerData={item?.customer}

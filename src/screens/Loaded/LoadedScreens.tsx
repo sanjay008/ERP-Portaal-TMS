@@ -17,7 +17,8 @@ import { styles } from "./style";
 
 export default function LoadedScreens({ navigation, route}: any) {
   const { refresh } = route?.params || {};
-  const { UserData, setUserData, Toast, setToast, AllRegion, setAllRegion, SelectCurrentDate,setSelectCurrentDate} =
+  const { UserData, setUserData, Toast, setToast, AllRegion, setAllRegion, SelectCurrentDate,setSelectCurrentDate,    GloblyTypeSlide,
+    setGloblyTypeSlide,} =
     useContext(GlobalContextData);
   const RefHandle = useRef(null);
   const [SelectDate, setSelectDate] = useState<string>("");
@@ -72,6 +73,7 @@ export default function LoadedScreens({ navigation, route}: any) {
       GetAllPickUpDataFun();
       setSelectCurrentDate(SelectDate)
     }
+    setGloblyTypeSlide("Warehouse Loading")
   }, [SelectDate, UserData,refresh]);
 
   const GetAllPickUpDataFun = async (user: any = null) => {
@@ -144,7 +146,7 @@ export default function LoadedScreens({ navigation, route}: any) {
             Icon={Images.Scan}
             style={{ width: 46, height: 46 }}
             onPress={() =>
-              navigation.navigate("Scanner", { fun: GetAllPickUpDataFun })
+              navigation.navigate("Scanner", { fun: GetAllPickUpDataFun, type: "Warehouse Loading" })
             }
           /> */}
         </View>
@@ -189,7 +191,7 @@ export default function LoadedScreens({ navigation, route}: any) {
                   OrderId={item?.id}
                   ProductItem={item?.items}
                   LableBackground={item?.tmsstatus?.color}
-                  onPress={() => navigation.navigate("Details", { item: item })}
+                  onPress={() => navigation.navigate("Details", { item: item, type: "Warehouse Loading"})}
                   start={item?.pickup_location}
                   end={item?.deliver_location}
                   customerData={item?.customer}

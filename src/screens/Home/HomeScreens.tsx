@@ -12,37 +12,42 @@ import { FlatList, Image, Pressable, Text, View } from "react-native";
 import { styles } from "./styles";
 
 export default function HomeScreens({ navigation, route }: any) {
-  const { refresh } = route?.parmas || "";
+  const { refresh } = route?.params || {};
   const [AllSlideData, setAllSlideData] = useState([]);
   const [IsLoading, setIsLoading] = useState(false);
   const { t } = useTranslation();
-  const { UserData, setUserData, Toast, setToast, AllRegion, setAllRegion } =
+  const { UserData, setUserData, Toast, setToast, AllRegion, setAllRegion,GloblyTypeSlide,setGloblyTypeSlide} =
     useContext(GlobalContextData);
   const { ErrorHandle } = useErrorHandle();
+
   const getSliderDataFun = async () => {
     setIsLoading(true);
- 
+
     try {
       let res = await ApiService(apiConstants.get_AllSlideDataApi, {
         customData: {
-          // token: userData?.user?.verify_token,
           token: token,
           role: UserData?.user?.role,
-            relaties_id: UserData?.relaties?.id,
- 
+          relaties_id: UserData?.relaties?.id,
           user_id: UserData?.user?.id,
         },
       });
-      //   console.log("res Slide", res);
 
       if (Boolean(res.status)) {
         setAllSlideData(res?.data || []);
+      } else {
+        setToast({
+          top: 45,
+          text: res?.message,
+          type: "error",
+          visible: true,
+        });
       }
-    } catch (error) {
-      console.log("Get All Slide Data Error:-", error);
+    } catch (error: any) {
+      console.error("Get All Slide Data Error:-", error?.response.data);
       setToast({
         top: 45,
-        text: ErrorHandle(error).message,
+        text: ErrorHandle(error)?.message,
         type: "error",
         visible: true,
       });
@@ -52,10 +57,10 @@ export default function HomeScreens({ navigation, route }: any) {
   };
 
   useEffect(() => {
-    if (AllSlideData?.length == 0 && UserData!==null) {
+    if (UserData !== null) {
       getSliderDataFun();
     }
-  }, [UserData]);
+  }, [UserData, refresh]);
 
   return (
     <View style={styles.container}>
@@ -84,8 +89,10 @@ export default function HomeScreens({ navigation, route }: any) {
                 styles.SlideContainer,
                 { backgroundColor: item?.color_code || Colors.Boxgray },
               ]}
-              onPress={() =>
+              onPress={() =>{
+                setGloblyTypeSlide(item?.type)
                 navigation.navigate("FilterScreen", { item: item })
+              }
               }
             >
               <Image
@@ -96,7 +103,7 @@ export default function HomeScreens({ navigation, route }: any) {
                 }
                 style={styles.Icon}
               />
-              <Text style={styles.Text}>{item?.item_title}</Text>
+              <Text style={styles.Text}>{t(item?.item_title)}</Text>
             </Pressable>
           );
         }}

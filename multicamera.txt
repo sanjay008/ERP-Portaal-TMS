@@ -1,0 +1,90 @@
+import React, { useState, useRef } from "react";
+import { View, TouchableOpacity, Image, Text, ScrollView } from "react-native";
+import { CameraView, useCameraPermissions } from "expo-camera";
+
+export default function MultiCaptureCamera({ navigation }) {
+  const [permission, requestPermission] = useCameraPermissions();
+  const cameraRef = useRef(null);
+  const [photos, setPhotos] = useState([]);
+
+  if (!permission) return <View />;
+  if (!permission.granted) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <Text>We need your permission to use the camera</Text>
+        <TouchableOpacity onPress={requestPermission}>
+          <Text>Grant Permission</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const takePhoto = async () => {
+    if (cameraRef.current) {
+      const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
+      setPhotos((prev) => [...prev, photo.uri]);
+    }
+  };
+
+  const done = () => {
+    // 👉 Return all captured image URIs to previous screen
+    navigation.navigate("YourScreen", { photos });
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: "#000" }}>
+      <CameraView
+        ref={cameraRef}
+        style={{ flex: 1 }}
+        facing="back"
+      />
+
+      {/* Preview Thumbnails */}
+      <ScrollView horizontal style={{ position: "absolute", bottom: 100 }}>
+        {photos.map((uri, i) => (
+          <Image
+            key={i}
+            source={{ uri }}
+            style={{
+              width: 80,
+              height: 80,
+              marginRight: 8,
+              borderRadius: 10,
+              borderWidth: 2,
+              borderColor: "#fff",
+            }}
+          />
+        ))}
+      </ScrollView>
+
+      {/* Capture Button */}
+      <TouchableOpacity
+        onPress={takePhoto}
+        style={{
+          position: "absolute",
+          bottom: 20,
+          alignSelf: "center",
+          backgroundColor: "#fff",
+          width: 70,
+          height: 70,
+          borderRadius: 35,
+        }}
+      />
+
+      {/* Done Button */}
+      <TouchableOpacity
+        onPress={done}
+        style={{
+          position: "absolute",
+          top: 40,
+          right: 20,
+          backgroundColor: "rgba(255,255,255,0.3)",
+          padding: 10,
+          borderRadius: 10,
+        }}
+      >
+        <Text style={{ color: "#fff", fontSize: 16 }}>Done ({photos.length})</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}

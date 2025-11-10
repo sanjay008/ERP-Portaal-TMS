@@ -12,6 +12,11 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 15,
     flexGrow: 1,
   },
+  LoaderContainer:{
+    flex:1,
+    justifyContent:'center',
+    alignItems:'center'
+  },
   FlatStyle: {
     marginTop: 10,
   },

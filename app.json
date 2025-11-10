@@ -17,6 +17,7 @@
       "bundleIdentifier": "com.erpportaal.ERP-Portaal-TMS-Driver"
     },
     "android": {
+       "allowBackup": false,
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyBZQz7G7yJ_DSSpUBs0XbVjSKHSf_HbCqQ"

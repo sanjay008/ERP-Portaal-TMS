@@ -6,44 +6,61 @@ import DropDownBox from "@/src/components/DropDownBox";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
 import LoadingModal from "@/src/components/LoadingModal";
 import PickUpBox from "@/src/components/PickUpBox";
-import TwoTypeButton from "@/src/components/TwoTypeButton";
-import TwoTypeInput from "@/src/components/TwoTypeInput";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
 import { token, width } from "@/src/utils/storeData";
 import axios from "axios";
 // import { Image } from "expo-image";
-import AddCommentModal from "@/src/components/AddCommentModal";
 import CommentViewBox from "@/src/components/CommentViewBox";
+import { useIsFocused } from "@react-navigation/native";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
+import * as IntentLauncher from "expo-intent-launcher";
 import React, { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Alert,
   FlatList,
   Image,
-  Pressable,
+  Platform,
   ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
   View,
 } from "react-native";
+import DashedLine from "react-native-dashed-line";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
+import Modal from "react-native-modal";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styles } from "./style";
 export default function DeliveryScreens({ route, navigation }: any) {
-  const { item, fun } = route?.params || "";
-
+  const params = route?.params ?? {};
+  const { item, fun } = params;
+  const Focused = useIsFocused();
   const [ItemsData, setItemsData] = useState<any>(null);
   const [DropData, setDropData] = useState<object[]>([]);
   const [SelectPlace, setSelectPlace] = useState<object | any>(null);
   const { ErrorHandle } = useErrorHandle();
   const [IsLoading, setIsLoading] = useState<boolean>(false);
+  const [Description, setDescrition] = useState<string>("");
+  // const [MenuButtonShow,setMenuButtonShow] = useState<boolean>(false);
+  const [Commenterror, setCommentError] = useState<string>("");
   const [PlaceSelectToHideShow, setPlaceSelectToHideShow] =
     useState<boolean>(false);
   const [comment, setComment] = useState<boolean | any>(false);
   const [AllSelectImage, setAllSelectImage] = useState<any[]>([]);
-  const { UserData, setUserData, Toast, setToast } =
-    useContext(GlobalContextData);
+  const {
+    UserData,
+    setUserData,
+    Toast,
+    setToast,
+    DeliveyDataSave,
+    setDeliveyDataSave,
+    GloblyTypeSlide,
+    setGloblyTypeSlide,
+  } = useContext(GlobalContextData);
   const [AlertModalOpen, setAlerModalOpen] = useState<any>({
     visible: false,
     title: "",
@@ -63,23 +80,39 @@ export default function DeliveryScreens({ route, navigation }: any) {
 
   const openCamera = async () => {
     try {
-      const permission = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert(t("Permission required", "Please allow camera access"));
+      const { granted } = await ImagePicker.requestCameraPermissionsAsync();
+      if (!granted) {
+        Alert.alert("Permission required", "Please allow camera access");
         return;
       }
 
-      let result = await ImagePicker.launchCameraAsync({
-        allowsEditing: true,
-        quality: 1,
-      });
+      if (Platform.OS === "android") {
+        await IntentLauncher.startActivityAsync(
+          "android.media.action.STILL_IMAGE_CAMERA"
+        );
+      } else {
+        const result = await ImagePicker.launchCameraAsync({
+          allowsEditing: false,
+          quality: 1,
+        });
 
-      if (!result.canceled) {
-        console.log("Captured photo URI:", result.assets[0].uri);
-        setAllSelectImage((pre) => [...pre, result.assets[0].uri]);
+        if (!result.canceled && result.assets?.length) {
+          const imagesToSend = result.assets.map((asset) => ({
+            uri: asset.uri,
+            name: asset.fileName || `image_${Date.now()}.jpg`,
+            type: asset.type || "image/jpeg",
+          }));
+          setAllSelectImage((prev) => [...prev, ...imagesToSend]);
+        }
       }
     } catch (err) {
-      console.log(err);
+      setToast({
+        top: 45,
+        text: ErrorHandle(err).message,
+        type: "error",
+        visible: true,
+      });
+      console.log("Camera open error:", err);
     }
   };
 
@@ -101,13 +134,11 @@ export default function DeliveryScreens({ route, navigation }: any) {
   const DropDataSet = () => {
     const mapping = item?.order_label_mapping || {};
 
-    const dataArray = Object.entries(mapping).map(([id, name]) => ({
-      id,
-      name,
-    }));
-    console.log("dataArray", dataArray);
-    setPlaceSelectToHideShow(item?.tmsstatus?.id > 4);
-    setDropData(dataArray);
+    // const dataArray = Object.entries(mapping).map(([id, title]) => ({
+    //   id,
+    //   title,
+    // }));
+    setDropData(mapping);
   };
 
   const StatusUpdateFun = async (selectReason: any) => {
@@ -126,7 +157,6 @@ export default function DeliveryScreens({ route, navigation }: any) {
         },
       });
       if (res?.status) {
-        await GetIdByOrderFun();
         fun();
         setToast({
           top: 45,
@@ -134,7 +164,15 @@ export default function DeliveryScreens({ route, navigation }: any) {
           type: "success",
           visible: true,
         });
+        await AddImageOrCommentFun();
         console.log("Success!", res);
+      } else {
+        setToast({
+          top: 45,
+          text: res?.message || t("Status Update Faild!"),
+          type: "error",
+          visible: true,
+        });
       }
     } catch (error) {
       console.log("Status Update Error:", error);
@@ -150,16 +188,6 @@ export default function DeliveryScreens({ route, navigation }: any) {
   };
 
   const AddImageOrCommentFun = async (comment: string = "", data = []) => {
-    if (!SelectPlace) {
-      setToast({
-        top: 45,
-        text: t("Please select a reason."),
-        type: "error",
-        visible: true,
-      });
-      return;
-    }
-
     if (!Array.isArray(AllSelectImage) || AllSelectImage.length === 0) {
       setToast({
         top: 45,
@@ -169,57 +197,88 @@ export default function DeliveryScreens({ route, navigation }: any) {
       });
       return;
     }
+
     setIsLoading(true);
+
     try {
-      let formData: any = new FormData();
+      const formData = new FormData();
 
       formData.append("token", token);
       formData.append("role", UserData?.user?.role);
       formData.append("relaties_id", UserData?.relaties?.id);
       formData.append("user_id", UserData?.user?.id);
-      formData.append("order_comment", comment?.trim());
+      formData.append("order_comment", Description?.trim());
       formData.append("order_id", ItemsData?.id);
 
       const imagesToSend = data && data.length > 0 ? data : AllSelectImage;
 
-      if (imagesToSend?.length == 0) {
+      if (!comment.trim() && imagesToSend.length === 0) {
         setToast({
           top: 45,
-          text: t("Please image upload!"),
+          text: t("Please add a comment or upload an image!"),
           type: "error",
           visible: true,
         });
+        setIsLoading(false);
         return;
       }
 
-      for (const img of AllSelectImage) {
-        const compressed: any = await ImageManipulator?.manipulateAsync(
-          img.uri,
-          [{ resize: { width: 800 } }],
-          { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
-        );
+      const compressedImages = await Promise.all(
+        imagesToSend.map(async (img: any, index: number) => {
+          const uri = typeof img === "string" ? img : img?.uri;
 
-        formData.append("doc[]", {
-          uri: compressed.uri,
-          name: `image_${Date.now()}.jpg`,
-          type: img.type || "image/jpeg",
-        } as any);
-      }
-      let res: any = await axios.post(
-        apiConstants.store_image_comment,
-        formData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-        }
+          if (!uri || typeof uri !== "string") {
+            console.warn("Skipping invalid image:", img);
+            return null;
+          }
+
+          if (uri.startsWith("http")) {
+            return {
+              uri,
+              name:
+                (typeof img === "object" && img.name) || `image_${index}.jpg`,
+              type: (typeof img === "object" && img.type) || "image/jpeg",
+            };
+          }
+
+          const compressed = await ImageManipulator.manipulateAsync(
+            uri,
+            [{ resize: { width: 800 } }],
+            { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+          );
+
+          return {
+            uri: compressed.uri,
+            name: (typeof img === "object" && img.name) || `image_${index}.jpg`,
+            type: (typeof img === "object" && img.type) || "image/jpeg",
+          };
+        })
       );
-      if (Boolean(res?.data.status)) {
+
+      const validImages = compressedImages.filter(Boolean);
+
+      validImages.forEach((img) => {
+        formData.append("doc[]", img as any);
+      });
+
+      const res = await axios.post(apiConstants.store_image_comment, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      if (Boolean(res?.data?.status)) {
+        setDescrition("");
         await GetIdByOrderFun();
         setToast({
           top: 45,
           text: res?.data?.message,
           type: "success",
+          visible: true,
+        });
+      } else {
+        setToast({
+          top: 45,
+          text: res?.data?.message || t("Request Failed"),
+          type: "error",
           visible: true,
         });
       }
@@ -239,7 +298,12 @@ export default function DeliveryScreens({ route, navigation }: any) {
   const openGallery = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      alert("Permission required to access gallery");
+      setToast({
+        top: 45,
+        text: t("Permission required to access gallery"),
+        type: "success",
+        visible: true,
+      });
       return;
     }
 
@@ -273,12 +337,37 @@ export default function DeliveryScreens({ route, navigation }: any) {
       });
       if (res?.status) {
         setItemsData(res?.data);
-        // let productLatestData = res?.data?.items?.find(el => el?.id == item?.id)
-        setPlaceSelectToHideShow(res?.data?.tmsstatus?.id > 4);
+        const productLatestData = res?.data?.items?.find(
+          (el: any) => String(el?.id) === String(item?.order_data?.items[0]?.id)
+        );
+
+        setPlaceSelectToHideShow(
+          productLatestData?.tmsstatus?.status_name === "In Transit to Drop"
+        );
+        console.log(
+          "My Condition",
+          productLatestData?.tmsstatus?.status_name === "In Transit to Drop",
+          res?.data?.items
+        );
+
+        // setPlaceSelectToHideShow(res?.data?.tmsstatus?.id > 4);
         console.log("Success!", res);
+      } else {
+        setToast({
+          top: 45,
+          text: res?.message || t("Request Faild"),
+          type: "error",
+          visible: true,
+        });
       }
     } catch (error) {
       console.log("GetIdByOrderFun Error:-", error);
+      setToast({
+        top: 45,
+        text: ErrorHandle(error)?.message || t("Request Faild"),
+        type: ErrorHandle(error)?.type,
+        visible: true,
+      });
     }
   };
 
@@ -315,7 +404,6 @@ export default function DeliveryScreens({ route, navigation }: any) {
           : img?.uri ?? "",
       }))
       .filter((img: any) => img.uri !== "");
-    console.log("Proper Images", [...backendImages, ...safeImages]);
 
     return [...backendImages, ...safeImages];
   }
@@ -324,21 +412,70 @@ export default function DeliveryScreens({ route, navigation }: any) {
     if (item) {
       // GetIdByOrderFun();
       GetIdByOrderFun();
-      console.log("item Data", item);
+      // console.log("item Data", item);
 
       DropDataSet();
     }
   }, [item]);
 
+  const CommentFun = async () => {
+    setCommentError("");
+    if (Description.trim() == "") {
+      setCommentError(t("Enter a comment"));
+      return;
+    }
+    await StatusUpdateFun(SelectPlace);
+
+    setComment(false);
+  };
+
+  useEffect(() => {
+    if (DeliveyDataSave !== null) {
+      console.log("DeliveyDataSave", DeliveyDataSave);
+      setDeliveyDataSave({
+        setData: (data: any[]) => {
+          // setPhotos(data);
+          console.log("Images Data", data);
+
+          setAllSelectImage(data);
+          if (data?.length > 0) {
+            setComment(true);
+          }
+        },
+      });
+    }
+  }, [Focused]);
+  const goBackToScreen = (screenName: string) => {
+    const state = navigation.getState();
+    const routes = state.routes;
+
+    // find the index of target screen
+    const targetIndex = routes.findIndex((r: any) => r.name === screenName);
+
+    if (targetIndex !== -1) {
+      const currentIndex = state.index;
+      const screensToPop = currentIndex - targetIndex;
+      if (screensToPop > 0) {
+        navigation.pop(screensToPop);
+      }
+    } else {
+      // fallback if screen not found — navigate to it fresh
+      navigation.navigate(screenName);
+    }
+  };
   return (
     <SafeAreaView style={styles.container}>
-      <DetailsHeader title={t("Which order did you place?")} />
+      <DetailsHeader
+        title={t("Which order did you place?")}
+        Backbutton={false}
+      />
       <ScrollView
         style={styles.ContentContainer}
         contentContainerStyle={{ paddingBottom: 50 }}
       >
         <PickUpBox
           IndexActive={false}
+          // defaultExpand={true}
           index={
             ItemsData && ItemsData !== null
               ? ItemsData?.id
@@ -387,81 +524,115 @@ export default function DeliveryScreens({ route, navigation }: any) {
           DeliveryLable={true}
         />
 
-        {!PlaceSelectToHideShow && SelectPlace == null && (
+        {PlaceSelectToHideShow && (
           <View style={{ marginTop: 10 }}>
             <DropDownBox
               data={DropData || []}
               placeholder={t("Select Place")}
               value={SelectPlace}
               setValue={setSelectPlace}
-              labelFieldKey="name"
+              labelFieldKey="title"
               valueFieldKey="id"
-              // fun={StatusUpdateFun}
+              fun={(item) => {
+                setAlerModalOpen({
+                  visible: true,
+                  title: t("Camera"),
+                  Desctiption: t("You have to take a picture for proof ?"),
+                  LButtonText: t("Cancel"),
+                  RButtonText: t("Camera"),
+                  Icon: Images.UploadPhoto,
+                  RButtonStyle: Colors.primary,
+                  RColor: Colors.white,
+                  onPress: () => {
+                    // console.log("items",item);
+                    setDeliveyDataSave({
+                      Data: ItemsData,
+                      selectReason: item,
+                      setData: setAllSelectImage,
+                    });
+                    navigation.navigate("Camera");
+                    setAlerModalOpen((prev: any[]) => ({
+                      ...prev,
+                      visible: false,
+                    }));
+                  },
+                });
+              }}
               ContainerStyle={{ width: "100%" }}
+              //  StatusUpdateFun
               // disbled={true}
             />
           </View>
         )}
 
-        <View style={{ marginTop: 20 }}>
-          <View style={[styles.Flex, { marginVertical: 20 }]}>
-            <TwoTypeButton
-              Icon={Images.Photos}
-              title={t("Camera")}
-              style={{ width: "48%" }}
-              onPress={openCamera}
-              IconStyle={{ width: 22, height: 22 }}
-            />
-            <TwoTypeButton
-              Icon={Images.GalleryIcon}
-              title={t("Upload Photo")}
-              onPress={openGallery}
-              IconStyle={{ width: 22, height: 22 }}
-            />
-          </View>
-
-          {getMergedImages(ItemsData, AllSelectImage)?.length && ItemsData && (
-            <FlatList
-              horizontal
-              style={{ width: width }}
-              contentContainerStyle={{ gap: 10, paddingRight: 20 }}
-              data={getMergedImages(ItemsData, AllSelectImage)}
-              renderItem={({ item, index }) => {
-                return (
-                  <View style={styles.Image}>
-                    <Image
-                      source={{ uri: item?.uri || "" }}
-                      style={{
-                        borderRadius: 7,
-                        width: "100%",
-                        height: "100%",
-                      }}
-                    />
-                  </View>
-                );
-              }}
-            />
+        <View>
+          {getMergedImages(ItemsData, AllSelectImage)?.length && (
+            <View style={{ margin: -15 }}>
+              <FlatList
+                horizontal
+                style={{ width: width, padding: 15 }}
+                contentContainerStyle={{
+                  gap: 10,
+                  paddingRight: 30,
+                  marginTop: 10,
+                }}
+                data={getMergedImages(ItemsData, AllSelectImage)}
+                renderItem={({ item, index }) => {
+                  return (
+                    <View style={styles.Image}>
+                      <Image
+                        source={{ uri: item?.uri || item }}
+                        style={{
+                          borderRadius: 7,
+                          width: "100%",
+                          height: "100%",
+                        }}
+                      />
+                    </View>
+                  );
+                }}
+              />
+            </View>
           )}
 
-          <Pressable
-            style={{ marginVertical: 15 }}
-            onPress={() => setComment(true)}
-          >
-            <TwoTypeInput
-              Icon={Images.comment}
-              placeholder={t("Write Comment")}
-              edit={false}
-            />
-          </Pressable>
+          {!PlaceSelectToHideShow && ItemsData !== null && (
+            
+              <FlatList
+              scrollEnabled={false}
+              contentContainerStyle={styles.ButtonContent}
+                data={SelectPlace?.sub_labels || []}
+                renderItem={({ item, index }) => {
+                  return (
+                    <TouchableOpacity
+                      style={styles.ButtonData}
+                      onPress={() => {
+                        if (item?.action === "go_back_to_home") {
+                          goBackToScreen("FilterScreen");
+                        } else if (item?.action === "need_to_scan") {
+                          navigation.navigate("Scanner", {
+                            type: GloblyTypeSlide,
+                          });
+                        } else if (item?.action === "reschedule_order") {
+                          
+                        }
+                      }}
+                    >
+                      <Text style={[styles.Text, { color: Colors.white }]}>
+                        {t(item?.title)}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+            
+          )}
         </View>
 
-        <AddCommentModal
-          IsVisible={comment}
-          setIsVisible={setComment}
-          fun={AddImageOrCommentFun}
-        />
-
-        <CommentViewBox data={ItemsData?.tmslogdata_itemcomment} />
+        {ItemsData?.tmslogdata_itemcomment?.length > 0 && (
+          <View style={{ marginTop: 15 }}>
+            <CommentViewBox data={ItemsData?.tmslogdata_itemcomment} />
+          </View>
+        )}
       </ScrollView>
 
       <ConformationModal
@@ -484,6 +655,87 @@ export default function DeliveryScreens({ route, navigation }: any) {
         onPress={AlertModalOpen.onPress}
         Description={AlertModalOpen.Desctiption}
       />
+
+      <Modal
+        isVisible={comment}
+        style={{ margin: 0, flex: 1 }}
+        animationIn={"bounceInUp"}
+        animationOut={"bounceOutDown"}
+      >
+        <KeyboardAwareScrollView
+          style={{ flexGrow: 1 }}
+          // extraHeight={100}
+          contentContainerStyle={{
+            flex: 1,
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+          enableOnAndroid={true}
+          // extraScrollHeight={50}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.CommentBox}>
+            {/* <View style={styles.Flex}>
+                    <Text style={styles.Text}>{t("Write Comment")}</Text>
+                    <TouchableOpacity
+                      style={styles.CloseButton}
+                      onPress={() => setComment(false)}
+                    >
+                      <Image
+                        source={Images.Close}
+                        style={{ width: 18, height: 18 }}
+                        tintColor={Colors.black}
+                      />
+                    </TouchableOpacity>
+                  </View> */}
+
+            <DashedLine
+              dashLength={4}
+              dashThickness={2}
+              dashGap={5}
+              style={styles.Line}
+              dashColor={Colors.otherBorder}
+            />
+
+            <View>
+              <Text style={styles.Text}>{t("Name")}</Text>
+              <View style={styles.InputBox}>
+                <TextInput
+                  style={styles.Input}
+                  editable={false}
+                  placeholderTextColor={Colors.darkText}
+                  placeholder={t("Enter your name")}
+                  returnKeyType="next"
+                  textContentType="familyName"
+                  value={UserData?.user?.username || ""}
+                  onChangeText={setComment}
+                />
+                <Image source={Images.user} style={{ width: 18, height: 18 }} />
+              </View>
+            </View>
+
+            <View>
+              <Text style={styles.Text}>{t("Description")}</Text>
+              <TextInput
+                style={styles.TextArea}
+                value={Description}
+                onChangeText={setDescrition}
+                placeholder={t("Type here...")}
+                multiline
+                numberOfLines={5}
+                textAlignVertical="top"
+              />
+              {Commenterror && <Text style={styles.Error}>{Commenterror}</Text>}
+            </View>
+
+            <TouchableOpacity style={styles.Button} onPress={CommentFun}>
+              <Text style={[styles.Text, { color: Colors.white }]}>
+                {t("Submit")}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAwareScrollView>
+      </Modal>
 
       <LoadingModal visible={IsLoading} message={t("Please wait…")} />
     </SafeAreaView>

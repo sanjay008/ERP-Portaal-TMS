@@ -19,7 +19,7 @@ type ArrayProps = {
 };
 
 export default function Profile({ navigation }: any) {
-  const { UserData, setUserData, Toast, setToast, CompanysData, setPermission,SelectLanguage} =
+  const { UserData, setUserData, Toast, setToast, CompanysData, setPermission,SelectLanguage,setSelectLanguage} =
     useContext(GlobalContextData);
   const [CurrentVersion, setCurrentVersion] = useState<number>(1);
   const [AlertModalOpen, setAlerModalOpen] = useState<any>({

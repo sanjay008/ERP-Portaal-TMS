@@ -1,7 +1,5 @@
 import apiConstants from "@/src/api/apiConstants";
 import { Images } from "@/src/assets/images";
-import AddCommentModal from "@/src/components/AddCommentModal";
-import CommentViewBox from "@/src/components/CommentViewBox";
 import ConformationModal from "@/src/components/ConformationModal";
 import DetailsHeader from "@/src/components/DetailsHeader";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
@@ -9,18 +7,21 @@ import LoadingModal from "@/src/components/LoadingModal";
 import MapsViewBox from "@/src/components/MapsViewBox";
 import PickUpBox from "@/src/components/PickUpBox";
 import TwoTypeButton from "@/src/components/TwoTypeButton";
-import TwoTypeInput from "@/src/components/TwoTypeInput";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import { Colors } from "@/src/utils/colors";
 import { token } from "@/src/utils/storeData";
 import axios from "axios";
 import * as IntentLauncher from "expo-intent-launcher";
 // import { Image } from "expo-image";
+import AddCommentModal from "@/src/components/AddCommentModal";
+import CommentViewBox from "@/src/components/CommentViewBox";
+import Loader from "@/src/components/loading";
+import TwoTypeInput from "@/src/components/TwoTypeInput";
 import ApiService from "@/src/utils/Apiservice";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { StatusBar } from "expo-status-bar";
-import React, { useContext, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Alert,
@@ -35,17 +36,22 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styles } from "./styles";
+import { useIsFocused } from "@react-navigation/native";
 export default function DetailsScreens({ navigation, route }: any) {
-  const { item } = route?.params || "";
+  const { item, type } = route?.params || {};
   const { ErrorHandle } = useErrorHandle();
   const { UserData, setUserData, Toast, setToast } =
     useContext(GlobalContextData);
   const [ItemsData, setItemsData] = useState(item);
+  const Focused = useIsFocused();
   const [comment, setComment] = useState<boolean | any>(false);
+  const [PermissionData,setPermissionData] = useState<any>(null);
   const [AllSelectImage, setAllSelectImage] = useState<any[]>([]);
   const [LableLoading, setLableLoading] = useState<boolean>(false);
   const [IsLoading, setIsLoading] = useState<boolean>(false);
+  const [BackButtonAvailble, setBackButtonAvailble] = useState(false);
   const { t } = useTranslation();
+  const [DataLoading,setDataLoading] = useState<boolean>(false)
   const [AlertModalOpen, setAlerModalOpen] = useState<any>({
     visible: false,
     title: "",
@@ -92,36 +98,17 @@ export default function DetailsScreens({ navigation, route }: any) {
       console.log("Camera open error:", err);
     }
   };
-  // const openCamera = async () => {
-  //   try {
-  //     const permission = await ImagePicker.requestCameraPermissionsAsync();
-  //     if (!permission.granted) {
-  //       Alert.alert(t("Permission required", "Please allow camera access"));
-  //       return;
-  //     }
-
-  //     let result = await ImagePicker.launchCameraAsync({
-  //       allowsEditing: true,
-  //       quality: 1,
-  //     });
-
-  //     if (!result.canceled) {
-  //       const imagesToSend = result.assets.map((asset, index) => ({
-  //         uri: asset.uri,
-  //         name: asset.fileName || `image_${Date.now()}.jpg`,
-  //         type: asset.type === "image" ? "image/jpeg" : asset.type,
-  //       }));
-  //       setAllSelectImage((pre) => [...pre, ...imagesToSend]);
-  //     }
-  //   } catch (err) {
-  //     console.log(err);
-  //   }
-  // };
 
   const openGallery = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
       alert("Permission required to access gallery");
+      setToast({
+        top: 45,
+        text: t("Permission required to access gallery"),
+        type: "error",
+        visible: true,
+      });
       return;
     }
 
@@ -162,6 +149,7 @@ export default function DetailsScreens({ navigation, route }: any) {
   };
 
   const GetIdByOrderFun = async () => {
+    setDataLoading(true)
     try {
       let res = await ApiService(apiConstants.get_order_data_by_id, {
         customData: {
@@ -170,14 +158,32 @@ export default function DetailsScreens({ navigation, route }: any) {
           relaties_id: UserData?.relaties?.id,
           user_id: UserData?.user?.id,
           order_id: ItemsData?.id || ItemsData?.order_data?.id,
+          type: type,
         },
       });
       if (res?.status) {
         setItemsData(res?.data);
-        // console.log("Success!", res);
+        setPermissionData(res?.permissions_data)
+        console.log("Success!", res);
+      } else {
+        setToast({
+          top: 45,
+          text: res?.message,
+          type: "error",
+          visible: true,
+        });
       }
     } catch (error) {
       console.log("GetIdByOrderFun Error:-", error);
+      setToast({
+        top: 45,
+        text: ErrorHandle(error).message,
+        type: "error",
+        visible: true,
+      });
+    }
+    finally{
+      setDataLoading(false)
     }
   };
 
@@ -231,13 +237,20 @@ export default function DetailsScreens({ navigation, route }: any) {
       );
 
       console.log("respone commm", res);
-   
+
       if (Boolean(res?.data.status)) {
-           await GetIdByOrderFun();
+        await GetIdByOrderFun();
         setToast({
           top: 45,
           text: res?.data?.message,
           type: "success",
+          visible: true,
+        });
+      } else {
+        setToast({
+          top: 45,
+          text: res?.data?.message,
+          type: "error",
           visible: true,
         });
       }
@@ -281,7 +294,6 @@ export default function DetailsScreens({ navigation, route }: any) {
       )
       .flatMap((el: any) => el.tmsimgdata)
       .map((img: any) => ({
-        // Ensure URI format
         uri: img?.shared_link
           ? getDirectDropboxLink(img.shared_link)
           : img?.uri ?? "",
@@ -313,6 +325,13 @@ export default function DetailsScreens({ navigation, route }: any) {
           visible: true,
         });
         GetIdByOrderFun();
+      } else {
+        setToast({
+          top: 45,
+          text: res?.message,
+          type: "error",
+          visible: true,
+        });
       }
     } catch (error) {
       console.log("Lable Change Data Error:-", error);
@@ -327,17 +346,27 @@ export default function DetailsScreens({ navigation, route }: any) {
     }
   };
 
+  useEffect(() => {
+    GetIdByOrderFun();
+  }, [item,Focused]);
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor="white" />
       <DetailsHeader
         title={t("Delivery")}
+        Backbutton={BackButtonAvailble}
         // button={true}
         // Scan={true}
         // onPress={}
         // buttonText={item?.tmsstatus?.id == 1 ? t("Back Order") : t("Missed")}
       />
-
+  {
+    DataLoading ? 
+    <View style={styles.LoaderContainer}>
+    <Loader />
+    </View>
+    :
       <ScrollView
         style={[
           styles.ViewContainer,
@@ -346,30 +375,37 @@ export default function DetailsScreens({ navigation, route }: any) {
         contentContainerStyle={[styles.ContainerStyle, { paddingBottom: 50 }]}
         bounces={false}
       >
-        <View style={styles.Flex}>
-          <TouchableOpacity
-            style={[styles.BackButton]}
-            onPress={() =>
-              BackOrderFun(
-                ItemsData?.tmsstatus?.id == 1 ? "Backorder" : "Missed"
-              )
-            }
-          >
-            <Text style={[styles.Text, { color: Colors.white }]}>
-              {ItemsData?.tmsstatus?.id == 1
-                ? t("Back Order")
-                : t("Missing") || t("title")}
-            </Text>
-          </TouchableOpacity>
-          <TwoTypeButton
-            onlyIcon={true}
-            Icon={Images.Scan}
-            style={{ width: 46, height: 46 }}
-            onPress={() =>
-              navigation.navigate("Scanner", { fun: GetIdByOrderFun })
-            }
-          />
-        </View>
+        {PermissionData?.can_scan_order && (
+          <View style={styles.Flex}>
+            <TouchableOpacity
+              style={[styles.BackButton]}
+              onPress={() =>
+                BackOrderFun(
+                  ItemsData?.tmsstatus?.status_name == "Scheduled"
+                    ? "Backorder"
+                    : "Missed"
+                )
+              }
+            >
+              <Text style={[styles.Text, { color: Colors.white }]}>
+                {ItemsData?.tmsstatus?.status_name == "Scheduled"
+                  ? t("Back Order")
+                  : t("Missing")}
+              </Text>
+            </TouchableOpacity>
+            <TwoTypeButton
+              onlyIcon={true}
+              Icon={Images.Scan}
+              style={{ width: 46, height: 46 }}
+              onPress={() =>
+                navigation.navigate("Scanner", {
+                  fun: GetIdByOrderFun,
+                  type: type,
+                })
+              }
+            />
+          </View>
+        )}
         <PickUpBox
           LableStatus={ItemsData?.tmsstatus?.status_name}
           OrderId={ItemsData?.id}
@@ -464,7 +500,7 @@ export default function DetailsScreens({ navigation, route }: any) {
             }
           />
         )}
-
+        
         <Pressable onPress={() => setComment(true)}>
           <TwoTypeInput
             Icon={Images.comment}
@@ -475,6 +511,7 @@ export default function DetailsScreens({ navigation, route }: any) {
 
         <CommentViewBox data={ItemsData?.tmslogdata_itemcomment} />
       </ScrollView>
+  }
       <AddCommentModal
         IsVisible={comment}
         setIsVisible={setComment}

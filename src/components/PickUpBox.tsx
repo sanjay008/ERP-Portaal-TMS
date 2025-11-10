@@ -34,9 +34,10 @@ export default function PickUpBox({
   IndexActive = true,
   DeliveryLable = false,
   backOrder = false,
+  defaultExpand=false
 }: any) {
   const { t } = useTranslation();
-  const [isCollapsed, setisCollapsed] = useState<boolean>(true);
+  const [isCollapsed, setisCollapsed] = useState<boolean>(false);
   const pickup: boolean = false;
   const { setToast } = useContext(GlobalContextData);
   const getDirectDropboxLink = (sharedLink: string) => {
@@ -53,51 +54,47 @@ export default function PickUpBox({
     return url;
   };
 
-const WhatsaapRedirectFun = async (type: number) => {
-  try {
-    let countryCode = customerData?.country_code || "";
-    if (!countryCode.startsWith("+")) {
-      countryCode = `+${countryCode}`;
-    }
+    const WhatsaapRedirectFun = async (type: number) => {
+      try {
+        let countryCode = customerData?.country_code || "";
+        if (!countryCode.startsWith("+")) {
+          countryCode = `+${countryCode}`;
+        }
 
-    const phoneNumber = `${countryCode}${customerData?.mobiel || ""}`;
-    const message = t("Hello! This is a test message.");
-    let url = "";
+        const phoneNumber = `${countryCode}${customerData?.mobiel || ""}`;
+        const message = t("Hello! This is a test message.");
+        let url = "";
 
-    if (type === 1) {
-      url = `https://api.whatsapp.com/send/?phone=${phoneNumber.replace("+", "")}&type=phone_number&app_absent=0`;
-    } else if (type === 2) {
-      const encodedMsg = encodeURIComponent(message);
-      url = `https://api.whatsapp.com/send/?phone=${phoneNumber.replace(
-        "+",
-        ""
-      )}&text=${encodedMsg}&type=phone_number&app_absent=0`;
-    } else {
-      setToast({
-        top: 45,
-        text: t("Invalid type — please pass 1 or 2 only."),
-        type: "error",
-        visible: true,
-      });
-      return;
-    }
+        if (type === 1) {
+          url = `https://api.whatsapp.com/send/?phone=${phoneNumber.replace("+", "")}&type=phone_number&app_absent=0`;
+        } else if (type === 2) {
+          const encodedMsg = encodeURIComponent(message);
+          url = `https://api.whatsapp.com/send/?phone=${phoneNumber.replace(
+            "+",
+            ""
+          )}&text=${encodedMsg}&type=phone_number&app_absent=0`;
+        } else {
+          setToast({
+            top: 45,
+            text: t("Invalid type — please pass 1 or 2 only."),
+            type: "error",
+            visible: true,
+          });
+          return;
+        }
 
-    console.log(url);
-    await Linking.openURL(url);
-  } catch (error) {
-    console.log("WhatsApp redirect error:", error);
-    setToast({
-      top: 45,
-      text: t("Something went wrong while opening WhatsApp."),
-      type: "error",
-      visible: true,
-    });
-  }
-};
-
-
-
-
+        console.log(url);
+        await Linking.openURL(url);
+      } catch (error) {
+        console.log("WhatsApp redirect error:", error);
+        setToast({
+          top: 45,
+          text: t("Something went wrong while opening WhatsApp."),
+          type: "error",
+          visible: true,
+        });
+      }
+    };
 
   return (
     <Pressable
@@ -175,7 +172,7 @@ const WhatsaapRedirectFun = async (type: number) => {
           )}
         </View>
       </View>
-      <Collapsible collapsed={isCollapsed}>
+      <Collapsible collapsed={defaultExpand ? !defaultExpand : isCollapsed }>
         <View style={styles.TotalProductConatiner}>
           <FlatList
             data={ProductItem}

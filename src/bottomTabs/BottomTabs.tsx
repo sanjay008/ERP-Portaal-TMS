@@ -20,21 +20,27 @@ export default function BottomTabs() {
   const Tab = createBottomTabNavigator();
   const { t } = useTranslation();
   const [IsLoading, setLoading] = useState<boolean>(false);
-  const { Permission, setPermission, UserData, setUserData, setCompanysData, SelectLanguage, setSelectLanguage} =
-    useContext(GlobalContextData);
+  const {
+    Permission,
+    setPermission,
+    UserData,
+    setUserData,
+    setCompanysData,
+    SelectLanguage,
+    setSelectLanguage,
+  } = useContext(GlobalContextData);
   useEffect(() => {
     const getUserData = async () => {
-      
       let compay = await getData("COMPANYLOGIN");
-      if(!SelectLanguage){
+      if (!SelectLanguage) {
         let languagesData = await getData("userLanguage");
-        setSelectLanguage(languagesData)
+        setSelectLanguage(languagesData);
       }
       setCompanysData(compay);
       try {
         let data = await getData("USERDATA");
         setUserData(data?.data);
-        if(Permission?.length == 0){
+        if (Permission?.length == 0) {
           getPermision(data?.data);
         }
       } catch (error) {
@@ -81,11 +87,6 @@ export default function BottomTabs() {
       ) : (
         <Tab.Navigator
           initialRouteName={"Home"}
-          // initialRouteName={
-          //   Permission?.tms_driver_loaded_and_parcel_menu?.read == "1"
-          //     ? "Home"
-          //     : "Profile"
-          // }
           screenOptions={{
             tabBarStyle: {
               height: height * 0.09,
