@@ -1,26 +1,60 @@
-import React, { useContext, useEffect, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
-import { Image, Linking, Text, TouchableOpacity, View } from "react-native";
-// import MapView from "react-native-maps";
+import apiConstants from "@/src/api/apiConstants";
 import { Images } from "@/src/assets/images";
 import DetailsHeader from "@/src/components/DetailsHeader";
+import { useErrorHandle } from "@/src/components/ErrorHandle";
+import LoadingModal from "@/src/components/LoadingModal";
 import { GlobalContextData } from "@/src/context/GlobalContext";
-import { SimpleFlex } from "@/src/utils/storeData";
-import * as Location from "expo-location";
-// import { GoogleMaps } from "expo-maps";
-import MapView, { Marker, Polyline } from "react-native-maps";
-import { SafeAreaView } from "react-native-safe-area-context";
-import Svg, { Circle, Path, Rect } from "react-native-svg";
-import { styles } from "./styles";
+import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
+import { SimpleFlex, token } from "@/src/utils/storeData";
+import { useIsFocused } from "@react-navigation/native";
+import * as Location from "expo-location";
+import React, { useContext, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import {
+  Alert,
+  Image,
+  Linking,
+  Platform,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import MapView, { Marker, Polyline } from "react-native-maps";
+import Animated, {
+  useAnimatedProps,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
+import { SafeAreaView } from "react-native-safe-area-context";
+import Svg, { Circle, Path } from "react-native-svg";
+import { styles } from "./styles";
 export default function MapsScreens({ route }: any) {
   const { data } = route?.params || "";
   const { t } = useTranslation();
+  const { ErrorHandle } = useErrorHandle();
+  const [IsLoading, setIsLoading] = useState<boolean>(false);
   const GoogleMapsRef = useRef<any>(null);
-  const { GOOGLE_API_KEY, setToast } = useContext(GlobalContextData);
+  const {
+    GOOGLE_API_KEY,
+    setToast,
+    UserData,
+    SelectActiveRegionData,
+    setSelectActiveRegionData,
+    SelectActiveDate,setSelectActiveDate
+  } = useContext(GlobalContextData);
+  const [AllDestinationRegionData, setAllDestinationRegionData] = useState<
+    any[]
+  >([]);
+  const IsFocused = useIsFocused();
   const [UserCurrentLocation, setUserCurrentLocation] = useState<Object | any>(
     null
   );
+  const AnimatedMarker = Animated.createAnimatedComponent(Marker);
+  const AnimatedUser = useSharedValue({
+    latitude: 0,
+    longitude: 0,
+  });
   const [MarkerData, setMarkerData] = useState<any>([]);
   const camera: any = {
     coordinates: { latitude: 28.6139, longitude: 77.209 },
@@ -93,50 +127,155 @@ export default function MapsScreens({ route }: any) {
       });
     }
   };
+  const animatedProps = useAnimatedProps(() => ({
+    coordinate: {
+      latitude: withTiming(AnimatedUser.value.latitude, { duration: 600 }),
+      longitude: withTiming(AnimatedUser.value.longitude, { duration: 600 }),
+    },
+  }));
+
+  const getCurrentLocationFun = async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== "granted") {
+      console.log("Permission denied");
+      return;
+    }
+
+    await Location.watchPositionAsync(
+      {
+        accuracy: Location.Accuracy.High,
+        distanceInterval: 2,
+      },
+      async (loc) => {
+
+        setUserCurrentLocation(loc.coords);
+        
+        AnimatedUser.value = {
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+        };
+        GoogleMapsRef.current?.animateToRegion(
+          {
+            latitude: loc.coords.latitude,
+            longitude: loc.coords.longitude,
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
+          },
+          1000
+        );
+      }
+    );
+  };
+
+const MapAppRedirectFun = async () => {
+  try {
+    let coordsArray = [...AllDestinationRegionData];
+
+    if (!coordsArray.length) {
+      console.warn("No destinations provided.");
+      return;
+    }
+
+    let { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Location permission denied");
+      return;
+    }
+
+    let current = await Location.getCurrentPositionAsync({});
+    let startLat = current.coords.latitude;
+    let startLng = current.coords.longitude;
+
+    let googleWaypoints = coordsArray
+      .map((c: any) => `${c.lat},${c.long}`)
+      .join("/");
+
+    let googleUrl = `https://www.google.com/maps/dir/${startLat},${startLng}/${googleWaypoints}`;
+
+
+    let appleWaypoints = coordsArray
+      .map((c: any) => `${c.lat},${c.long}`)
+      .join("+to:");
+
+    let appleUrl = `http://maps.apple.com/?saddr=${startLat},${startLng}&daddr=${appleWaypoints}`;
+
+    let urlToOpen = Platform.OS === "ios" ? appleUrl : googleUrl;
+
+    const supported = await Linking.canOpenURL(urlToOpen);
+
+    if (supported) {
+      await Linking.openURL(urlToOpen);
+    } else {
+      await Linking.openURL(googleUrl); 
+    }
+  } catch (error: any) {
+    console.log("Map Redirect Error: ", error);
+
+    setToast({
+      top: 45,
+      text: ErrorHandle(error).message,
+      type: "error",
+      visible: true,
+    });
+  }
+};
+
+
+  const GetLocationData = async () => {
+    setIsLoading(true);
+    if (SelectActiveRegionData==null) {
+      setToast({
+        top: 45,
+        text: t("No Region Found"),
+        type: "error",
+        visible: true,
+      });
+      return;
+    }
+
+    
+    try {
+      let res = await ApiService(apiConstants.get_location_by_region_date, {
+        customData: {
+          token: token,
+          role: UserData?.user?.role,
+          relaties_id: UserData?.relaties?.id,
+          user_id: UserData?.user?.id,
+          region_id: SelectActiveRegionData?.id,
+          date:SelectActiveDate
+        },
+      });
+      if (res?.status) {
+        setAllDestinationRegionData(res?.orders || []);
+        console.log("res?.orders",res?.orders);
+        
+      } else {
+        setToast({
+          top: 45,
+          text: res?.message,
+          type: "error",
+          visible: true,
+        });
+      }
+    } catch (error) {
+      console.log("Get Locations Data Error:-", error);
+      setToast({
+        top: 45,
+        text: ErrorHandle(error)?.message || "Something went wrong",
+        type: "error",
+        visible: true,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    // console.log("GoogleMaps",GoogleMaps);
-
-    (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        console.log("Permission denied");
-        return;
-      }
-
-      await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.High,
-          distanceInterval: 2,
-        },
-        async (loc) => {
-          const routeCoords: any[] = [
-            {
-              latitude: loc.coords.latitude,
-              longitude: loc.coords.longitude,
-            },
-            {
-              latitude: IntialRoute.latitude,
-              longitude: IntialRoute.longitude,
-            },
-          ];
-          setUserCurrentLocation(loc.coords);
-          setMarkerData(routeCoords);
-
-          GoogleMapsRef.current?.animateToRegion(
-            {
-              latitude: loc.coords.latitude,
-              longitude: loc.coords.longitude,
-              latitudeDelta: 0.01,
-              longitudeDelta: 0.01,
-            },
-            1000
-          );
-        }
-      );
-    })();
-    console.log("data", data);
-  }, []);
+    if(IsFocused && SelectActiveDate){
+      getCurrentLocationFun();
+      GetLocationData();
+    }
+  }, [SelectActiveDate]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -155,11 +294,11 @@ export default function MapsScreens({ route }: any) {
         }}
       >
         {UserCurrentLocation && (
-          <Marker
-            coordinate={UserCurrentLocation}
-            image={Images.MapsMarkerVehicalIcon}
-            flat
+          <AnimatedMarker
+            animatedProps={animatedProps}
             anchor={{ x: 0.5, y: 0.5 }}
+            flat
+            image={Images.MapsMarkerVehicalIcon}
           />
         )}
         {/* 
@@ -219,8 +358,25 @@ export default function MapsScreens({ route }: any) {
             strokeColor={Colors.MapLine}
           />
         )}
+
+        {/* All Button For Position use */}
       </MapView>
 
+      <TouchableOpacity
+        style={styles.GetLocationButton}
+        onPress={getCurrentLocationFun}
+      >
+        <Image
+          source={Images.MapsMarkerVehicalIcon}
+          style={styles.LogoUserCurrentLocate}
+        />
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.MapsButton}
+        onPress={() => MapAppRedirectFun()}
+      >
+        <Text style={styles.MapsButtonText}>{t("Go To Maps")}</Text>
+      </TouchableOpacity>
       <View style={styles.BottomBox}>
         <Text style={styles.Text}>{t("Customer Contact")}</Text>
         <View style={SimpleFlex.Flex}>
@@ -233,6 +389,7 @@ export default function MapsScreens({ route }: any) {
           </TouchableOpacity>
         </View>
       </View>
+      <LoadingModal visible={IsLoading} message={t("Please wait…")} />
     </SafeAreaView>
   );
 }

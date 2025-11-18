@@ -39,14 +39,17 @@ export default function ConformationModal({
   onPress,
 }: Props) {
   const { t } = useTranslation();
+  
   return (
+    <View>
     <Modal
+    
       isVisible={IsVisible}
       animationIn={"bounceInUp"}
       animationOut={"bounceOutDown"}
       onBackdropPress={onClose}
       onBackButtonPress={onClose}
-      style={{ margin: 0, justifyContent: "center", alignItems: "center" }}
+      style={{ margin: 0, justifyContent: "center", alignItems: "center",}}
     >
       <View style={styles.Container}>
         <View style={[styles.Header,HeaderBgColor && {backgroundColor:HeaderBgColor}]}>
@@ -105,6 +108,7 @@ export default function ConformationModal({
         </View>
       </View>
     </Modal>
+    </View>
   );
 }
 

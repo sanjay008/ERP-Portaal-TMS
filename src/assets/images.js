@@ -87,6 +87,7 @@ export const Images = {
   DestinationMarker: require("./image/DestinationMarker.png"),
   refresh: require("./image/refresh.png"),
   Home: require("./image/home.png"),
+  NoParcel: require("./image/NoParcel.png"),
   
 
 

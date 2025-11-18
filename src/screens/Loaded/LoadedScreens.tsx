@@ -18,7 +18,7 @@ import { styles } from "./style";
 export default function LoadedScreens({ navigation, route}: any) {
   const { refresh } = route?.params || {};
   const { UserData, setUserData, Toast, setToast, AllRegion, setAllRegion, SelectCurrentDate,setSelectCurrentDate,    GloblyTypeSlide,
-    setGloblyTypeSlide,} =
+    setGloblyTypeSlide,SelectActiveRegionData,setSelectActiveRegionData} =
     useContext(GlobalContextData);
   const RefHandle = useRef(null);
   const [SelectDate, setSelectDate] = useState<string>("");
@@ -70,6 +70,7 @@ export default function LoadedScreens({ navigation, route}: any) {
     if (SelectDate && UserData) {
       setAllPickUpData([]);
       setSelectRegionData("");
+      setSelectActiveRegionData("");
       GetAllPickUpDataFun();
       setSelectCurrentDate(SelectDate)
     }
@@ -101,12 +102,14 @@ export default function LoadedScreens({ navigation, route}: any) {
 
         if (!selectRegionData || selectRegionData === "") {
           setSelectRegionData(res?.data?.[0] || {});
+          setSelectActiveRegionData(res?.data?.[0])
         } else {
           const pre = res?.data?.find(
             (el: any) => el?.id === selectRegionData?.id
           );
 
           setSelectRegionData(pre || res?.data?.[0] || {});
+          setSelectActiveRegionData(pre || res?.data?.[0] || {});
         }
       }
     } catch (error) {
@@ -121,6 +124,8 @@ export default function LoadedScreens({ navigation, route}: any) {
       setLoading(false);
     }
   };
+
+  
 
   return (
     <ScrollView

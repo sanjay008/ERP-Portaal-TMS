@@ -55,5 +55,17 @@ export const styles = StyleSheet.create({
     width:'50%',
     height:'50%',
     tintColor:Colors.white
+  },
+  DownIcon:{
+    width:25,
+    height:25,
+  },
+  CollPadByButton:{
+    width:46,
+    height:46,
+    borderRadius:7,
+    backgroundColor:Colors.primary,
+    justifyContent:'center',
+    alignItems:'center'
   }
 });

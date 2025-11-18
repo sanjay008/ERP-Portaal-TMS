@@ -131,14 +131,30 @@ export default function DeliveryScreens({ route, navigation }: any) {
     });
   };
 
+  // const DropDataSet = () => {
+  //   const mapping = item?.order_label_mapping || {};
+
+  //   // const dataArray = Object.entries(mapping).map(([id, title]) => ({
+  //   //   id,
+  //   //   title,
+  //   // }));
+  //   setDropData(mapping);
+  //   console.log("mapping",mapping);
+
+  // };
   const DropDataSet = () => {
     const mapping = item?.order_label_mapping || {};
 
-    // const dataArray = Object.entries(mapping).map(([id, title]) => ({
-    //   id,
-    //   title,
-    // }));
-    setDropData(mapping);
+    // Convert the mapping object to an array of {id, title}
+    const dataArray = Object.entries(mapping)
+      .filter(([key]) => key !== "_index") // remove unwanted keys
+      .map(([id, title]) => ({
+        id,
+        title,
+      }));
+
+    setDropData(dataArray);
+    console.log("Dropdown Data Array:", dataArray);
   };
 
   const StatusUpdateFun = async (selectReason: any) => {
@@ -475,6 +491,7 @@ export default function DeliveryScreens({ route, navigation }: any) {
       >
         <PickUpBox
           IndexActive={false}
+          AllisCollapsed={true}
           // defaultExpand={true}
           index={
             ItemsData && ItemsData !== null
@@ -566,7 +583,7 @@ export default function DeliveryScreens({ route, navigation }: any) {
         )}
 
         <View>
-          {getMergedImages(ItemsData, AllSelectImage)?.length && (
+          {getMergedImages(ItemsData, AllSelectImage)?.length > 0 && (
             <View style={{ margin: -15 }}>
               <FlatList
                 horizontal
@@ -596,35 +613,32 @@ export default function DeliveryScreens({ route, navigation }: any) {
           )}
 
           {!PlaceSelectToHideShow && ItemsData !== null && (
-            
-              <FlatList
+            <FlatList
               scrollEnabled={false}
               contentContainerStyle={styles.ButtonContent}
-                data={SelectPlace?.sub_labels || []}
-                renderItem={({ item, index }) => {
-                  return (
-                    <TouchableOpacity
-                      style={styles.ButtonData}
-                      onPress={() => {
-                        if (item?.action === "go_back_to_home") {
-                          goBackToScreen("FilterScreen");
-                        } else if (item?.action === "need_to_scan") {
-                          navigation.navigate("Scanner", {
-                            type: GloblyTypeSlide,
-                          });
-                        } else if (item?.action === "reschedule_order") {
-                          
-                        }
-                      }}
-                    >
-                      <Text style={[styles.Text, { color: Colors.white }]}>
-                        {t(item?.title)}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                }}
-              />
-            
+              data={SelectPlace?.sub_labels || []}
+              renderItem={({ item, index }) => {
+                return (
+                  <TouchableOpacity
+                    style={styles.ButtonData}
+                    onPress={() => {
+                      if (item?.action === "go_back_to_home") {
+                        goBackToScreen("FilterScreen");
+                      } else if (item?.action === "need_to_scan") {
+                        navigation.navigate("Scanner", {
+                          type: GloblyTypeSlide,
+                        });
+                      } else if (item?.action === "reschedule_order") {
+                      }
+                    }}
+                  >
+                    <Text style={[styles.Text, { color: Colors.white }]}>
+                      {t(item?.title)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              }}
+            />
           )}
         </View>
 

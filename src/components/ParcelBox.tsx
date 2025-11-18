@@ -19,14 +19,14 @@ export default function ParcelBox({
   data,
   qty = 0,
   title = "",
-  Icon='',
+  Icon = "",
   statusData = null,
   backOrder = false,
   onPress,
 }: Props) {
   const { t } = useTranslation();
 
-    const getDirectDropboxLink = (sharedLink: string) => {
+  const getDirectDropboxLink = (sharedLink: string) => {
     if (!sharedLink) return "";
 
     let url = sharedLink
@@ -63,9 +63,19 @@ export default function ParcelBox({
       </View>
 
       <View style={styles.RightSection}>
-        {/* {backOrder && !!data?.item_label && (
-          <Text style={styles.LabelText}>{data.item_label}</Text>
-        )} */}
+        {data?.tmslabel && (
+          <View
+            style={[
+              styles.itemLable,
+              { backgroundColor: data?.tmslabel?.color },
+            ]}
+          >
+            <Image
+              source={{ uri: getDirectDropboxLink(data?.tmslabel?.shared_link) }}
+              style={{ width: 20, height: 20 }}
+            />
+          </View>
+        )}
 
         <View
           style={[
@@ -73,14 +83,14 @@ export default function ParcelBox({
             { backgroundColor: data?.tmsstatus?.color || Colors.background },
           ]}
         >
-         
-            <Image
-              source={{ uri: Icon || getDirectDropboxLink(data?.tmsstatus?.shared_link)}}
-              style={styles.Icon}
-              resizeMode="contain"
-              tintColor={Colors.black}
-            />
-          
+          <Image
+            source={{
+              uri: Icon || getDirectDropboxLink(data?.tmsstatus?.shared_link),
+            }}
+            style={styles.Icon}
+            resizeMode="contain"
+            tintColor={Colors.black}
+          />
         </View>
       </View>
     </Pressable>
@@ -108,17 +118,17 @@ const styles = StyleSheet.create({
   },
 
   LeftSection: {
-    flex: 0.8, 
+    flex: 0.8,
     flexDirection: "row",
     alignItems: "center",
   },
 
   RightSection: {
-    flex: 0.3, 
+    flex: 0.3,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "flex-end",
-    
+    gap: 5,
   },
 
   NumberBox: {
@@ -161,5 +171,14 @@ const styles = StyleSheet.create({
   Icon: {
     width: 18,
     height: 18,
+  },
+
+  itemLable: {
+    width: 25,
+    height: 25,
+    backgroundColor: Colors.gray,
+    borderRadius: 7,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

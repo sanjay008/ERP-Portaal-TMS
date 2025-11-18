@@ -1,9 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Image, StyleSheet, View } from "react-native";
 import { Dropdown } from "react-native-element-dropdown";
 import { Images } from "../assets/images";
+import { GlobalContextData } from "../context/GlobalContext";
 import { Colors } from "../utils/colors";
 
 type DropdownItem = {
@@ -36,13 +37,21 @@ const DropDownBox: React.FC<Props> = ({
   fun,
 }) => {
   const { t } = useTranslation();
+  const {setSelectActiveRegionData} = useContext(GlobalContextData);
     const [isFocus, setIsFocus] = useState(false);
+    useEffect(()=>{
+      setSelectActiveRegionData(value)
+      // Alert.alert(JSON.stringify(value))
+      console.log(value);
+      
+    },[value])
   return (
     <View style={[styles.container, ContainerStyle]}>
       <Dropdown
         disable={disbled}
         style={[styles.dropdown]}
-        data={data}
+        // data={data}
+          data={Array.isArray(data) ? data : data ? [data] : []} 
         labelField={labelFieldKey}
         valueField={valueFieldKey}
         placeholder={t(placeholder)}

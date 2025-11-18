@@ -10,6 +10,8 @@ export default function GlobalContext({ children }: any) {
   const [SelectCurrentDate,setSelectCurrentDate] = useState();
   const [SelectLanguage, setSelectLanguage] = useState<string>("");
   const [DeliveyDataSave,setDeliveyDataSave] = useState<any>(null);
+    const[PickUpDataSave,setPickUpDataSave] = useState<any>(null);
+  const [NoParcelItemIds, setNoParcelItemIds] = useState<number[]>([]);
   const [Toast, setToast] = useState({
     visible: false,
     text: "",
@@ -19,7 +21,8 @@ export default function GlobalContext({ children }: any) {
   const [AllRegion, setAllRegion] = useState<any[]>([]);
   const [CompanysData, setCompanysData] = useState<string>("");
   const [GloblyTypeSlide,setGloblyTypeSlide] = useState("");
-
+  const [SelectActiveRegionData,setSelectActiveRegionData] = useState<any>(null);
+  const [SelectActiveDate,setSelectActiveDate] = useState<any>(null);
   return (
     <GlobalContextData.Provider
       value={{
@@ -33,7 +36,11 @@ export default function GlobalContext({ children }: any) {
         CompanysData, setCompanysData,
         SelectCurrentDate,setSelectCurrentDate,
         DeliveyDataSave,setDeliveyDataSave,
-        GloblyTypeSlide,setGloblyTypeSlide
+        GloblyTypeSlide,setGloblyTypeSlide,
+        PickUpDataSave,setPickUpDataSave,
+        NoParcelItemIds,setNoParcelItemIds,
+        SelectActiveRegionData,setSelectActiveRegionData,
+        SelectActiveDate,setSelectActiveDate,
       }}
     >
       {children}

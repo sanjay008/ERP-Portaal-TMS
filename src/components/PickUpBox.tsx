@@ -1,4 +1,4 @@
-import React, { useContext, useState } from "react";
+import React, { useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FlatList,
@@ -10,11 +10,11 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import Collapsible from "react-native-collapsible";
 import { Images } from "../assets/images";
 import { GlobalContextData } from "../context/GlobalContext";
 import { Colors } from "../utils/colors";
 import { SimpleFlex } from "../utils/storeData";
+import CustomCollapsible from "./CustomCollapsible";
 import ParcelBox from "./ParcelBox";
 import PickupPogressMap from "./PickupPogressMap";
 export default function PickUpBox({
@@ -34,11 +34,14 @@ export default function PickUpBox({
   IndexActive = true,
   DeliveryLable = false,
   backOrder = false,
-  defaultExpand=false
+  defaultExpand=false,
+  AllisCollapsed = null,
+  downButton= false,
 }: any) {
   const { t } = useTranslation();
-  const [isCollapsed, setisCollapsed] = useState<boolean>(false);
+  const [isCollapsed, setisCollapsed] = useState<boolean>(AllisCollapsed!==null ? AllisCollapsed : true);
   const pickup: boolean = false;
+  const collapsibleRef = useRef<any>(null);
   const { setToast } = useContext(GlobalContextData);
   const getDirectDropboxLink = (sharedLink: string) => {
     if (!sharedLink) return "";
@@ -95,7 +98,9 @@ export default function PickUpBox({
         });
       }
     };
-
+useEffect(()=>{
+  setisCollapsed(AllisCollapsed)
+},[AllisCollapsed])
   return (
     <Pressable
       style={[styles.container, pickup && styles.BorderOrBg]}
@@ -151,19 +156,22 @@ export default function PickUpBox({
 
       <View style={[styles.Flex, { marginTop: 0 }]}>
         <Text style={styles.OrderIdText}>{t("Total Parcel")}</Text>
-        <View style={[SimpleFlex.Flex, { gap: 0 }]}>
+        <View style={[SimpleFlex.Flex, { marginVertical:5 }]}>
           <Text style={styles.Text}>{ProductItem?.length}</Text>
+          {
+            AllisCollapsed==null || downButton&&
           <TouchableOpacity
             style={{
-              transform: [{ rotate: isCollapsed ? "0deg" : "180deg" }],
+              transform: [{ rotate: !isCollapsed ? "0deg" : "180deg" }],
               paddingHorizontal: 10,
               paddingVertical: 10,
               // borderWidth:1,
             }}
-            onPress={() => setisCollapsed((pre) => !pre)}
+            onPress={() => setisCollapsed(!isCollapsed)}
           >
             <Image source={Images.down} style={{ width: 18, height: 18 }} />
           </TouchableOpacity>
+          }
           {StatusIcon && (
             <Image
               source={{ uri: getDirectDropboxLink(StatusIcon) }}
@@ -172,7 +180,7 @@ export default function PickUpBox({
           )}
         </View>
       </View>
-      <Collapsible collapsed={defaultExpand ? !defaultExpand : isCollapsed }>
+      <CustomCollapsible visible={isCollapsed}>
         <View style={styles.TotalProductConatiner}>
           <FlatList
             data={ProductItem}
@@ -195,7 +203,7 @@ export default function PickUpBox({
             }}
           />
         </View>
-      </Collapsible>
+      </CustomCollapsible>
       {LacationProgress && (
         <View style={{ marginTop: 15 }}>
           <PickupPogressMap

@@ -31,7 +31,8 @@ module.exports = {
     missed_backorder: `${baseUrlnew}tms-driver/manage-missed-or-backorder`,
     get_AllSlideDataApi: `${baseUrlnew}tms-home/get-tms-home-slider`,
     getMultipleOrderData: `${baseUrlnew}tms-driver/get-multiple-orders-data-by-ids`,
-    get_order_data_by_id:`${baseUrlnew}tms-driver/get-order-data-by-id`
+    get_order_data_by_id:`${baseUrlnew}tms-driver/get-order-data-by-id`,
+    get_location_by_region_date:`${baseUrlnew}tms-driver/get-location-by-region-date`,
 
 };
 

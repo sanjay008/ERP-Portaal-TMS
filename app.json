@@ -2,7 +2,7 @@
   "expo": {
     "name": "ERP Portaal TMS Driver",
     "slug": "erp-portaal-tms-driver",
-    "version": "25.11.07",
+    "version": "25.11.18",
     "jsEngine": "hermes",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -17,7 +17,8 @@
       "bundleIdentifier": "com.erpportaal.ERP-Portaal-TMS-Driver"
     },
     "android": {
-       "allowBackup": false,
+      "allowBackup": false,
+      "hardwareAccelerated": true,
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyBZQz7G7yJ_DSSpUBs0XbVjSKHSf_HbCqQ"
@@ -34,11 +35,8 @@
       "package": "com.erpportaal.ERP_Portaal_TMS",
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "updates": {

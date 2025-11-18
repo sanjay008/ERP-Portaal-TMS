@@ -3,7 +3,6 @@ export const formatDate = (dateString: string, lang: string = "en") => {
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return dateString;
 
-    // ✅ Fix: Ensure valid locale always
     const safeLang = lang && lang.trim() !== "" ? lang : "en-US";
 
     const day = date.getDate().toString().padStart(2, "0");

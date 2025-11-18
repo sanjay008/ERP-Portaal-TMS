@@ -26,8 +26,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { styles } from "./styles";
 
 export default function FilterScreen({ navigation, route }: any) {
-  const { item } = route?.params || {};
-  const [SlideType,setSlideType] = useState(item);
+  const { item , Type} = route?.params || {};
+  const [SlideType,setSlideType] = useState(item || Type);
   const Focused = useIsFocused();
   const {
     UserData,
@@ -44,11 +44,17 @@ export default function FilterScreen({ navigation, route }: any) {
   const [AllFilterData, setAllFilterDataGet] = useState<object[]>([]);
   const { t } = useTranslation();
   const [selectRegionData, setSelectRegionData] = useState<any | null>(null);
+    const [isCollapsed, setisCollapsed] = useState<boolean>(true);
+  
   const { ErrorHandle } = useErrorHandle();
   const [ScanBTNAvailble, setScanBTNAvailble] = useState<boolean>(
     !(item?.item_title == "Pickup / Dropoff")
   );
+ 
+  
+  
   const getFilterDataFun = useCallback(async () => {
+    console.log('itemmmmmm',item);
     try {
       setLoading(true);
 
@@ -58,7 +64,7 @@ export default function FilterScreen({ navigation, route }: any) {
         relaties_id: UserData?.relaties?.id,
         user_id: UserData?.user?.id,
         date: SelectDate,
-        type: item?.type || "",
+        type: item?.type || Type ,
       };
 
       const response = await ApiService(apiConstants.getOrderByDriver, {
@@ -115,9 +121,12 @@ export default function FilterScreen({ navigation, route }: any) {
         setSelectCurrentDate(SelectDate);
       }
     }
-    setSlideType(item?.type)
-    // console.log("Types",item?.type);
-  }, [SelectDate, UserData, Focused]);
+    const currentType = Type || item?.type;
+    setSlideType(currentType)
+    const shouldAllowNavigation = currentType === "pickup_dropoff";
+    setScanBTNAvailble(!shouldAllowNavigation);
+    
+  }, [SelectDate, UserData, Focused, Type, item]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -129,7 +138,18 @@ export default function FilterScreen({ navigation, route }: any) {
           style={{ flex: 1, marginTop: -20, paddingTop: 15 }}
           contentContainerStyle={styles.ContainerStyle}
         >
+          <View style={styles.Flex}>
+            <View style={{flex: 1 / 1.05  }}>
           <CalenderDate date={SelectDate} setDate={setSelectDate} />
+            </View>
+          <TouchableOpacity style={[styles.CollPadByButton,{transform: [{ rotate: !isCollapsed ? "0deg" : "180deg" }]}]} onPress={()=>setisCollapsed(!isCollapsed)}>
+            <Image 
+            source={Images.down}
+            style={styles.DownIcon}
+            tintColor={Colors.white}
+            />
+          </TouchableOpacity>
+          </View>
 
           <View style={styles.Flex}>
             <DropDownBox
@@ -190,13 +210,17 @@ export default function FilterScreen({ navigation, route }: any) {
               renderItem={({ item, index }) => {
                 return (
                   <PickUpBox
+                  AllisCollapsed={isCollapsed}
                     index={index}
                     LableStatus={item?.tmsstatus?.status_name}
                     OrderId={item?.id}
                     ProductItem={item?.items}
                     LableBackground={item?.tmsstatus?.color}
                     onPress={() => {
-                      if (ScanBTNAvailble) return;
+                      if (ScanBTNAvailble) {
+                  console.log("Navigation blocked");
+                  return;
+                }
                       navigation.navigate("Details", { item, type:SlideType});
                     }}
                     start={item?.pickup_location}

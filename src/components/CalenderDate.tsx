@@ -61,6 +61,7 @@ export default function CalenderDate({ date, setDate }: Props) {
   const { t } = useTranslation();
   const {
     SelectLanguage,
+    SelectActiveDate,setSelectActiveDate
   } = useContext(GlobalContextData);
 
   LocaleConfig.defaultLocale = SelectLanguage;
@@ -69,6 +70,9 @@ export default function CalenderDate({ date, setDate }: Props) {
     if (!date && setDate) {
       const today = new Date().toISOString().split("T")[0];
       setDate(today);
+      setSelectActiveDate(today)
+      // console.log("today",today);
+      
     }
   }, [date, setDate]);
 
@@ -118,7 +122,11 @@ export default function CalenderDate({ date, setDate }: Props) {
           <Calendar
             onDayPress={(day) => {
               setDate(day.dateString);
+              setSelectActiveDate(day.dateString)
+              // console.log("today",day.dateString);
+              
               setVisible(false);
+
             }}
             markedDates={{
               [date]: { selected: true, selectedColor: Colors.primary },
