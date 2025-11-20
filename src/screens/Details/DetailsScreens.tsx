@@ -1,6 +1,7 @@
 import apiConstants from "@/src/api/apiConstants";
 import { Images } from "@/src/assets/images";
 import AddCommentModal from "@/src/components/AddCommentModal";
+import { ApiFormatDate } from "@/src/components/ApiFormatDate";
 import CommentViewBox from "@/src/components/CommentViewBox";
 import ConformationModal from "@/src/components/ConformationModal";
 import DetailsHeader from "@/src/components/DetailsHeader";
@@ -21,7 +22,6 @@ import axios from "axios";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import * as IntentLauncher from "expo-intent-launcher";
-import * as Location from "expo-location";
 import { StatusBar } from "expo-status-bar";
 import React, { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -29,12 +29,11 @@ import {
   Alert,
   FlatList,
   Image,
-  Linking,
   Platform,
   ScrollView,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import Modal from "react-native-modal";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -127,57 +126,7 @@ export default function DetailsScreens({ navigation, route }: any) {
     buttons: [],
   });
 
-  const MapAppRedirectFun = async () => {
-    try {
-      let coordsArray = [...AllDestinationRegionData];
-
-      if (!coordsArray.length) {
-        console.warn("No destinations provided.");
-        return;
-      }
-
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("Location permission denied");
-        return;
-      }
-
-      let current = await Location.getCurrentPositionAsync({});
-      let startLat = current.coords.latitude;
-      let startLng = current.coords.longitude;
-
-      let googleWaypoints = coordsArray
-        .map((c: any) => `${c.lat},${c.long}`)
-        .join("/");
-
-      let googleUrl = `https://www.google.com/maps/dir/${startLat},${startLng}/${googleWaypoints}`;
-
-      let appleWaypoints = coordsArray
-        .map((c: any) => `${c.lat},${c.long}`)
-        .join("+to:");
-
-      let appleUrl = `http://maps.apple.com/?saddr=${startLat},${startLng}&daddr=${appleWaypoints}`;
-
-      let urlToOpen = Platform.OS === "ios" ? appleUrl : googleUrl;
-
-      const supported = await Linking.canOpenURL(urlToOpen);
-
-      if (supported) {
-        await Linking.openURL(urlToOpen);
-      } else {
-        await Linking.openURL(googleUrl);
-      }
-    } catch (error: any) {
-      console.log("Map Redirect Error: ", error);
-
-      setToast({
-        top: 45,
-        text: ErrorHandle(error).message,
-        type: "error",
-        visible: true,
-      });
-    }
-  };
+  
 
   const GetLocationData = async () => {
     setIsLoading(true);
@@ -190,6 +139,15 @@ export default function DetailsScreens({ navigation, route }: any) {
       });
       return;
     }
+    console.log("REkmegjerg",{
+      token: token,
+      role: UserData?.user?.role,
+      relaties_id: UserData?.relaties?.id,
+      user_id: UserData?.user?.id,
+      region_id: SelectActiveRegionData?.id,
+      date: ApiFormatDate(SelectActiveDate),
+    },);
+    
 
     try {
       let res = await ApiService(apiConstants.get_location_by_region_date, {
@@ -199,7 +157,7 @@ export default function DetailsScreens({ navigation, route }: any) {
           relaties_id: UserData?.relaties?.id,
           user_id: UserData?.user?.id,
           region_id: SelectActiveRegionData?.id,
-          date: SelectActiveDate,
+          date: ApiFormatDate(SelectActiveDate),
         },
       });
       if (res?.status) {
@@ -216,13 +174,6 @@ export default function DetailsScreens({ navigation, route }: any) {
           ...orders,
           { ...baseLocation },
         ]);
-      } else {
-        setToast({
-          top: 45,
-          text: res?.message,
-          type: "error",
-          visible: true,
-        });
       }
     } catch (error) {
       console.log("Get Locations Data Error:-", error);
@@ -236,6 +187,7 @@ export default function DetailsScreens({ navigation, route }: any) {
       setIsLoading(false);
     }
   };
+
   useEffect(() => {
     if (type) {
       GetIdByOrderFun();
@@ -259,6 +211,7 @@ export default function DetailsScreens({ navigation, route }: any) {
     setPickUpDataSave({
       setData: (data: any[]) => {
         console.log("Received pickup photo data:", data);
+        setAllSelectImage(data)
         if (data?.length > 0) {
           setComment(true);
         }
@@ -267,6 +220,7 @@ export default function DetailsScreens({ navigation, route }: any) {
     setDeliveyDataSave({
       setData: (data: any[]) => {
         console.log("📦 Received delivery photo data:", data);
+        setAllSelectImage(data)
         if (data?.length > 0) {
           setComment(true);
         }
@@ -278,6 +232,7 @@ export default function DetailsScreens({ navigation, route }: any) {
       setDeliveyDataSave(null);
     };
   }, [Focused]);
+
   const openCamera = async () => {
     try {
       const { granted } = await ImagePicker.requestCameraPermissionsAsync();
@@ -451,9 +406,7 @@ export default function DetailsScreens({ navigation, route }: any) {
       formData.append("user_id", UserData?.user?.id);
       formData.append("order_comment", comment?.trim());
       formData.append("order_id", item?.id);
-      formData.append("item_id", "");
 
-      // ✅ Use passed data first, fallback to state
       const imagesToSend = data && data.length > 0 ? data : AllSelectImage;
 
       if (imagesToSend?.length == 0) {
@@ -467,18 +420,18 @@ export default function DetailsScreens({ navigation, route }: any) {
       }
 
       // ✅ Loop over `imagesToSend`, not `AllSelectImage`
-      for (const img of imagesToSend) {
-        const compressed: any = await ImageManipulator.manipulateAsync(
-          img.uri,
+      for (const uri of imagesToSend) {
+        const compressed = await ImageManipulator.manipulateAsync(
+          uri,
           [{ resize: { width: 800 } }],
           { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
         );
-
+      
         formData.append("doc[]", {
           uri: compressed.uri,
           name: `image_${Date.now()}.jpg`,
-          type: img.type || "image/jpeg",
-        } as any);
+          type: "image/jpeg",
+        });
       }
 
       let res: any = await axios.post(
@@ -490,13 +443,16 @@ export default function DetailsScreens({ navigation, route }: any) {
       );
 
       if (Boolean(res?.data.status)) {
-        await GetIdByOrderFun();
+        setPickUpDataSave([])
+        setDeliveyDataSave([])
+        setAllSelectImage([])
         setToast({
           top: 45,
           text: res?.data?.message,
           type: "success",
           visible: true,
         });
+        await GetIdByOrderFun();
       } else {
         setToast({
           top: 45,
@@ -543,7 +499,7 @@ export default function DetailsScreens({ navigation, route }: any) {
       .filter(
         (el: any) => Array.isArray(el?.tmsimgdata) && el.tmsimgdata.length > 0
       )
-      .flatMap((el: any) => el.tmsimgdata)
+      .flatMap((el: any) => el.tmsimgdata )
       .map((img: any) => ({
         uri: img?.shared_link
           ? getDirectDropboxLink(img.shared_link)
@@ -599,136 +555,12 @@ export default function DetailsScreens({ navigation, route }: any) {
       setIsLoading(false);
     }
   };
-  // const BackOrderFun = async (
-  //   comment: string = "",
-  //   images: any[] = [],
-  //   selectedItems: any[] = []
-  // ) => {
-  //   if (!selectedItems || selectedItems.length === 0) {
-  //     setToast({
-  //       top: 45,
-  //       text: "Please select at least 1 item!",
-  //       type: "error",
-  //       visible: true,
-  //     });
-  //     return;
-  //   }
-
-  //   setLableLoading(true);
-  //   try {
-  //     let formData: any = new FormData();
-
-  //     formData.append("token", token);
-  //     formData.append("role", UserData?.user?.role);
-  //     formData.append("relaties_id", UserData?.relaties?.id);
-  //     formData.append("user_id", UserData?.user?.id);
-  //     formData.append("order_id", ItemsData?.id || ItemsData?.order_data?.id);
-  //     formData.append("item_lable", "Backorder"); // or “Missed”
-  //     // formData.append("order_comment", comment?.trim());
-
-  //     // Append only explicitly selected item IDs
-  //     selectedItems.forEach((item) => {
-  //       formData.append("item_id[]", item.id);
-  //     });
-
-  //     let res: any = await axios.post(apiConstants.missed_backorder, formData, {
-  //       headers: { "Content-Type": "multipart/form-data" },
-  //     });
-  //     console.log("✅ Backorder response:", res.data);
-
-  //     if (res?.data?.status) {
-  //       console.log("res?.remaining_item",res?.data.remaining_item);
-
-  //       if (Number(res?.data.remaining_item) == 0) {
-
-  //         // only one button
-  //         setSecondModal({
-  //           visible: true,
-  //           title: "All Parcels Scanned Successfully!",
-  //           message: res?.data.remaining_item_message || "",
-  //           buttons: [
-  //             {
-  //               text: "Go to List Page",
-  //               type: "primary",
-  //               onPress: () => {
-  //                 setSecondModal((p: any) => ({ ...p, visible: false }));
-  //                 getSliderDataFun();
-  //               },
-  //             },
-  //           ],
-  //         });
-  //       } else {
-  //         // 2 buttons
-  //         setSecondModal({
-  //           visible: true,
-  //           title: "There are Parcels Remaining",
-  //           message: res?.data.remaining_item_message || "",
-  //           buttons: [
-  //             {
-  //               text: "No Parcel",
-  //               type: "secondary",
-  //               onPress: () => {
-  //                 setSecondModal((p: any) => ({ ...p, visible: false }));
-
-  //                 if (NoParcelOptions.length > 0) {
-  //                   setNoParcelModalVisible(true);
-  //                 } else {
-  //                   setToast({
-  //                     top: 45,
-  //                     text: t("All items are scanned!"),
-  //                     type: "info",
-  //                     visible: true,
-  //                   });
-  //                 }
-  //               },
-  //             },
-  //             {
-  //               text: "Open Scanner",
-  //               type: "primary",
-  //               onPress: () => {
-  //                 setSecondModal((p: any) => ({ ...p, visible: false }));
-  //                 // Clear previous scan data
-  //                 navigation.navigate("Scanner", {
-  //                   type: GloblyTypeSlide,
-  //                 });
-  //               },
-  //             },
-  //           ],
-  //         });
-  //       }
-  //       await GetIdByOrderFun();
-
-  //       setToast({
-  //         top: 45,
-  //         text: res?.data?.message,
-  //         type: "success",
-  //         visible: true,
-  //       });
-  //     } else {
-  //       setToast({
-  //         top: 45,
-  //         text: res?.data?.message,
-  //         type: "error",
-  //         visible: true,
-  //       });
-  //     }
-  //   } catch (error) {
-  //     console.log("BackOrderFun Error:", error);
-  //     setToast({
-  //       top: 45,
-  //       text: ErrorHandle(error).message,
-  //       type: "error",
-  //       visible: true,
-  //     });
-  //   } finally {
-  //     setLableLoading(false);
-  //   }
-  // };
+  
 
   const BackOrderFun = async (
     lable = "",
     comment: string = "",
-    images: any[] = [],
+    // images: any[] = [],
     selectedItems: any[] = []
   ) => {
     if (!selectedItems || selectedItems.length === 0) {
@@ -755,6 +587,8 @@ export default function DetailsScreens({ navigation, route }: any) {
       selectedItems.forEach((item) => {
         formData.append("item_id[]", item.id);
       });
+     
+
 
       let res: any = await axios.post(apiConstants.missed_backorder, formData, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -763,11 +597,11 @@ export default function DetailsScreens({ navigation, route }: any) {
       console.log("✅ Backorder response:", res.data);
 
       if (res?.data?.status) {
-        setNoParcelItemIds((prev) => [
+        await AddImageOrCommentFun(comment)
+        setNoParcelItemIds((prev: any) => [
           ...prev,
           ...selectedItems.map((item) => item.id),
         ]);
-
         console.log("res?.remaining_item", res?.data.remaining_item);
 
         if (Number(res?.data.remaining_item) == 0) {
@@ -853,7 +687,8 @@ export default function DetailsScreens({ navigation, route }: any) {
       setLableLoading(false);
     }
   };
-
+  
+  
   useEffect(() => {
     GetIdByOrderFun();
   }, [item, Focused]);
@@ -861,7 +696,7 @@ export default function DetailsScreens({ navigation, route }: any) {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor="white" />
-      <DetailsHeader title={t("Delivery")} Backbutton={BackButtonAvailble} />
+      <DetailsHeader title={t("Details")} Backbutton={BackButtonAvailble} />
       {DataLoading ? (
         <View style={styles.LoaderContainer}>
           <Loader />
@@ -922,10 +757,7 @@ export default function DetailsScreens({ navigation, route }: any) {
           />
 
           <MapsViewBox
-            onPress={() =>
-              // navigation.navigate("MapScreens", { data: ItemsData })
-              MapAppRedirectFun()
-            }
+            data={AllDestinationRegionData}
           />
 
           {PermissionData?.can_scan_order && (
@@ -1068,8 +900,8 @@ export default function DetailsScreens({ navigation, route }: any) {
             ItemsData?.tmsstatus?.status_name == "Scheduled"
               ? "Backorder"
               : "Missed",
-            commentText,
-            data,
+              commentText,
+
             itemsToSend
           );
         }}
@@ -1094,6 +926,8 @@ export default function DetailsScreens({ navigation, route }: any) {
         onPress={AlertModalOpen.onPress}
         Description={AlertModalOpen.Desctiption}
       />
+
+
       <NoParcelModal
         visible={NoParcelModalVisible}
         title={t("Select Missing Items")}
@@ -1152,6 +986,7 @@ export default function DetailsScreens({ navigation, route }: any) {
         }
         delivery_btn={ScannerModalOpen.delivery_btn}
       />{" "}
+
       {SecondModal?.visible && (
         <>
           <Modal

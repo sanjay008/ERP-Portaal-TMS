@@ -29,22 +29,7 @@ export default function LoadedScreens({ navigation, route}: any) {
   const [IsLoading, setLoading] = useState(false);
   const { t } = useTranslation();
   const Focused = useIsFocused();
-  // async function checkForUpdate() {
-  //   if (!Constants.appOwnership || Constants.appOwnership === "expo") {
-  //     console.log("Skipping OTA update check in development");
-  //     return;
-  //   }
 
-  //   try {
-  //     const update = await Updates.checkForUpdateAsync();
-  //     if (update.isAvailable) {
-  //       await Updates.fetchUpdateAsync();
-  //       await Updates.reloadAsync();
-  //     }
-  //   } catch (e) {
-  //     console.log("Error checking updates:", e);
-  //   }
-  // }
 
   const getUserData = async () => {
     try {
@@ -55,17 +40,14 @@ export default function LoadedScreens({ navigation, route}: any) {
     }
   };
   useEffect(() => {
-    // checkForUpdate();
+    
     if (UserData==null) {
       getUserData();
     }
   }, []);
 
   useEffect(() => {
-    // if (RenderingRef.current) {
-    //   RenderingRef.current = false;
-    //   return;
-    // }
+
 
     if (SelectDate && UserData) {
       setAllPickUpData([]);

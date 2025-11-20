@@ -25,6 +25,7 @@ import {
   CameraView,
   useCameraPermissions,
 } from "expo-camera";
+import * as ImageManipulator from "expo-image-manipulator";
 import { goBack } from "expo-router/build/global-state/routing";
 import React, {
   useCallback,
@@ -41,7 +42,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import DashedLine from "react-native-dashed-line";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -141,10 +142,14 @@ export default function ScannerScreens({ navigation, route }: any) {
     setSelectCurrentDate,
     PickUpDataSave,
     setPickUpDataSave,
+    DeliveyDataSave,
     setDeliveyDataSave,
     GloblyTypeSlide,
     NoParcelItemIds, // ✅ Same global state
     setNoParcelItemIds, // ✅ Same global setter
+    SelectDeliveryReason,
+    setSelectDeliveryReson,
+    OrderDeliveryMapingLableOption,setOrderDeliveryMapingLableOption
   } = useContext(GlobalContextData);
   const { t } = useTranslation();
   const { ErrorHandle } = useErrorHandle();
@@ -199,22 +204,22 @@ export default function ScannerScreens({ navigation, route }: any) {
       setData: (data: any[]) => {
         console.log("📸 Received pickup photo data:", data);
         if (data?.length > 0) {
+          setAllSelectImage(data);
           setComment(true);
         }
       },
     });
 
-    // ✅ Also set delivery handler
     setDeliveyDataSave({
       setData: (data: any[]) => {
         console.log("📦 Received delivery photo data:", data);
         if (data?.length > 0) {
+          setAllSelectImage(data);
           setComment(true);
         }
       },
     });
 
-    // Cleanup when scanner unmounts
     return () => {
       setPickUpDataSave(null);
       setDeliveyDataSave(null);
@@ -309,6 +314,7 @@ export default function ScannerScreens({ navigation, route }: any) {
       console.log("✅ Verify API Response:", res);
 
       if (Boolean(res?.status)) {
+        setOrderDeliveryMapingLableOption(res?.data?.order_label_mapping || []);
         setItemsData(res?.data?.order_data);
         const modalConfig: any = {
           visible: true,
@@ -317,7 +323,7 @@ export default function ScannerScreens({ navigation, route }: any) {
           // LButtonText: t("Cancel"),
           LButtonText:
             res?.data?.delivery_btn == 1 ? t("No delivery") : t("Cancel"),
-          RButtonText: res?.data?.btn_lable || t("Yes"),
+          RButtonText: res?.data?.btn_lable,
           RButtonStyle: Colors.primary,
           RColor: Colors.white,
           personData: res?.data?.order_data || [],
@@ -536,12 +542,106 @@ export default function ScannerScreens({ navigation, route }: any) {
     }
   };
 
+  const AddImageOrCommentFun = async (
+    comment: string = "",
+    data: any[] = []
+  ) => {
+    let id = ItemsData?.id || ItemsData?.order_data?.id;
+    setIsLoading(true);
+    try {
+      let formData: any = new FormData();
+
+      formData.append("token", token);
+      formData.append("role", UserData?.user?.role);
+      formData.append("relaties_id", UserData?.relaties?.id);
+      formData.append("user_id", UserData?.user?.id);
+      formData.append("order_comment", Description?.trim());
+      formData.append("order_id", id ? id : SelectPlace?.id);
+
+      const imagesToSend = data?.length > 0 ? data : AllSelectImage;
+
+      console.log("REquestDataFromImgeAndComment", formData);
+
+      if (imagesToSend?.length === 0) {
+        setToast({
+          top: 45,
+          text: t("Please image upload!"),
+          type: "error",
+          visible: true,
+        });
+        return;
+      }
+
+      for (const uri of imagesToSend) {
+        const compressed = await ImageManipulator.manipulateAsync(
+          uri,
+          [{ resize: { width: 800 } }],
+          { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+        );
+
+        const finalUri = compressed.uri.startsWith("file://")
+          ? compressed.uri
+          : "file://" + compressed.uri;
+
+        formData.append("doc[]", {
+          uri: finalUri,
+          name: `image_${Date.now()}.jpeg`,
+          type: "image/jpeg",
+        });
+      }
+
+      const res: any = await axios.post(
+        apiConstants.store_image_comment,
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+          transformRequest: (data) => data,
+        }
+      );
+
+      if (Boolean(res?.data.status)) {
+        // Alert.alert("success");
+        setAllSelectImage([]);
+        setPickUpDataSave([]);
+        setDeliveyDataSave([]);
+        setDescrition("");
+        setToast({
+          top: 45,
+          text: res?.data?.message,
+          type: "success",
+          visible: true,
+        });
+        await GetIdByOrderFun();
+      } else {
+        setToast({
+          top: 45,
+          text: res?.data?.message,
+          type: "error",
+          visible: true,
+        });
+      }
+    } catch (error) {
+      console.log("AddImageOrCommentFun Error:-", error);
+      setToast({
+        top: 45,
+        text: ErrorHandle(error).message,
+        type: "error",
+        visible: true,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const CommentFun = async () => {
     try {
       if (!Description.trim()) {
         setCommentError(t("Please enter a comment"));
         return;
       }
+
+      // console.log("data",AllSelectImage,Description);
+      // return
 
       if (!SelectPlace?.item_id || !SelectPlace?.order_id) {
         setToast({
@@ -555,11 +655,7 @@ export default function ScannerScreens({ navigation, route }: any) {
 
       if (isNoParcelFlow) {
         console.log("🟢 No Parcel flow detected → Calling BackOrderFun()");
-        await BackOrderFun(
-          Description,
-          [],
-          ConformationModalOpen?.ProductItem || []
-        );
+        await BackOrderFun(ConformationModalOpen?.ProductItem || []);
         setIsNoParcelFlow(false);
         setComment(false);
         return;
@@ -574,7 +670,9 @@ export default function ScannerScreens({ navigation, route }: any) {
         user_id: UserData?.user?.id,
         item_id: SelectPlace?.item_id,
         order_id: SelectPlace?.order_id,
-        comment: Description,
+        ...(SelectDeliveryReason !== null && {
+          delivered_lable_id: SelectDeliveryReason?.id,
+        }),
       };
 
       const res = await ApiService(apiConstants.status_update, {
@@ -582,6 +680,10 @@ export default function ScannerScreens({ navigation, route }: any) {
       });
 
       if (res?.status) {
+        await AddImageOrCommentFun();
+        if(SelectDeliveryReason!==null){
+          setSelectDeliveryReson(null)
+        }
         console.log("✅ Comment & Status updated successfully:", res);
 
         fun?.();
@@ -746,6 +848,7 @@ export default function ScannerScreens({ navigation, route }: any) {
           }));
 
         setNoParcelOptions(labelsForModal);
+
         return labelsForModal;
       } else {
         console.log("❌ API error:", res?.message);
@@ -757,11 +860,7 @@ export default function ScannerScreens({ navigation, route }: any) {
     }
   };
 
-  const BackOrderFun = async (
-    comment: string = "",
-    images: any[] = [],
-    selectedItems: any[] = []
-  ) => {
+  const BackOrderFun = async (selectedItems: any[] = []) => {
     if (!selectedItems || selectedItems.length === 0) {
       setToast({
         top: 45,
@@ -795,7 +894,7 @@ export default function ScannerScreens({ navigation, route }: any) {
       formData.append("order_id", SelectPlace.order_id);
       formData.append("item_lable", "Backorder");
 
-      selectedItems.forEach((item) => {
+      selectedItems?.forEach((item) => {
         formData.append("item_id[]", item.id);
       });
 
@@ -807,7 +906,10 @@ export default function ScannerScreens({ navigation, route }: any) {
 
       if (res?.data?.status) {
         // ✅ Add selected items to NoParcelItemIds
-        setNoParcelItemIds((prev) => [
+        if (AllSelectImage?.length > 0) {
+          await AddImageOrCommentFun();
+        }
+        setNoParcelItemIds((prev: any) => [
           ...prev,
           ...selectedItems.map((item) => item.id),
         ]);
@@ -940,6 +1042,7 @@ export default function ScannerScreens({ navigation, route }: any) {
     console.log("🔁 Refresh triggered!");
     setLastDetectedBarcode("");
   }, [route.params?.refreshTime]);
+
   return (
     <GestureHandlerRootView style={styles.container}>
       {/* <CameraView
@@ -999,7 +1102,7 @@ export default function ScannerScreens({ navigation, route }: any) {
               from: "Pickup",
             });
           } else {
-            ConformationModalOpen.onPress?.(); 
+            ConformationModalOpen.onPress?.();
           }
         }}
         ProductItem={ConformationModalOpen?.ProductItem}
@@ -1032,8 +1135,9 @@ export default function ScannerScreens({ navigation, route }: any) {
       <BottomSheet snapPoints={["15%", "90%"]} ref={bottomSheetRef}>
         <BottomSheetView style={styles.contentContainer}>
           <BottomSheetFlatList
-            style={{ width: width, margin: 0 }}
+            style={{ width: width }}
             data={AllScanedData}
+            nestedScrollEnabled={true}
             ListFooterComponent={() =>
               DataLoader && (
                 <View style={styles.ListFooterContainer}>
@@ -1049,24 +1153,26 @@ export default function ScannerScreens({ navigation, route }: any) {
               )
             }
             keyExtractor={(item: any, index: number) => `${index}`}
-            renderItem={({ item, index }: any) => (
+            renderItem={({ item, index }: { item: any; index: number }) => (
               <PickUpBox
                 index={index}
+                AllisCollapsed={true}
+                downButton={true}
                 LableStatus={item?.tmsstatus?.status_name}
                 OrderId={item?.id}
                 ProductItem={item?.items}
                 LableBackground={item?.tmsstatus?.color}
-                // onPress={() => navigation.navigate("Details", { item: item })}
                 start={item?.pickup_location}
                 end={item?.deliver_location}
                 customerData={item?.customer}
                 statusData={item?.tmsstatus}
-                // data={item}
-                // StatusIcon={item?.tmsstatus?.shared_link}
                 LacationProgress={false}
               />
             )}
-            contentContainerStyle={styles.contentContainer}
+            contentContainerStyle={[
+              styles.contentContainer,
+              { paddingBottom: 50 },
+            ]}
           />
         </BottomSheetView>
       </BottomSheet>
@@ -1263,8 +1369,11 @@ export default function ScannerScreens({ navigation, route }: any) {
                     >
                       <Text
                         style={{
-                          color: btn.type === "primary" ? Colors.white : Colors.black,
-                         fontFamily:"Medium"
+                          color:
+                            btn.type === "primary"
+                              ? Colors.white
+                              : Colors.black,
+                          fontFamily: "Medium",
                         }}
                       >
                         {btn.text}
@@ -1305,7 +1414,8 @@ const styles = StyleSheet.create({
     tintColor: Colors.white,
   },
   contentContainer: {
-    flex: 1,
+    // flex: 1,
+    width: "100%",
     padding: 15,
     alignItems: "center",
     gap: 10,

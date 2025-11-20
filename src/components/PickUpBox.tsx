@@ -60,10 +60,6 @@ export default function PickUpBox({
     const WhatsaapRedirectFun = async (type: number) => {
       try {
         let countryCode = customerData?.country_code || "";
-        if (!countryCode.startsWith("+")) {
-          countryCode = `+${countryCode}`;
-        }
-
         const phoneNumber = `${countryCode}${customerData?.mobiel || ""}`;
         const message = t("Hello! This is a test message.");
         let url = "";
@@ -222,9 +218,9 @@ useEffect(()=>{
               <Image source={Images.WhatsApp} style={styles.Icon} />
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={() => WhatsaapRedirectFun(2)}>
+            {/* <TouchableOpacity onPress={() => WhatsaapRedirectFun(2)}>
               <Image source={Images.redWhatsApp} style={styles.Icon} />
-            </TouchableOpacity>
+            </TouchableOpacity> */}
           </View>
         </View>
       )}

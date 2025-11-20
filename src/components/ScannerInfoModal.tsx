@@ -1,5 +1,5 @@
 import { useNavigation } from "@react-navigation/native";
-import React, { useContext, useState, useEffect } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FlatList,
@@ -13,12 +13,12 @@ import Collapsible from "react-native-collapsible";
 import DashedLine from "react-native-dashed-line";
 import Modal from "react-native-modal";
 import { Images } from "../assets/images";
+import { GlobalContextData } from "../context/GlobalContext";
 import { Colors } from "../utils/colors";
 import { SimpleFlex } from "../utils/storeData";
+import ConformationModal from "./ConformationModal";
 import { getDirectDropboxLink } from "./DropBoxUrlGet";
 import ParcelBox from "./ParcelBox";
-import { GlobalContextData } from "../context/GlobalContext";
-import ConformationModal from "./ConformationModal";
 
 type Props = {
   style?: object;
@@ -99,6 +99,8 @@ export default function ScannerInfoModal({
     setDeliveyDataSave,
     GloblyTypeSlide,
     setGloblyTypeSlide,
+    SelectDeliveryReason,setSelectDeliveryReson,
+    OrderDeliveryMapingLableOption,setOrderDeliveryMapingLableOption
   } = useContext(GlobalContextData);
 
   const deliveredAtOptions = [
@@ -119,7 +121,7 @@ export default function ScannerInfoModal({
   }, [AlertModalOpen.visible]);
 const handleOptionSelect = (item) => {
   console.log("Selected option:", item);
-
+setSelectDeliveryReson(item)
   setShowReasonList(false);
   setShowDeliveredAtList(false);
 
@@ -268,9 +270,9 @@ const handleOptionSelect = (item) => {
           {/* --- Reason Options --- */}
           {showReasonList && (
             <View style={styles.optionContainer}>
-              {reasonOptions.map((item) => (
+              {OrderDeliveryMapingLableOption?.not_delivery?.map((item:any) => (
                 <TouchableOpacity key={item.id} style={styles.ReasonButton} onPress={() => handleOptionSelect(item)}>
-                  <Text style={styles.ReasonText}>{item.label}</Text>
+                  <Text style={styles.ReasonText}>{item.title}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -279,9 +281,9 @@ const handleOptionSelect = (item) => {
           {/* --- Delivered at Options --- */}
           {showDeliveredAtList && (
             <View style={styles.optionContainer}>
-              {deliveredAtOptions.map((item) => (
+              {OrderDeliveryMapingLableOption?.delivery?.map((item:any) => (
                 <TouchableOpacity key={item.id} style={styles.ReasonButton} onPress={() => handleOptionSelect(item)}>
-                  <Text style={styles.ReasonText}>{item.label}</Text>
+                  <Text style={styles.ReasonText}>{item.title}</Text>
                 </TouchableOpacity>
               ))}
             </View>

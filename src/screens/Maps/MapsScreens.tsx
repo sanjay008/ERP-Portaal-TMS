@@ -9,7 +9,7 @@ import { Colors } from "@/src/utils/colors";
 import { SimpleFlex, token } from "@/src/utils/storeData";
 import { useIsFocused } from "@react-navigation/native";
 import * as Location from "expo-location";
-import React, { useContext, useEffect, useRef, useState } from "react";
+import React, { useContext, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Alert,
@@ -270,12 +270,12 @@ const MapAppRedirectFun = async () => {
     }
   };
 
-  useEffect(() => {
-    if(IsFocused && SelectActiveDate){
-      getCurrentLocationFun();
-      GetLocationData();
-    }
-  }, [SelectActiveDate]);
+  // useEffect(() => {
+  //   if(IsFocused && SelectActiveDate){
+  //     getCurrentLocationFun();
+  //     GetLocationData();
+  //   }
+  // }, [SelectActiveDate]);
 
   return (
     <SafeAreaView style={styles.container}>

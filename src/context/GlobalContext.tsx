@@ -12,6 +12,7 @@ export default function GlobalContext({ children }: any) {
   const [DeliveyDataSave,setDeliveyDataSave] = useState<any>(null);
     const[PickUpDataSave,setPickUpDataSave] = useState<any>(null);
   const [NoParcelItemIds, setNoParcelItemIds] = useState<number[]>([]);
+  const [SelectDeliveryReason,setSelectDeliveryReson] = useState(null);
   const [Toast, setToast] = useState({
     visible: false,
     text: "",
@@ -23,6 +24,7 @@ export default function GlobalContext({ children }: any) {
   const [GloblyTypeSlide,setGloblyTypeSlide] = useState("");
   const [SelectActiveRegionData,setSelectActiveRegionData] = useState<any>(null);
   const [SelectActiveDate,setSelectActiveDate] = useState<any>(null);
+  const [OrderDeliveryMapingLableOption,setOrderDeliveryMapingLableOption] = useState(null);
   return (
     <GlobalContextData.Provider
       value={{
@@ -41,6 +43,8 @@ export default function GlobalContext({ children }: any) {
         NoParcelItemIds,setNoParcelItemIds,
         SelectActiveRegionData,setSelectActiveRegionData,
         SelectActiveDate,setSelectActiveDate,
+        SelectDeliveryReason,setSelectDeliveryReson,
+        OrderDeliveryMapingLableOption,setOrderDeliveryMapingLableOption,
       }}
     >
       {children}

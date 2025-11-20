@@ -22,7 +22,7 @@ export default function PickupPogressMap({ start = "", end = "" , DeliveryLable=
             dashLength={4}
             dashThickness={2}
             dashGap={4}
-            style={{ height: 50 }}
+            style={{ height: 80 }}
             axis="vertical"
             dashColor={Colors.black}
           />
