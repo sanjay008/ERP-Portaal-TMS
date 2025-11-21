@@ -33,7 +33,7 @@ import {
   ScrollView,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import Modal from "react-native-modal";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -68,6 +68,7 @@ export default function DetailsScreens({ navigation, route }: any) {
   const [NoParcelOptions, setNoParcelOptions] = useState<any[]>([]);
   const [AllSlideData, setAllSlideData] = useState([]);
   const [SelectedNoParcelItems, setSelectedNoParcelItems] = useState<any[]>([]);
+  const [LocationDataMessage, setLocationDataMessage] = useState(null);
   const [AllDestinationRegionData, setAllDestinationRegionData] = useState<
     any[]
   >([]);
@@ -126,8 +127,6 @@ export default function DetailsScreens({ navigation, route }: any) {
     buttons: [],
   });
 
-  
-
   const GetLocationData = async () => {
     setIsLoading(true);
     if (SelectActiveRegionData == null) {
@@ -139,15 +138,14 @@ export default function DetailsScreens({ navigation, route }: any) {
       });
       return;
     }
-    console.log("REkmegjerg",{
+    console.log("REkmegjerg", {
       token: token,
       role: UserData?.user?.role,
       relaties_id: UserData?.relaties?.id,
       user_id: UserData?.user?.id,
       region_id: SelectActiveRegionData?.id,
       date: ApiFormatDate(SelectActiveDate),
-    },);
-    
+    });
 
     try {
       let res = await ApiService(apiConstants.get_location_by_region_date, {
@@ -174,12 +172,19 @@ export default function DetailsScreens({ navigation, route }: any) {
           ...orders,
           { ...baseLocation },
         ]);
+      }else {
+        setLocationDataMessage(res?.message || null);
       }
-    } catch (error) {
-      console.log("Get Locations Data Error:-", error);
+    } catch (error:any) {
+      const msg =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Something went wrong";
+
+      
       setToast({
         top: 45,
-        text: ErrorHandle(error)?.message || "Something went wrong",
+        text: msg ?? ErrorHandle(error)?.message ?? "Something went wrong",
         type: "error",
         visible: true,
       });
@@ -202,16 +207,15 @@ export default function DetailsScreens({ navigation, route }: any) {
     if (!IsFocused) return;
     if (!SelectActiveDate) return;
     if (!SelectActiveRegionData) return;
-    if (AllDestinationRegionData?.length == 0) {
-      GetLocationData();
-    }
+
+    GetLocationData();
   }, [IsFocused, SelectActiveDate, SelectActiveRegionData]);
 
   useEffect(() => {
     setPickUpDataSave({
       setData: (data: any[]) => {
         console.log("Received pickup photo data:", data);
-        setAllSelectImage(data)
+        setAllSelectImage(data);
         if (data?.length > 0) {
           setComment(true);
         }
@@ -220,7 +224,7 @@ export default function DetailsScreens({ navigation, route }: any) {
     setDeliveyDataSave({
       setData: (data: any[]) => {
         console.log("📦 Received delivery photo data:", data);
-        setAllSelectImage(data)
+        setAllSelectImage(data);
         if (data?.length > 0) {
           setComment(true);
         }
@@ -426,7 +430,7 @@ export default function DetailsScreens({ navigation, route }: any) {
           [{ resize: { width: 800 } }],
           { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
         );
-      
+
         formData.append("doc[]", {
           uri: compressed.uri,
           name: `image_${Date.now()}.jpg`,
@@ -443,9 +447,9 @@ export default function DetailsScreens({ navigation, route }: any) {
       );
 
       if (Boolean(res?.data.status)) {
-        setPickUpDataSave([])
-        setDeliveyDataSave([])
-        setAllSelectImage([])
+        setPickUpDataSave([]);
+        setDeliveyDataSave([]);
+        setAllSelectImage([]);
         setToast({
           top: 45,
           text: res?.data?.message,
@@ -499,7 +503,7 @@ export default function DetailsScreens({ navigation, route }: any) {
       .filter(
         (el: any) => Array.isArray(el?.tmsimgdata) && el.tmsimgdata.length > 0
       )
-      .flatMap((el: any) => el.tmsimgdata )
+      .flatMap((el: any) => el.tmsimgdata)
       .map((img: any) => ({
         uri: img?.shared_link
           ? getDirectDropboxLink(img.shared_link)
@@ -555,7 +559,6 @@ export default function DetailsScreens({ navigation, route }: any) {
       setIsLoading(false);
     }
   };
-  
 
   const BackOrderFun = async (
     lable = "",
@@ -587,8 +590,6 @@ export default function DetailsScreens({ navigation, route }: any) {
       selectedItems.forEach((item) => {
         formData.append("item_id[]", item.id);
       });
-     
-
 
       let res: any = await axios.post(apiConstants.missed_backorder, formData, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -597,7 +598,7 @@ export default function DetailsScreens({ navigation, route }: any) {
       console.log("✅ Backorder response:", res.data);
 
       if (res?.data?.status) {
-        await AddImageOrCommentFun(comment)
+        await AddImageOrCommentFun(comment);
         setNoParcelItemIds((prev: any) => [
           ...prev,
           ...selectedItems.map((item) => item.id),
@@ -687,8 +688,7 @@ export default function DetailsScreens({ navigation, route }: any) {
       setLableLoading(false);
     }
   };
-  
-  
+
   useEffect(() => {
     GetIdByOrderFun();
   }, [item, Focused]);
@@ -756,9 +756,7 @@ export default function DetailsScreens({ navigation, route }: any) {
             contact={true}
           />
 
-          <MapsViewBox
-            data={AllDestinationRegionData}
-          />
+          <MapsViewBox data={AllDestinationRegionData} msg={LocationDataMessage}/>
 
           {PermissionData?.can_scan_order && (
             <View style={styles.Flex}>
@@ -900,7 +898,7 @@ export default function DetailsScreens({ navigation, route }: any) {
             ItemsData?.tmsstatus?.status_name == "Scheduled"
               ? "Backorder"
               : "Missed",
-              commentText,
+            commentText,
 
             itemsToSend
           );
@@ -926,8 +924,6 @@ export default function DetailsScreens({ navigation, route }: any) {
         onPress={AlertModalOpen.onPress}
         Description={AlertModalOpen.Desctiption}
       />
-
-
       <NoParcelModal
         visible={NoParcelModalVisible}
         title={t("Select Missing Items")}
@@ -986,7 +982,6 @@ export default function DetailsScreens({ navigation, route }: any) {
         }
         delivery_btn={ScannerModalOpen.delivery_btn}
       />{" "}
-
       {SecondModal?.visible && (
         <>
           <Modal

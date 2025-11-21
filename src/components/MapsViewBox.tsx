@@ -1,5 +1,5 @@
 import * as Location from "expo-location";
-import React, { useContext } from "react";
+import React, { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Image, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Images } from "../assets/images";
@@ -7,12 +7,14 @@ import { GlobalContextData } from "../context/GlobalContext";
 import { Colors } from "../utils/colors";
 import { width } from "../utils/storeData";
 import { useErrorHandle } from "./ErrorHandle";
+import LoadingModal from "./LoadingModal";
 type MapsData = {
   data?: string[] | any,
   onPress?: () => void,
+  msg?:any | string,
 }
 
-export default function MapsViewBox({ data, onPress }: MapsData) {
+export default function MapsViewBox({ data, onPress ,msg = null}: MapsData) {
   const { t } = useTranslation();
   const {
     UserData,
@@ -24,12 +26,12 @@ export default function MapsViewBox({ data, onPress }: MapsData) {
 
   } = useContext(GlobalContextData);
   const { ErrorHandle } = useErrorHandle();
-
+  const [IsLoading,setIsLoading] = useState(false)
   const MapAppRedirectFun = async () => {
     if (data?.length === 0) {
       setToast({
         top: 45,
-        text: t("No Location Found"),
+        text: t(msg),
         type: "error",
         visible: true,
       });
@@ -37,6 +39,7 @@ export default function MapsViewBox({ data, onPress }: MapsData) {
     }
 
     try {
+      setIsLoading(true)
       let coordsArray = [...data];
 
       if (!coordsArray.length) return;
@@ -78,6 +81,9 @@ export default function MapsViewBox({ data, onPress }: MapsData) {
         visible: true,
       });
     }
+    finally{
+      setIsLoading(false)
+    }
   };
   return (
     <View style={styles.container}>
@@ -85,6 +91,10 @@ export default function MapsViewBox({ data, onPress }: MapsData) {
       <TouchableOpacity style={styles.Button} onPress={()=>MapAppRedirectFun()}>
         <Text style={styles.Text}>{t("Start")}</Text>
       </TouchableOpacity>
+         <LoadingModal
+        visible={IsLoading}
+        message={t("Please wait…")}
+      />
     </View>
   );
 }
