@@ -34,7 +34,7 @@ interface NoParcelModal {
   personData?: object[] | any;
   OrderId?: number;
 }
-
+// !NoParcelItemIds.includes(item.id)
 const NoParcelModal: React.FC<NoParcelModal> = ({
   visible,
   title,

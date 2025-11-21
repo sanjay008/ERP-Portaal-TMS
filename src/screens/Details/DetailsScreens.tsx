@@ -172,16 +172,15 @@ export default function DetailsScreens({ navigation, route }: any) {
           ...orders,
           { ...baseLocation },
         ]);
-      }else {
+      } else {
         setLocationDataMessage(res?.message || null);
       }
-    } catch (error:any) {
+    } catch (error: any) {
       const msg =
         error?.response?.data?.message ||
         error?.message ||
         "Something went wrong";
 
-      
       setToast({
         top: 45,
         text: msg ?? ErrorHandle(error)?.message ?? "Something went wrong",
@@ -370,7 +369,9 @@ export default function DetailsScreens({ navigation, route }: any) {
         const labelsForModal = res.data.items
           .filter(
             (item: any) =>
-              Number(item.scan_qty) === 0 && !NoParcelItemIds.includes(item.id) // 🔹 આ line add કરો
+              Number(item.scan_qty) === 0 &&
+              !NoParcelItemIds.includes(item.id) &&
+              item?.tmslabel == null
           )
           .map((item: any) => ({
             id: item.id,
@@ -378,6 +379,7 @@ export default function DetailsScreens({ navigation, route }: any) {
           }));
 
         setNoParcelOptions(labelsForModal);
+
       } else {
         setToast({
           top: 45,
@@ -756,7 +758,10 @@ export default function DetailsScreens({ navigation, route }: any) {
             contact={true}
           />
 
-          <MapsViewBox data={AllDestinationRegionData} msg={LocationDataMessage}/>
+          <MapsViewBox
+            data={AllDestinationRegionData}
+            msg={LocationDataMessage}
+          />
 
           {PermissionData?.can_scan_order && (
             <View style={styles.Flex}>

@@ -149,7 +149,8 @@ export default function ScannerScreens({ navigation, route }: any) {
     setNoParcelItemIds, // ✅ Same global setter
     SelectDeliveryReason,
     setSelectDeliveryReson,
-    OrderDeliveryMapingLableOption,setOrderDeliveryMapingLableOption
+    OrderDeliveryMapingLableOption,
+    setOrderDeliveryMapingLableOption,
   } = useContext(GlobalContextData);
   const { t } = useTranslation();
   const { ErrorHandle } = useErrorHandle();
@@ -681,8 +682,8 @@ export default function ScannerScreens({ navigation, route }: any) {
 
       if (res?.status) {
         await AddImageOrCommentFun();
-        if(SelectDeliveryReason!==null){
-          setSelectDeliveryReson(null)
+        if (SelectDeliveryReason !== null) {
+          setSelectDeliveryReson(null);
         }
         console.log("✅ Comment & Status updated successfully:", res);
 
@@ -840,13 +841,25 @@ export default function ScannerScreens({ navigation, route }: any) {
         setItemsData(res?.data);
         console.log("response-=-=-", res?.data);
 
+        // const labelsForModal = res.data.items
+        //   .filter((item: any) => Number(item.scan_qty) === 0)
+        //   .map((item: any) => ({
+        //     id: item.id,
+        //     label: item.tms_product_name || `Item ${item.id}`,
+        //   }));
+
+        // setNoParcelOptions(labelsForModal);
         const labelsForModal = res.data.items
-          .filter((item: any) => Number(item.scan_qty) === 0)
+          .filter(
+            (item: any) =>
+              Number(item.scan_qty) === 0 && item?.item_label == null
+          )
           .map((item: any) => ({
             id: item.id,
             label: item.tms_product_name || `Item ${item.id}`,
           }));
-
+          console.log("labelsForModal",labelsForModal);
+          
         setNoParcelOptions(labelsForModal);
 
         return labelsForModal;
