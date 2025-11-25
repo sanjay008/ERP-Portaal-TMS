@@ -162,9 +162,10 @@ export default function FilterScreen({ navigation, route }: any) {
               setValue={setSelectRegionData}
               labelFieldKey="name"
               valueFieldKey="id"
-              ContainerStyle={{ flex: ScanBTNAvailble ? 1 / 1.05 : 1 }}
+              // ContainerStyle={{ flex: ScanBTNAvailble ? 1 / 1.05 : 1 }}
+              ContainerStyle={{ flex:  1 / 1.05  }}
             />
-            {ScanBTNAvailble && (
+            {/* {ScanBTNAvailble && (
               <TwoTypeButton
                 onlyIcon={true}
                 Icon={Images.Scan}
@@ -176,7 +177,18 @@ export default function FilterScreen({ navigation, route }: any) {
                   })
                 }
               />
-            )}
+            )} */}
+                <TwoTypeButton
+                onlyIcon={true}
+                Icon={Images.Scan}
+                style={{ width: 46, height: 46 }}
+                onPress={() =>
+                  navigation.navigate("Scanner", {
+                    fun: getFilterDataFun,
+                    type: !ScanBTNAvailble ? "allow_all_order" : SlideType,
+                  })
+                }
+              />
           </View>
 
           {selectRegionData && AllFilterData?.length > 0 ? (

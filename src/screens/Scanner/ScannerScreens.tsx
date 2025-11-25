@@ -106,7 +106,7 @@ export default function ScannerScreens({ navigation, route }: any) {
     null
   );
   const [NoParcelModalVisible, setNoParcelModalVisible] = useState(false);
-  const [NoParcelOptions, setNoParcelOptions] = useState<OptionItem[]>([]);
+  const [NoParcelOptions, setNoParcelOptions] = useState<any []>([]);
   const cameraRef = useRef(null);
   const bottomSheetRef = useRef<BottomSheet>(null);
   const [ScannerModalOpen, setScannerModalOpen] = useState<{
@@ -294,7 +294,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         item_id: data?.item_id,
         order_id: data?.order_id,
         date: ApiFormatDate(SelectCurrentDate),
-        type: type,
+        type: type
       };
 
       if (!payload.item_id || !payload.order_id) {
