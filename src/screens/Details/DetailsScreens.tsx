@@ -715,7 +715,8 @@ export default function DetailsScreens({ navigation, route }: any) {
         >
           {PermissionData?.can_scan_order && (
             <View style={styles.Flex}>
-              <TouchableOpacity
+              <View />
+              {/* <TouchableOpacity
                 style={[styles.BackButton]}
                 onPress={() =>
                   BackOrderFun(
@@ -730,7 +731,7 @@ export default function DetailsScreens({ navigation, route }: any) {
                     ? t("Back Order")
                     : t("Missing")}
                 </Text>
-              </TouchableOpacity>
+              </TouchableOpacity> */}
               <TwoTypeButton
                 onlyIcon={true}
                 Icon={Images.Scan}

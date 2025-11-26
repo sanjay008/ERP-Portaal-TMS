@@ -88,6 +88,8 @@ export const Images = {
   refresh: require("./image/refresh.png"),
   Home: require("./image/home.png"),
   NoParcel: require("./image/NoParcel.png"),
+  LocationIcon: require("./image/location.png"),
+
   
 
 

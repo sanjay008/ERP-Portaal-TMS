@@ -18,17 +18,18 @@ import SelectLanguage from "@/src/screens/selectionLan/Selectionlan";
 import SplashScreens from "@/src/screens/SplashScreens/SplashScreens";
 import i18n from "@/src/screens/Translation/i18n";
 import WebViewScreeens from "@/src/screens/WebView/WebViewScreeens";
+import { Colors } from "@/src/utils/colors";
 import NetInfo from "@react-native-community/netinfo";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import React, { useEffect, useState } from "react";
 import { I18nextProvider } from "react-i18next";
+import changeNavigationBarColor from 'react-native-navigation-bar-color';
 import { MenuProvider } from "react-native-popup-menu";
 import OnBoarding from "../src/screens/onbording";
 import Otp from "../src/screens/otp";
 import Password from "../src/screens/password";
 import Register from "../src/screens/register";
 import Staff from "../src/screens/staff";
-
 export default function index() {
   const Stack = createNativeStackNavigator();
   const [isConnected, setIsConnected] = useState<boolean>(true);
@@ -37,9 +38,18 @@ export default function index() {
     const unsubscribe = NetInfo.addEventListener((state: any) => {
       setIsConnected(state.isConnected);
     });
-
+    navigationBackground();
     return () => unsubscribe();
   }, []);
+
+  const navigationBackground = async () => {
+    try {
+      const response = await changeNavigationBarColor(Colors.white);
+      console.log(response);
+    } catch (e) {
+      console.log(e); 
+    }
+  };
 
   const withLayoutHeader =
     (Component: React.ComponentType<any>) => (props: any) =>

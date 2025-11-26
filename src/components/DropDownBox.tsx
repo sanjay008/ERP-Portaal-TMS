@@ -71,7 +71,7 @@ const DropDownBox: React.FC<Props> = ({
         }}
         renderLeftIcon={() => (
           <Image
-            source={Images.location}
+            source={Images.LocationIcon}
             style={{ width: 22, height: 22, marginRight: 10 }}
           />
         )}
