@@ -2,7 +2,7 @@
   "expo": {
     "name": "ERP Portaal TMS Driver",
     "slug": "erp-portaal-tms-driver",
-    "version": "25.11.21",
+    "version": "25.11.24",
     "jsEngine": "hermes",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -13,16 +13,26 @@
       "config": {
         "googleMapsApiKey": "AIzaSyBZQz7G7yJ_DSSpUBs0XbVjSKHSf_HbCqQ"
       },
+      "infoPlist": {
+        "UIViewControllerBasedStatusBarAppearance": true
+      },
       "supportsTablet": true,
       "bundleIdentifier": "com.erpportaal.ERP-Portaal-TMS-Driver"
     },
     "android": {
       "allowBackup": false,
+      "versionCode": 1,
       "hardwareAccelerated": true,
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyBZQz7G7yJ_DSSpUBs0XbVjSKHSf_HbCqQ"
         }
+      },
+      "env": {
+          "EXPO_ANDROID_KEYSTORE": "@EXPO_ANDROID_KEYSTORE",
+          "EXPO_ANDROID_KEYSTORE_PASSWORD": "@EXPO_ANDROID_KEYSTORE_PASSWORD",
+          "EXPO_ANDROID_KEYSTORE_ALIAS": "erp_tms_driver",
+          "EXPO_ANDROID_KEYSTORE_ALIAS_PASSWORD": "@EXPO_ANDROID_KEYSTORE_ALIAS_PASSWORD"
       },
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",

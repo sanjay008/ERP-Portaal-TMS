@@ -19,8 +19,16 @@ type ArrayProps = {
 };
 
 export default function Profile({ navigation }: any) {
-  const { UserData, setUserData, Toast, setToast, CompanysData, setPermission,SelectLanguage,setSelectLanguage} =
-    useContext(GlobalContextData);
+  const {
+    UserData,
+    setUserData,
+    Toast,
+    setToast,
+    CompanysData,
+    setPermission,
+    SelectLanguage,
+    setSelectLanguage,
+  } = useContext(GlobalContextData);
   const [CurrentVersion, setCurrentVersion] = useState<number>(1);
   const [AlertModalOpen, setAlerModalOpen] = useState<any>({
     visible: false,
@@ -41,11 +49,10 @@ export default function Profile({ navigation }: any) {
   const { t } = useTranslation();
 
   const retrieveAppVersion = async () => {
+
     try {
       const version =
-        Constants.expoConfig?.version ||
-        Constants.manifest?.version ||
-        "Beta";
+        Constants.expoConfig?.version || Constants.manifest?.version || "Beta";
       setCurrentVersion(version);
     } catch (error) {
       console.error("Error retrieving app version:", error);
@@ -65,10 +72,10 @@ export default function Profile({ navigation }: any) {
       RColor: Colors.white,
       onPress: async () => {
         await AsyncStorage.clear();
-        console.log("UserData",UserData);
-        setUserData(null)
+        console.log("UserData", UserData);
+        setUserData(null);
         setPermission([]);
-        await storeData("userLanguage",SelectLanguage);
+        await storeData("userLanguage", SelectLanguage);
         navigation?.replace("OnBoarding");
       },
     });
@@ -146,7 +153,7 @@ export default function Profile({ navigation }: any) {
       onPress: () => OnLogOutFun(),
     },
   ];
- 
+
   useEffect(() => {
     retrieveAppVersion();
   }, []);
@@ -159,7 +166,12 @@ export default function Profile({ navigation }: any) {
           style={styles.UserImage}
         />
         <View style={{ gap: 5 }}>
-          <Text style={styles.Text}>{UserData?.user?.username}</Text>
+          <Text style={styles.Text}>
+            {UserData?.user?.username?.length > 0
+              ? UserData.user.username
+              : UserData?.relaties?.display_name || ""}
+          </Text>
+
           <Text style={styles.darkText}>{CompanysData}</Text>
         </View>
       </View>

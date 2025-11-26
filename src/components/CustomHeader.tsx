@@ -36,7 +36,9 @@ export default function CustomHeader() {
         ) : (
           <Image source={Images.userblanck} style={styles.DriverImage} />
         )}
-        <Text style={styles.menuText}>{UserData?.user?.username}</Text>
+        <Text style={styles.menuText}>{UserData?.user?.username?.length > 0
+              ? UserData.user.username
+              : UserData?.relaties?.display_name || ""}</Text>
       </View>
     </View>
   );
