@@ -91,7 +91,11 @@ export default function HomeScreens({ navigation, route }: any) {
               ]}
               onPress={() =>{
                 setGloblyTypeSlide(item?.type)
-                navigation.navigate("FilterScreen", { item: item })
+                if(item?.type == "outbound_scan"){
+                  navigation.navigate("Scanner", { item: item })
+                }else{
+                  navigation.navigate("FilterScreen", { item: item })
+                }
               }
               }
             >

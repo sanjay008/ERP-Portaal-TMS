@@ -293,8 +293,8 @@ export default function ScannerScreens({ navigation, route }: any) {
         user_id: UserData?.user?.id,
         item_id: data?.item_id,
         order_id: data?.order_id,
-        date: ApiFormatDate(SelectCurrentDate),
-        type: type
+        date: GloblyTypeSlide == "outbound_scan" ?  ApiFormatDate(new Date()) : ApiFormatDate(SelectCurrentDate),
+        type: type ?? GloblyTypeSlide
       };
 
       if (!payload.item_id || !payload.order_id) {
@@ -385,6 +385,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         user_id: UserData?.user?.id,
         item_id: data?.item_id,
         order_id: data?.order_id,
+        type:type ?? GloblyTypeSlide
       };
 
       if (!payload.item_id || !payload.order_id) {
