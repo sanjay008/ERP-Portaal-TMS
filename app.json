@@ -18,7 +18,7 @@
         "ITSAppUsesNonExemptEncryption": false
       },
       "supportsTablet": true,
-      "bundleIdentifier": "com.erpportaal.ERP-Portaal-TMS-Driver"
+      "bundleIdentifier": "com.erptmsdriver.app"
     },
     "android": {
       "allowBackup": false,

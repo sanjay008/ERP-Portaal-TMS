@@ -262,7 +262,7 @@ export default function ScannerInfoModal({
                     )}
 
                     {/* Delivery Details (only when NOT Scheduled) */}
-                    {OrderData?.order_data?.tmsstatus?.status_name !== "Scheduled" && (
+                    
                       <>
 
                         <View style={[styles.Flex, { marginTop: 15 }]}>
@@ -286,14 +286,14 @@ export default function ScannerInfoModal({
                           </Text>
                         </View>
                       </>
-                    )}
+                    
                   </>
                 )}
 
             </View>
           )}
           {
-            OrderData?.order_data?.tmsstatus?.status_name == "Scheduled" &&
+            [1, 2, 3].includes(OrderData?.order_data?.tmsstatus?.id) &&
             <View style={{ paddingHorizontal: 15, paddingVertical: 5, gap: 5 }}>
               <FlatList
                 data={OrderData?.order_data?.items || []}
@@ -312,10 +312,10 @@ export default function ScannerInfoModal({
                 )}
               />
               <View>
-                <Text style={styles.Text}>{t("Pickup Date")}: {OrderData?.order_data?.pickup_date}</Text>
+                <Text style={styles.Text}>{t("Date")}: {OrderData?.order_data?.tmsstatus?.id >= 3 ? OrderData?.order_data?.deliver_date  : OrderData?.order_data?.pickup_date}</Text>
               </View>
               <View>
-                <Text style={[styles.Text,]}>{t("Pickup Region")}: {OrderData?.order_data?.region_data?.name}</Text>
+                <Text style={[styles.Text,]}>{t("Region")}: {OrderData?.order_data?.region_data?.name}</Text>
               </View>
             </View>
             // pickup_date

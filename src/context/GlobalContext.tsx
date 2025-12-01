@@ -7,12 +7,13 @@ export default function GlobalContext({ children }: any) {
   const [GOOGLE_API_KEY, setGOOGLE_API_KEY] = useState<string>("");
   const [CompanyLogo, setCompanyLogo] = useState<any>(null);
   const [Permission, setPermission] = useState<any[]>([]);
-  const [SelectCurrentDate,setSelectCurrentDate] = useState();
+  const [SelectCurrentDate, setSelectCurrentDate] = useState();
   const [SelectLanguage, setSelectLanguage] = useState<string>("");
-  const [DeliveyDataSave,setDeliveyDataSave] = useState<any>(null);
-    const[PickUpDataSave,setPickUpDataSave] = useState<any>(null);
+  const [DeliveyDataSave, setDeliveyDataSave] = useState<any>(null);
+  const [PickUpDataSave, setPickUpDataSave] = useState<any>(null);
+  const [NoParcelDetailsScreenEvent, setNoParcelDetailsScreenEvent] = useState(false)
   const [NoParcelItemIds, setNoParcelItemIds] = useState<number[]>([]);
-  const [SelectDeliveryReason,setSelectDeliveryReson] = useState(null);
+  const [SelectDeliveryReason, setSelectDeliveryReson] = useState(null);
   const [Toast, setToast] = useState({
     visible: false,
     text: "",
@@ -21,10 +22,10 @@ export default function GlobalContext({ children }: any) {
   });
   const [AllRegion, setAllRegion] = useState<any[]>([]);
   const [CompanysData, setCompanysData] = useState<string>("");
-  const [GloblyTypeSlide,setGloblyTypeSlide] = useState("");
-  const [SelectActiveRegionData,setSelectActiveRegionData] = useState<any>(null);
-  const [SelectActiveDate,setSelectActiveDate] = useState<any>(null);
-  const [OrderDeliveryMapingLableOption,setOrderDeliveryMapingLableOption] = useState(null);
+  const [GloblyTypeSlide, setGloblyTypeSlide] = useState("");
+  const [SelectActiveRegionData, setSelectActiveRegionData] = useState<any>(null);
+  const [SelectActiveDate, setSelectActiveDate] = useState<any>(null);
+  const [OrderDeliveryMapingLableOption, setOrderDeliveryMapingLableOption] = useState(null);
   return (
     <GlobalContextData.Provider
       value={{
@@ -36,15 +37,16 @@ export default function GlobalContext({ children }: any) {
         Toast, setToast,
         AllRegion, setAllRegion,
         CompanysData, setCompanysData,
-        SelectCurrentDate,setSelectCurrentDate,
-        DeliveyDataSave,setDeliveyDataSave,
-        GloblyTypeSlide,setGloblyTypeSlide,
-        PickUpDataSave,setPickUpDataSave,
-        NoParcelItemIds,setNoParcelItemIds,
-        SelectActiveRegionData,setSelectActiveRegionData,
-        SelectActiveDate,setSelectActiveDate,
-        SelectDeliveryReason,setSelectDeliveryReson,
-        OrderDeliveryMapingLableOption,setOrderDeliveryMapingLableOption,
+        SelectCurrentDate, setSelectCurrentDate,
+        DeliveyDataSave, setDeliveyDataSave,
+        GloblyTypeSlide, setGloblyTypeSlide,
+        PickUpDataSave, setPickUpDataSave,
+        NoParcelItemIds, setNoParcelItemIds,
+        SelectActiveRegionData, setSelectActiveRegionData,
+        SelectActiveDate, setSelectActiveDate,
+        SelectDeliveryReason, setSelectDeliveryReson,
+        OrderDeliveryMapingLableOption, setOrderDeliveryMapingLableOption,
+        NoParcelDetailsScreenEvent, setNoParcelDetailsScreenEvent
       }}
     >
       {children}

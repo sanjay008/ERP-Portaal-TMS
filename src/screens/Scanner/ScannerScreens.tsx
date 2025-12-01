@@ -166,6 +166,7 @@ export default function ScannerScreens({ navigation, route }: any) {
     setSelectDeliveryReson,
     OrderDeliveryMapingLableOption,
     setOrderDeliveryMapingLableOption,
+    NoParcelDetailsScreenEvent, setNoParcelDetailsScreenEvent
   } = useContext(GlobalContextData);
   const { t } = useTranslation();
   const { ErrorHandle } = useErrorHandle();
@@ -797,8 +798,6 @@ export default function ScannerScreens({ navigation, route }: any) {
         console.log("📦 No Parcel items count:", NoParcelItemIds.length);
         console.log("✅ Actual remaining:", actualRemaining);
         if (!(GloblyTypeSlide == "outbound_scan")) {
-
-
           if (Number(res?.remaining_item) === 0) {
             // All items done (scanned + no parcel)
             setSecondModal({
@@ -848,6 +847,8 @@ export default function ScannerScreens({ navigation, route }: any) {
                       item: ItemsData,
                       // order_id: item?.id || item?.order_data?.id,
                     })
+
+                    setNoParcelDetailsScreenEvent(true)
 
                     // setTimeout(async () => {
                     //   const missingItems = await GetIdByOrderFun(SelectPlace?.order_id);

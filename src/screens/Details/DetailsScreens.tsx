@@ -54,6 +54,7 @@ export default function DetailsScreens({ navigation, route }: any) {
     setNoParcelItemIds,
     SelectActiveDate,
     SelectActiveRegionData,
+    NoParcelDetailsScreenEvent, setNoParcelDetailsScreenEvent
   } = useContext(GlobalContextData);
   const [ItemsData, setItemsData] = useState(item);
   const Focused = useIsFocused();
@@ -64,6 +65,7 @@ export default function DetailsScreens({ navigation, route }: any) {
   const [IsLoading, setIsLoading] = useState<boolean>(false);
   const [BackButtonAvailble, setBackButtonAvailble] = useState(false);
   const { t } = useTranslation();
+  const [NoParcelOpenmodalType,setNoParcelOpenmodalType] = useState(type);
   const [DataLoading, setDataLoading] = useState<boolean>(false);
   const [NoParcelModalVisible, setNoParcelModalVisible] = useState(false);
   const [NoParcelOptions, setNoParcelOptions] = useState<any[]>([]);
@@ -199,9 +201,7 @@ export default function DetailsScreens({ navigation, route }: any) {
     if (type) {
       GetIdByOrderFun();
 
-      if (type === "scanner_noparcel") {
-        setNoParcelModalVisible(true);
-      }
+
     }
   }, [type]);
 
@@ -232,11 +232,12 @@ export default function DetailsScreens({ navigation, route }: any) {
         }
       },
     });
-
+   
     return () => {
       setPickUpDataSave(null);
       setDeliveyDataSave(null);
     };
+    
   }, [Focused]);
 
   const openCamera = async () => {
@@ -373,9 +374,7 @@ export default function DetailsScreens({ navigation, route }: any) {
         const labelsForModal = res.data.items
           .filter(
             (item: any) =>
-              Number(item.scan_qty) === 0 &&
-              !NoParcelItemIds.includes(item.id) &&
-              item?.tmslabel == null
+              Number(item.scan_qty) === 0 && item?.tmslabel == null
           )
           .map((item: any) => ({
             id: item.id,
@@ -516,7 +515,7 @@ export default function DetailsScreens({ navigation, route }: any) {
           : img?.uri ?? "",
       }))
       .filter((img: any) => img.uri !== "");
-// console.log("Images",[...backendImages, ...safeImages]);
+    // console.log("Images",[...backendImages, ...safeImages]);
 
     return [...backendImages, ...safeImages];
   }
@@ -615,7 +614,7 @@ export default function DetailsScreens({ navigation, route }: any) {
         console.log("res?.remaining_item", res?.data.remaining_item);
 
         if (Number(res?.data.remaining_item) == 0) {
-          setTimeout(()=>{
+          setTimeout(() => {
             setSecondModal({
               visible: true,
               title: "All Parcels Scanned Successfully!",
@@ -634,9 +633,9 @@ export default function DetailsScreens({ navigation, route }: any) {
               color: GloblyTypeSlide == "outbound_scan" ? Colors.primary : Colors.green
             });
 
-          },100)
+          }, 100)
         } else if (!(GloblyTypeSlide == "outbound_scan")) {
-          setTimeout(()=>{
+          setTimeout(() => {
             setSecondModal({
               visible: true,
               title: "There are Parcels Remaining",
@@ -647,7 +646,7 @@ export default function DetailsScreens({ navigation, route }: any) {
                   type: "secondary",
                   onPress: () => {
                     setSecondModal((p: any) => ({ ...p, visible: false }));
-  
+
                     if (NoParcelOptions.length > 0) {
                       setNoParcelModalVisible(true);
                     } else {
@@ -674,7 +673,7 @@ export default function DetailsScreens({ navigation, route }: any) {
               color: Colors.yellow
             });
 
-          },100)
+          }, 100)
 
         }
 
@@ -708,8 +707,15 @@ export default function DetailsScreens({ navigation, route }: any) {
   };
 
   useEffect(() => {
-    GetIdByOrderFun();
-  }, [item, Focused]);
+   let Funcation = async()=>{
+    await GetIdByOrderFun();
+     if (NoParcelDetailsScreenEvent) {
+      setNoParcelModalVisible(true);
+      // setNoParcelOpenmodalType("")
+    }
+   }
+   Funcation()
+  }, [Focused]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -953,7 +959,7 @@ export default function DetailsScreens({ navigation, route }: any) {
         personData={ItemsData?.customer}
         OrderId={ItemsData?.id}
         type={1}
-        onClose={() => setNoParcelModalVisible(false)}
+        onClose={() => {setNoParcelModalVisible(false);setNoParcelDetailsScreenEvent(false)}}
         onSubmit={(selectedIds) => {
           if (!selectedIds || selectedIds.length === 0) {
             setToast({
@@ -972,7 +978,7 @@ export default function DetailsScreens({ navigation, route }: any) {
           setSelectedNoParcelItems(selectedItems);
           setNoParcelModalVisible(false);
           console.log("ItemsData", ItemsData?.customer?.display_name);
-
+           setNoParcelDetailsScreenEvent(false)
           setScannerModalOpen({
             visible: true,
             InfoTitle: t("Scanner Info"),
