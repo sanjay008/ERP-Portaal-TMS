@@ -31,7 +31,13 @@ const LoadingModal: React.FC<LoadingModalProps> = ({
       animationOut="fadeOut"
       backdropOpacity={0.4}
       useNativeDriver
+         propagateSwipe={true}
+        coverScreen={true}
       hideModalContentWhileAnimating
+      style={{
+    margin: 0,
+    zIndex: 9999,             
+  }}
     >
       <View style={styles.modalContainer}>
         <View
@@ -59,6 +65,7 @@ const LoadingModal: React.FC<LoadingModalProps> = ({
                 styles.cancelBtn,
                 { backgroundColor: Colors.green },
               ]}
+              disabled={visible}
               onPress={onCancel}
             >
               <Text style={styles.cancelText}>{t("Cancel")}</Text>

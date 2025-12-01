@@ -49,7 +49,7 @@ export default function FilterScreen({ navigation, route }: any) {
 
   const { ErrorHandle } = useErrorHandle();
   const [ScanBTNAvailble, setScanBTNAvailble] = useState<boolean>(
-    !(item?.item_title == "Pickup / Dropoff")
+    !(GloblyTypeSlide == "Pickup / Dropoff")
   );
 
   const getFilterDataFun = useCallback(async () => {

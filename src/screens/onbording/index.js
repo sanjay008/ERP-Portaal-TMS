@@ -87,7 +87,7 @@ const retrieveAppVersion = async () => {
                     <Image source={Images.roundlogo} style={styles.logo} />
 
                     <View style={styles.container}>
-                        <Text style={styles.wellcome}>{t("Welkom bij ERP Projects")}</Text>
+                        <Text style={styles.wellcome}>{t("Welkom bij ERP TMS Driver")}</Text>
                         <Text style={styles.dis}>
                             {t("Smart Solutions for Modern Businesses")}
                         </Text>

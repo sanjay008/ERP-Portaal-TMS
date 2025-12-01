@@ -2,6 +2,7 @@ import apiConstants from "@/src/api/apiConstants";
 import { Images } from "@/src/assets/images";
 import { ApiFormatDate } from "@/src/components/ApiFormatDate";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
+import { goBackOrPopTo } from "@/src/components/goBackOrPopTo";
 import Loader from "@/src/components/loading";
 import LoadingModal from "@/src/components/LoadingModal";
 import NoParcelModal from "@/src/components/NoParcelModal";
@@ -13,8 +14,7 @@ import { Colors } from "@/src/utils/colors.js";
 import { height, token, width } from "@/src/utils/storeData";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import BottomSheet, {
-  BottomSheetFlatList,
-  BottomSheetView,
+  BottomSheetFlatList
 } from "@gorhom/bottom-sheet";
 import { useIsFocused } from "@react-navigation/native";
 import axios from "axios";
@@ -31,12 +31,15 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useImperativeHandle,
   useRef,
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  Animated,
   Image,
+  Keyboard,
   Platform,
   StyleSheet,
   Text,
@@ -44,13 +47,13 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import DashedLine from "react-native-dashed-line";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import Modal from "react-native-modal";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function ScannerScreens({ navigation, route }: any) {
-  const { fun = () => {}, type, item } = route?.params ?? {};
+  const { fun = () => { }, type, item } = route?.params ?? {};
   const [permission, requestPermission] = useCameraPermissions();
   const [ItemsData, setItemsData] = useState(item);
   const [isNoParcelFlow, setIsNoParcelFlow] = useState(false);
@@ -73,6 +76,8 @@ export default function ScannerScreens({ navigation, route }: any) {
     personData: [],
     type: 1,
     ProductItem: [],
+    bgColor: "",
+    OrderData: null
   });
   const [SecondModal, setSecondModal] = useState<{
     visible: boolean;
@@ -83,13 +88,15 @@ export default function ScannerScreens({ navigation, route }: any) {
       type?: "primary" | "secondary";
       onPress?: () => void;
     }[];
+    color?: string;
   }>({
     visible: false,
     title: "",
     message: "",
     buttons: [],
+    color: "",
   });
-
+  const [refreshKey, setRefreshKey] = useState(0);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [lastDetectedBarcode, setLastDetectedBarcode] = useState<string>("");
   const [flashEnabled, setFlashEnabled] = useState<boolean>(false);
@@ -105,9 +112,13 @@ export default function ScannerScreens({ navigation, route }: any) {
   const [UpdateStatusHandle, setUpdateStatusHandle] = useState<null | boolean>(
     null
   );
+  const [Refreshcondition, setRefreshCondition] = useState(false);
+  const animatedHeight = useRef(new Animated.Value(height)).current;
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [NoParcelModalVisible, setNoParcelModalVisible] = useState(false);
-  const [NoParcelOptions, setNoParcelOptions] = useState<any []>([]);
-  const cameraRef = useRef(null);
+  const [NoParcelOptions, setNoParcelOptions] = useState<any[]>([]);
+  const cameraRef = useRef<any>(null);
   const bottomSheetRef = useRef<BottomSheet>(null);
   const [ScannerModalOpen, setScannerModalOpen] = useState<{
     visible: boolean;
@@ -120,6 +131,8 @@ export default function ScannerScreens({ navigation, route }: any) {
     OrderId?: number;
     delivery_btn?: any;
     onPress?: () => void;
+    bgColor?: string;
+    OrderData?: null | any;
   }>({
     visible: false,
     InfoTitle: "",
@@ -131,6 +144,8 @@ export default function ScannerScreens({ navigation, route }: any) {
     OrderId: 0,
     delivery_btn: null,
     onPress: undefined,
+    bgColor: "",
+    OrderData: null,
   });
   const [GetConformationQuestion, setGetConformationQuestion] =
     useState<string>("");
@@ -154,13 +169,27 @@ export default function ScannerScreens({ navigation, route }: any) {
   } = useContext(GlobalContextData);
   const { t } = useTranslation();
   const { ErrorHandle } = useErrorHandle();
+  const [cameraKey, setCameraKey] = useState(1);
   const playBeep = useCallback(async () => {
     const { sound } = await Audio.Sound.createAsync(Images.ScannerSound);
     await sound.playAsync();
   }, []);
   const Focused = useIsFocused();
-
+  useImperativeHandle(cameraRef, () => ({
+    reset: async () => {
+      try {
+        await cameraRef.current?.resumePreview();
+        setTimeout(async () => {
+          await cameraRef.current?.resumePreview();
+        }, 200);
+      } catch (e) {
+        console.log("Camera reset error", e);
+      }
+    },
+  }));
   useEffect(() => {
+
+
     const recheckPermission = async () => {
       try {
         const { status } = await Camera.requestCameraPermissionsAsync();
@@ -172,7 +201,7 @@ export default function ScannerScreens({ navigation, route }: any) {
 
     // 🔁 When screen comes into focus (Focused true)
     if (Focused) {
-      console.log("🔁 Scanner focused — refreshing camera");
+
 
       // Close modal if open
       if (ConformationModalOpen?.visible) {
@@ -196,8 +225,33 @@ export default function ScannerScreens({ navigation, route }: any) {
       }, 200);
     }
   }, [Focused]);
+  useEffect(() => {
+    const showListener = Keyboard.addListener("keyboardDidShow", (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+      Animated.timing(animatedHeight, {
+        toValue: height - e.endCoordinates.height,
+        duration: 200,
+        useNativeDriver: false,
+      }).start();
+    });
+
+    const hideListener = Keyboard.addListener("keyboardDidHide", () => {
+      setKeyboardHeight(0);
+      Animated.timing(animatedHeight, {
+        toValue: height,
+        duration: 200,
+        useNativeDriver: false,
+      }).start();
+    });
+
+    return () => {
+      showListener.remove();
+      hideListener.remove();
+    };
+  }, []);
 
   useEffect(() => {
+
     console.log("enter in useeffect (Scanner)");
 
     // ✅ Always set pickup handler
@@ -220,6 +274,8 @@ export default function ScannerScreens({ navigation, route }: any) {
         }
       },
     });
+
+
 
     return () => {
       setPickUpDataSave(null);
@@ -276,11 +332,24 @@ export default function ScannerScreens({ navigation, route }: any) {
           title: t("Invalid QR code. Please try again."),
           LButtonText: t("Cancel"),
           RColor: Colors.white,
+          bgColor: Colors.red
         });
       }
     },
     [lastDetectedBarcode]
   );
+
+  const refreshCamera = () => {
+    setCameraKey(prev => prev + 1);
+  };
+
+  useEffect(() => {
+    refreshCamera()
+    if (Refreshcondition && Focused) {
+      setRefreshKey(prev => prev + 1)
+      setRefreshCondition(false)
+    }
+  }, [Refreshcondition])
 
   const QuestiongetApi = async (data: any) => {
     console.log("Calling Verify Status API with:", data);
@@ -293,7 +362,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         user_id: UserData?.user?.id,
         item_id: data?.item_id,
         order_id: data?.order_id,
-        date: GloblyTypeSlide == "outbound_scan" ?  ApiFormatDate(new Date()) : ApiFormatDate(SelectCurrentDate),
+        date: GloblyTypeSlide == "outbound_scan" ? ApiFormatDate(new Date()) : ApiFormatDate(SelectCurrentDate),
         type: type ?? GloblyTypeSlide
       };
 
@@ -332,6 +401,7 @@ export default function ScannerScreens({ navigation, route }: any) {
           order_id: data?.order_id,
           type: res?.data?.order_data?.tmsstatus?.id == 2 ? 2 : 1,
           delivery_btn: res?.data?.delivery_btn,
+          OrderData: res?.data
         };
         console.log("responseeeee", res.data);
 
@@ -342,19 +412,29 @@ export default function ScannerScreens({ navigation, route }: any) {
         });
 
         if (res?.data?.isscaned) {
-          if (res?.data?.order_data?.tmsstatus?.id == 4) {
-            modalConfig.onPress = () =>
-              navigation.navigate("Delivery", { item: res?.data, fun });
-          } else {
-            modalConfig.onPress = async () => {
-              await StatusUpdateFun(data, true);
-            };
-          }
+
+          modalConfig.onPress = async () => {
+            await StatusUpdateFun(data, true);
+          };
+
         }
 
-        setGetConformationQuestion(res?.data || "");
+        // setGetConformationQuestion(res?.data || "");
         setConformationModal(modalConfig);
       } else {
+
+        setConformationModal({
+          visible: true,
+          Icon: Images.InValidScanner,
+          title: res?.message || t("Invalid QR code. Please try again."),
+          LButtonText: t("Cancel"),
+          RColor: Colors.white,
+          bgColor: Colors.red,
+          personData: res?.data?.order_data || [],
+          ProductItem: res?.data?.order_data?.items || [],
+          order_id: data?.order_id,
+          OrderData: res?.data
+        });
         setToast({
           top: 45,
           text: res?.message || t("Something went wrong"),
@@ -385,7 +465,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         user_id: UserData?.user?.id,
         item_id: data?.item_id,
         order_id: data?.order_id,
-        type:type ?? GloblyTypeSlide
+        type: type ?? GloblyTypeSlide
       };
 
       if (!payload.item_id || !payload.order_id) {
@@ -405,6 +485,7 @@ export default function ScannerScreens({ navigation, route }: any) {
       });
 
       if (res?.status) {
+
         console.log("✅ Status Updated:", res);
         fun?.();
 
@@ -417,6 +498,9 @@ export default function ScannerScreens({ navigation, route }: any) {
           ...AllRecentScanData,
           data?.order_id,
         ]);
+        setCameraKey(prev => prev + 1);
+        cameraRef.current?.reset();
+        resetCamera();
       } else {
         setToast({
           top: 45,
@@ -522,7 +606,14 @@ export default function ScannerScreens({ navigation, route }: any) {
         console.log("datadatadata", data);
 
         setAllSlideData(data);
-        navigation.navigate("FilterScreen", { Type: type });
+        if (GloblyTypeSlide == "outbound_scan") {
+          goBackOrPopTo(navigation, "BottomTabs");
+
+        } else {
+          goBackOrPopTo(navigation, "FilterScreen", { selectedItem: ItemsData, Type: GloblyTypeSlide });
+
+        }
+        // navigation.navigate("FilterScreen", { Type: type });
       } else {
         setToast({
           top: 45,
@@ -613,6 +704,7 @@ export default function ScannerScreens({ navigation, route }: any) {
           type: "success",
           visible: true,
         });
+        //  navigation.replace("Scanner", { key: Date.now() });
         await GetIdByOrderFun();
       } else {
         setToast({
@@ -635,7 +727,11 @@ export default function ScannerScreens({ navigation, route }: any) {
     }
   };
 
+
+
+
   const CommentFun = async () => {
+    setIsLoading(true);
     try {
       if (!Description.trim()) {
         setCommentError(t("Please enter a comment"));
@@ -663,7 +759,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         return;
       }
 
-      setIsLoading(true);
+
 
       const payload = {
         token: token,
@@ -672,6 +768,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         user_id: UserData?.user?.id,
         item_id: SelectPlace?.item_id,
         order_id: SelectPlace?.order_id,
+        type: GloblyTypeSlide,
         ...(SelectDeliveryReason !== null && {
           delivered_lable_id: SelectDeliveryReason?.id,
         }),
@@ -690,6 +787,7 @@ export default function ScannerScreens({ navigation, route }: any) {
 
         fun?.();
         setComment(false);
+        // setRefreshCondition(true)
 
         // ✅ Calculate actual remaining items (excluding No Parcel items)
         const actualRemaining =
@@ -698,100 +796,110 @@ export default function ScannerScreens({ navigation, route }: any) {
         console.log("📊 Total remaining from API:", res?.remaining_item);
         console.log("📦 No Parcel items count:", NoParcelItemIds.length);
         console.log("✅ Actual remaining:", actualRemaining);
+        if (!(GloblyTypeSlide == "outbound_scan")) {
 
-        if (Number(res?.remaining_item) === 0) {
-          // All items done (scanned + no parcel)
-          setSecondModal({
-            visible: true,
-            title: "All Parcels Scanned Successfully!",
-            message: res?.remaining_item_message || "",
-            buttons: [
-              {
-                text: "Go to List Page",
-                type: "primary",
-                onPress: () => {
-                  setSecondModal((p: any) => ({ ...p, visible: false }));
-                  setNoParcelItemIds([]); // ✅ Reset
-                  getSliderDataFun();
+
+          if (Number(res?.remaining_item) === 0) {
+            // All items done (scanned + no parcel)
+            setSecondModal({
+              visible: true,
+              title: "All Parcels Scanned Successfully!",
+              message: res?.remaining_item_message || "",
+              buttons: [
+                {
+                  text: "Go to List Page",
+                  type: "primary",
+                  onPress: () => {
+                    setSecondModal((p: any) => ({ ...p, visible: false }));
+                    setNoParcelItemIds([]); // ✅ Reset
+                    getSliderDataFun();
+                  },
                 },
-              },
-            ],
-          });
-        } else {
-          // Still items to scan
-          setSecondModal({
-            visible: true,
-            title: "There are Parcels Remaining",
-            message: res?.remaining_item_message,
-            buttons: [
-              {
-                text: "No Parcel",
-                type: "secondary",
-                onPress: async () => {
-                  setSecondModal((p: any) => ({ ...p, visible: false }));
+              ],
+              color: GloblyTypeSlide == "outbound_scan" ? Colors.primary : Colors.green
 
-                  console.log(
-                    "ItemsData?.id || item",
-                    ItemsData?.id || ItemsData?.order_data?.id,
-                    ItemsData,
-                    item
-                  );
+            });
+          } else if (!(GloblyTypeSlide == "outbound_scan")) {
+            // Still items to scan
+            setSecondModal({
+              visible: true,
+              title: "There are Parcels Remaining",
+              message: res?.remaining_item_message,
+              buttons: [
+                {
+                  text: "No Parcel",
+                  type: "secondary",
+                  onPress: async () => {
+                    setSecondModal((p: any) => ({ ...p, visible: false }));
 
-                  navigation.navigate("Details", {
-                    type: "scanner_noparcel",
-                    item: ItemsData,
-                    // order_id: item?.id || item?.order_data?.id,
-                  });
+                    console.log(
+                      "ItemsData?.id || item",
+                      ItemsData?.id || ItemsData?.order_data?.id,
+                      ItemsData,
+                      item
+                    );
 
-                  // setTimeout(async () => {
-                  //   const missingItems = await GetIdByOrderFun(SelectPlace?.order_id);
+                    // navigation.navigate("Details", {
+                    //   type: "scanner_noparcel",
+                    //   item: ItemsData,
+                    // });
+                    goBackOrPopTo(navigation, "Details", {
+                      type: "scanner_noparcel",
+                      item: ItemsData,
+                      // order_id: item?.id || item?.order_data?.id,
+                    })
 
-                  //   // ✅ Filter out already marked No Parcel items
-                  //   const filteredItems = missingItems.filter(
-                  //     (item: any) => !NoParcelItemIds.includes(item.id)
-                  //   );
+                    // setTimeout(async () => {
+                    //   const missingItems = await GetIdByOrderFun(SelectPlace?.order_id);
 
-                  //   if (filteredItems.length > 0) {
-                  //     setNoParcelOptions(filteredItems);
-                  //     setNoParcelModalVisible(true);
-                  //   } else {
-                  //     setToast({
-                  //       top: 45,
-                  //       text: t("All items are scanned!"),
-                  //       type: "info",
-                  //       visible: true,
-                  //     });
-                  //   }
-                  // }, 1000);
+                    //   // ✅ Filter out already marked No Parcel items
+                    //   const filteredItems = missingItems.filter(
+                    //     (item: any) => !NoParcelItemIds.includes(item.id)
+                    //   );
+
+                    //   if (filteredItems.length > 0) {
+                    //     setNoParcelOptions(filteredItems);
+                    //     setNoParcelModalVisible(true);
+                    //   } else {
+                    //     setToast({
+                    //       top: 45,
+                    //       text: t("All items are scanned!"),
+                    //       type: "info",
+                    //       visible: true,
+                    //     });
+                    //   }
+                    // }, 1000);
+                  },
                 },
-              },
-              {
-                text: "Open Scanner",
-                type: "primary",
-                onPress: () => {
-                  setSecondModal((p: any) => ({ ...p, visible: false }));
-                  setLastDetectedBarcode("");
-                  setSelectPlace(null);
-                  setDescrition("");
-                  setCommentError("");
+                {
+                  text: "Open Scanner",
+                  type: "primary",
+                  onPress: () => {
+                    setSecondModal((p: any) => ({ ...p, visible: false }));
+                    setLastDetectedBarcode("");
+                    setSelectPlace(null);
+                    setDescrition("");
+                    setCommentError("");
 
-                  setTimeout(async () => {
-                    try {
-                      const { status } =
-                        await Camera.requestCameraPermissionsAsync();
-                      if (status === "granted") {
-                        setHasPermission(true);
-                      } else {
-                        await requestPermission();
+                    setTimeout(async () => {
+                      try {
+                        const { status } =
+                          await Camera.requestCameraPermissionsAsync();
+                        if (status === "granted") {
+                          setHasPermission(true);
+                        } else {
+                          await requestPermission();
+                        }
+                      } catch (error) {
+                        console.log("❌ Error reopening scanner:", error);
                       }
-                    } catch (error) {
-                      console.log("❌ Error reopening scanner:", error);
-                    }
-                  }, 400);
+                    }, 400);
+                  },
                 },
-              },
-            ],
-          });
+              ],
+              color: Colors.yellow
+            });
+          }
         }
 
         setAllRecentScanData((prev) =>
@@ -841,7 +949,7 @@ export default function ScannerScreens({ navigation, route }: any) {
       if (res?.status) {
         setItemsData(res?.data);
         console.log("response-=-=-", res?.data);
-
+        cameraRef.current?.reset();
         // const labelsForModal = res.data.items
         //   .filter((item: any) => Number(item.scan_qty) === 0)
         //   .map((item: any) => ({
@@ -859,8 +967,8 @@ export default function ScannerScreens({ navigation, route }: any) {
             id: item.id,
             label: item.tms_product_name || `Item ${item.id}`,
           }));
-          console.log("labelsForModal",labelsForModal);
-          
+        console.log("labelsForModal", labelsForModal);
+
         setNoParcelOptions(labelsForModal);
 
         return labelsForModal;
@@ -920,9 +1028,9 @@ export default function ScannerScreens({ navigation, route }: any) {
 
       if (res?.data?.status) {
         // ✅ Add selected items to NoParcelItemIds
-        if (AllSelectImage?.length > 0) {
-          await AddImageOrCommentFun();
-        }
+        // if (AllSelectImage?.length > 0) {
+        //   await AddImageOrCommentFun();
+        // }
         setNoParcelItemIds((prev: any) => [
           ...prev,
           ...selectedItems.map((item) => item.id),
@@ -946,9 +1054,10 @@ export default function ScannerScreens({ navigation, route }: any) {
                 },
               },
             ],
+            color: GloblyTypeSlide == "outbound_scan" ? Colors.primary : Colors.green
+
           });
-        } else {
-          // ✅ Calculate actual remaining (excluding newly marked items)
+        } else if (!(GloblyTypeSlide == "outbound_scan")) {
           const actualRemaining =
             Number(res?.data.remaining_item) - selectedItems.length;
 
@@ -1011,6 +1120,7 @@ export default function ScannerScreens({ navigation, route }: any) {
                 },
               },
             ],
+            color: Colors.yellow
           });
         }
 
@@ -1050,15 +1160,20 @@ export default function ScannerScreens({ navigation, route }: any) {
       });
     }
   };
-
+  const resetCamera = async () => {
+    try {
+      await cameraRef.current?.resumePreview();  // camera ON
+      // scanning restart
+    } catch (e) {
+      console.log("Camera Reset Error:", e);
+    }
+  };
   useEffect(() => {
-    // Reset local data, re-run API calls etc.
-    console.log("🔁 Refresh triggered!");
     setLastDetectedBarcode("");
   }, [route.params?.refreshTime]);
 
   return (
-    <GestureHandlerRootView style={styles.container}>
+    <GestureHandlerRootView key={refreshKey} style={styles.container}>
       {/* <CameraView
         ref={cameraRef}
         enableTorch={flashEnabled}
@@ -1068,9 +1183,11 @@ export default function ScannerScreens({ navigation, route }: any) {
           barcodeTypes: ["qr"],
         }}
       /> */}
-      {hasPermission && !SecondModal.visible && !comment ? (
+      {
+        Focused &&
         <CameraView
           ref={cameraRef}
+          // key={cameraKey}
           enableTorch={flashEnabled}
           style={StyleSheet.absoluteFill}
           onBarcodeScanned={onBarcodeScanned}
@@ -1078,9 +1195,8 @@ export default function ScannerScreens({ navigation, route }: any) {
             barcodeTypes: ["qr"],
           }}
         />
-      ) : (
-        <View style={StyleSheet.absoluteFill} />
-      )}
+      }
+
       <Image
         source={Images.ScannerCenter}
         style={{ width, height, position: "absolute" }}
@@ -1115,18 +1231,28 @@ export default function ScannerScreens({ navigation, route }: any) {
             navigation.navigate("Camera", {
               from: "Pickup",
             });
+
+            setConformationModal((prev: any[]) => ({
+              ...prev,
+              visible: false,
+            }))
+            // goBackOrPopTo(navigation,"Camera", {
+            //   from: "Pickup",
+            // })
           } else {
             ConformationModalOpen.onPress?.();
           }
         }}
         ProductItem={ConformationModalOpen?.ProductItem}
         OrderId={ConformationModalOpen.order_id}
+        bgColor={ConformationModalOpen?.bgColor || ""}
         onClose={() =>
           setConformationModal((prev: any[]) => ({
             ...prev,
             visible: false,
           }))
         }
+        OrderData={ConformationModalOpen?.OrderData}
         delivery_btn={ConformationModalOpen?.delivery_btn}
       />
       <ScannerInfoModal
@@ -1139,57 +1265,56 @@ export default function ScannerScreens({ navigation, route }: any) {
         onPress={ScannerModalOpen.onPress}
         ProductItem={ScannerModalOpen.ProductItem}
         OrderId={ScannerModalOpen.OrderId}
+        bgColor={ScannerModalOpen?.bgColor || ""}
         onClose={() =>
           setScannerModalOpen((prev) => ({ ...prev, visible: false }))
         }
+        OrderData={ScannerModalOpen?.OrderData}
         delivery_btn={ScannerModalOpen.delivery_btn}
       />
 
       <LoadingModal visible={IsLoading} message={t("Please wait…")} />
       <BottomSheet snapPoints={["15%", "90%"]} ref={bottomSheetRef}>
-        <BottomSheetView style={styles.contentContainer}>
-          <BottomSheetFlatList
-            style={{ width: width }}
-            data={AllScanedData}
-            nestedScrollEnabled={true}
-            ListFooterComponent={() =>
-              DataLoader && (
-                <View style={styles.ListFooterContainer}>
-                  <Loader />
-                </View>
-              )
-            }
-            ListEmptyComponent={() =>
-              !DataLoader && (
-                <View style={styles.ListFooterContainer}>
-                  <Text style={styles.Text}>{t("No Scan Order")}</Text>
-                </View>
-              )
-            }
-            keyExtractor={(item: any, index: number) => `${index}`}
-            renderItem={({ item, index }: { item: any; index: number }) => (
-              <PickUpBox
-                index={index}
-                AllisCollapsed={true}
-                downButton={true}
-                LableStatus={item?.tmsstatus?.status_name}
-                OrderId={item?.id}
-                ProductItem={item?.items}
-                LableBackground={item?.tmsstatus?.color}
-                start={item?.pickup_location}
-                end={item?.deliver_location}
-                customerData={item?.customer}
-                statusData={item?.tmsstatus}
-                LacationProgress={false}
-              />
-            )}
-            contentContainerStyle={[
-              styles.contentContainer,
-              { paddingBottom: 50 },
-            ]}
-          />
-        </BottomSheetView>
+        <BottomSheetFlatList
+          data={AllScanedData}
+          nestedScrollEnabled={true}
+          style={{ width: width, padding: 15, height: height * 0.85 }}
+
+          keyExtractor={(item: any, index: number) => `${index}`}
+          renderItem={({ item, index }: any) => (
+            <PickUpBox
+              index={index}
+              AllisCollapsed={true}
+              downButton={true}
+              LableStatus={item?.tmsstatus?.status_name}
+              OrderId={item?.id}
+              ProductItem={item?.items}
+              LableBackground={item?.tmsstatus?.color}
+              start={item?.pickup_location}
+              end={item?.deliver_location}
+              customerData={item?.customer}
+              statusData={item?.tmsstatus}
+              LacationProgress={false}
+            />
+          )}
+          ListFooterComponent={
+            DataLoader ? (
+              <View style={styles.ListFooterContainer}>
+                <Loader />
+              </View>
+            ) : null
+          }
+          ListEmptyComponent={
+            !DataLoader ? (
+              <View style={styles.ListFooterContainer}>
+                <Text style={styles.Text}>{t("No Scan Order")}</Text>
+              </View>
+            ) : null
+          }
+          contentContainerStyle={{ paddingBottom: 50 }}
+        />
       </BottomSheet>
+
       <NoParcelModal
         visible={NoParcelModalVisible}
         title={t("Select Missing Items")}
@@ -1212,8 +1337,6 @@ export default function ScannerScreens({ navigation, route }: any) {
             });
             return;
           }
-
-          // ✅ Store the No Parcel item IDs
           setNoParcelItemIds(selectedIds);
 
           const selectedItems = selectedIds
@@ -1227,6 +1350,7 @@ export default function ScannerScreens({ navigation, route }: any) {
             visible: true,
             InfoTitle: t("Scanner Info"),
             type: 1,
+            OrderData: ItemsData,
             RText: t("Take Photo"),
             LText: t("Cancel"),
             personData: ItemsData?.customer.display_name,
@@ -1234,76 +1358,78 @@ export default function ScannerScreens({ navigation, route }: any) {
             OrderId: ItemsData?.id,
             onPress: () => {
               setScannerModalOpen((prev) => ({ ...prev, visible: false }));
-              navigation.navigate("Camera", { from: "Pickup" });
+              navigation.navigation("Camera", { from: "Pickup" });
+
+              // goBackOrPopTo(navigation,"Camera", { from: "Pickup" })
             },
           });
         }}
       />
       <Modal
         isVisible={comment}
-        style={{ margin: 0, flex: 1 }}
-        animationIn={"bounceInUp"}
-        animationOut={"bounceOutDown"}
+        style={{ margin: 0 }}
+        animationIn="bounceInUp"
+        animationOut="bounceOutDown"
+        propagateSwipe={true}
+
+        avoidKeyboard={false} // important for Modal + keyboard
       >
-        <KeyboardAwareScrollView
-          style={{ flexGrow: 1 }}
-          // extraHeight={100}
-          contentContainerStyle={{
-            flex: 1,
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-          enableOnAndroid={true}
-          // extraScrollHeight={50}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.CommentBox}>
-            <DashedLine
-              dashLength={4}
-              dashThickness={2}
-              dashGap={5}
-              style={styles.Line}
-              dashColor={Colors.otherBorder}
-            />
+        <SafeAreaView style={{ flex: 1 }}>
+          <KeyboardAwareScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{
+              flex: 1,
+              justifyContent: "center",
+              // paddingBottom: keyboardHeight + insets.bottom + 20, 
+            }}
+            enableOnAndroid={true}
 
-            <View>
-              <Text style={styles.Text}>{t("Name")}</Text>
-              <View style={styles.InputBox}>
-                <TextInput
-                  style={styles.Input}
-                  editable={false}
-                  placeholderTextColor={Colors.darkText}
-                  placeholder={t("Enter your name")}
-                  returnKeyType="next"
-                  textContentType="familyName"
-                  value={UserData?.user?.username || ""}
-                  onChangeText={setComment}
-                />
-                <Image source={Images.user} style={{ width: 18, height: 18 }} />
+            extraHeight={200}
+
+            keyboardShouldPersistTaps="handled"
+          >
+            <View
+              style={[
+                styles.CommentBox,
+
+              ]}
+            >
+              <View>
+                <Text style={styles.Text}>{t("Name")}</Text>
+                <View style={styles.InputBox}>
+                  <TextInput
+                    style={styles.Input}
+                    editable={false}
+                    placeholderTextColor={Colors.darkText}
+                    placeholder={t("Enter your name")}
+                    value={UserData?.user?.username?.length > 0 ? UserData?.user?.username : UserData?.relaties?.display_name ?? ""}
+                    onChangeText={setComment}
+                  />
+                  <Image source={Images.user} style={{ width: 18, height: 18 }} />
+                </View>
               </View>
-            </View>
 
-            <View>
-              <Text style={styles.Text}>{t("Description")}</Text>
-              <TextInput
-                style={styles.TextArea}
-                value={Description}
-                onChangeText={setDescrition}
-                placeholder={t("Type here...")}
-                multiline
-                numberOfLines={5}
-                textAlignVertical="top"
-              />
-              {Commenterror && <Text style={styles.Error}>{Commenterror}</Text>}
-            </View>
+              <View style={{ marginTop: 5 }}>
+                <Text style={styles.Text}>{t("Description")}</Text>
+                <TextInput
+                  style={styles.TextArea}
+                  value={Description}
+                  onChangeText={setDescrition}
+                  placeholder={t("Type here...")}
+                  multiline
+                  placeholderTextColor={Colors.black}
+                  numberOfLines={5}
+                  textAlignVertical="top"
+                />
+                {Commenterror ? <Text style={styles.Error}>{Commenterror}</Text> : null}
+              </View>
 
-            <TouchableOpacity style={styles.ButtonSubmit} onPress={CommentFun}>
-              <Text style={[styles.Text, { color: Colors.white }]}>
-                {t("Submit")}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </KeyboardAwareScrollView>
+              <TouchableOpacity style={styles.ButtonSubmit} onPress={CommentFun}>
+                <Text style={[styles.Text, { color: Colors.white }]}>{t("Submit")}</Text>
+              </TouchableOpacity>
+            </View>
+          </KeyboardAwareScrollView>
+        </SafeAreaView>
       </Modal>
 
       {SecondModal?.visible && (
@@ -1319,7 +1445,7 @@ export default function ScannerScreens({ navigation, route }: any) {
                 flex: 1,
                 justifyContent: "center",
                 alignItems: "center",
-                backgroundColor: "rgba(0,0,0,0.6)",
+                backgroundColor: SecondModal?.color || "rgba(0,0,0,0.6)",
               }}
             >
               <View
@@ -1455,7 +1581,7 @@ const styles = StyleSheet.create({
     padding: 10,
     fontSize: 14,
     backgroundColor: Colors.white,
-    minHeight: 120,
+    minHeight: 240,
     fontFamily: "regular",
     color: Colors.black,
     marginTop: 10,
@@ -1468,6 +1594,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginVertical: 15,
+    marginTop: 25
   },
   Error: {
     fontSize: 13,
@@ -1494,7 +1621,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginVertical: 10,
+    marginVertical: 5,
   },
   CommentBox: {
     width: "90%",
@@ -1502,8 +1629,7 @@ const styles = StyleSheet.create({
     marginHorizontal: "auto",
     // height:'80%',
     backgroundColor: Colors.background,
-    borderTopRightRadius: 10,
-    borderTopLeftRadius: 10,
+    borderRadius: 10,
     paddingBottom: 20,
   },
   modalContainer: {

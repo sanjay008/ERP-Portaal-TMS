@@ -14,7 +14,8 @@
         "googleMapsApiKey": "AIzaSyBZQz7G7yJ_DSSpUBs0XbVjSKHSf_HbCqQ"
       },
       "infoPlist": {
-        "UIViewControllerBasedStatusBarAppearance": true
+        "UIViewControllerBasedStatusBarAppearance": true,
+        "ITSAppUsesNonExemptEncryption": false
       },
       "supportsTablet": true,
       "bundleIdentifier": "com.erpportaal.ERP-Portaal-TMS-Driver"
@@ -29,10 +30,10 @@
         }
       },
       "env": {
-          "EXPO_ANDROID_KEYSTORE": "@EXPO_ANDROID_KEYSTORE",
-          "EXPO_ANDROID_KEYSTORE_PASSWORD": "@EXPO_ANDROID_KEYSTORE_PASSWORD",
-          "EXPO_ANDROID_KEYSTORE_ALIAS": "erp_tms_driver",
-          "EXPO_ANDROID_KEYSTORE_ALIAS_PASSWORD": "@EXPO_ANDROID_KEYSTORE_ALIAS_PASSWORD"
+        "EXPO_ANDROID_KEYSTORE": "@EXPO_ANDROID_KEYSTORE",
+        "EXPO_ANDROID_KEYSTORE_PASSWORD": "@EXPO_ANDROID_KEYSTORE_PASSWORD",
+        "EXPO_ANDROID_KEYSTORE_ALIAS": "erp_tms_driver",
+        "EXPO_ANDROID_KEYSTORE_ALIAS_PASSWORD": "@EXPO_ANDROID_KEYSTORE_ALIAS_PASSWORD"
       },
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -45,8 +46,10 @@
       "package": "com.erpportaal.ERP_Portaal_TMS",
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
     "updates": {
@@ -104,7 +107,6 @@
       ],
       "expo-audio",
       "expo-video"
-     
     ],
     "experiments": {
       "typedRoutes": true,

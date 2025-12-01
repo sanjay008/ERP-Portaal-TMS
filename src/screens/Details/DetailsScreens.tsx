@@ -6,6 +6,7 @@ import CommentViewBox from "@/src/components/CommentViewBox";
 import ConformationModal from "@/src/components/ConformationModal";
 import DetailsHeader from "@/src/components/DetailsHeader";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
+import { goBackOrPopTo } from "@/src/components/goBackOrPopTo";
 import Loader from "@/src/components/loading";
 import LoadingModal from "@/src/components/LoadingModal";
 import MapsViewBox from "@/src/components/MapsViewBox";
@@ -120,11 +121,13 @@ export default function DetailsScreens({ navigation, route }: any) {
       type?: "primary" | "secondary";
       onPress?: () => void;
     }[];
+    color: string;
   }>({
     visible: false,
     title: "",
     message: "",
     buttons: [],
+    color: "",
   });
 
   const GetLocationData = async () => {
@@ -279,9 +282,10 @@ export default function DetailsScreens({ navigation, route }: any) {
       OrderId: ItemsData?.id,
       onPress: () => {
         setScannerModalOpen((prev) => ({ ...prev, visible: false }));
-        navigation.navigate("Camera", {
-          from: "Pickup",
-        });
+        navigation.navigate("Camera", { from: "Pickup" });
+
+        // goBackOrPopTo(navigation,"Camera", { from: "Pickup" })
+
       },
     });
   };
@@ -425,7 +429,6 @@ export default function DetailsScreens({ navigation, route }: any) {
         return;
       }
 
-      // ✅ Loop over `imagesToSend`, not `AllSelectImage`
       for (const uri of imagesToSend) {
         const compressed = await ImageManipulator.manipulateAsync(
           uri,
@@ -501,6 +504,7 @@ export default function DetailsScreens({ navigation, route }: any) {
       return [...safeImages];
     }
 
+
     const backendImages = item.tmslogdata_itemcomment
       .filter(
         (el: any) => Array.isArray(el?.tmsimgdata) && el.tmsimgdata.length > 0
@@ -512,6 +516,7 @@ export default function DetailsScreens({ navigation, route }: any) {
           : img?.uri ?? "",
       }))
       .filter((img: any) => img.uri !== "");
+// console.log("Images",[...backendImages, ...safeImages]);
 
     return [...backendImages, ...safeImages];
   }
@@ -540,7 +545,9 @@ export default function DetailsScreens({ navigation, route }: any) {
         console.log("datadatadata", data);
 
         setAllSlideData(data);
-        navigation.navigate("FilterScreen", { Type: type || GloblyTypeSlide });
+        // navigation.navigate("FilterScreen", { Type: type || GloblyTypeSlide });
+        goBackOrPopTo(navigation, "FilterScreen", { Type: type || GloblyTypeSlide })
+
       } else {
         setToast({
           top: 45,
@@ -608,58 +615,67 @@ export default function DetailsScreens({ navigation, route }: any) {
         console.log("res?.remaining_item", res?.data.remaining_item);
 
         if (Number(res?.data.remaining_item) == 0) {
-          setSecondModal({
-            visible: true,
-            title: "All Parcels Scanned Successfully!",
-            message: res?.data.remaining_item_message || "",
-            buttons: [
-              {
-                text: "Go to List Page",
-                type: "primary",
-                onPress: () => {
-                  setSecondModal((p: any) => ({ ...p, visible: false }));
-                  setNoParcelItemIds([]);
-                  getSliderDataFun();
+          setTimeout(()=>{
+            setSecondModal({
+              visible: true,
+              title: "All Parcels Scanned Successfully!",
+              message: res?.data.remaining_item_message || "",
+              buttons: [
+                {
+                  text: "Go to List Page",
+                  type: "primary",
+                  onPress: () => {
+                    setSecondModal((p: any) => ({ ...p, visible: false }));
+                    setNoParcelItemIds([]);
+                    getSliderDataFun();
+                  },
                 },
-              },
-            ],
-          });
-        } else {
-          setSecondModal({
-            visible: true,
-            title: "There are Parcels Remaining",
-            message: res?.data.remaining_item_message || "",
-            buttons: [
-              {
-                text: "No Parcel",
-                type: "secondary",
-                onPress: () => {
-                  setSecondModal((p: any) => ({ ...p, visible: false }));
+              ],
+              color: GloblyTypeSlide == "outbound_scan" ? Colors.primary : Colors.green
+            });
 
-                  if (NoParcelOptions.length > 0) {
-                    setNoParcelModalVisible(true);
-                  } else {
-                    setToast({
-                      top: 45,
-                      text: t("All items are scanned!"),
-                      type: "info",
-                      visible: true,
+          },100)
+        } else if (!(GloblyTypeSlide == "outbound_scan")) {
+          setTimeout(()=>{
+            setSecondModal({
+              visible: true,
+              title: "There are Parcels Remaining",
+              message: res?.data.remaining_item_message || "",
+              buttons: [
+                {
+                  text: "No Parcel",
+                  type: "secondary",
+                  onPress: () => {
+                    setSecondModal((p: any) => ({ ...p, visible: false }));
+  
+                    if (NoParcelOptions.length > 0) {
+                      setNoParcelModalVisible(true);
+                    } else {
+                      setToast({
+                        top: 45,
+                        text: t("All items are scanned!"),
+                        type: "info",
+                        visible: true,
+                      });
+                    }
+                  },
+                },
+                {
+                  text: "Open Scanner",
+                  type: "primary",
+                  onPress: () => {
+                    setSecondModal((p: any) => ({ ...p, visible: false }));
+                    navigation.navigate("Scanner", {
+                      type: GloblyTypeSlide,
                     });
-                  }
+                  },
                 },
-              },
-              {
-                text: "Open Scanner",
-                type: "primary",
-                onPress: () => {
-                  setSecondModal((p: any) => ({ ...p, visible: false }));
-                  navigation.navigate("Scanner", {
-                    type: GloblyTypeSlide,
-                  });
-                },
-              },
-            ],
-          });
+              ],
+              color: Colors.yellow
+            });
+
+          },100)
+
         }
 
         await GetIdByOrderFun();
@@ -969,6 +985,7 @@ export default function DetailsScreens({ navigation, route }: any) {
             onPress: () => {
               setScannerModalOpen((prev) => ({ ...prev, visible: false }));
               navigation.navigate("Camera", { from: "Pickup" });
+              // goBackOrPopTo(navigation,"Camera", { from: "Pickup" })
             },
           });
         }}
@@ -1001,7 +1018,7 @@ export default function DetailsScreens({ navigation, route }: any) {
                 flex: 1,
                 justifyContent: "center",
                 alignItems: "center",
-                backgroundColor: "rgba(0,0,0,0.6)",
+                backgroundColor: SecondModal?.color || "rgba(0,0,0,0.6)",
               }}
             >
               <View

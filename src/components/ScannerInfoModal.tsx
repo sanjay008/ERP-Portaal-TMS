@@ -1,5 +1,5 @@
 import { useNavigation } from "@react-navigation/native";
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FlatList,
@@ -33,8 +33,10 @@ type Props = {
   onClose?: () => void;
   personData?: object[] | any;
   OrderId?: number;
-  ProductItem?: any;
+  ProductItem?: any[];
   delivery_btn?: number;
+  bgColor?: string;
+  OrderData?: null | any;
 };
 
 type AlertModalType = {
@@ -50,6 +52,7 @@ type AlertModalType = {
   LColor: string;
   onPress: () => void;
   RButtonIcon?: any;
+  bgColor?: string | any;
 };
 
 export default function ScannerInfoModal({
@@ -65,12 +68,15 @@ export default function ScannerInfoModal({
   onClose,
   personData = [],
   OrderId = 0,
-  ProductItem = null,
+  ProductItem = [],
   delivery_btn = 0,
+  bgColor,
+  OrderData = null
 }: Props) {
   const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const [isCollapsed, setisCollapsed] = useState<boolean>(true);
+  console.log(OrderData);
 
   const [showReasonList, setShowReasonList] = useState<boolean>(false);
   const [showDeliveredAtList, setShowDeliveredAtList] = useState<boolean>(false);
@@ -86,8 +92,11 @@ export default function ScannerInfoModal({
     RColor: Colors.white,
     LButtonStyle: {},
     LColor: Colors.black,
-    onPress: () => {},
+    onPress: () => { },
   });
+
+
+
 
   const [AllSelectImage, setAllSelectImage] = useState<any[]>([]);
   const {
@@ -99,8 +108,8 @@ export default function ScannerInfoModal({
     setDeliveyDataSave,
     GloblyTypeSlide,
     setGloblyTypeSlide,
-    SelectDeliveryReason,setSelectDeliveryReson,
-    OrderDeliveryMapingLableOption,setOrderDeliveryMapingLableOption
+    SelectDeliveryReason, setSelectDeliveryReson,
+    OrderDeliveryMapingLableOption, setOrderDeliveryMapingLableOption
   } = useContext(GlobalContextData);
 
   const deliveredAtOptions = [
@@ -116,40 +125,38 @@ export default function ScannerInfoModal({
   ];
 
   // --- EFFECT: log whenever modal visibility changes ---
-  useEffect(() => {
-    console.log("Camera Modal visibility changed:", AlertModalOpen.visible);
-  }, [AlertModalOpen.visible]);
-const handleOptionSelect = (item) => {
-  console.log("Selected option:", item);
-setSelectDeliveryReson(item)
-  setShowReasonList(false);
-  setShowDeliveredAtList(false);
 
-  setAlerModalOpen({
-    visible: true,
-    title: t("Camera"),
-    Description: t("You have to take a picture for proof?"),
-    LButtonText: t("Cancel"),
-    RButtonText: t("Camera"),
-    Icon: Images.UploadPhoto,
-    RButtonStyle: Colors.primary,
-    RColor: Colors.white,
-    LButtonStyle: Colors.gray,
-    LColor: Colors.black,
-    onPress: () => {
-      console.log("Camera modal button pressed");
-      setDeliveyDataSave({
-        Data: personData,
-        selectReason: item,
-        setData: setAllSelectImage,
-      });
-      navigation.navigate("Camera");
-      setAlerModalOpen((prev) => ({ ...prev, visible: false }));
-      // ✅ close parent AFTER navigating
-      onClose?.();
-    },
-  });
-};
+  const handleOptionSelect = (item) => {
+    console.log("Selected option:", item);
+    setSelectDeliveryReson(item)
+    setShowReasonList(false);
+    setShowDeliveredAtList(false);
+
+    setAlerModalOpen({
+      visible: true,
+      title: t("Camera"),
+      Description: t("You have to take a picture for proof?"),
+      LButtonText: t("Cancel"),
+      RButtonText: t("Camera"),
+      Icon: Images.UploadPhoto,
+      RButtonStyle: Colors.primary,
+      RColor: Colors.white,
+      LButtonStyle: Colors.gray,
+      LColor: Colors.black,
+      onPress: () => {
+        console.log("Camera modal button pressed");
+        setDeliveyDataSave({
+          Data: personData,
+          selectReason: item,
+          setData: setAllSelectImage,
+        });
+        navigation.navigate("Camera");
+        setAlerModalOpen((prev) => ({ ...prev, visible: false }));
+        // ✅ close parent AFTER navigating
+        onClose?.();
+      },
+    });
+  };
 
 
   const getTitle = () => {
@@ -166,13 +173,13 @@ setSelectDeliveryReson(item)
         isVisible={visible}
         animationIn={"bounceInUp"}
         animationOut={"bounceOutDown"}
-        style={[styles.container, style]}
-        // onModalHide={}
+        style={[styles.container, style, bgColor && { backgroundColor: bgColor }]}
+      // onModalHide={}
       >
-        <View style={styles.ContentView}>
+        <View style={[styles.ContentView,]}>
           {/* --- Title --- */}
           <View style={styles.InfoContainer}>
-            <Text style={styles.Text}>{getTitle()}</Text>
+            <Text style={[styles.Text, { fontSize: 18, color: OrderData?.region_data?.tmsstatus?.color || Colors.primary, textAlign: 'center' }]}>{getTitle()}</Text>
           </View>
 
           {/* --- Main Info Section --- */}
@@ -199,7 +206,11 @@ setSelectDeliveryReson(item)
 
                   <View>
                     <Text style={[styles.Text, { fontSize: 15 }]}>
-                      {personData?.customer?.display_name || ""}
+                      {
+
+
+                        personData?.pickup_person_data?.display_name || ""
+                      }
                     </Text>
                     <Text style={[styles.OrderIdText, { color: Colors.orderdark }]}>
                       {`#${OrderId}`}
@@ -207,9 +218,11 @@ setSelectDeliveryReson(item)
                   </View>
                 </View>
 
+
+
                 {type === 0 && (
                   <View style={[SimpleFlex.Flex, { gap: 0 }]}>
-                    <Text style={styles.Text}>3</Text>
+                    <Text style={styles.Text}>{OrderData?.order_data?.items?.length}</Text>
                     <TouchableOpacity
                       style={{ transform: [{ rotate: isCollapsed ? "0deg" : "180deg" }], paddingHorizontal: 5 }}
                       onPress={() => setisCollapsed((pre) => !pre)}
@@ -220,57 +233,97 @@ setSelectDeliveryReson(item)
                 )}
               </View>
 
-              {(type === 0 || type === 2) && (
-                <>
-                  {type === 0 && (
-                    <Collapsible collapsed={isCollapsed}>
-                      <View style={styles.TotalProductConatiner}>
-                        <FlatList
-                          data={ProductItem}
-                          style={{ width: "100%", gap: 10 }}
-                          contentContainerStyle={styles.ContentContainerStyle}
-                          scrollEnabled={false}
-                          keyExtractor={(item, index) => `${index}`}
-                          renderItem={({ item, index }) => (
-                            <ParcelBox
-                              qty={item?.qty}
-                              index={index}
-                              data={item}
-                              title={item?.tms_product_name}
-                              Icon={getDirectDropboxLink(item?.tmsstatus?.shared_link)}
-                            />
-                          )}
+              {(type === 0 ||
+                type === 2) && (
+
+                  <>
+                    {/* Collapsible Section */}
+                    {type === 0 && (
+                      <Collapsible collapsed={isCollapsed}>
+                        <View style={styles.TotalProductConatiner}>
+                          <FlatList
+                            data={ProductItem}
+                            style={{ width: "100%", gap: 10 }}
+                            contentContainerStyle={styles.ContentContainerStyle}
+                            scrollEnabled={false}
+                            keyExtractor={(item, index) => `${index}`}
+                            renderItem={({ item, index }) => (
+                              <ParcelBox
+                                qty={item?.qty}
+                                index={index}
+                                data={item}
+                                title={item?.tms_product_name}
+                                Icon={getDirectDropboxLink(item?.tmsstatus?.shared_link)}
+                              />
+                            )}
+                          />
+                        </View>
+                      </Collapsible>
+                    )}
+
+                    {/* Delivery Details (only when NOT Scheduled) */}
+                    {OrderData?.order_data?.tmsstatus?.status_name !== "Scheduled" && (
+                      <>
+
+                        <View style={[styles.Flex, { marginTop: 15 }]}>
+                          <Text style={styles.DarkText}>{t("Delivery Date")}</Text>
+                          <Text style={styles.Text}>{personData?.deliver_date}</Text>
+                        </View>
+
+                        <DashedLine
+                          dashLength={4}
+                          dashThickness={1}
+                          dashGap={2}
+                          dashColor={Colors.orderdark}
+                          style={styles.DasheLine}
                         />
-                      </View>
-                    </Collapsible>
-                  )}
 
-                  <View style={[styles.Flex, { marginTop: 15 }]}>
-                    <Text style={styles.DarkText}>{t("Delivery Date")}</Text>
-                    <Text style={styles.Text}>{personData?.deliver_date}</Text>
-                  </View>
+                        <View style={styles.Flex}>
+                          <Text style={styles.DarkText}>{t("Region")}</Text>
+                          <Text style={styles.Text}>
+                            {personData?.delivery_region_data?.name || ""} {personData?.deliver_postcode || ""}
 
-                  <DashedLine
-                    dashLength={4}
-                    dashThickness={1}
-                    dashGap={2}
-                    dashColor={Colors.orderdark}
-                    style={styles.DasheLine}
-                  />
+                          </Text>
+                        </View>
+                      </>
+                    )}
+                  </>
+                )}
 
-                  <View style={styles.Flex}>
-                    <Text style={styles.DarkText}>{t("Region")}</Text>
-                    <Text style={styles.Text}>{`${personData?.delivery_region_data?.name || ""}-${personData?.deliver_postcode}`}</Text>
-                  </View>
-                </>
-              )}
             </View>
           )}
-
+          {
+            OrderData?.order_data?.tmsstatus?.status_name == "Scheduled" &&
+            <View style={{ paddingHorizontal: 15, paddingVertical: 5, gap: 5 }}>
+              <FlatList
+                data={OrderData?.order_data?.items || []}
+                style={{ width: "100%", gap: 10 }}
+                contentContainerStyle={styles.ContentContainerStyle}
+                scrollEnabled={false}
+                keyExtractor={(item, index) => `${index}`}
+                renderItem={({ item, index }) => (
+                  <ParcelBox
+                    qty={item?.qty}
+                    index={index}
+                    data={item}
+                    title={item?.tms_product_name}
+                    Icon={getDirectDropboxLink(item?.tmsstatus?.shared_link)}
+                  />
+                )}
+              />
+              <View>
+                <Text style={styles.Text}>{t("Pickup Date")}: {OrderData?.order_data?.pickup_date}</Text>
+              </View>
+              <View>
+                <Text style={[styles.Text,]}>{t("Pickup Region")}: {OrderData?.order_data?.region_data?.name}</Text>
+              </View>
+            </View>
+            // pickup_date
+          }
           {/* --- Reason Options --- */}
           {showReasonList && (
             <View style={styles.optionContainer}>
-              {OrderDeliveryMapingLableOption?.not_delivery?.map((item:any) => (
+              {OrderDeliveryMapingLableOption?.not_delivery?.map((item: any) => (
                 <TouchableOpacity key={item.id} style={styles.ReasonButton} onPress={() => handleOptionSelect(item)}>
                   <Text style={styles.ReasonText}>{item.title}</Text>
                 </TouchableOpacity>
@@ -281,7 +334,7 @@ setSelectDeliveryReson(item)
           {/* --- Delivered at Options --- */}
           {showDeliveredAtList && (
             <View style={styles.optionContainer}>
-              {OrderDeliveryMapingLableOption?.delivery?.map((item:any) => (
+              {OrderDeliveryMapingLableOption?.delivery?.map((item: any) => (
                 <TouchableOpacity key={item.id} style={styles.ReasonButton} onPress={() => handleOptionSelect(item)}>
                   <Text style={styles.ReasonText}>{item.title}</Text>
                 </TouchableOpacity>
@@ -332,7 +385,7 @@ setSelectDeliveryReson(item)
 
 // ---------- Styles ----------
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", alignItems: "center" },
+  container: { flex: 1, justifyContent: "center", alignItems: "center", margin: 0, padding: 15 },
   ContentView: { width: "100%", backgroundColor: Colors.white, borderRadius: 7 },
   InfoContainer: { padding: 15 },
   Text: { fontSize: 15, fontFamily: "SemiBold", color: Colors.black },

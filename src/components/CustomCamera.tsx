@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import { router } from "expo-router";
 import React, { useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -23,8 +24,8 @@ export default function CustomCamera({ navigation, route }: any) {
   const [torch, setTorch] = useState(false);
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
-  const {DeliveyDataSave,setDeliveyDataSave} = useContext(GlobalContextData)
-  const {PickUpDataSave,setPickUpDataSave} = useContext(GlobalContextData)
+  const { DeliveyDataSave, setDeliveyDataSave } = useContext(GlobalContextData)
+  const { PickUpDataSave, setPickUpDataSave } = useContext(GlobalContextData)
 
   const takePhoto = async () => {
     if (cameraRef.current) {
@@ -32,18 +33,20 @@ export default function CustomCamera({ navigation, route }: any) {
       setPhotos((prev: any) => [...prev, photo.uri]);
     }
   };
-const done = () => {
-  if (route?.params?.from === "Pickup") {
-    console.log("enter in Pickup");
-    
-    PickUpDataSave?.setData?.([...photos]);
-  } else {
-    // Default — save photos to delivery data context
-    DeliveyDataSave?.setData?.([...photos]);
-  }
 
-  navigation.goBack();
-};
+  const done = () => {
+    if (route?.params?.from === "Pickup") {
+      console.log("enter in Pickup");
+
+      PickUpDataSave?.setData?.([...photos]);
+    } else {
+      // Default — save photos to delivery data context
+      DeliveyDataSave?.setData?.([...photos]);
+    }
+    cameraRef.current?.resumePreview();
+
+    router.back()
+  };
   // const done = () => {
   //   DeliveyDataSave?.setData([...photos])
   //   navigation.goBack();
