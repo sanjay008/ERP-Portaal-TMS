@@ -10,31 +10,24 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "config": {
-        "googleMapsApiKey": "AIzaSyBZQz7G7yJ_DSSpUBs0XbVjSKHSf_HbCqQ"
-      },
       "infoPlist": {
         "UIViewControllerBasedStatusBarAppearance": true,
         "ITSAppUsesNonExemptEncryption": false
       },
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.erptmsdriver.app"
     },
     "android": {
       "allowBackup": false,
       "versionCode": 1,
       "hardwareAccelerated": true,
-      "config": {
-        "googleMaps": {
-          "apiKey": "AIzaSyBZQz7G7yJ_DSSpUBs0XbVjSKHSf_HbCqQ"
-        }
-      },
       "env": {
         "EXPO_ANDROID_KEYSTORE": "@EXPO_ANDROID_KEYSTORE",
         "EXPO_ANDROID_KEYSTORE_PASSWORD": "@EXPO_ANDROID_KEYSTORE_PASSWORD",
         "EXPO_ANDROID_KEYSTORE_ALIAS": "erp_tms_driver",
         "EXPO_ANDROID_KEYSTORE_ALIAS_PASSWORD": "@EXPO_ANDROID_KEYSTORE_ALIAS_PASSWORD"
       },
+      "supportsTablet": false,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/icon.png",
