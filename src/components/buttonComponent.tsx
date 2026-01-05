@@ -2,6 +2,7 @@ import React from "react";
 import { StyleSheet, Text, TouchableOpacity } from "react-native";
 import { RFValue } from "react-native-responsive-fontsize";
 import { Colors } from "../utils/colors";
+import { FONTS } from "../utils/storeData";
 
 type typeProps = {
   width?: string | number | any;
@@ -61,7 +62,7 @@ export default ButtonComponent;
 const styles = StyleSheet.create({
   title: {
     fontSize: RFValue(15),
-    fontFamily: "Medium",
+    fontFamily: FONTS.Medium,
     textTransform:'capitalize'
   },
 });

@@ -40,7 +40,7 @@ import ButtonComponent from "../../components/buttonComponent.tsx";
 import Input from "../../components/input";
 import Loader from "../../components/loading";
 import { Colors } from "../../utils/colors";
-import { getData, storeData } from "../../utils/storeData";
+import { FONTS, getData, storeData } from "../../utils/storeData";
 
 // const GOOGLE_API_KEY = "AIzaSyBVCjdibPBQN8s0Iy06ITwgMvrRZZRLcog";
 
@@ -855,7 +855,7 @@ const Staff = ({ navigation, route }) => {
                             <Text
                               style={{
                                 fontSize: 16,
-                                fontFamily: "Medium",
+                                fontFamily: FONTS.Medium,
 
                                 marginBottom: 8,
                               }}
@@ -1239,7 +1239,7 @@ const styles = StyleSheet.create({
   },
   wellcome: {
     fontSize: RFValue(17),
-    fontFamily: "SemiBold",
+    fontFamily: FONTS.SemiBold,
     color: Colors.black,
     marginTop: 40,
 
@@ -1372,7 +1372,7 @@ const styles = StyleSheet.create({
   SuggestText: {
     fontSize: RFValue(10),
     fontWeight: '500',
-    fontFamily: "Medium",
+    fontFamily: FONTS.Medium,
     color: Colors.black
   },
   textInput: {

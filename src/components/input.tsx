@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { RFValue } from "react-native-responsive-fontsize";
 import { Colors } from "../utils/colors";
+import { FONTS } from "../utils/storeData";
 
 type Props = {
   placeholder?: string;
@@ -139,12 +140,12 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     color: Colors.black,
-    fontFamily: "regular",
+    fontFamily: FONTS.Regular,
     fontSize: RFValue(12),
   },
   title: {
     fontSize: RFValue(13),
-    fontFamily: "Medium",
+    fontFamily: FONTS.Medium,
     color: Colors.black,
     marginTop: RFValue(5),
   },
@@ -156,7 +157,7 @@ const styles = StyleSheet.create({
   error: {
     color: Colors.red,
     fontSize: RFValue(10),
-    fontFamily: "regular",
+    fontFamily: FONTS.Regular,
     marginTop: RFValue(1),
   },
 });

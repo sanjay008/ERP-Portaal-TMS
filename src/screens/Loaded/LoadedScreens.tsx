@@ -1,4 +1,5 @@
 import apiConstants from "@/src/api/apiConstants";
+import { Images } from "@/src/assets/images";
 import { ApiFormatDate } from "@/src/components/ApiFormatDate";
 import CalenderDate from "@/src/components/CalenderDate";
 import DropDownBox from "@/src/components/DropDownBox";
@@ -12,13 +13,13 @@ import { getData, token } from "@/src/utils/storeData";
 import { useIsFocused } from "@react-navigation/native";
 import React, { useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FlatList, ScrollView, Text, View } from "react-native";
+import { FlatList, Image, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { styles } from "./style";
 
-export default function LoadedScreens({ navigation, route}: any) {
+export default function LoadedScreens({ navigation, route }: any) {
   const { refresh } = route?.params || {};
-  const { UserData, setUserData, Toast, setToast, AllRegion, setAllRegion, SelectCurrentDate,setSelectCurrentDate,    GloblyTypeSlide,
-    setGloblyTypeSlide,SelectActiveRegionData,setSelectActiveRegionData} =
+  const { UserData, setUserData, Toast, setToast, AllRegion, setAllRegion, SelectCurrentDate, setSelectCurrentDate, GloblyTypeSlide,
+    setGloblyTypeSlide, SelectActiveRegionData, setSelectActiveRegionData } =
     useContext(GlobalContextData);
   const RefHandle = useRef(null);
   const [SelectDate, setSelectDate] = useState<string>("");
@@ -29,6 +30,7 @@ export default function LoadedScreens({ navigation, route}: any) {
   const [IsLoading, setLoading] = useState(false);
   const { t } = useTranslation();
   const Focused = useIsFocused();
+  const [isCollapsed, setisCollapsed] = useState<boolean>(true);
 
 
   const getUserData = async () => {
@@ -40,8 +42,8 @@ export default function LoadedScreens({ navigation, route}: any) {
     }
   };
   useEffect(() => {
-    
-    if (UserData==null) {
+
+    if (UserData == null) {
       getUserData();
     }
   }, []);
@@ -57,7 +59,7 @@ export default function LoadedScreens({ navigation, route}: any) {
       setSelectCurrentDate(SelectDate)
     }
     setGloblyTypeSlide("Warehouse Loading")
-  }, [SelectDate, UserData,refresh]);
+  }, [SelectDate, UserData, refresh]);
 
   const GetAllPickUpDataFun = async (user: any = null) => {
     // setSelectRegionData([]);
@@ -71,13 +73,13 @@ export default function LoadedScreens({ navigation, route}: any) {
           token: token,
           role: userData?.user?.role,
           relaties_id: userData?.relaties?.id,
-     
+
           user_id: userData?.user?.id,
           date: ApiFormatDate(SelectDate),
           // date:"2025-10-23",
         },
       });
-        // console.log("current Data", res);
+      // console.log("current Data", res);
 
       if (Boolean(res.status)) {
         setAllPickUpData(res?.data || []);
@@ -107,7 +109,7 @@ export default function LoadedScreens({ navigation, route}: any) {
     }
   };
 
-  
+
 
   return (
     <ScrollView
@@ -117,7 +119,25 @@ export default function LoadedScreens({ navigation, route}: any) {
       contentContainerStyle={styles.ContainerStyle}
     >
       <View style={styles.ItemGap} ref={RefHandle}>
-        <CalenderDate date={SelectDate} setDate={setSelectDate} />
+        <View style={styles.Flex}>
+          <View style={{ flex: 1 / 1.05 }}>
+            <CalenderDate date={SelectDate} setDate={setSelectDate} />
+            </View>
+            <TouchableOpacity
+              style={[
+                styles.CollPadByButton,
+                { transform: [{ rotate: !isCollapsed ? "0deg" : "180deg" }] },
+              ]}
+              onPress={() => setisCollapsed(!isCollapsed)}
+            >
+              <Image
+                source={Images.down}
+                style={styles.DownIcon}
+                tintColor={Colors.white}
+              />
+
+            </TouchableOpacity>
+        </View>
         <View style={styles.Flex}>
           <DropDownBox
             data={AllPickUpData}
@@ -126,7 +146,7 @@ export default function LoadedScreens({ navigation, route}: any) {
             labelFieldKey="name"
             valueFieldKey="id"
             ContainerStyle={{ flex: 1 }}
-            // disbled={true}
+          // disbled={true}
           />
           {/* <TwoTypeButton
             onlyIcon={true}
@@ -173,12 +193,13 @@ export default function LoadedScreens({ navigation, route}: any) {
             renderItem={({ item, index }) => {
               return (
                 <PickUpBox
+                  AllisCollapsed={isCollapsed}
                   index={index}
                   LableStatus={item?.tmsstatus?.status_name}
                   OrderId={item?.id}
                   ProductItem={item?.items}
                   LableBackground={item?.tmsstatus?.color}
-                  onPress={() => navigation.navigate("Details", { item: item, type: "Warehouse Loading"})}
+                  onPress={() => navigation.navigate("Details", { item: item, type: "Warehouse Loading" })}
                   start={item?.pickup_location}
                   end={item?.deliver_location}
                   customerData={item?.customer}
@@ -187,16 +208,16 @@ export default function LoadedScreens({ navigation, route}: any) {
               );
             }}
           />
-        ) : IsLoading ? 
-         <View style={styles.FooterContainer}>
-                  <Loader />
-                </View> : (
+        ) : IsLoading ?
           <View style={styles.FooterContainer}>
-            <Text style={[styles.Text, { color: Colors.darkText }]}>
-              {t("No Order Found")}
-            </Text>
-          </View>
-        )}
+            <Loader />
+          </View> : (
+            <View style={styles.FooterContainer}>
+              <Text style={[styles.Text, { color: Colors.darkText }]}>
+                {t("No Order Found")}
+              </Text>
+            </View>
+          )}
       </View>
     </ScrollView>
   );

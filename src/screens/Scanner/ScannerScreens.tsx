@@ -11,7 +11,7 @@ import ScannerInfoModal from "@/src/components/ScannerInfoModal";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors.js";
-import { height, token, width } from "@/src/utils/storeData";
+import { FONTS, height, token, width } from "@/src/utils/storeData";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import BottomSheet, {
   BottomSheetFlatList
@@ -45,6 +45,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  Vibration,
   View,
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -321,12 +322,21 @@ export default function ScannerScreens({ navigation, route }: any) {
         }
 
         // Optional: give user feedback
-        // Vibration.vibrate(500);
-        // await playBeep();
+        Vibration.vibrate(500);
+        await playBeep();
 
         await QuestiongetApi(parsedData);
-      } catch (error) {
-        console.log("⚠️ QR Processing Error:", error);
+      } catch (error: any) {
+        if (axios.isAxiosError(error)) {
+          console.log("⚠️ QR Processing Error:", error);
+          setToast({
+            top: 45,
+            text: error?.response?.data?.message ?? error?.message ?? t("Invalid QR code format"),
+            type: "error",
+            visible: true,
+          });
+          return;
+        }
         setConformationModal({
           visible: true,
           Icon: Images.InValidScanner,
@@ -707,7 +717,9 @@ export default function ScannerScreens({ navigation, route }: any) {
         });
         //  navigation.replace("Scanner", { key: Date.now() });
         await GetIdByOrderFun();
+        setComment(false)
       } else {
+        setComment(true)
         setToast({
           top: 45,
           text: res?.data?.message,
@@ -716,6 +728,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         });
       }
     } catch (error) {
+      setComment(true)
       console.log("AddImageOrCommentFun Error:-", error);
       setToast({
         top: 45,
@@ -780,6 +793,7 @@ export default function ScannerScreens({ navigation, route }: any) {
       });
 
       if (res?.status) {
+        setComment(false)
         await AddImageOrCommentFun();
         if (SelectDeliveryReason !== null) {
           setSelectDeliveryReson(null);
@@ -1229,14 +1243,14 @@ export default function ScannerScreens({ navigation, route }: any) {
         LText={ConformationModalOpen.LButtonText}
         onPress={() => {
           if (ConformationModalOpen.RButtonText === "Take Photo") {
-            navigation.navigate("Camera", {
-              from: "Pickup",
-            });
-
             setConformationModal((prev: any[]) => ({
               ...prev,
               visible: false,
             }))
+            navigation.navigate("Camera", {
+              from: "Pickup",
+            });
+
             // goBackOrPopTo(navigation,"Camera", {
             //   from: "Pickup",
             // })
@@ -1514,7 +1528,7 @@ export default function ScannerScreens({ navigation, route }: any) {
                             btn.type === "primary"
                               ? Colors.white
                               : Colors.black,
-                          fontFamily: "Medium",
+                          fontFamily: FONTS.Medium,
                         }}
                       >
                         {btn.text}
@@ -1569,7 +1583,7 @@ const styles = StyleSheet.create({
   },
   Text: {
     fontSize: 14,
-    fontFamily: "Medium",
+    fontFamily: FONTS.Medium,
     color: Colors.black,
   },
   CommentContainer: {
@@ -1583,7 +1597,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     backgroundColor: Colors.white,
     minHeight: 240,
-    fontFamily: "regular",
+    fontFamily: FONTS.Regular,
     color: Colors.black,
     marginTop: 10,
   },
@@ -1600,7 +1614,7 @@ const styles = StyleSheet.create({
   Error: {
     fontSize: 13,
     color: Colors.red,
-    fontFamily: "regular",
+    fontFamily: FONTS.Regular,
     marginTop: 10,
     marginLeft: 5,
   },
@@ -1610,7 +1624,7 @@ const styles = StyleSheet.create({
   Input: {
     width: "80%",
     fontSize: 14,
-    fontFamily: "Medium",
+    fontFamily: FONTS.Medium,
     color: Colors.black,
   },
   InputBox: {

@@ -1,16 +1,21 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import Modal from "react-native-modal";
+import {
+    ActivityIndicator,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from "react-native";
 import { Colors } from "../utils/colors";
-
+import { FONTS } from "../utils/storeData";
 
 interface LoadingModalProps {
   visible: boolean;
   message?: string;
   cancelable?: boolean;
   onCancel?: () => void;
-  theme?: "light" | "dark"; 
+  theme?: "light" | "dark";
 }
 
 const LoadingModal: React.FC<LoadingModalProps> = ({
@@ -24,21 +29,10 @@ const LoadingModal: React.FC<LoadingModalProps> = ({
 
   const isDark = theme === "dark";
 
+  if (!visible) return null;
+
   return (
-    <Modal
-      isVisible={visible}
-      animationIn="fadeIn"
-      animationOut="fadeOut"
-      backdropOpacity={0.4}
-      useNativeDriver
-         propagateSwipe={true}
-        coverScreen={true}
-      hideModalContentWhileAnimating
-      style={{
-    margin: 0,
-    zIndex: 9999,             
-  }}
-    >
+    <View style={styles.overlay}>
       <View style={styles.modalContainer}>
         <View
           style={[
@@ -48,8 +42,9 @@ const LoadingModal: React.FC<LoadingModalProps> = ({
         >
           <ActivityIndicator
             size="large"
-            color={isDark ? Colors.primary : Colors.primary}
+            color={Colors.primary}
           />
+
           <Text
             style={[
               styles.messageText,
@@ -65,7 +60,6 @@ const LoadingModal: React.FC<LoadingModalProps> = ({
                 styles.cancelBtn,
                 { backgroundColor: Colors.green },
               ]}
-              disabled={visible}
               onPress={onCancel}
             >
               <Text style={styles.cancelText}>{t("Cancel")}</Text>
@@ -73,13 +67,23 @@ const LoadingModal: React.FC<LoadingModalProps> = ({
           )}
         </View>
       </View>
-    </Modal>
+    </View>
   );
 };
 
 export default LoadingModal;
 
 const styles = StyleSheet.create({
+  overlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    zIndex: 9999,
+    elevation: 9999,
+  },
   modalContainer: {
     flex: 1,
     justifyContent: "center",
@@ -99,7 +103,7 @@ const styles = StyleSheet.create({
   messageText: {
     marginTop: 18,
     fontSize: 16,
-    fontFamily:"Medium",
+    fontFamily: FONTS.Medium,
     textAlign: "center",
   },
   cancelBtn: {

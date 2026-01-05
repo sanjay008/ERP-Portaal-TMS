@@ -1,5 +1,5 @@
 import { Colors } from "@/src/utils/colors";
-import { width } from "@/src/utils/storeData";
+import { FONTS, width } from "@/src/utils/storeData";
 import { StyleSheet } from "react-native";
 import { RFValue } from "react-native-responsive-fontsize";
 
@@ -50,7 +50,7 @@ export const styles = StyleSheet.create({
   },
   Text: {
     fontSize: 14,
-    fontFamily: "SemiBold",
+    fontFamily: FONTS.SemiBold,
     color: Colors.black,
   },
   Button: {

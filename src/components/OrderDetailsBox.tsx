@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Images } from "../assets/images";
 import { Colors } from "../utils/colors";
-import { SimpleFlex } from "../utils/storeData";
+import { FONTS, SimpleFlex } from "../utils/storeData";
 
 export default function OrderDetailsBox() {
   const { t } = useTranslation();
@@ -38,18 +38,18 @@ const styles = StyleSheet.create({
   },
   Heading:{
     fontSize:15,
-    fontFamily:"SemiBold",
+    fontFamily:FONTS.SemiBold,
     color:Colors.black
   },
   AddressText:{
     fontSize:13,
-    fontFamily:"Medium",
+    fontFamily:FONTS.Medium,
     color:Colors.darkText,
     marginVertical:5
   },
   Text:{
     fontSize:14,
-    fontFamily:"Medium",
+    fontFamily:FONTS.Medium,
     color:Colors.black
   },
   Icon: {

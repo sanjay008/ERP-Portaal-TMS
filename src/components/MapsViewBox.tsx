@@ -5,7 +5,7 @@ import { Alert, Image, Linking, Platform, StyleSheet, Text, TouchableOpacity, Vi
 import { Images } from "../assets/images";
 import { GlobalContextData } from "../context/GlobalContext";
 import { Colors } from "../utils/colors";
-import { width } from "../utils/storeData";
+import { FONTS, width } from "../utils/storeData";
 import { useErrorHandle } from "./ErrorHandle";
 import LoadingModal from "./LoadingModal";
 type MapsData = {
@@ -122,6 +122,6 @@ const styles = StyleSheet.create({
   Text: {
     fontSize: 14,
     color: Colors.white,
-    fontFamily: "Medium"
+    fontFamily: FONTS.Medium
   }
 });

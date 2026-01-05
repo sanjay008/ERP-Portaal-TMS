@@ -60,7 +60,7 @@ const styles = StyleSheet.create({
   Input: {
     width: "80%",
     fontSize: 14,
-    fontFamily: "regular",
+    fontFamily: FONTS.Regular,
     color: Colors.black,
   },
 });

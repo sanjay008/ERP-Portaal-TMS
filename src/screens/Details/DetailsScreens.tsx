@@ -99,6 +99,7 @@ export default function DetailsScreens({ navigation, route }: any) {
     onPress: undefined,
   });
   const IsFocused = useIsFocused();
+  const [Count,setCount] = useState<number>(0)
   const [AlertModalOpen, setAlerModalOpen] = useState<any>({
     visible: false,
     title: "",
@@ -219,7 +220,9 @@ export default function DetailsScreens({ navigation, route }: any) {
         console.log("Received pickup photo data:", data);
         setAllSelectImage(data);
         if (data?.length > 0) {
-          setComment(true);
+          setTimeout(()=>{
+            setComment(true);
+          },400)
         }
       },
     });
@@ -228,7 +231,9 @@ export default function DetailsScreens({ navigation, route }: any) {
         console.log("📦 Received delivery photo data:", data);
         setAllSelectImage(data);
         if (data?.length > 0) {
-          setComment(true);
+          setTimeout(()=>{
+            setComment(true);
+          },400)
         }
       },
     });
@@ -715,10 +720,13 @@ export default function DetailsScreens({ navigation, route }: any) {
     }
    }
    Funcation()
+   if(Focused){
+     setCount(pre => pre+1)
+   }
   }, [Focused]);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView key={Count} style={styles.container}>
       <StatusBar backgroundColor="white" />
       <DetailsHeader title={t("Details")} Backbutton={BackButtonAvailble} />
       {DataLoading ? (
@@ -833,6 +841,7 @@ export default function DetailsScreens({ navigation, route }: any) {
                 </View>
               )}
               initialNumToRender={10}
+              showsHorizontalScrollIndicator={false}
               maxToRenderPerBatch={10}
               windowSize={5}
               removeClippedSubviews={true}
@@ -979,7 +988,8 @@ export default function DetailsScreens({ navigation, route }: any) {
           setNoParcelModalVisible(false);
           console.log("ItemsData", ItemsData?.customer?.display_name);
            setNoParcelDetailsScreenEvent(false)
-          setScannerModalOpen({
+          setTimeout(()=>{
+            setScannerModalOpen({
             visible: true,
             InfoTitle: t("Scanner Info"),
             type: 1,
@@ -994,6 +1004,7 @@ export default function DetailsScreens({ navigation, route }: any) {
               // goBackOrPopTo(navigation,"Camera", { from: "Pickup" })
             },
           });
+          },500)
         }}
       />
       <ScannerInfoModal

@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Images } from "../assets/images";
 import { Colors } from "../utils/colors";
-import { SimpleFlex } from "../utils/storeData";
+import { FONTS, SimpleFlex } from "../utils/storeData";
 import TwoTypeButton from "./TwoTypeButton";
 
 export default function DetailsHeader({
@@ -68,7 +68,7 @@ const styles = StyleSheet.create({
   },
   Title: {
     fontSize: 15,
-    fontFamily: "SemiBold",
+    fontFamily: FONTS.SemiBold,
     color: Colors.black,
   },
   Button: {
@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
   },
   Text: {
     fontSize: 14,
-    fontFamily: "Medium",
+    fontFamily: FONTS.Medium,
     color: Colors.white,
   },
 });

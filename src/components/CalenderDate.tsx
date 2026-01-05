@@ -7,6 +7,7 @@ import { Images } from "../assets/images";
 import { GlobalContextData } from "../context/GlobalContext";
 import { Colors } from "../utils/colors";
 import { formatDate } from "./DateFormate";
+import { FONTS } from "../utils/storeData";
 
 type Props = {
   date: string | any;
@@ -201,12 +202,12 @@ const styles = StyleSheet.create({
   DarkText: {
     fontSize: 14,
     color: Colors.darkText,
-    fontFamily: "regular",
+    fontFamily: FONTS.Regular,
   },
   Text: {
     fontSize: 14,
     color: Colors.black,
-    fontFamily: "regular",
+    fontFamily: FONTS.Regular,
   },
   Calender: {
     width: '100%',

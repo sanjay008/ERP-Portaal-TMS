@@ -6,6 +6,7 @@ import { Dropdown } from "react-native-element-dropdown";
 import { Images } from "../assets/images";
 import { GlobalContextData } from "../context/GlobalContext";
 import { Colors } from "../utils/colors";
+import { FONTS } from "../utils/storeData";
 
 type DropdownItem = {
   [key: string]: string | number;
@@ -110,17 +111,17 @@ const styles = StyleSheet.create({
   placeholderStyle: {
     fontSize: 16,
     color: Colors.darkText,
-    fontFamily: "regular",
+    fontFamily: FONTS.Regular,
   },
   selectedTextStyle: {
     fontSize: 16,
     color: Colors.black,
-    fontFamily: "regular",
+    fontFamily: FONTS.Regular,
   },
   itemTextStyle: {
     fontSize: 15,
     color: Colors.black,
-    fontFamily: "regular",
+    fontFamily: FONTS.Regular,
   },
 });
 

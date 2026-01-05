@@ -12,30 +12,30 @@ import {
 import DashedLine from "react-native-dashed-line";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import Modal from "react-native-modal";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Images } from "../assets/images";
 import { GlobalContextData } from "../context/GlobalContext";
 import { Colors } from "../utils/colors";
-import { height } from "../utils/storeData";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { FONTS, height } from "../utils/storeData";
 type Props = {
   IsVisible: boolean;
   setIsVisible: (value: boolean) => void;
-  fun?:(value:string)=> void;
+  fun?: (value: string) => void;
 };
 
-export default function AddCommentModal({ IsVisible, setIsVisible, fun}: Props) {
+export default function AddCommentModal({ IsVisible, setIsVisible, fun }: Props) {
   const { t } = useTranslation();
   const [comment, setComment] = useState<string>("");
   const [Description, setDescrition] = useState<string>("");
-  const [Commenterror,setCommentError] = useState<string>("")
-   const {UserData,setUserData} = useContext(GlobalContextData);
+  const [Commenterror, setCommentError] = useState<string>("")
+  const { UserData, setUserData } = useContext(GlobalContextData);
 
 
-  const CommentFun = async()=>{
+  const CommentFun = async () => {
     setCommentError("");
-    if(Description.trim()==""){
-        setCommentError(t("Enter a comment"))
-        return
+    if (Description.trim() == "") {
+      setCommentError(t("Enter a comment"))
+      return
     }
     fun?.(Description);
     setDescrition("");
@@ -46,10 +46,10 @@ export default function AddCommentModal({ IsVisible, setIsVisible, fun}: Props) 
       isVisible={IsVisible}
       animationIn={"bounceInUp"}
       animationOut={"bounceOutDown"}
-      style={{ margin: 0 ,}}
-      onBackdropPress={() => {setIsVisible(false)}}
-      onBackButtonPress={() => {setIsVisible(false)}}
-      useNativeDriver 
+      style={{ margin: 0, }}
+      onBackdropPress={() => { setIsVisible(false) }}
+      onBackButtonPress={() => { setIsVisible(false) }}
+      useNativeDriver
       avoidKeyboard
     >
       <KeyboardAwareScrollView
@@ -57,14 +57,14 @@ export default function AddCommentModal({ IsVisible, setIsVisible, fun}: Props) 
         // extraHeight={100}
         contentContainerStyle={{ flex: 1 }}
         enableOnAndroid={true}
-       extraScrollHeight={170}
+        extraScrollHeight={170}
         keyboardShouldPersistTaps="handled"
       >
         <SafeAreaView style={styles.container}>
           <View style={styles.CommentBox}>
             <View style={styles.Flex}>
               <Text style={styles.Text}>{t("Write Comment")}</Text>
-              <TouchableOpacity style={styles.CloseButton} onPress={()=>setIsVisible(false)}>
+              <TouchableOpacity style={styles.CloseButton} onPress={() => setIsVisible(false)}>
                 <Image
                   source={Images.Close}
                   style={{ width: 18, height: 18 }}
@@ -129,7 +129,7 @@ export default function AddCommentModal({ IsVisible, setIsVisible, fun}: Props) 
 
 const styles = StyleSheet.create({
   container: {
-    flex:1,
+    flex: 1,
     height: height,
     justifyContent: "flex-end",
     margin: 0,
@@ -141,11 +141,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     borderTopRightRadius: 10,
     borderTopLeftRadius: 10,
-    paddingBottom:20
+    paddingBottom: 20
   },
   Text: {
     fontSize: 14,
-    fontFamily: "SemiBold",
+    fontFamily: FONTS.SemiBold,
     color: Colors.black,
   },
   Line: {
@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
   Input: {
     width: "80%",
     fontSize: 14,
-    fontFamily: "Medium",
+    fontFamily: FONTS.Medium,
     color: Colors.black,
   },
   Flex: {
@@ -187,7 +187,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     backgroundColor: Colors.white,
     minHeight: 120,
-    fontFamily: "regular",
+    fontFamily: FONTS.Regular,
     color: Colors.black,
     marginTop: 10,
   },
@@ -200,11 +200,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginVertical: 15,
   },
-  Error:{
-    fontSize:13,
-    color:Colors.red,
-    fontFamily:"regular",
-    marginTop:10,
-    marginLeft:5
+  Error: {
+    fontSize: 13,
+    color: Colors.red,
+    fontFamily: FONTS.Regular,
+    marginTop: 10,
+    marginLeft: 5
   }
 });

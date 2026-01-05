@@ -4,6 +4,7 @@ import { Image, StyleSheet, Text, View } from "react-native";
 import DashedLine from "react-native-dashed-line";
 import { Images } from "../assets/images";
 import { Colors } from "../utils/colors";
+import { FONTS } from "../utils/storeData";
 type Props = {
   start: string;
   end: string;
@@ -62,7 +63,7 @@ const styles = StyleSheet.create({
   },
   DarkText: {
     color: Colors.darkText,
-    fontFamily: "Medium",
+    fontFamily: FONTS.Medium,
     fontSize: 14,
   },
   Location: {
@@ -78,7 +79,7 @@ const styles = StyleSheet.create({
   },
   Address: {
     fontSize: 13,
-    fontFamily: "Medium",
+    fontFamily: FONTS.Medium,
     color: Colors.black,
   },
 });

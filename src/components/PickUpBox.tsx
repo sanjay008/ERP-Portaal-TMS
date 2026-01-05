@@ -13,7 +13,7 @@ import {
 import { Images } from "../assets/images";
 import { GlobalContextData } from "../context/GlobalContext";
 import { Colors } from "../utils/colors";
-import { SimpleFlex } from "../utils/storeData";
+import { FONTS, SimpleFlex } from "../utils/storeData";
 import CustomCollapsible from "./CustomCollapsible";
 import ParcelBox from "./ParcelBox";
 import PickupPogressMap from "./PickupPogressMap";
@@ -278,13 +278,13 @@ const styles = StyleSheet.create({
   },
   Text: {
     fontSize: 14,
-    fontFamily: "SemiBold",
+    fontFamily: FONTS.SemiBold,
     color: Colors.black,
   },
   OrderIdText: {
     fontSize: 13,
     color: Colors.orderdark,
-    fontFamily: "Medium",
+    fontFamily: FONTS.Medium,
   },
   Flex: {
     width: "100%",

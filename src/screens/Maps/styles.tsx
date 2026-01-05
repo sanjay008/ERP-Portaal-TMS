@@ -1,4 +1,5 @@
 import { Colors } from "@/src/utils/colors";
+import { FONTS } from "@/src/utils/storeData";
 import { StyleSheet } from "react-native";
 
 export const styles = StyleSheet.create({
@@ -23,7 +24,7 @@ export const styles = StyleSheet.create({
   },
   Text: {
     fontSize: 15,
-    fontFamily: "SemiBold",
+    fontFamily: FONTS.SemiBold,
     color: Colors.black,
   },
   Icon: {
@@ -58,7 +59,7 @@ export const styles = StyleSheet.create({
   },
   MapsButtonText:{
     fontSize:14,
-    fontFamily:"Medium",
+    fontFamily:FONTS.Medium,
     color:Colors.white
   }
 });

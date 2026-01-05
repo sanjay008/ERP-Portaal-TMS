@@ -1,4 +1,5 @@
 
+import { FONTS } from "@/src/utils/storeData";
 import { StyleSheet } from "react-native";
 import { RFValue } from "react-native-responsive-fontsize";
 import { Colors } from "../../utils/colors";
@@ -10,13 +11,13 @@ export const styles = StyleSheet.create({
     },
     wellcome: {
         fontSize: 17,
-        fontFamily: "SemiBold",
+        fontFamily: FONTS.SemiBold,
         color: Colors.black,
         marginTop: 40,
     },
     dis: {
         fontSize: 14,
-        fontFamily: "regular",
+        fontFamily: FONTS.Regular,
         color: Colors.textgray,
         marginTop: 8,
     },
@@ -29,7 +30,7 @@ export const styles = StyleSheet.create({
     },
     resend: {
         fontSize: 15,
-        fontFamily: "Medium",
+        fontFamily: FONTS.Medium,
         color: Colors.textgray,
         alignSelf: "center",
         marginTop: RFValue(20),
@@ -40,7 +41,7 @@ export const styles = StyleSheet.create({
         borderRadius: 5,
         fontSize: 15,
         borderBottomWidth: 1,
-        fontFamily: "regular",
+        fontFamily: FONTS.Regular,
         height: 40,
         width: 40,
     },
@@ -48,7 +49,7 @@ export const styles = StyleSheet.create({
     otperrortext: {
         color: Colors.red,
         fontSize: RFValue(10),
-        fontFamily: "regular",
+        fontFamily: FONTS.Regular,
         marginTop: RFValue(1),
     },
 });

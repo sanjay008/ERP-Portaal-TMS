@@ -1,5 +1,5 @@
 import { Colors } from "@/src/utils/colors";
-import { height } from "@/src/utils/storeData";
+import { FONTS, height } from "@/src/utils/storeData";
 import { StyleSheet } from "react-native";
 
 export const styles = StyleSheet.create({
@@ -37,7 +37,7 @@ export const styles = StyleSheet.create({
     Text:{
         fontSize:14,
         color:Colors.black,
-        fontFamily:"Medium",
+        fontFamily:FONTS.Medium,
 
     }
 });

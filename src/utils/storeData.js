@@ -40,8 +40,15 @@ export const SimpleFlex = StyleSheet.create({
 }
 });
 
-
-
+export const FONTS = {
+  Regular:"regular",
+  Bold: "Bold",
+  SemiBold: "SemiBold",
+  ExtraBold: "ExtraBold",
+  ExtraLight:"ExtraLight",
+  Medium: "Medium",
+  Thin: "Thin",
+};
 
 
 

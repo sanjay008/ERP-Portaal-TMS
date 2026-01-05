@@ -2,6 +2,7 @@ import { StyleSheet } from "react-native";
 import { RFValue } from "react-native-responsive-fontsize";
 import { heightPercentageToDP } from "react-native-responsive-screen";
 import { Colors } from "../../utils/colors";
+import { FONTS } from "@/src/utils/storeData";
 
 
 export const styles = StyleSheet.create({
@@ -126,11 +127,11 @@ export const styles = StyleSheet.create({
     textAlign: "center",
     fontWeight: "bold",
     color: Colors.black,
-    fontFamily: "regular",
+    fontFamily: FONTS.Regular,
   },
 
   selectedCountryTextStyle: {
-    fontFamily: "regular",
+    fontFamily: FONTS.Regular,
     fontSize: 14,
     color: Colors.black,
   },
@@ -143,7 +144,7 @@ export const styles = StyleSheet.create({
   input: {
     width:'90%',// flex: 1,
     color: Colors.black,
-    fontFamily: "regular",
+    fontFamily: FONTS.Regular,
     backgroundColor: "transparent",
     fontSize: 14,
     paddingLeft: 8,
@@ -157,7 +158,7 @@ export const styles = StyleSheet.create({
   error: {
     color: Colors.red,
     fontSize: 13,
-    fontFamily: "regular",
+    fontFamily: FONTS.Regular,
     marginTop: 8,
     marginLeft: 4,
   },

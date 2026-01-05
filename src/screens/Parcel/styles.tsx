@@ -1,5 +1,5 @@
 import { Colors } from "@/src/utils/colors";
-import { width } from "@/src/utils/storeData";
+import { FONTS, width } from "@/src/utils/storeData";
 import { StyleSheet } from "react-native";
 
 export const styles = StyleSheet.create({
@@ -19,7 +19,7 @@ export const styles = StyleSheet.create({
   },
   Text: {
     fontSize: 14,
-    fontFamily: "Medium",
+    fontFamily: FONTS.Medium,
     color: Colors.black,
   },
   FlatConatiner: {
@@ -36,8 +36,8 @@ export const styles = StyleSheet.create({
   },
   ContentContainerStyleCatogryStatus: {
     gap: 10,
-    paddingRight:50,
-    paddingLeft:15
+    paddingRight: 50,
+    paddingLeft: 15
   },
   FooterContainer: {
     width: "100%",
@@ -45,4 +45,16 @@ export const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  DownIcon: {
+    width: 25,
+    height: 25,
+  },
+  CollPadByButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 7,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center'
+  }
 });

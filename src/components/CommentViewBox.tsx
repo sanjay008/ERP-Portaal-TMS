@@ -4,7 +4,7 @@ import { FlatList, Image, StyleSheet, Text, View } from "react-native";
 import DashedLine from "react-native-dashed-line";
 import { Images } from "../assets/images";
 import { Colors } from "../utils/colors";
-import { SimpleFlex } from "../utils/storeData";
+import { FONTS, SimpleFlex } from "../utils/storeData";
 import { formatDate } from "./DateFormate";
 export default function CommentViewBox({ data=[] }: { data: object[] }) {
   const { t } = useTranslation();
@@ -35,7 +35,7 @@ export default function CommentViewBox({ data=[] }: { data: object[] }) {
 
               <Text style={[styles.DarkText, { marginTop: 10 }]}>
                {
-                item?.comment || ""
+                item?.comment_text || ""
                }
               </Text>
               <DashedLine
@@ -59,7 +59,7 @@ const styles = StyleSheet.create({
   },
   Heading: {
     fontSize: 13,
-    fontFamily: "Medium",
+    fontFamily: FONTS.Medium,
     color: Colors.darkText,
   },
   CommentBox: {
@@ -72,13 +72,13 @@ const styles = StyleSheet.create({
   },
   Text: {
     fontSize: 14,
-    fontFamily: "Medium",
+    fontFamily: FONTS.Medium,
     color: Colors.black,
   },
   DarkText: {
     flex: 1,
     fontSize: 14,
-    fontFamily: "regular",
+    fontFamily: FONTS.Regular,
     color: Colors.darkText,
   },
   Dashed: {

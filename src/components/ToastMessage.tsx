@@ -1,13 +1,14 @@
 import React, { useContext, useEffect, useState } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
+    useAnimatedStyle,
+    useSharedValue,
+    withTiming,
 } from "react-native-reanimated";
 import { Images } from "../assets/images";
 import { GlobalContextData } from "../context/GlobalContext";
 import { Colors } from "../utils/colors";
+import { FONTS } from "../utils/storeData";
 
 type Props = {
   top?: number;
@@ -139,7 +140,7 @@ const styles = StyleSheet.create({
   text: {
     fontSize: 15,
     color: Colors.black,
-    fontFamily: "Medium",
+    fontFamily: FONTS.Medium,
     flex: 1,
   },
   line: {

@@ -1,4 +1,5 @@
 import { Colors } from "@/src/utils/colors";
+import { FONTS } from "@/src/utils/storeData";
 import { StyleSheet } from "react-native";
 
 export const styles = StyleSheet.create({
@@ -24,7 +25,7 @@ export const styles = StyleSheet.create({
   },
   Text:{
     fontSize:14,
-    fontFamily:"Medium",
+    fontFamily:FONTS.Medium,
     color:Colors.black
   },
   AciverContainer:{

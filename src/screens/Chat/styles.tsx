@@ -1,4 +1,4 @@
-import { width } from "@/src/utils/storeData.js";
+import { FONTS, width } from "@/src/utils/storeData.js";
 import { StyleSheet } from "react-native";
 import { Colors } from "../../utils/colors.js";
 
@@ -16,12 +16,12 @@ export const styles = StyleSheet.create({
   },
   Text:{
     fontSize:14,
-    fontFamily:"Bold",
+    fontFamily:FONTS.Bold,
     color:Colors.black
   },
   darkText:{
     fontSize:14,
-    fontFamily:"Medium",
+    fontFamily:FONTS.Medium,
     color:Colors.darkText
   }
 });

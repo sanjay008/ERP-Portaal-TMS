@@ -17,6 +17,7 @@ import { useTranslation } from "react-i18next";
 import {
   FlatList,
   Image,
+  RefreshControl,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -135,6 +136,13 @@ export default function FilterScreen({ navigation, route }: any) {
         <ScrollView
           style={{ flex: 1, marginTop: -20, paddingTop: 15 }}
           contentContainerStyle={styles.ContainerStyle}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={IsLoading}
+              onRefresh={getFilterDataFun}
+            />
+          }
         >
           <View style={styles.Flex}>
             <View style={{ flex: 1 / 1.05 }}>
@@ -163,7 +171,7 @@ export default function FilterScreen({ navigation, route }: any) {
               labelFieldKey="name"
               valueFieldKey="id"
               // ContainerStyle={{ flex: ScanBTNAvailble ? 1 / 1.05 : 1 }}
-              ContainerStyle={{ flex:  1 / 1.05  }}
+              ContainerStyle={{ flex: 1 / 1.05 }}
             />
             {/* {ScanBTNAvailble && (
               <TwoTypeButton
@@ -178,17 +186,17 @@ export default function FilterScreen({ navigation, route }: any) {
                 }
               />
             )} */}
-                <TwoTypeButton
-                onlyIcon={true}
-                Icon={Images.Scan}
-                style={{ width: 46, height: 46 }}
-                onPress={() =>
-                  navigation.navigate("Scanner", {
-                    fun: getFilterDataFun,
-                    type: !ScanBTNAvailble ? "allow_all_order" : SlideType,
-                  })
-                }
-              />
+            <TwoTypeButton
+              onlyIcon={true}
+              Icon={Images.Scan}
+              style={{ width: 46, height: 46 }}
+              onPress={() =>
+                navigation.navigate("Scanner", {
+                  fun: getFilterDataFun,
+                  type: !ScanBTNAvailble ? "allow_all_order" : SlideType,
+                })
+              }
+            />
           </View>
 
           {selectRegionData && AllFilterData?.length > 0 ? (
@@ -197,6 +205,7 @@ export default function FilterScreen({ navigation, route }: any) {
                 ...(selectRegionData?.pickup_orders ?? []),
                 ...(selectRegionData?.deliver_orders ?? []),
               ]}
+
               ListEmptyComponent={() =>
                 IsLoading ? null : (
                   <View style={styles.FooterContainer}>
@@ -264,9 +273,9 @@ export default function FilterScreen({ navigation, route }: any) {
           )}
         </ScrollView>
       </View>
-      <TouchableOpacity style={styles.RefreshButton} onPress={getFilterDataFun}>
+      {/* <TouchableOpacity style={styles.RefreshButton} onPress={getFilterDataFun}>
         <Image source={Images.refresh} style={styles.RefreshIcon} />
-      </TouchableOpacity>
+      </TouchableOpacity> */}
     </SafeAreaView>
   );
 }

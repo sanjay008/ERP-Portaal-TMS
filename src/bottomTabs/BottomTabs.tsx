@@ -14,7 +14,7 @@ import Parcel from "../screens/Parcel/Parcel";
 import Profile from "../screens/Profile/Profile";
 import ApiService from "../utils/Apiservice";
 import { Colors } from "../utils/colors";
-import { getData, height, token } from "../utils/storeData";
+import { FONTS, getData, height, token } from "../utils/storeData";
 
 export default function BottomTabs() {
   const Tab = createBottomTabNavigator();
@@ -98,7 +98,7 @@ export default function BottomTabs() {
             tabBarInactiveTintColor: Colors.inActive,
             tabBarLabelStyle: {
               fontSize: 12,
-              fontFamily: "Medium",
+              fontFamily: FONTS.Medium,
               marginTop: 5,
               bottom: 0,
               backgroundColor: Colors.white,

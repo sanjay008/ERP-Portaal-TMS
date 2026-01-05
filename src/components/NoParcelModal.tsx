@@ -13,6 +13,7 @@ import {
 import Modal from "react-native-modal";
 import { Images } from "../assets/images";
 import { Colors } from "../utils/colors";
+import { FONTS } from "../utils/storeData";
 
 export interface OptionItem {
   id: string | number;
@@ -177,7 +178,7 @@ const styles = StyleSheet.create({
   optionText: {
     width:'90%',
     // backgroundColor:'red',
-    fontFamily:"Medium",
+    fontFamily:FONTS.Medium,
     fontSize: 14,
     marginLeft: 10,
     color: Colors.darkText,
@@ -194,9 +195,9 @@ const styles = StyleSheet.create({
   submitText: {
     color: Colors.white,
     fontSize: 14,
-    fontFamily:"Medium"
+    fontFamily:FONTS.Medium
   },
-  Text: { fontSize: 15, fontFamily: "SemiBold", color: Colors.black },
+  Text: { fontSize: 15, fontFamily: FONTS.SemiBold, color: Colors.black },
   TopContainer: { flexDirection: "row", gap: 15, alignItems: "center" },
   NumberBox: {
     width: 40,
@@ -206,5 +207,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  OrderIdText: { fontSize: 13, color: Colors.orderdark, fontFamily: "Medium" },
+  OrderIdText: { fontSize: 13, color: Colors.orderdark, fontFamily: FONTS.Medium },
 });

@@ -1,6 +1,7 @@
 import { StyleSheet } from "react-native";
 import { RFValue } from "react-native-responsive-fontsize";
 import { Colors } from "../../utils/colors";
+import { FONTS } from "@/src/utils/storeData";
 
 export const styles = StyleSheet.create({
     safe: {
@@ -9,14 +10,14 @@ export const styles = StyleSheet.create({
     },
     welcome: {
       fontSize: 19,
-      fontFamily: "SemiBold",
+      fontFamily: FONTS.SemiBold,
       color: Colors.black,
       marginTop: 40,
       alignSelf: "center",
     },
     description: {
       fontSize: 16,
-      fontFamily: "regular",
+      fontFamily: FONTS.Regular,
       color: Colors.textgray,
       marginTop: 8,
       alignSelf: "center",
@@ -31,14 +32,14 @@ export const styles = StyleSheet.create({
       borderRadius: 5,
       fontSize: 15,
       borderBottomWidth: 1,
-      fontFamily: "regular",
+      fontFamily: FONTS.Regular,
       height: 40,
       width: "100%",
     },
     errorText: {
       color: Colors.red,
       fontSize: RFValue(10),
-      fontFamily: "regular",
+      fontFamily: FONTS.Regular,
       marginTop: RFValue(1),
     },
     logo: {

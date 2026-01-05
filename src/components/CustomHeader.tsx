@@ -4,6 +4,7 @@ import { Image, StyleSheet, Text, View } from "react-native";
 import { Images } from "../assets/images";
 import { GlobalContextData } from "../context/GlobalContext";
 import { Colors } from "../utils/colors";
+import { FONTS } from "../utils/storeData";
 export default function CustomHeader() {
   const {
     GOOGLE_API_KEY,
@@ -72,7 +73,7 @@ const styles = StyleSheet.create({
   menuText: {
     fontSize: 10,
     color: Colors.black,
-    fontFamily: "Medium",
+    fontFamily: FONTS.Medium,
   },
   SimpleFlex: {
     maxHeight: "45%",
@@ -88,7 +89,7 @@ const styles = StyleSheet.create({
   optionText: {
     fontSize: 15,
     color: Colors.black,
-    fontFamily: "Medium",
+    fontFamily: FONTS.Medium,
   },
   DriverImage: {
     width: 30,

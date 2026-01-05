@@ -15,6 +15,7 @@ import React, { useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FlatList,
+  Image,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -32,8 +33,9 @@ export default function Parcel({ navigation, route }: any) {
   const [ActiveTab, setActiveTab] = useState<object | any>(null);
   const { t } = useTranslation();
   const [IsLoading, setLoading] = useState<boolean>(false);
-  const { UserData, setUserData, Toast, setToast, SelectCurrentDate,setSelectCurrentDate} =
+  const { UserData, setUserData, Toast, setToast, SelectCurrentDate, setSelectCurrentDate } =
     useContext(GlobalContextData);
+  const [isCollapsed, setisCollapsed] = useState<boolean>(true);
 
   const flatListRef = useRef<FlatList>(null);
 
@@ -134,7 +136,25 @@ export default function Parcel({ navigation, route }: any) {
       bounces={false}
       scrollEnabled={Region?.deliver_orders?.length > 0}
     >
-      <CalenderDate date={SelectDate} setDate={setSelectDate} />
+      <View style={styles.Flex}>
+        <View style={{ flex: 1 / 1.05 }}>
+          <CalenderDate date={SelectDate} setDate={setSelectDate} />
+        </View>
+        <TouchableOpacity
+          style={[
+            styles.CollPadByButton,
+            { transform: [{ rotate: !isCollapsed ? "0deg" : "180deg" }] },
+          ]}
+          onPress={() => setisCollapsed(!isCollapsed)}
+        >
+          <Image
+            source={Images.down}
+            style={styles.DownIcon}
+            tintColor={Colors.white}
+          />
+
+        </TouchableOpacity>
+      </View>
 
       <View style={[styles.Flex, { marginTop: "2%" }]}>
         <DropDownBox
@@ -144,7 +164,7 @@ export default function Parcel({ navigation, route }: any) {
           labelFieldKey="name"
           valueFieldKey="id"
           ContainerStyle={{ flex: 1 / 1.05 }}
-          // disbled={true}
+        // disbled={true}
         />
         <View style={{ width: 46, height: 46 }}>
           <TwoTypeButton
@@ -189,7 +209,7 @@ export default function Parcel({ navigation, route }: any) {
                 flatListRef.current?.scrollToIndex({
                   index,
                   animated: true,
-                  viewPosition: 0.5, 
+                  viewPosition: 0.5,
                 });
               }}
             >
@@ -238,6 +258,7 @@ export default function Parcel({ navigation, route }: any) {
         renderItem={({ item, index }) => {
           return (
             <PickUpBox
+              AllisCollapsed={isCollapsed}
               index={index}
               LableStatus={item?.tmsstatus?.status_name}
               OrderId={item?.id}

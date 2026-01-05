@@ -1,3 +1,4 @@
+import { FONTS } from "@/src/utils/storeData";
 import { StyleSheet } from "react-native";
 import { RFValue } from "react-native-responsive-fontsize";
 import { Colors } from "../../utils/colors";
@@ -9,14 +10,14 @@ export const styles = StyleSheet.create({
     },
     wellcome: {
         fontSize: RFValue(17),
-        fontFamily: "SemiBold",
+        fontFamily: FONTS.SemiBold,
         color: Colors.black,
         marginTop: 25,
         alignSelf: "center",
     },
     dis: {
         fontSize: RFValue(14),
-        fontFamily: "regular",
+        fontFamily: FONTS.Regular,
         color: Colors.textgray,
         marginTop: 8,
         alignSelf: "center",
@@ -32,7 +33,7 @@ export const styles = StyleSheet.create({
     },
     keep: {
         fontSize: RFValue(12),
-        fontFamily: "regular",
+        fontFamily: FONTS.Regular,
         color: Colors.black,
         marginLeft: 10,
     },
@@ -43,7 +44,7 @@ export const styles = StyleSheet.create({
     },
     fpassword: {
         fontSize: RFValue(15),
-        fontFamily: "Medium",
+        fontFamily: FONTS.Medium,
         color: Colors.black,
         alignSelf: "center",
         marginTop: RFValue(12),

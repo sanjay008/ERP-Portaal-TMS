@@ -27,7 +27,7 @@
     "expo": "~54.0.20",
     "expo-audio": "~1.0.13",
     "expo-av": "^16.0.7",
-    "expo-build-properties": "^1.0.9",
+    "expo-build-properties": "~1.0.9",
     "expo-camera": "^17.0.8",
     "expo-constants": "~18.0.10",
     "expo-font": "~14.0.9",
@@ -66,7 +66,6 @@
     "react-native-image-picker": "^8.2.1",
     "react-native-keyboard-aware-scroll-view": "^0.9.5",
     "react-native-localize": "^3.5.4",
-    "react-native-maps": "1.20.1",
     "react-native-modal": "^14.0.0-rc.1",
     "react-native-navigation-bar-color": "^2.0.2",
     "react-native-permissions": "^5.4.2",
@@ -80,7 +79,7 @@
     "react-native-svg": "15.12.1",
     "react-native-web": "^0.21.2",
     "react-native-webview": "13.15.0",
-    "react-native-worklets": "latest",
+    "react-native-worklets": "^0.6.1",
     "rn-country-picker": "^1.0.8"
   },
   "devDependencies": {

@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GlobalContextData } from "../context/GlobalContext";
 import { Colors } from "../utils/colors";
+import { FONTS } from "../utils/storeData";
 
 export default function CustomCamera({ navigation, route }: any) {
   const params = route?.params || {};
@@ -212,7 +213,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   title: {
-    fontFamily: "SemiBold",
+    fontFamily: FONTS.SemiBold,
     fontSize: 20,
     color: Colors.black,
     textAlign: "center",
@@ -223,7 +224,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   message: {
-    fontFamily: "regular",
+    fontFamily: FONTS.Regular,
     fontSize: 15,
     color: Colors.litegray,
     textAlign: "center",
@@ -240,7 +241,7 @@ const styles = StyleSheet.create({
   },
   allowText: {
     color: Colors.white,
-    fontFamily: "Medium",
+    fontFamily: FONTS.Medium,
     fontSize: 16,
   },
   cancelButton: {
@@ -253,7 +254,7 @@ const styles = StyleSheet.create({
   },
   cancelText: {
     color: Colors.black,
-    fontFamily: "Medium",
+    fontFamily: FONTS.Medium,
     fontSize: 15,
   },
 });

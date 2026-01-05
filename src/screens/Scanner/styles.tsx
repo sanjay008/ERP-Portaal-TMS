@@ -1,4 +1,5 @@
 import { Colors } from "@/src/utils/colors";
+import { FONTS } from "@/src/utils/storeData";
 import { Platform, StyleSheet } from "react-native";
 
 export const styles = StyleSheet.create({
@@ -52,7 +53,7 @@ export const styles = StyleSheet.create({
     fontSize: 14,
     backgroundColor: Colors.white,
     minHeight: 120,
-    fontFamily: "regular",
+    fontFamily: FONTS.Regular,
     color: Colors.black,
     marginTop: 10,
   },
@@ -68,7 +69,7 @@ export const styles = StyleSheet.create({
   Error: {
     fontSize: 13,
     color: Colors.red,
-    fontFamily: "regular",
+    fontFamily: FONTS.Regular,
     marginTop: 10,
     marginLeft: 5,
   },
@@ -78,7 +79,7 @@ export const styles = StyleSheet.create({
   Input: {
     width: "80%",
     fontSize: 14,
-    fontFamily: "Medium",
+    fontFamily: FONTS.Medium,
     color: Colors.black,
   },
   InputBox: {

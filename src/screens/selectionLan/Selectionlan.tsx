@@ -11,7 +11,7 @@ import { Images } from "../../assets/images";
 import ButtonComponent from "../../components/buttonComponent";
 import ApiService from "../../utils/Apiservice";
 import { Colors } from "../../utils/colors";
-import { getData, storeData } from "../../utils/storeData";
+import { FONTS, getData, storeData } from "../../utils/storeData";
 import i18n from "../Translation/i18n";
 
 type RootStackParamList = {
@@ -184,7 +184,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     marginLeft: "3%",
-    fontFamily: "regular",
+    fontFamily: FONTS.Regular,
     color: Colors.black,
   },
   dropdownMenuStyle: {
@@ -198,12 +198,12 @@ const styles = StyleSheet.create({
   },
   dropdownItemTxtStyle: {
     fontSize: 14,
-    fontFamily: "regular",
+    fontFamily: FONTS.Regular,
     color: Colors.black,
   },
   title: {
     fontSize: RFValue(14),
-    fontFamily: "Medium",
+    fontFamily: FONTS.Medium,
     color: Colors.black,
     marginBottom: RFValue(5),
     marginTop: RFValue(20),

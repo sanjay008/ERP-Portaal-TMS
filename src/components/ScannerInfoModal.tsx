@@ -11,11 +11,10 @@ import {
 } from "react-native";
 import Collapsible from "react-native-collapsible";
 import DashedLine from "react-native-dashed-line";
-import Modal from "react-native-modal";
 import { Images } from "../assets/images";
 import { GlobalContextData } from "../context/GlobalContext";
 import { Colors } from "../utils/colors";
-import { SimpleFlex } from "../utils/storeData";
+import { FONTS, SimpleFlex, width } from "../utils/storeData";
 import ConformationModal from "./ConformationModal";
 import { getDirectDropboxLink } from "./DropBoxUrlGet";
 import ParcelBox from "./ParcelBox";
@@ -132,30 +131,33 @@ export default function ScannerInfoModal({
     setShowReasonList(false);
     setShowDeliveredAtList(false);
 
-    setAlerModalOpen({
-      visible: true,
-      title: t("Camera"),
-      Description: t("You have to take a picture for proof?"),
-      LButtonText: t("Cancel"),
-      RButtonText: t("Camera"),
-      Icon: Images.UploadPhoto,
-      RButtonStyle: Colors.primary,
-      RColor: Colors.white,
-      LButtonStyle: Colors.gray,
-      LColor: Colors.black,
-      onPress: () => {
-        console.log("Camera modal button pressed");
-        setDeliveyDataSave({
-          Data: personData,
-          selectReason: item,
-          setData: setAllSelectImage,
-        });
-        navigation.navigate("Camera");
-        setAlerModalOpen((prev) => ({ ...prev, visible: false }));
-        // ✅ close parent AFTER navigating
-        onClose?.();
-      },
-    });
+      setAlerModalOpen({
+        visible: true,
+        title: t("Camera"),
+        Description: t("You have to take a picture for proof?"),
+        LButtonText: t("Cancel"),
+        RButtonText: t("Camera"),
+        Icon: Images.UploadPhoto,
+        RButtonStyle: Colors.primary,
+        RColor: Colors.white,
+        LButtonStyle: Colors.gray,
+        LColor: Colors.black,
+        onPress: () => {
+          console.log("Camera modal button pressed");
+          setDeliveyDataSave({
+            Data: personData,
+            selectReason: item,
+            setData: setAllSelectImage,
+          });
+          navigation.navigate("Camera");
+          setAlerModalOpen((prev) => ({ ...prev, visible: false }));
+          // ✅ close parent AFTER navigating
+          onClose?.();
+        },
+      });
+         
+
+   
   };
 
 
@@ -169,20 +171,22 @@ export default function ScannerInfoModal({
 
   return (
     <>
-      <Modal
-        isVisible={visible}
-        animationIn={"bounceInUp"}
-        animationOut={"bounceOutDown"}
-        style={[styles.container, style, bgColor && { backgroundColor: bgColor }]}
-      // onModalHide={}
-      >
-        <View style={[styles.ContentView,]}>
-          {/* --- Title --- */}
-          <View style={styles.InfoContainer}>
-            <Text style={[styles.Text, { fontSize: 18, color: OrderData?.region_data?.tmsstatus?.color || Colors.primary, textAlign: 'center' }]}>{getTitle()}</Text>
-          </View>
+      <View style={styles.AbsoluteWrapper}>
+        <TouchableOpacity
+          style={styles.Backdrop}
+          activeOpacity={1}
+          onPress={onClose}
+        />
 
-          {/* --- Main Info Section --- */}
+        <View style={[styles.container, style, bgColor && { backgroundColor: bgColor }]}>
+          <View style={[styles.ContentView]}>
+            <View style={styles.InfoContainer}>
+              <Text style={[styles.Text, { fontSize: 18, color: OrderData?.region_data?.tmsstatus?.color || Colors.primary, textAlign: 'center' }]}>
+                {getTitle()}
+              </Text>
+            </View>
+
+          
           {!showReasonList && !showDeliveredAtList && (
             <View style={styles.OrderView}>
               <View style={[styles.Flex]}>
@@ -262,31 +266,31 @@ export default function ScannerInfoModal({
                     )}
 
                     {/* Delivery Details (only when NOT Scheduled) */}
-                    
-                      <>
 
-                        <View style={[styles.Flex, { marginTop: 15 }]}>
-                          <Text style={styles.DarkText}>{t("Delivery Date")}</Text>
-                          <Text style={styles.Text}>{personData?.deliver_date}</Text>
-                        </View>
+                    <>
 
-                        <DashedLine
-                          dashLength={4}
-                          dashThickness={1}
-                          dashGap={2}
-                          dashColor={Colors.orderdark}
-                          style={styles.DasheLine}
-                        />
+                      <View style={[styles.Flex, { marginTop: 15 }]}>
+                        <Text style={styles.DarkText}>{t("Delivery Date")}</Text>
+                        <Text style={styles.Text}>{personData?.deliver_date}</Text>
+                      </View>
 
-                        <View style={styles.Flex}>
-                          <Text style={styles.DarkText}>{t("Region")}</Text>
-                          <Text style={styles.Text}>
-                            {personData?.delivery_region_data?.name || ""} {personData?.deliver_postcode || ""}
+                      <DashedLine
+                        dashLength={4}
+                        dashThickness={1}
+                        dashGap={2}
+                        dashColor={Colors.orderdark}
+                        style={styles.DasheLine}
+                      />
 
-                          </Text>
-                        </View>
-                      </>
-                    
+                      <View style={styles.Flex}>
+                        <Text style={styles.DarkText}>{t("Region")}</Text>
+                        <Text style={styles.Text}>
+                          {personData?.delivery_region_data?.name || ""} {personData?.deliver_postcode || ""}
+
+                        </Text>
+                      </View>
+                    </>
+
                   </>
                 )}
 
@@ -312,7 +316,7 @@ export default function ScannerInfoModal({
                 )}
               />
               <View>
-                <Text style={styles.Text}>{t("Date")}: {OrderData?.order_data?.tmsstatus?.id >= 3 ? OrderData?.order_data?.deliver_date  : OrderData?.order_data?.pickup_date}</Text>
+                <Text style={styles.Text}>{t("Date")}: {OrderData?.order_data?.tmsstatus?.id >= 3 ? OrderData?.order_data?.deliver_date : OrderData?.order_data?.pickup_date}</Text>
               </View>
               <View>
                 <Text style={[styles.Text,]}>{t("Region")}: {OrderData?.order_data?.region_data?.name}</Text>
@@ -362,8 +366,10 @@ export default function ScannerInfoModal({
               )}
             </View>
           )}
+           </View>
         </View>
-      </Modal>
+      </View>
+
 
       <ConformationModal
         IsVisible={AlertModalOpen.visible}
@@ -383,28 +389,45 @@ export default function ScannerInfoModal({
   );
 }
 
-// ---------- Styles ----------
+
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", alignItems: "center", margin: 0, padding: 15 },
-  ContentView: { width: "100%", backgroundColor: Colors.white, borderRadius: 7 },
+  AbsoluteWrapper: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 999,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  Backdrop: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.4)",
+  },
+  container: { flexGrow: 1, justifyContent: "center", alignItems: "center", margin: 0, padding: 15 },
+  ContentView: { width:width * 0.9, backgroundColor: Colors.white, borderRadius: 7 },
   InfoContainer: { padding: 15 },
-  Text: { fontSize: 15, fontFamily: "SemiBold", color: Colors.black },
+  Text: { fontSize: 15, fontFamily: FONTS.SemiBold, color: Colors.black },
   TopContainer: { flexDirection: "row", gap: 15, alignItems: "center" },
   NumberBox: { width: 40, height: 40, backgroundColor: Colors.Boxgray, borderRadius: 4, justifyContent: "center", alignItems: "center" },
-  OrderIdText: { fontSize: 13, color: Colors.orderdark, fontFamily: "Medium" },
+  OrderIdText: { fontSize: 13, color: Colors.orderdark, fontFamily: FONTS.Medium },
   Flex: { width: "100%", flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   OrderView: { backgroundColor: Colors.background, padding: 15 },
   TotalProductConatiner: { marginVertical: 15 },
   ContentContainerStyle: { gap: 10 },
-  DarkText: { fontSize: 13, color: Colors.darkText, fontFamily: "Medium" },
+  DarkText: { fontSize: 13, color: Colors.darkText, fontFamily: FONTS.Medium },
   DasheLine: { marginVertical: 15 },
   LastButtonContainer: { padding: 15 },
   Button: { width: "48%", height: 45, backgroundColor: Colors.background, borderRadius: 4, justifyContent: "center", alignItems: "center" },
   optionContainer: { padding: 20, alignItems: "center" },
   ReasonButton: { backgroundColor: "#4169E1", borderRadius: 6, paddingVertical: 12, marginVertical: 6, width: "80%", alignItems: "center" },
-  ReasonText: { fontSize: 15, fontFamily: "SemiBold", color: "#fff" },
+  ReasonText: { fontSize: 15, fontFamily: FONTS.SemiBold, color: "#fff" },
 });
-
 
 // import { useNavigation } from "@react-navigation/native";
 // import React, { useState } from "react";
@@ -636,7 +659,7 @@ const styles = StyleSheet.create({
 //   },
 //   Text: {
 //     fontSize: 15,
-//     fontFamily: "SemiBold",
+//     fontFamily: FONTS.SemiBold,
 //     color: Colors.black,
 //   },
 //   TopContainer: {
@@ -654,13 +677,13 @@ const styles = StyleSheet.create({
 //   },
 //   Text1: {
 //     fontSize: 14,
-//     fontFamily: "SemiBold",
+//     fontFamily: FONTS.SemiBold,
 //     color: Colors.black,
 //   },
 //   OrderIdText: {
 //     fontSize: 13,
 //     color: Colors.orderdark,
-//     fontFamily: "Medium",
+//     fontFamily: FONTS.Medium,
 //   },
 //   Flex: {
 //     width: "100%",
@@ -681,7 +704,7 @@ const styles = StyleSheet.create({
 //   DarkText: {
 //     fontSize: 13,
 //     color: Colors.darkText,
-//     fontFamily: "Medium",
+//     fontFamily: FONTS.Medium,
 //   },
 //   DasheLine: {
 //     marginVertical: 15,

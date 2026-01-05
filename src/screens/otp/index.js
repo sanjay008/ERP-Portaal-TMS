@@ -214,7 +214,7 @@ const Otp = ({ navigation, route }) => {
                             styles.resend,
                             {
                                 color: Colors.black,
-                                fontFamily: "regular",
+                                fontFamily: FONTS.Regular,
                                 color: Colors.textgray,
                             },
                         ]}

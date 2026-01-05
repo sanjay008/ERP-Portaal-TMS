@@ -1,6 +1,7 @@
 import React from "react";
 import { Image, StyleSheet, Text, TouchableOpacity } from "react-native";
 import { Colors } from "../utils/colors";
+import { FONTS } from "../utils/storeData";
 
 type Props = {
   Icon?: string | any;
@@ -42,7 +43,7 @@ const styles = StyleSheet.create({
   },
   Title: {
     fontSize: 15,
-    fontFamily: "Medium",
+    fontFamily: FONTS.Medium,
     color: Colors.white,
   },
   Icon: {

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Images } from "../assets/images";
 import { Colors } from "../utils/colors";
+import { FONTS } from "../utils/storeData";
 
 type Props = {
   Icon?: object | any;
@@ -72,7 +73,7 @@ const styles = StyleSheet.create({
   },
   Text: {
     fontSize: 13,
-    fontFamily: "Medium",
+    fontFamily: FONTS.Medium,
     color: Colors.black,
   },
   RightIcon: {

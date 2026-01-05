@@ -2,6 +2,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { Colors } from "../utils/colors";
+import { FONTS } from "../utils/storeData";
 
 type Props = {
   index: number;
@@ -142,7 +143,7 @@ const styles = StyleSheet.create({
 
   Text: {
     fontSize: 14,
-    fontFamily: "SemiBold",
+    fontFamily: FONTS.SemiBold,
     color: Colors.black,
   },
 
@@ -154,7 +155,7 @@ const styles = StyleSheet.create({
 
   LabelText: {
     fontSize: 10,
-    fontFamily: "SemiBold",
+    fontFamily: FONTS.SemiBold,
     color: Colors.darkText,
     textAlign: "right",
     marginRight: 8,

@@ -3,7 +3,7 @@ import { StyleSheet } from "react-native";
 import { RFValue } from "react-native-responsive-fontsize";
 import { heightPercentageToDP } from "react-native-responsive-screen";
 import { Colors } from "../../utils/colors";
-
+import { FONTS } from "../../utils/storeData";
   
   export const styles = StyleSheet.create({
     dateInput: {
@@ -25,7 +25,7 @@ import { Colors } from "../../utils/colors";
     dateText: {
       fontSize: 14,
       color: Colors.black,
-      fontFamily: "regular",
+      fontFamily: FONTS.Regular,
     },
     modalContainer: {
       backgroundColor: "white",
@@ -65,7 +65,7 @@ import { Colors } from "../../utils/colors";
     },
     selectedDateText: {
       fontSize: RFValue(14),
-      fontFamily: "Medium",
+      fontFamily: FONTS.Medium,
       color: Colors.black,
       marginTop: RFValue(5),
       // marginHorizontal: 20,
@@ -92,13 +92,13 @@ import { Colors } from "../../utils/colors";
     },
     wellcome: {
       fontSize: RFValue(17),
-      fontFamily: "SemiBold",
+      fontFamily: FONTS.SemiBold,
       color: Colors.black,
       marginTop: 40,
     },
     dis: {
       fontSize: RFValue(14),
-      fontFamily: "regular",
+      fontFamily: FONTS.Regular,
       color: Colors.textgray,
       marginTop: 8,
       marginBottom: 15,
@@ -128,13 +128,13 @@ import { Colors } from "../../utils/colors";
     dropdownButtonTxtStyle: {
       flex: 1,
       fontSize: 14,
-      fontFamily: "regular",
+      fontFamily: FONTS.Regular,
       color: Colors.black,
     },
     dropdownMenuStyle: {
       backgroundColor: Colors.white,
       borderRadius: 8,
-      fontFamily: "regular",
+      fontFamily: FONTS.Regular,
       color: Colors.black,
     },
     dropdownItemStyle: {
@@ -148,12 +148,12 @@ import { Colors } from "../../utils/colors";
     dropdownItemTxtStyle: {
       flex: 1,
       fontSize: 14,
-      fontFamily: "regular",
+      fontFamily: FONTS.Regular,
       color: Colors.black,
     },
     title: {
       fontSize: RFValue(16),
-      fontFamily: "regular",
+      fontFamily: FONTS.Regular,
       color: Colors.black,
       alignSelf: "center",
       marginVertical: RFValue(15),
@@ -161,7 +161,7 @@ import { Colors } from "../../utils/colors";
     error: {
       color: Colors.red,
       fontSize: RFValue(10),
-      fontFamily: "regular",
+      fontFamily: FONTS.Regular,
       marginTop: RFValue(1),
     },
     mview: {
@@ -188,29 +188,29 @@ import { Colors } from "../../utils/colors";
       paddingHorizontal: 10,
       marginTop: RFValue(5),
       color: Colors.black,
-      fontFamily: "regular",
+      fontFamily: FONTS.Regular,
     },
     textInput: {
       fontSize: 15,
       color: Colors.black,
-      fontFamily: "regular",
+      fontFamily: FONTS.Regular,
       paddingLeft: 35,
       backgroundColor: "transparent",
     },
     predefinedPlacesDescription: {
       color: "#1faadb",
       color: Colors.black,
-      fontFamily: "regular",
+      fontFamily: FONTS.Regular,
     },
     address: {
       flex: 1,
       color: Colors.black,
-      fontFamily: "regular",
+      fontFamily: FONTS.Regular,
     },
     error: {
       color: Colors.red,
       fontSize: RFValue(10),
-      fontFamily: "regular",
+      fontFamily: FONTS.Regular,
       marginTop: RFValue(1),
     },
   
@@ -226,7 +226,7 @@ import { Colors } from "../../utils/colors";
       margin: RFValue(10),
       paddingHorizontal: RFValue(10),
       fontSize: RFValue(14),
-      fontFamily: "regular",
+      fontFamily: FONTS.Regular,
     },
     galleryimagebg: {
       width: 342,
@@ -245,7 +245,7 @@ import { Colors } from "../../utils/colors";
     },
     gallerytext: {
       color: Colors.black,
-      fontFamily: "regular",
+      fontFamily: FONTS.Regular,
       paddingLeft: 5,
     },
     cameraimagebg: {

@@ -2,7 +2,7 @@
   "expo": {
     "name": "ERP TMS Driver",
     "slug": "erp-portaal-tms-driver",
-    "version": "25.11.25",
+    "version": "26.01.05",
     "jsEngine": "hermes",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -10,16 +10,26 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
+      "buildNumber": "2",
       "infoPlist": {
-        "UIViewControllerBasedStatusBarAppearance": true,
-        "ITSAppUsesNonExemptEncryption": false
+        "UIViewControllerBasedStatusBarAppearance": false,
+        "ITSAppUsesNonExemptEncryption": false,
+        "LSApplicationQueriesSchemes": [],
+        "NSCameraUsageDescription": "ERP TMS Driver uses the camera to capture product images and scan barcodes for inventory updates.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "ERP TMS Driver uses your location to track delivery routes and verify attendance even when the app is not open.",
+        "NSLocationAlwaysUsageDescription": "ERP TMS Driver uses your location to track delivery routes and verify attendance in the background.",
+        "NSLocationWhenInUseUsageDescription": "ERP TMS Driver uses your location to detect your current store or workplace when the app is running.",
+        "NSPhotoLibraryUsageDescription": "ERP TMS Driver uses your photo library so you can choose product images to upload."
       },
       "supportsTablet": false,
-      "bundleIdentifier": "com.erptmsdriver.app"
+      "bundleIdentifier": "com.erptmsdriver.app",
+      "privacyManifest": {
+         "NSPrivacyAccessedAPITypes": []
+      }
     },
     "android": {
       "allowBackup": false,
-      "versionCode": 1,
+      "versionCode": 2,
       "hardwareAccelerated": true,
       "env": {
         "EXPO_ANDROID_KEYSTORE": "@EXPO_ANDROID_KEYSTORE",
@@ -88,14 +98,11 @@
         {
           "android": {
             "kotlinVersion": "2.1.20"
+          },
+           "ios": {
+            "useFrameworks": "static",
+            "deploymentTarget": "15.1"
           }
-        }
-      ],
-      [
-        "expo-maps",
-        {
-          "requestLocationPermission": true,
-          "locationPermission": "Allow $(PRODUCT_NAME) to use your location"
         }
       ],
       "expo-audio",
