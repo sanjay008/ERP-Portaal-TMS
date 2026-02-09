@@ -26,6 +26,7 @@ export default function GlobalContext({ children }: any) {
   const [SelectActiveRegionData, setSelectActiveRegionData] = useState<any>(null);
   const [SelectActiveDate, setSelectActiveDate] = useState<any>(null);
   const [OrderDeliveryMapingLableOption, setOrderDeliveryMapingLableOption] = useState(null);
+  const [TimeZone, setTimeZone] = useState<string>("");
   return (
     <GlobalContextData.Provider
       value={{
@@ -46,7 +47,8 @@ export default function GlobalContext({ children }: any) {
         SelectActiveDate, setSelectActiveDate,
         SelectDeliveryReason, setSelectDeliveryReson,
         OrderDeliveryMapingLableOption, setOrderDeliveryMapingLableOption,
-        NoParcelDetailsScreenEvent, setNoParcelDetailsScreenEvent
+        NoParcelDetailsScreenEvent, setNoParcelDetailsScreenEvent,
+        TimeZone, setTimeZone,
       }}
     >
       {children}

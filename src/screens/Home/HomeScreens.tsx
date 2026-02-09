@@ -5,7 +5,7 @@ import Loader from "@/src/components/loading";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
-import { token } from "@/src/utils/storeData";
+import { getData, token } from "@/src/utils/storeData";
 import React, { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FlatList, Image, Pressable, Text, View } from "react-native";
@@ -16,12 +16,15 @@ export default function HomeScreens({ navigation, route }: any) {
   const [AllSlideData, setAllSlideData] = useState([]);
   const [IsLoading, setIsLoading] = useState(false);
   const { t } = useTranslation();
-  const { UserData, setUserData, Toast, setToast, AllRegion, setAllRegion,GloblyTypeSlide,setGloblyTypeSlide} =
+  const { UserData, setUserData, Toast, setToast, AllRegion, setAllRegion,GloblyTypeSlide,setGloblyTypeSlide,TimeZone, setTimeZone} =
     useContext(GlobalContextData);
   const { ErrorHandle } = useErrorHandle();
 
   const getSliderDataFun = async () => {
     setIsLoading(true);
+    const CompanyLogin = await getData("COMPANYDATA");
+    setTimeZone(CompanyLogin?.default_company?.timezone || "");
+    
 
     try {
       let res = await ApiService(apiConstants.get_AllSlideDataApi, {

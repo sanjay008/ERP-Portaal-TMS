@@ -6,8 +6,8 @@ import Modal from "react-native-modal";
 import { Images } from "../assets/images";
 import { GlobalContextData } from "../context/GlobalContext";
 import { Colors } from "../utils/colors";
-import { formatDate } from "./DateFormate";
 import { FONTS } from "../utils/storeData";
+import { formatDate } from "./DateFormate";
 
 type Props = {
   date: string | any;
@@ -62,22 +62,31 @@ export default function CalenderDate({ date, setDate }: Props) {
   const { t } = useTranslation();
   const {
     SelectLanguage,
-    SelectActiveDate,setSelectActiveDate
+    SelectActiveDate,setSelectActiveDate,
+    TimeZone, setTimeZone
   } = useContext(GlobalContextData);
 
   LocaleConfig.defaultLocale = SelectLanguage;
 
-  useEffect(() => {
-    if (!date && setDate) {
-      const today = new Date().toISOString().split("T")[0];
-      setDate(today);
-      setSelectActiveDate(today)
-      // console.log("today",today);
-      
-    }
-  }, [date, setDate]);
+  const getDateByTimezone = (timeZone:string) => {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+};
 
-  const today = new Date().toISOString().split("T")[0];
+useEffect(() => {
+  if (!date && setDate) {
+    const today = getDateByTimezone(TimeZone); 
+    setDate(today);
+    setSelectActiveDate(today);
+  }
+}, [date, setDate]);
+
+ 
+const today = getDateByTimezone(TimeZone);
 
   return (
     <View style={styles.container}>

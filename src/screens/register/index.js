@@ -88,14 +88,14 @@ const Register = ({ navigation, route }) => {
             company_login: commpny?.trim(),
           },
         });
-        if (data.status) {
+        if (data?.status) {
           setLoding(false);
-          storeData("COMPANYDATA", data.data)
+          storeData("COMPANYDATA", data?.data)
           storeData("COMPANYLOGIN", commpny?.trim());
           const logoUrl = data.data.default_company.company_logo;
-          // console.log("LOGO URL CHECKING:-", data?.data);
-
-          const GOOGLE_API_KEY = data.data.default_company?.project_google_maps_api_key;
+          console.log("LOGO URL CHECKING:-", data?.data);
+          setCountryCode(data?.data?.default_company?.country_codes || "31");
+          const GOOGLE_API_KEY = data?.data?.default_company?.project_google_maps_api_key;
           storeData("COMPANYLOGO", logoUrl);
           setCompanyLogo(logoUrl)
          await storeData("google_maps_api_key",GOOGLE_API_KEY)
@@ -112,7 +112,6 @@ const Register = ({ navigation, route }) => {
           setCompnyError(t("Voer een geldige bedrijfsnaam in"));
         }
       } catch (err) {
-        // setCompnyError(t("Voer een geldige bedrijfsnaam in"));
         console.log("Error fetching connections:", err);
         setTimeout(() => {
           setLoding(false);
@@ -179,39 +178,37 @@ const Register = ({ navigation, route }) => {
           country_code: countryCode,
         },
       });
-      if (data.status) {
+      if (data?.status) {
         await storeData("USERDATA", data);
 
-        if (data.data.user.enable_2fa == 1) {
+        if (data?.data?.user?.enable_2fa == 1) {
           setTimeout(() => {
             setLoding(false);
           }, 1000);
           navigation.navigate("Otp", {
             login: "true",
             logo: logo,
-            verify_token: data.data.user.verify_token,
-            userId: data.data.user.id,
+            verify_token: data?.data?.user?.verify_token,
+            userId: data?.data?.user?.id,
           });
-        } else if (data.data.user.enable_2fa == 0) {
+        } else if (data?.data?.user?.enable_2fa == 0) {
           setTimeout(() => {
             setLoding(false);
           }, 1000);
             
           navigation.navigate("Password", {
             logo: logo,
-            verify_token: data.data.user.verify_token,
-            login_company: data.data.user.login_company,
-            email: data.data.user.email,
-            number: data.data.user.whatsapp_number,
+            verify_token: data?.data?.user?.verify_token,
+            login_company: data?.data?.user?.login_company,
+            email: data?.data?.user?.email,
+            number: data?.data?.user?.whatsapp_number,
           });
         } else {
           setTimeout(() => {
             setLoding(false);
           }, 1000);
           storeData("AUTH", true);
-          
           navigation.replace("BottomTabs");
-          // navigation.replace("BottamScreens");
         }
       } else {
         setTimeout(() => {
