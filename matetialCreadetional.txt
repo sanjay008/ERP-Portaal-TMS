@@ -1,0 +1,12 @@
+MYAPP_UPLOAD_STORE_FILE=erpcico_keystore.jks
+MYAPP_UPLOAD_KEY_ALIAS=erpcico
+MYAPP_UPLOAD_STORE_PASSWORD=Sanjay@1991!
+MYAPP_UPLOAD_KEY_PASSWORD=Sanjay@1991!
+
+
+OTA Auto Update RN-CLI Stallion Login:-
+Email:-erpportaal@gmail.com
+Password:-K@bouter2020..
+
+Google_API_KEY_USE = cico_google_maps_api_key
+

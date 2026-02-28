@@ -1,9 +1,9 @@
 import React, { useContext, useEffect, useState } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 import Animated, {
-    useAnimatedStyle,
-    useSharedValue,
-    withTiming,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
 } from "react-native-reanimated";
 import { Images } from "../assets/images";
 import { GlobalContextData } from "../context/GlobalContext";
@@ -27,10 +27,9 @@ export default function ToastMessage({
 }: Props) {
   const [isVisible, setIsVisible] = useState(visible);
 
-  // Always start hidden above screen
   const translateY = useSharedValue(-150);
 
-  // Convert percentage string → number (important!)
+
   const lineWidth = useSharedValue(0);
 
   const { setToast } = useContext(GlobalContextData);
