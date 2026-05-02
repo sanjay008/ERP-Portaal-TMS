@@ -219,7 +219,7 @@ export default function DeliveryScreens({ route, navigation }: any) {
     try {
       const formData = new FormData();
 
-      formData.append("token", token);
+      formData.append("token", UserData?.user?.verify_token);
       formData.append("role", UserData?.user?.role);
       formData.append("relaties_id", UserData?.relaties?.id);
       formData.append("user_id", UserData?.user?.id);

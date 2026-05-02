@@ -538,7 +538,7 @@ export default function ScannerScreens({ navigation, route }: any) {
     setDataLoader(true);
     const formData = new FormData();
 
-    formData.append("token", token);
+    formData.append("token", UserData?.user?.verify_token);
     formData.append("user_id", UserData?.user?.id);
     formData.append("role", UserData?.user?.role);
     formData.append("relaties_id", UserData?.relaties?.id);
@@ -605,13 +605,6 @@ export default function ScannerScreens({ navigation, route }: any) {
           user_id: UserData?.user?.id,
         },
       });
-      console.log(
-        "customData",
-        token,
-        UserData?.user?.role,
-        UserData?.relaties?.id,
-        UserData?.user?.id
-      );
 
       if (Boolean(res.status)) {
         const data = res?.data || [];
@@ -656,7 +649,7 @@ export default function ScannerScreens({ navigation, route }: any) {
     try {
       let formData: any = new FormData();
 
-      formData.append("token", token);
+      formData.append("token", UserData?.user?.verify_token);
       formData.append("role", UserData?.user?.role);
       formData.append("relaties_id", UserData?.relaties?.id);
       formData.append("user_id", UserData?.user?.id);
@@ -1023,7 +1016,7 @@ export default function ScannerScreens({ navigation, route }: any) {
     try {
       let formData: any = new FormData();
 
-      formData.append("token", token);
+      formData.append("token", UserData?.user?.verify_token);
       formData.append("role", UserData?.user?.role);
       formData.append("relaties_id", UserData?.relaties?.id);
       formData.append("user_id", UserData?.user?.id);
