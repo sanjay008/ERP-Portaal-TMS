@@ -9,7 +9,7 @@ import PickUpBox from "@/src/components/PickUpBox";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
-import { getData, token } from "@/src/utils/storeData";
+import { getData } from "@/src/utils/storeData";
 import { useIsFocused } from "@react-navigation/native";
 import React, { useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -70,7 +70,7 @@ export default function LoadedScreens({ navigation, route }: any) {
       let res = await ApiService(apiConstants.getOrderByDriver, {
         customData: {
           // token: userData?.user?.verify_token,
-          token: token,
+          token:  UserData?.user?.verify_token,
           role: userData?.user?.role,
           relaties_id: userData?.relaties?.id,
 

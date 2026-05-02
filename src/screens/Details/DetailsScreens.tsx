@@ -145,7 +145,7 @@ export default function DetailsScreens({ navigation, route }: any) {
       return;
     }
     console.log("REkmegjerg", {
-      token: token,
+      token:  UserData?.user?.verify_token,
       role: UserData?.user?.role,
       relaties_id: UserData?.relaties?.id,
       user_id: UserData?.user?.id,
@@ -156,7 +156,7 @@ export default function DetailsScreens({ navigation, route }: any) {
     try {
       let res = await ApiService(apiConstants.get_location_by_region_date, {
         customData: {
-          token: token,
+          token:  UserData?.user?.verify_token,
           role: UserData?.user?.role,
           relaties_id: UserData?.relaties?.id,
           user_id: UserData?.user?.id,
@@ -350,7 +350,7 @@ export default function DetailsScreens({ navigation, route }: any) {
 
     setDataLoading(true);
     console.log("hgfhfhyfhy", {
-      token: token,
+      token:  UserData?.user?.verify_token,
       role: UserData?.user?.role,
       relaties_id: UserData?.relaties?.id,
       user_id: UserData?.user?.id,
@@ -361,7 +361,7 @@ export default function DetailsScreens({ navigation, route }: any) {
     try {
       let res = await ApiService(apiConstants.get_order_data_by_id, {
         customData: {
-          token: token,
+          token:  UserData?.user?.verify_token,
           role: UserData?.user?.role,
           relaties_id: UserData?.relaties?.id,
           user_id: UserData?.user?.id,
@@ -530,7 +530,7 @@ export default function DetailsScreens({ navigation, route }: any) {
     try {
       let res = await ApiService(apiConstants.get_AllSlideDataApi, {
         customData: {
-          token: token,
+          token:  UserData?.user?.verify_token,
           role: UserData?.user?.role,
           relaties_id: UserData?.relaties?.id,
           user_id: UserData?.user?.id,

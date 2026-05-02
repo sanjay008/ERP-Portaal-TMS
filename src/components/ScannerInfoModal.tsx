@@ -131,33 +131,33 @@ export default function ScannerInfoModal({
     setShowReasonList(false);
     setShowDeliveredAtList(false);
 
-      setAlerModalOpen({
-        visible: true,
-        title: t("Camera"),
-        Description: t("You have to take a picture for proof?"),
-        LButtonText: t("Cancel"),
-        RButtonText: t("Camera"),
-        Icon: Images.UploadPhoto,
-        RButtonStyle: Colors.primary,
-        RColor: Colors.white,
-        LButtonStyle: Colors.gray,
-        LColor: Colors.black,
-        onPress: () => {
-          console.log("Camera modal button pressed");
-          setDeliveyDataSave({
-            Data: personData,
-            selectReason: item,
-            setData: setAllSelectImage,
-          });
-          navigation.navigate("Camera");
-          setAlerModalOpen((prev) => ({ ...prev, visible: false }));
-          // ✅ close parent AFTER navigating
-          onClose?.();
-        },
-      });
-         
+    setAlerModalOpen({
+      visible: true,
+      title: t("Camera"),
+      Description: t("You have to take a picture for proof?"),
+      LButtonText: t("Cancel"),
+      RButtonText: t("Camera"),
+      Icon: Images.UploadPhoto,
+      RButtonStyle: Colors.primary,
+      RColor: Colors.white,
+      LButtonStyle: Colors.gray,
+      LColor: Colors.black,
+      onPress: () => {
+        console.log("Camera modal button pressed");
+        setDeliveyDataSave({
+          Data: personData,
+          selectReason: item,
+          setData: setAllSelectImage,
+        });
+        navigation.navigate("Camera");
+        setAlerModalOpen((prev) => ({ ...prev, visible: false }));
+        // ✅ close parent AFTER navigating
+        onClose?.();
+      },
+    });
 
-   
+
+
   };
 
 
@@ -186,187 +186,189 @@ export default function ScannerInfoModal({
               </Text>
             </View>
 
-          
-          {!showReasonList && !showDeliveredAtList && (
-            <View style={styles.OrderView}>
-              <View style={[styles.Flex]}>
-                <View style={styles.TopContainer}>
-                  <View
-                    style={[
-                      styles.NumberBox,
-                      (type === 1 || type === 2) && { backgroundColor: Colors.green },
-                    ]}
-                  >
-                    {type === 0 ? (
-                      <Text style={styles.Text}>1</Text>
-                    ) : (
-                      <Image
-                        source={Images.user}
-                        style={{ width: 20, height: 20 }}
-                        tintColor={Colors.white}
-                      />
-                    )}
+
+            {!showReasonList && !showDeliveredAtList && (
+              <View style={styles.OrderView}>
+                <View style={[styles.Flex]}>
+                  <View style={styles.TopContainer}>
+                    <View
+                      style={[
+                        styles.NumberBox,
+                        (type === 1 || type === 2) && { backgroundColor: Colors.green },
+                      ]}
+                    >
+                      {type === 0 ? (
+                        <Text style={styles.Text}>1</Text>
+                      ) : (
+                        <Image
+                          source={Images.user}
+                          style={{ width: 20, height: 20 }}
+                          tintColor={Colors.white}
+                        />
+                      )}
+                    </View>
+
+                    <View>
+                      <Text style={[styles.Text, { fontSize: 15 }]}>
+                        {
+
+
+                          personData?.pickup_person_data?.display_name || ""
+                        }
+                      </Text>
+                      <Text style={[styles.OrderIdText, { color: Colors.orderdark }]}>
+                        {`#${OrderId}`}
+                      </Text>
+                    </View>
                   </View>
 
-                  <View>
-                    <Text style={[styles.Text, { fontSize: 15 }]}>
-                      {
 
 
-                        personData?.pickup_person_data?.display_name || ""
-                      }
-                    </Text>
-                    <Text style={[styles.OrderIdText, { color: Colors.orderdark }]}>
-                      {`#${OrderId}`}
-                    </Text>
-                  </View>
+                  {type === 0 && (
+                    <View style={[SimpleFlex.Flex, { gap: 0 }]}>
+                      <Text style={styles.Text}>{OrderData?.order_data?.items?.length}</Text>
+                      <TouchableOpacity
+                        style={{ transform: [{ rotate: isCollapsed ? "0deg" : "180deg" }], paddingHorizontal: 5 }}
+                        onPress={() => setisCollapsed((pre) => !pre)}
+                      >
+                        <Image source={Images.down} style={{ width: 18, height: 18 }} />
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
 
-
-
-                {type === 0 && (
-                  <View style={[SimpleFlex.Flex, { gap: 0 }]}>
-                    <Text style={styles.Text}>{OrderData?.order_data?.items?.length}</Text>
-                    <TouchableOpacity
-                      style={{ transform: [{ rotate: isCollapsed ? "0deg" : "180deg" }], paddingHorizontal: 5 }}
-                      onPress={() => setisCollapsed((pre) => !pre)}
-                    >
-                      <Image source={Images.down} style={{ width: 18, height: 18 }} />
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-
-              {(type === 0 ||
-                type === 2) && (
-
-                  <>
-                    {/* Collapsible Section */}
-                    {type === 0 && (
-                      <Collapsible collapsed={isCollapsed}>
-                        <View style={styles.TotalProductConatiner}>
-                          <FlatList
-                            data={ProductItem}
-                            style={{ width: "100%", gap: 10 }}
-                            contentContainerStyle={styles.ContentContainerStyle}
-                            scrollEnabled={false}
-                            keyExtractor={(item, index) => `${index}`}
-                            renderItem={({ item, index }) => (
-                              <ParcelBox
-                                qty={item?.qty}
-                                index={index}
-                                data={item}
-                                title={item?.tms_product_name}
-                                Icon={getDirectDropboxLink(item?.tmsstatus?.shared_link)}
-                              />
-                            )}
-                          />
-                        </View>
-                      </Collapsible>
-                    )}
-
-                    {/* Delivery Details (only when NOT Scheduled) */}
+                {(type === 0 ||
+                  type === 2) && (
 
                     <>
+                      {/* Collapsible Section */}
+                      {type === 0 && (
+                        <Collapsible collapsed={isCollapsed}>
+                          <View style={styles.TotalProductConatiner}>
+                            <FlatList
+                              data={ProductItem}
+                              style={{ width: "100%", gap: 10 }}
+                              contentContainerStyle={styles.ContentContainerStyle}
+                              scrollEnabled={false}
+                              keyExtractor={(item, index) => `${index}`}
+                              renderItem={({ item, index }) => (
+                                <ParcelBox
+                                  qty={item?.qty}
+                                  index={index}
+                                  data={item}
+                                  title={item?.tms_product_name}
+                                  Icon={getDirectDropboxLink(item?.tmsstatus?.shared_link)}
+                                />
+                              )}
+                            />
+                          </View>
+                        </Collapsible>
+                      )}
 
-                      <View style={[styles.Flex, { marginTop: 15 }]}>
-                        <Text style={styles.DarkText}>{t("Delivery Date")}</Text>
-                        <Text style={styles.Text}>{personData?.deliver_date}</Text>
-                      </View>
+                      {/* Delivery Details (only when NOT Scheduled) */}
 
-                      <DashedLine
-                        dashLength={4}
-                        dashThickness={1}
-                        dashGap={2}
-                        dashColor={Colors.orderdark}
-                        style={styles.DasheLine}
-                      />
+                      <>
 
-                      <View style={styles.Flex}>
-                        <Text style={styles.DarkText}>{t("Region")}</Text>
-                        <Text style={styles.Text}>
-                          {personData?.delivery_region_data?.name || ""} {personData?.deliver_postcode || ""}
+                        <View style={[styles.Flex, { marginTop: 15 }]}>
+                          <Text style={styles.DarkText}>{t("Delivery Date")}</Text>
+                          <Text style={styles.Text}>{personData?.deliver_date}</Text>
+                        </View>
 
-                        </Text>
-                      </View>
+                        <DashedLine
+                          dashLength={4}
+                          dashThickness={1}
+                          dashGap={2}
+                          dashColor={Colors.orderdark}
+                          style={styles.DasheLine}
+                        />
+
+                        <View style={styles.Flex}>
+                          <Text style={styles.DarkText}>{t("Region")}</Text>
+                          <Text style={styles.Text}>
+                            {personData?.delivery_region_data?.name || ""} {personData?.deliver_postcode || ""}
+
+                          </Text>
+                        </View>
+                      </>
+
                     </>
+                  )}
 
-                  </>
-                )}
-
-            </View>
-          )}
-          {
-            [1, 2, 3].includes(OrderData?.order_data?.tmsstatus?.id) &&
-            <View style={{ paddingHorizontal: 15, paddingVertical: 5, gap: 5 }}>
-              <FlatList
-                data={OrderData?.order_data?.items || []}
-                style={{ width: "100%", gap: 10 }}
-                contentContainerStyle={styles.ContentContainerStyle}
-                scrollEnabled={false}
-                keyExtractor={(item, index) => `${index}`}
-                renderItem={({ item, index }) => (
-                  <ParcelBox
-                    qty={item?.qty}
-                    index={index}
-                    data={item}
-                    title={item?.tms_product_name}
-                    Icon={getDirectDropboxLink(item?.tmsstatus?.shared_link)}
-                  />
-                )}
-              />
-              <View>
-                <Text style={styles.Text}>{t("Date")}: {OrderData?.order_data?.tmsstatus?.id >= 3 ? OrderData?.order_data?.deliver_date : OrderData?.order_data?.pickup_date}</Text>
               </View>
-              <View>
-                <Text style={[styles.Text,]}>{t("Region")}: {OrderData?.order_data?.region_data?.name}</Text>
+            )}
+            {
+              [1, 2, 3].includes(OrderData?.order_data?.tmsstatus?.id) &&
+              <View style={{ paddingHorizontal: 15, paddingVertical: 5, gap: 5 }}>
+                <FlatList
+                  data={OrderData?.order_data?.items || []}
+                  style={{ width: "100%", gap: 10 }}
+                  contentContainerStyle={styles.ContentContainerStyle}
+                  scrollEnabled={false}
+                  keyExtractor={(item, index) => `${index}`}
+                  renderItem={({ item, index }) => (
+                    <ParcelBox
+                      qty={item?.qty}
+                      index={index}
+                      data={item}
+                      title={item?.tms_product_name}
+                      Icon={getDirectDropboxLink(item?.tmsstatus?.shared_link)}
+                    />
+                  )}
+                />
+                <View>
+                  <Text style={styles.Text}>{t("Date")}: {OrderData?.order_data?.tmsstatus?.id >= 3 ? OrderData?.order_data?.deliver_date : OrderData?.order_data?.pickup_date}</Text>
+                </View>
+                <View>
+                  <Text style={[styles.Text,]}>{t("Region")}: {OrderData?.order_data?.region_data?.name}</Text>
+                </View>
               </View>
-            </View>
-            // pickup_date
-          }
-          {/* --- Reason Options --- */}
-          {showReasonList && (
-            <View style={styles.optionContainer}>
-              {OrderDeliveryMapingLableOption?.not_delivery?.map((item: any) => (
-                <TouchableOpacity key={item.id} style={styles.ReasonButton} onPress={() => handleOptionSelect(item)}>
-                  <Text style={styles.ReasonText}>{item.title}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
+              // pickup_date
+            }
+            {/* --- Reason Options --- */}
+            {showReasonList && (
+              <View style={styles.optionContainer}>
+                {OrderDeliveryMapingLableOption?.not_delivery?.map((item: any) => (
+                  <TouchableOpacity key={item.id} style={styles.ReasonButton} onPress={() => handleOptionSelect(item)}>
+                    <Text style={styles.ReasonText}>{t(item.title)}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
 
-          {/* --- Delivered at Options --- */}
-          {showDeliveredAtList && (
-            <View style={styles.optionContainer}>
-              {OrderDeliveryMapingLableOption?.delivery?.map((item: any) => (
-                <TouchableOpacity key={item.id} style={styles.ReasonButton} onPress={() => handleOptionSelect(item)}>
-                  <Text style={styles.ReasonText}>{item.title}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
+            {/* --- Delivered at Options --- */}
+            {showDeliveredAtList && (
+              <View style={styles.optionContainer}>
+                {OrderDeliveryMapingLableOption?.delivery?.map((item: any) => (
+                  <TouchableOpacity key={item.id} style={styles.ReasonButton} onPress={() => handleOptionSelect(item)}>
+                    <Text style={styles.ReasonText}>{t(item.title)}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
 
-          {/* --- Footer Buttons --- */}
-          {!showReasonList && !showDeliveredAtList && (
-            <View style={[styles.Flex, styles.LastButtonContainer]}>
-              <TouchableOpacity
-                style={[styles.Button, LButtonStyle, { width: RText ? "48%" : "60%" }, !RText && { marginHorizontal: "auto" }]}
-                onPress={() => { if (LText === t("No delivery")) setShowReasonList(true); else onClose?.(); }}
-              >
-                <Text style={styles.Text}>{LText || t("Cancel")}</Text>
-              </TouchableOpacity>
-
-              {RText && (
+            {/* --- Footer Buttons --- */}
+            {!showReasonList && !showDeliveredAtList && (
+              <View style={[styles.Flex, styles.LastButtonContainer]}>
                 <TouchableOpacity
-                  style={[styles.Button, RButtonStyle]}
-                  onPress={() => { if (delivery_btn === 1 && !showDeliveredAtList) setShowDeliveredAtList(true); else onPress?.(); }}
+                  style={[styles.Button, LButtonStyle, { width: RText ? "48%" : "60%" }, !RText && { marginHorizontal: "auto" }]}
+                  onPress={() => { if (LText === t("No delivery")) setShowReasonList(true); else onClose?.(); }}
                 >
-                  <Text style={styles.Text}>{RText}</Text>
+                  <Text style={styles.Text}>
+                    {LText ? t(LText) : t('Cancel')}
+                  </Text>
                 </TouchableOpacity>
-              )}
-            </View>
-          )}
-           </View>
+
+                {RText && (
+                  <TouchableOpacity
+                    style={[styles.Button, RButtonStyle]}
+                    onPress={() => { if (delivery_btn === 1 && !showDeliveredAtList) setShowDeliveredAtList(true); else onPress?.(); }}
+                  >
+                    <Text style={styles.Text}>{t(RText)}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+          </View>
         </View>
       </View>
 
@@ -410,7 +412,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.4)",
   },
   container: { flexGrow: 1, justifyContent: "center", alignItems: "center", margin: 0, padding: 15 },
-  ContentView: { width:width * 0.9, backgroundColor: Colors.white, borderRadius: 7 },
+  ContentView: { width: width * 0.9, backgroundColor: Colors.white, borderRadius: 7 },
   InfoContainer: { padding: 15 },
   Text: { fontSize: 15, fontFamily: FONTS.SemiBold, color: Colors.black },
   TopContainer: { flexDirection: "row", gap: 15, alignItems: "center" },

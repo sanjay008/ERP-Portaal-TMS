@@ -29,7 +29,7 @@ export default function HomeScreens({ navigation, route }: any) {
     try {
       let res = await ApiService(apiConstants.get_AllSlideDataApi, {
         customData: {
-          token: token,
+          token:  UserData?.user?.verify_token,
           role: UserData?.user?.role,
           relaties_id: UserData?.relaties?.id,
           user_id: UserData?.user?.id,

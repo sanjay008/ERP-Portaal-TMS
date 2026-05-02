@@ -368,7 +368,7 @@ export default function ScannerScreens({ navigation, route }: any) {
 
     try {
       const payload = {
-        token: token,
+        token:  UserData?.user?.verify_token,
         role: UserData?.user?.role,
         relaties_id: UserData?.relaties?.id,
         user_id: UserData?.user?.id,
@@ -405,7 +405,7 @@ export default function ScannerScreens({ navigation, route }: any) {
           // LButtonText: t("Cancel"),
           LButtonText:
             res?.data?.delivery_btn == 1 ? t("No delivery") : t("Cancel"),
-          RButtonText: res?.data?.btn_lable,
+          RButtonText: t(res?.data?.btn_lable),
           RButtonStyle: Colors.primary,
           RColor: Colors.white,
           personData: res?.data?.order_data || [],
@@ -471,7 +471,7 @@ export default function ScannerScreens({ navigation, route }: any) {
 
     try {
       const payload = {
-        token: token,
+        token:  UserData?.user?.verify_token,
         role: UserData?.user?.role,
         relaties_id: UserData?.relaties?.id,
         user_id: UserData?.user?.id,
@@ -599,7 +599,7 @@ export default function ScannerScreens({ navigation, route }: any) {
     try {
       let res = await ApiService(apiConstants.get_AllSlideDataApi, {
         customData: {
-          token: token,
+          token:  UserData?.user?.verify_token,
           role: UserData?.user?.role,
           relaties_id: UserData?.relaties?.id,
           user_id: UserData?.user?.id,
@@ -777,7 +777,7 @@ export default function ScannerScreens({ navigation, route }: any) {
 
 
       const payload = {
-        token: token,
+        token:  UserData?.user?.verify_token,
         role: UserData?.user?.role,
         relaties_id: UserData?.relaties?.id,
         user_id: UserData?.user?.id,
@@ -953,7 +953,7 @@ export default function ScannerScreens({ navigation, route }: any) {
     try {
       const res = await ApiService(apiConstants.get_order_data_by_id, {
         customData: {
-          token: token,
+          token:  UserData?.user?.verify_token,
           role: UserData?.user?.role,
           relaties_id: UserData?.relaties?.id,
           user_id: UserData?.user?.id,

@@ -47,7 +47,7 @@ export default function Parcel({ navigation, route }: any) {
       let res = await ApiService(apiConstants.getOrderByDriver, {
         customData: {
           // token: userData?.user?.verify_token,
-          token: token,
+          token:  UserData?.user?.verify_token,
           role: UserData?.user?.role,
           relaties_id: UserData?.relaties?.id,
           user_id: UserData?.user?.id,
@@ -90,7 +90,7 @@ export default function Parcel({ navigation, route }: any) {
     try {
       let res = await ApiService(apiConstants.status_list, {
         customData: {
-          token: token,
+          token:  UserData?.user?.verify_token,
           role: UserData?.user?.role,
           relaties_id: UserData?.relaties?.id,
           user_id: UserData?.user?.id,

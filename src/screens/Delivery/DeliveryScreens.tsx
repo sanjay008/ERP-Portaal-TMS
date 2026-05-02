@@ -162,7 +162,7 @@ export default function DeliveryScreens({ route, navigation }: any) {
     try {
       let res = await ApiService(apiConstants.status_update, {
         customData: {
-          token: token,
+          token: UserData?.user?.verify_token,
           role: UserData?.user?.role,
 
           relaties_id: UserData?.relaties?.id,
@@ -344,7 +344,7 @@ export default function DeliveryScreens({ route, navigation }: any) {
     try {
       let res = await ApiService(apiConstants.get_order_data_by_id, {
         customData: {
-          token: token,
+          token:  UserData?.user?.verify_token,
           role: UserData?.user?.role,
           relaties_id: UserData?.relaties?.id,
           user_id: UserData?.user?.id,

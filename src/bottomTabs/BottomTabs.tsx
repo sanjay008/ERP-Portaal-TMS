@@ -39,6 +39,7 @@ export default function BottomTabs() {
       setCompanysData(compay);
       try {
         let data = await getData("USERDATA");
+  
         setUserData(data?.data);
         if (Permission?.length == 0) {
           getPermision(data?.data);
@@ -52,7 +53,7 @@ export default function BottomTabs() {
       try {
         let permissionData = await ApiService(apiConstants.permission, {
           customData: {
-            token: token,
+            token: user?.user?.verify_token,
             role: user?.user.role,
             relaties_id: user?.relaties?.id,
             user_id: user?.user?.id,

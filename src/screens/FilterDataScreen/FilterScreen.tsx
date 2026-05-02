@@ -59,7 +59,7 @@ export default function FilterScreen({ navigation, route }: any) {
       setLoading(true);
 
       const payload = {
-        token,
+        toekn: UserData?.user?.verify_token,
         role: UserData?.user?.role,
         relaties_id: UserData?.relaties?.id,
         user_id: UserData?.user?.id,
