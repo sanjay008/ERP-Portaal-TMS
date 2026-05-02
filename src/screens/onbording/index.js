@@ -31,11 +31,11 @@ const OnBoarding = ({ navigation }) => {
     const handleBackPress = useCallback(() => {
         Alert.alert("Hold on!", t("Are you sure you want to exit?"), [
             {
-                text: "Cancel",
+                text: t("Cancel"),
                 onPress: () => null,
                 style: "cancel",
             },
-            { text: "YES", onPress: () => BackHandler.exitApp() },
+            { text: t("YES"), onPress: () => BackHandler.exitApp() },
         ]);
         return true;
     }, []);

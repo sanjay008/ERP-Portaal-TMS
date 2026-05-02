@@ -5,13 +5,13 @@ import {
     Alert,
     Dimensions,
     Image,
-    SafeAreaView,
     StatusBar,
     Text,
     View
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { RFValue } from "react-native-responsive-fontsize";
+import { SafeAreaView } from "react-native-safe-area-context";
 import apiConstants from "../../api/apiConstants";
 import { Images } from "../../assets/images";
 import ButtonComponent from "../../components/buttonComponent.tsx";

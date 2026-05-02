@@ -51,7 +51,7 @@ import {
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import Modal from "react-native-modal";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function ScannerScreens({ navigation, route }: any) {
   const { fun = () => { }, type, item } = route?.params ?? {};
@@ -172,6 +172,7 @@ export default function ScannerScreens({ navigation, route }: any) {
   const { t } = useTranslation();
   const { ErrorHandle } = useErrorHandle();
   const [cameraKey, setCameraKey] = useState(1);
+  const {top,bottom} = useSafeAreaInsets();
   const playBeep = useCallback(async () => {
     const { sound } = await Audio.Sound.createAsync(Images.ScannerSound);
     await sound.playAsync();
@@ -1001,7 +1002,7 @@ export default function ScannerScreens({ navigation, route }: any) {
     if (!selectedItems || selectedItems.length === 0) {
       setToast({
         top: 45,
-        text: "Please select at least 1 item!",
+        text: t("Please select at least 1 item!"),
         type: "error",
         visible: true,
       });
@@ -1012,7 +1013,7 @@ export default function ScannerScreens({ navigation, route }: any) {
     if (!SelectPlace?.order_id) {
       setToast({
         top: 45,
-        text: "Order ID missing. Please rescan.",
+        text: t("Order ID missing. Please rescan."),
         type: "error",
         visible: true,
       });
@@ -1056,11 +1057,11 @@ export default function ScannerScreens({ navigation, route }: any) {
         if (Number(res?.data.remaining_item) == 0) {
           setSecondModal({
             visible: true,
-            title: "All Parcels Scanned Successfully!",
+            title: t("All Parcels Scanned Successfully!"),
             message: res?.data.remaining_item_message || "",
             buttons: [
               {
-                text: "Go to List Page",
+                text: t("Go to List Page"),
                 type: "primary",
                 onPress: () => {
                   setSecondModal((p: any) => ({ ...p, visible: false }));
@@ -1078,11 +1079,11 @@ export default function ScannerScreens({ navigation, route }: any) {
 
           setSecondModal({
             visible: true,
-            title: "There are Parcels Remaining",
-            message: `${actualRemaining} parcel(s) remaining to scan.`,
+            title: t("There are Parcels Remaining"),
+            message: `${actualRemaining} ${t("parcel(s) remaining to scan.")}`,
             buttons: [
               {
-                text: "No Parcel",
+                text: t("No Parcel"),
                 type: "secondary",
                 onPress: async () => {
                   setSecondModal((p: any) => ({ ...p, visible: false }));
@@ -1112,7 +1113,7 @@ export default function ScannerScreens({ navigation, route }: any) {
                 },
               },
               {
-                text: "Open Scanner",
+                text: t("Open Scanner"),
                 type: "primary",
                 onPress: () => {
                   setSecondModal((p: any) => ({ ...p, visible: false }));
@@ -1217,7 +1218,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         style={{ width, height, position: "absolute" }}
       />
 
-      <View style={styles.TopIcon}>
+      <View style={[styles.TopIcon,{top:top ? top*1.2 : 40}]}>
         <TouchableOpacity
           style={styles.Button}
           onPress={() => setFlashEnabled(!flashEnabled)}
@@ -1229,7 +1230,7 @@ export default function ScannerScreens({ navigation, route }: any) {
           />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.Button} onPress={goBack}>
+        <TouchableOpacity style={[styles.Button,]} onPress={goBack}>
           <Image source={Images.Close} style={styles.Icons} />
         </TouchableOpacity>
       </View>

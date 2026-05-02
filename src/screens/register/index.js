@@ -233,7 +233,7 @@ const Register = ({ navigation, route }) => {
       <KeyboardAwareScrollView
         bounces={false}
         enableOnAndroid
-        extraScrollHeight={200}
+        extraScrollHeight={100}
         keyboardShouldPersistTaps="handled"
         style={styles.subContainer}
       >
@@ -256,7 +256,7 @@ const Register = ({ navigation, route }) => {
 
           {complate == true && typee === "Register" && (
             <>
-              <Text style={styles.title}>{t("WhatsApp nummer")}</Text>
+              <Text style={[styles.title,{alignSelf:"flex-start"}]}>{t("WhatsApp nummer")}</Text>
               <View style={styles.country}>
                 <View style={{ width: '35%', }}>
                   <CountryPicker
@@ -319,7 +319,7 @@ const Register = ({ navigation, route }) => {
               <>
                 {typee === "Login" && showWhatsApp && !showEmail && (
                   <>
-                    <Text style={styles.title}>{t("WhatsApp nummer")}</Text>
+                    <Text style={[styles.title,{alignSelf:"flex-start"}]}>{t("WhatsApp nummer")}</Text>
                     <View style={styles.country}>
                       <View style={{ width: '35%', }}>
                         <CountryPicker

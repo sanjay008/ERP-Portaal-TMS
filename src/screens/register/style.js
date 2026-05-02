@@ -1,8 +1,8 @@
+import { FONTS } from "@/src/utils/storeData";
 import { StyleSheet } from "react-native";
 import { RFValue } from "react-native-responsive-fontsize";
 import { heightPercentageToDP } from "react-native-responsive-screen";
 import { Colors } from "../../utils/colors";
-import { FONTS } from "@/src/utils/storeData";
 
 
 export const styles = StyleSheet.create({

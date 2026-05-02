@@ -56,6 +56,7 @@ const DropDownBox: React.FC<Props> = ({
         labelField={labelFieldKey}
         valueField={valueFieldKey}
         placeholder={t(placeholder)}
+        autoScroll={false}
         containerStyle={[styles.container,{width:'92%'}]}
         value={value}
         onChange={(item) => {

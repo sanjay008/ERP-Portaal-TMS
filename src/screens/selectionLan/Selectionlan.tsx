@@ -108,7 +108,7 @@ const SelectLanguage: React.FC = () => {
 
       {/* Language Dropdown */}
       <Text style={styles.title}>
-        {t("SelectLanguage")}
+        {t("Select Language")}
         <Text style={styles.required}>*</Text>
       </Text>
 

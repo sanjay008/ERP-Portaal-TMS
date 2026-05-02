@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   CalenderView: {
-    width: "90%",
+    width: "100%",
     backgroundColor: Colors.white,
     borderRadius: 12,
     padding: 15,
