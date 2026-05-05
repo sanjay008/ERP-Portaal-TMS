@@ -1,4 +1,4 @@
-import apiConstants from "@/src/api/apiConstants";
+import apiConstants, { Verify_status } from "@/src/api/apiConstants";
 import { Images } from "@/src/assets/images";
 import { ApiFormatDate } from "@/src/components/ApiFormatDate";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
@@ -11,7 +11,7 @@ import ScannerInfoModal from "@/src/components/ScannerInfoModal";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors.js";
-import { FONTS, height, token, width } from "@/src/utils/storeData";
+import { FONTS, height, width } from "@/src/utils/storeData";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import BottomSheet, {
   BottomSheetFlatList
@@ -388,6 +388,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         });
         return;
       }
+console.log("Verify Status",Verify_status);
 
       let res = await ApiService(apiConstants.Verify_status, {
         customData: payload,

@@ -537,7 +537,7 @@ const Staff = ({ navigation, route }) => {
       });
 
       if (response?.status && response?.data) {
-        props.navigation.replace("BottamScreens1", {
+        props.navigation.replace("BottomTabs", {
           permission: response?.data,
         });
         setPermission(response?.data);
@@ -1383,7 +1383,6 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   predefinedPlacesDescription: {
-    color: "#1faadb",
     color: Colors.black,
     fontFamily: 'regular',
   },

@@ -198,7 +198,6 @@ import { FONTS } from "../../utils/storeData";
       backgroundColor: "transparent",
     },
     predefinedPlacesDescription: {
-      color: "#1faadb",
       color: Colors.black,
       fontFamily: FONTS.Regular,
     },

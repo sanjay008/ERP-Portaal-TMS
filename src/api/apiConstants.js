@@ -12,7 +12,6 @@ module.exports = {
     createUserWithRelaties: `${baseUrlnew}create_user_with_relaties`,
     relationship: `${baseUrlnew}get_relationship`,
     permission: `${baseUrlnew}permission`,
-    register: `${baseUrlnew}registers`,
     emailmobilelogin: `${baseUrlnew}login_email_mobile`,
     maritalstatus: `${baseUrlnew}get_marital_status`,
     Connections: `${baseUrlnew}get_connections`,

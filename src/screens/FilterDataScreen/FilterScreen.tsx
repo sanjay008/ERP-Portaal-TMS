@@ -10,7 +10,6 @@ import Loader from "@/src/components/loading";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
-import { token } from "@/src/utils/storeData";
 import { useIsFocused } from "@react-navigation/native";
 import React, { useCallback, useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -57,9 +56,8 @@ export default function FilterScreen({ navigation, route }: any) {
     console.log("itemmmmmm", item);
     try {
       setLoading(true);
-
       const payload = {
-        toekn: UserData?.user?.verify_token,
+        token: UserData?.user?.verify_token,
         role: UserData?.user?.role,
         relaties_id: UserData?.relaties?.id,
         user_id: UserData?.user?.id,
