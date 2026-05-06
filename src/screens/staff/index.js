@@ -217,11 +217,11 @@ const Staff = ({ navigation, route }) => {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert(
-          'Permission Denied',
-          'Gallery access is required to select photos.',
+          t('Permission Denied'),
+          t('Gallery access is required to select photos.'),
           [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+            { text: t('Cancel'), style: 'cancel' },
+            { text: t('Open Settings'), onPress: () => Linking.openSettings() },
           ]
         );
         return;
@@ -251,11 +251,11 @@ const Staff = ({ navigation, route }) => {
 
       if (status !== 'granted') {
         Alert.alert(
-          'Permission Required',
-          'Camera access is required to use this feature. Please enable it from app settings.',
+          t('Permission Required'),
+          t('Camera access is required to use this feature. Please enable it from app settings.'),
           [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+            { text: t('Cancel'), style: 'cancel' },
+            { text: t('Open Settings'), onPress: () => Linking.openSettings() },
           ]
         );
         return;
@@ -273,7 +273,7 @@ const Staff = ({ navigation, route }) => {
       // 🔹 Step 1: Ask for camera permission
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert("Permission required", "Please allow camera access.");
+        Alert.alert(t("Permission required"), t("Please allow camera access."));
         return;
       }
 
@@ -296,7 +296,7 @@ const Staff = ({ navigation, route }) => {
       }
     } catch (error) {
       console.error("Camera Error:", error);
-      Alert.alert("Error", "Failed to open camera. Please try again.");
+      Alert.alert(t("Wrong"), t("Failed to open camera. Please try again."));
     }
   };
 
@@ -366,12 +366,12 @@ const Staff = ({ navigation, route }) => {
         }, 1000);
       } else {
         console.log("API returned false:", data);
-        Alert.alert("Oops!", data?.message || "Something went wrong");
+        Alert.alert(t("Oops!"), t(data?.message) || "Something went wrong");
         setLoding(false);
       }
     } catch (err) {
       console.error("Error in createUserWithRelaties:", err);
-      Alert.alert("Error", "Failed to register user. Please try again.");
+      Alert.alert(t("Wrong"), t("Failed to register user. Please try again."));
       setLoding(false);
     }
   };
@@ -439,19 +439,19 @@ const Staff = ({ navigation, route }) => {
 
   const handleNextStep = () => {
     if (step === 1 && !selectedDecade) {
-      Alert.alert("Error", "Please select a decade.");
+      Alert.alert(t("Error"), t("Please select a decade."));
       return;
     }
     if (step === 2 && !selectedYear) {
-      Alert.alert("Error", "Please select a year.");
+      Alert.alert(t("Error"), t("Please select a year."));
       return;
     }
     if (step === 3 && selectedMonth === null) {
-      Alert.alert("Error", "Please select a month.");
+      Alert.alert(t("Error"), t("Please select a month."));
       return;
     }
     if (step === 4 && !selectedDay) {
-      Alert.alert("Error", "Please select a day.");
+      Alert.alert(t("Error"), t("Please select a day."));
       return;
     }
 
@@ -1061,7 +1061,7 @@ const Staff = ({ navigation, route }) => {
                 onPress={onRegister}
                 marginTop={RFValue(10)}
                 marginBottom={RFValue(10)}
-                title={t("Registreren")}
+                title={t("Register")}
               />
             </>
           )}

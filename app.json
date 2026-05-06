@@ -2,7 +2,7 @@
   "expo": {
     "name": "ERP TMS Driver",
     "slug": "erp-portaal-tms-driver",
-    "version": "26.05.05",
+    "version": "26.05.06",
     "jsEngine": "hermes",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -29,7 +29,7 @@
     },
     "android": {
       "allowBackup": false,
-      "versionCode": 3,
+      "versionCode": 4,
       "hardwareAccelerated": true,
       "env": {
         "EXPO_ANDROID_KEYSTORE": "@EXPO_ANDROID_KEYSTORE",

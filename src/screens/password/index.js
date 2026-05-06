@@ -100,8 +100,8 @@ const Password = ({ route, navigation }) => {
                 
             } else {
                 setLoading(false);
-                Alert.alert("Oops!", data.message, [
-                    { text: "OK", onPress: () => console.log("OK Pressed") },
+                Alert.alert(t("Oops!"), t(data.message), [
+                    { text: t("OK"), onPress: () => console.log("OK Pressed") },
                 ]);
             }
         } catch (err) {

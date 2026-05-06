@@ -172,7 +172,7 @@ export default function ScannerScreens({ navigation, route }: any) {
   const { t } = useTranslation();
   const { ErrorHandle } = useErrorHandle();
   const [cameraKey, setCameraKey] = useState(1);
-  const {top,bottom} = useSafeAreaInsets();
+  const { top, bottom } = useSafeAreaInsets();
   const playBeep = useCallback(async () => {
     const { sound } = await Audio.Sound.createAsync(Images.ScannerSound);
     await sound.playAsync();
@@ -332,7 +332,7 @@ export default function ScannerScreens({ navigation, route }: any) {
           console.log("⚠️ QR Processing Error:", error);
           setToast({
             top: 45,
-            text: error?.response?.data?.message ?? error?.message ?? t("Invalid QR code format"),
+            text: t(error?.response?.data?.message) ?? t(error?.message) ?? t("Invalid QR code format"),
             type: "error",
             visible: true,
           });
@@ -368,7 +368,7 @@ export default function ScannerScreens({ navigation, route }: any) {
 
     try {
       const payload = {
-        token:  UserData?.user?.verify_token,
+        token: UserData?.user?.verify_token,
         role: UserData?.user?.role,
         relaties_id: UserData?.relaties?.id,
         user_id: UserData?.user?.id,
@@ -388,7 +388,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         });
         return;
       }
-console.log("Verify Status",Verify_status);
+      console.log("Verify Status", Verify_status);
 
       let res = await ApiService(apiConstants.Verify_status, {
         customData: payload,
@@ -401,7 +401,7 @@ console.log("Verify Status",Verify_status);
         setItemsData(res?.data?.order_data);
         const modalConfig: any = {
           visible: true,
-          title: res?.data?.quetion,
+          title: t(res?.data?.quetion),
           Icon: Images.OrderIconFull,
           // LButtonText: t("Cancel"),
           LButtonText:
@@ -439,7 +439,7 @@ console.log("Verify Status",Verify_status);
         setConformationModal({
           visible: true,
           Icon: Images.InValidScanner,
-          title: res?.message || t("Invalid QR code. Please try again."),
+          title: t(res?.message) || t("Invalid QR code. Please try again."),
           LButtonText: t("Cancel"),
           RColor: Colors.white,
           bgColor: Colors.red,
@@ -450,7 +450,7 @@ console.log("Verify Status",Verify_status);
         });
         setToast({
           top: 45,
-          text: res?.message || t("Something went wrong"),
+          text: t(res?.message) || t("Something went wrong"),
           type: "error",
           visible: true,
         });
@@ -472,7 +472,7 @@ console.log("Verify Status",Verify_status);
 
     try {
       const payload = {
-        token:  UserData?.user?.verify_token,
+        token: UserData?.user?.verify_token,
         role: UserData?.user?.role,
         relaties_id: UserData?.relaties?.id,
         user_id: UserData?.user?.id,
@@ -517,7 +517,7 @@ console.log("Verify Status",Verify_status);
       } else {
         setToast({
           top: 45,
-          text: res?.message || t("Failed to update status"),
+          text: t(res?.message) || t("Failed to update status"),
           type: "error",
           visible: true,
         });
@@ -567,7 +567,7 @@ console.log("Verify Status",Verify_status);
       } else {
         setToast({
           top: 45,
-          text: res?.message,
+          text: t(res?.message),
           type: "error",
           visible: true,
         });
@@ -600,7 +600,7 @@ console.log("Verify Status",Verify_status);
     try {
       let res = await ApiService(apiConstants.get_AllSlideDataApi, {
         customData: {
-          token:  UserData?.user?.verify_token,
+          token: UserData?.user?.verify_token,
           role: UserData?.user?.role,
           relaties_id: UserData?.relaties?.id,
           user_id: UserData?.user?.id,
@@ -623,7 +623,7 @@ console.log("Verify Status",Verify_status);
       } else {
         setToast({
           top: 45,
-          text: res?.message,
+          text: t(res?.message),
           type: "error",
           visible: true,
         });
@@ -706,7 +706,7 @@ console.log("Verify Status",Verify_status);
         setDescrition("");
         setToast({
           top: 45,
-          text: res?.data?.message,
+          text: t(res?.data?.message),
           type: "success",
           visible: true,
         });
@@ -717,7 +717,7 @@ console.log("Verify Status",Verify_status);
         setComment(true)
         setToast({
           top: 45,
-          text: res?.data?.message,
+          text: t(res?.data?.message),
           type: "error",
           visible: true,
         });
@@ -771,7 +771,7 @@ console.log("Verify Status",Verify_status);
 
 
       const payload = {
-        token:  UserData?.user?.verify_token,
+        token: UserData?.user?.verify_token,
         role: UserData?.user?.role,
         relaties_id: UserData?.relaties?.id,
         user_id: UserData?.user?.id,
@@ -802,20 +802,16 @@ console.log("Verify Status",Verify_status);
         // ✅ Calculate actual remaining items (excluding No Parcel items)
         const actualRemaining =
           Number(res?.remaining_item) - NoParcelItemIds.length;
-
-        console.log("📊 Total remaining from API:", res?.remaining_item);
-        console.log("📦 No Parcel items count:", NoParcelItemIds.length);
-        console.log("✅ Actual remaining:", actualRemaining);
         if (!(GloblyTypeSlide == "outbound_scan")) {
           if (Number(res?.remaining_item) === 0) {
             // All items done (scanned + no parcel)
             setSecondModal({
               visible: true,
-              title: "All Parcels Scanned Successfully!",
-              message: res?.remaining_item_message || "",
+              title: t("All Parcels Scanned Successfully!"),
+              message: t(res?.remaining_item_message) || "",
               buttons: [
                 {
-                  text: "Go to List Page",
+                  text: t("Go to List Page"),
                   type: "primary",
                   onPress: () => {
                     setSecondModal((p: any) => ({ ...p, visible: false }));
@@ -831,11 +827,11 @@ console.log("Verify Status",Verify_status);
             // Still items to scan
             setSecondModal({
               visible: true,
-              title: "There are Parcels Remaining",
-              message: res?.remaining_item_message,
+              title: t("There are Parcels Remaining"),
+              message: t(res?.remaining_item_message),
               buttons: [
                 {
-                  text: "No Parcel",
+                  text: t("No Parcel"),
                   type: "secondary",
                   onPress: async () => {
                     setSecondModal((p: any) => ({ ...p, visible: false }));
@@ -882,7 +878,7 @@ console.log("Verify Status",Verify_status);
                   },
                 },
                 {
-                  text: "Open Scanner",
+                  text: t("Open Scanner"),
                   type: "primary",
                   onPress: () => {
                     setSecondModal((p: any) => ({ ...p, visible: false }));
@@ -947,7 +943,7 @@ console.log("Verify Status",Verify_status);
     try {
       const res = await ApiService(apiConstants.get_order_data_by_id, {
         customData: {
-          token:  UserData?.user?.verify_token,
+          token: UserData?.user?.verify_token,
           role: UserData?.user?.role,
           relaties_id: UserData?.relaties?.id,
           user_id: UserData?.user?.id,
@@ -1052,7 +1048,7 @@ console.log("Verify Status",Verify_status);
           setSecondModal({
             visible: true,
             title: t("All Parcels Scanned Successfully!"),
-            message: res?.data.remaining_item_message || "",
+            message: t(res?.data.remaining_item_message) || "",
             buttons: [
               {
                 text: t("Go to List Page"),
@@ -1138,14 +1134,14 @@ console.log("Verify Status",Verify_status);
 
         setToast({
           top: 45,
-          text: res?.data?.message,
+          text: t(res?.data?.message),
           type: "success",
           visible: true,
         });
       } else {
         setToast({
           top: 45,
-          text: res?.data?.message,
+          text: t(res?.data?.message),
           type: "error",
           visible: true,
         });
@@ -1212,7 +1208,7 @@ console.log("Verify Status",Verify_status);
         style={{ width, height, position: "absolute" }}
       />
 
-      <View style={[styles.TopIcon,{top:top ? top*1.2 : 40}]}>
+      <View style={[styles.TopIcon, { top: top ? top * 1.2 : 40 }]}>
         <TouchableOpacity
           style={styles.Button}
           onPress={() => setFlashEnabled(!flashEnabled)}
@@ -1237,7 +1233,7 @@ console.log("Verify Status",Verify_status);
         RText={ConformationModalOpen.RButtonText}
         LText={ConformationModalOpen.LButtonText}
         onPress={() => {
-          if (ConformationModalOpen.RButtonText === "Take Photo") {
+          if (ConformationModalOpen.RButtonText === t("Take Photo")) {
             setConformationModal((prev: any[]) => ({
               ...prev,
               visible: false,

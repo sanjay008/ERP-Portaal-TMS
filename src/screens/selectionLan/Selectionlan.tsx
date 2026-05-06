@@ -87,7 +87,7 @@ const SelectLanguage: React.FC = () => {
   const handleEnter = async () => {
     if (!currentLanguage) {
       setIsLanguageValid(false);
-      Alert.alert(t("Validation Error"), t("Please select a language"));
+      Alert.alert(t("Validation Issue"), t("Please select a language"));
       return;
     }
 
@@ -169,11 +169,11 @@ export default SelectLanguage;
 
 const styles = StyleSheet.create({
   dropdownButtonStyle: {
-    height: RFValue(35),
+    height: RFValue(40),
     borderWidth: 1,
     borderColor: Colors.litegray,
     width: "100%",
-    borderRadius: 7,
+    borderRadius: 4,
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",

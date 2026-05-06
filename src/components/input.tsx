@@ -148,6 +148,7 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.Medium,
     color: Colors.black,
     marginTop: RFValue(5),
+    textTransform:"capitalize"
   },
   img: {
     height: RFValue(20),

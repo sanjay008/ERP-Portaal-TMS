@@ -18,6 +18,8 @@ export default function LanguageScreens() {
       await storeData("userLanguage", lang);
       await i18n.changeLanguage(lang);
       setSelectLanguage(lang);
+      console.warn("lanaguge change",lang);
+
     } catch (error) {
       console.warn("Language change error:", error);
     }

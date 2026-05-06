@@ -95,7 +95,7 @@ export const useErrorHandle = () => {
  
       const apiMessage:any =
         responseData?.message ||
-        Object?.values(responseData?.errors || {})[0]?.[0] ||
+        Object?.values(responseData?.errors || {})[0]?.[0] || 
         (typeof responseData === "string" ? responseData : null);
 
       if (apiMessage) {
@@ -154,7 +154,7 @@ export const useErrorHandle = () => {
       
       return {
         type: errorType,
-        message: userMessage,
+        message: t(userMessage),
         originalError: responseData || null,
         status,
       };

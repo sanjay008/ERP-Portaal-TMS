@@ -46,7 +46,7 @@ export default function MapsViewBox({ data, onPress ,msg = null}: MapsData) {
 
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert("Location permission denied");
+        Alert.alert(t("Location permission denied"));
         return;
       }
 

@@ -308,7 +308,7 @@ const Register = ({ navigation, route }) => {
                 onChangeText={(txt) => {
                   setcommpny(txt), setCompnyError("");
                 }}
-                title={t("Bedrijfsnaam")}
+                title={t("company")}
                 error={CompnyError}
                 iconSource={Images.company}
                 autoCapitalize="none"
@@ -389,7 +389,7 @@ const Register = ({ navigation, route }) => {
                 }
               }}
               marginTop={RFValue(25)}
-              title={typee == "Login" ? t("Inloggen") : t("Registreren")}
+              title={typee == "Login" ? t("Login") : t("Register")}
             />
           </>
         </View>

@@ -41,7 +41,7 @@ export default function HomeScreens({ navigation, route }: any) {
       } else {
         setToast({
           top: 45,
-          text: res?.message,
+          text: t(res?.message),
           type: "error",
           visible: true,
         });

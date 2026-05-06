@@ -17,7 +17,6 @@ import TwoTypeButton from "@/src/components/TwoTypeButton";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
-import { token } from "@/src/utils/storeData";
 import { useIsFocused } from "@react-navigation/native";
 import axios from "axios";
 import * as ImageManipulator from "expo-image-manipulator";
@@ -189,7 +188,7 @@ export default function DetailsScreens({ navigation, route }: any) {
 
       setToast({
         top: 45,
-        text: msg ?? ErrorHandle(error)?.message ?? "Something went wrong",
+        text: t(msg) ?? ErrorHandle(error)?.message ?? t("Something went wrong"),
         type: "error",
         visible: true,
       });
@@ -249,7 +248,7 @@ export default function DetailsScreens({ navigation, route }: any) {
     try {
       const { granted } = await ImagePicker.requestCameraPermissionsAsync();
       if (!granted) {
-        Alert.alert("Permission required", "Please allow camera access");
+        Alert.alert(t("Permission required"), t("Please allow camera access"));
         return;
       }
 
@@ -349,15 +348,6 @@ export default function DetailsScreens({ navigation, route }: any) {
     console.log("order_id=-=-=-=-=", order_id);
 
     setDataLoading(true);
-    console.log("hgfhfhyfhy", {
-      token:  UserData?.user?.verify_token,
-      role: UserData?.user?.role,
-      relaties_id: UserData?.relaties?.id,
-      user_id: UserData?.user?.id,
-      order_id: ItemsData?.id || ItemsData?.order_data?.id || order_id,
-      type: type,
-    });
-
     try {
       let res = await ApiService(apiConstants.get_order_data_by_id, {
         customData: {
@@ -391,7 +381,7 @@ export default function DetailsScreens({ navigation, route }: any) {
       } else {
         setToast({
           top: 45,
-          text: res?.message,
+          text: t(res?.message),
           type: "error",
           visible: true,
         });
@@ -461,7 +451,7 @@ export default function DetailsScreens({ navigation, route }: any) {
         setAllSelectImage([]);
         setToast({
           top: 45,
-          text: res?.data?.message,
+          text: t(res?.data?.message),
           type: "success",
           visible: true,
         });
@@ -469,7 +459,7 @@ export default function DetailsScreens({ navigation, route }: any) {
       } else {
         setToast({
           top: 45,
-          text: res?.data?.message,
+          text: t(res?.data?.message),
           type: "error",
           visible: true,
         });
@@ -549,7 +539,7 @@ export default function DetailsScreens({ navigation, route }: any) {
       } else {
         setToast({
           top: 45,
-          text: res?.message,
+          text: t(res?.message),
           type: "error",
           visible: true,
         });
@@ -576,7 +566,7 @@ export default function DetailsScreens({ navigation, route }: any) {
     if (!selectedItems || selectedItems.length === 0) {
       setToast({
         top: 45,
-        text: "Please select at least 1 item!",
+        text: t("Please select at least 1 item!"),
         type: "error",
         visible: true,
       });
@@ -616,11 +606,11 @@ export default function DetailsScreens({ navigation, route }: any) {
           setTimeout(() => {
             setSecondModal({
               visible: true,
-              title: "All Parcels Scanned Successfully!",
-              message: res?.data.remaining_item_message || "",
+              title: t("All Parcels Scanned Successfully!"),
+              message: t(res?.data.remaining_item_message) || "",
               buttons: [
                 {
-                  text: "Go to List Page",
+                  text: t("Go to List Page"),
                   type: "primary",
                   onPress: () => {
                     setSecondModal((p: any) => ({ ...p, visible: false }));
@@ -637,8 +627,8 @@ export default function DetailsScreens({ navigation, route }: any) {
           setTimeout(() => {
             setSecondModal({
               visible: true,
-              title: "There are Parcels Remaining",
-              message: res?.data.remaining_item_message || "",
+              title: t("There are Parcels Remaining"),
+              message: t(res?.data.remaining_item_message) || "",
               buttons: [
                 {
                   text: "No Parcel",
@@ -680,14 +670,14 @@ export default function DetailsScreens({ navigation, route }: any) {
 
         setToast({
           top: 45,
-          text: res?.data?.message,
+          text: t(res?.data?.message),
           type: "success",
           visible: true,
         });
       } else {
         setToast({
           top: 45,
-          text: res?.data?.message,
+          text: t(res?.data?.message),
           type: "error",
           visible: true,
         });

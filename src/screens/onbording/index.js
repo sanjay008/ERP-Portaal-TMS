@@ -115,12 +115,12 @@ const retrieveAppVersion = async () => {
                 <ButtonComponent
                     onPress={() => navigation.navigate("Register", { typee: "Register" })}
                     marginTop={RFValue(50)}
-                    title={t("Registrere")+"n"}
+                    title={t("Register")}
                 />
                 <ButtonComponent
                     onPress={() => navigation.navigate("Register", { typee: "Login" })}
                     marginTop={RFValue(10)}
-                    title={t("Inloggen")}
+                    title={t("Login")}
                     // backgroundColor={Colors.white}
                     // borderWidth={1.5}
                     // borderColor={Colors.litegray}
