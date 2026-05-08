@@ -8,6 +8,7 @@ import LoadingModal from "@/src/components/LoadingModal";
 import NoParcelModal from "@/src/components/NoParcelModal";
 import PickUpBox from "@/src/components/PickUpBox";
 import ScannerInfoModal from "@/src/components/ScannerInfoModal";
+import SignatureModal from "@/src/components/SignatureModal";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors.js";
@@ -51,13 +52,15 @@ import {
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import Modal from "react-native-modal";
+import ReAnimated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-
 export default function ScannerScreens({ navigation, route }: any) {
   const { fun = () => { }, type, item } = route?.params ?? {};
   const [permission, requestPermission] = useCameraPermissions();
   const [ItemsData, setItemsData] = useState(item);
   const [isNoParcelFlow, setIsNoParcelFlow] = useState(false);
+  const [showSig, setShowSig] = useState<boolean>(false);
+
   // const [NoParcelItemIds, setNoParcelItemIds] = useState<number[]>([]);
   const [IsLoading, setIsLoading] = useState<boolean>(false);
   const [ConformationModalOpen, setConformationModal] = useState<any>({
@@ -161,8 +164,8 @@ export default function ScannerScreens({ navigation, route }: any) {
     DeliveyDataSave,
     setDeliveyDataSave,
     GloblyTypeSlide,
-    NoParcelItemIds, // ✅ Same global state
-    setNoParcelItemIds, // ✅ Same global setter
+    NoParcelItemIds,
+    setNoParcelItemIds,
     SelectDeliveryReason,
     setSelectDeliveryReson,
     OrderDeliveryMapingLableOption,
@@ -173,6 +176,7 @@ export default function ScannerScreens({ navigation, route }: any) {
   const { ErrorHandle } = useErrorHandle();
   const [cameraKey, setCameraKey] = useState(1);
   const { top, bottom } = useSafeAreaInsets();
+  const [SignatureLoader, setSignatureLoader] = useState<boolean>(false);
   const playBeep = useCallback(async () => {
     const { sound } = await Audio.Sound.createAsync(Images.ScannerSound);
     await sound.playAsync();
@@ -202,7 +206,6 @@ export default function ScannerScreens({ navigation, route }: any) {
       }
     };
 
-    // 🔁 When screen comes into focus (Focused true)
     if (Focused) {
 
 
@@ -220,9 +223,6 @@ export default function ScannerScreens({ navigation, route }: any) {
       } else {
         recheckPermission();
       }
-
-      // 🔧 Optional small delay before setting hasPermission
-      // to let camera session reinitialize smoothly
       setTimeout(() => {
         setHasPermission(true);
       }, 200);
@@ -254,10 +254,6 @@ export default function ScannerScreens({ navigation, route }: any) {
   }, []);
 
   useEffect(() => {
-
-    console.log("enter in useeffect (Scanner)");
-
-    // ✅ Always set pickup handler
     setPickUpDataSave({
       setData: (data: any[]) => {
         console.log("📸 Received pickup photo data:", data);
@@ -737,6 +733,66 @@ export default function ScannerScreens({ navigation, route }: any) {
   };
 
 
+  const CustomerSignatureFun = async (signature: string | null = null, name: string | null = null,) => {
+    if (signature == null) {
+      setToast({
+        top: 45,
+        text: t("Please Signature."),
+        type: "error",
+        visible: true,
+      });
+      return
+    }
+    setSignatureLoader(true)
+    try {
+
+      const payload = {
+        token: UserData?.user?.verify_token,
+        role: UserData?.user?.role,
+        relaties_id: UserData?.relaties?.id,
+        user_id: UserData?.user?.id,
+        name: name,
+        signature,
+        order_id: ItemsData?.id
+      };
+
+
+      const res = await ApiService(apiConstants.store_customer_signature, {
+        customData: payload,
+      });
+      console.log(res);
+
+      if (res?.status) {
+        
+        setShowSig(false);
+        setSecondModal(p => ({ ...p, visible: false }));
+        setToast({
+          top: 45,
+          text: res?.message,
+          type: "success",
+          visible: true,
+        });
+      } else {
+        setToast({
+          top: 45,
+          text: res?.message,
+          type: "error",
+          visible: true,
+        });
+      }
+    } catch (error) {
+      console.log("CustomerSignatureFun Error:-", error);
+      setToast({
+        top: 45,
+        text: ErrorHandle(error).message,
+        type: "error",
+        visible: true,
+      });
+    }
+    finally {
+      setSignatureLoader(false);
+    }
+  }
 
 
   const CommentFun = async () => {
@@ -782,6 +838,7 @@ export default function ScannerScreens({ navigation, route }: any) {
           delivered_lable_id: SelectDeliveryReason?.id,
         }),
       };
+console.log("Commentssss reeee",payload);
 
       const res = await ApiService(apiConstants.status_update, {
         customData: payload,
@@ -798,28 +855,41 @@ export default function ScannerScreens({ navigation, route }: any) {
         fun?.();
         setComment(false);
         // setRefreshCondition(true)
+        console.log("res?.tms_current_status", res?.tms_current_status);
 
         // ✅ Calculate actual remaining items (excluding No Parcel items)
         const actualRemaining =
           Number(res?.remaining_item) - NoParcelItemIds.length;
+        const isSignatureAllowed = Number(res?.tms_current_status) === 5;
         if (!(GloblyTypeSlide == "outbound_scan")) {
           if (Number(res?.remaining_item) === 0) {
-            // All items done (scanned + no parcel)
+            const buttons: any[] = [
+              {
+                text: t("Go to List Page"),
+                type: "primary",
+                onPress: () => {
+                  setSecondModal(p => ({ ...p, visible: false }));
+                  setNoParcelItemIds([]);
+                  getSliderDataFun();
+                },
+              },
+            ];
+
+            if (isSignatureAllowed) {
+              buttons.push({
+                text: t("Signature"),
+                type: "primary",
+                onPress: () => {
+                  setShowSig(true);
+                },
+              });
+            }
+
             setSecondModal({
               visible: true,
               title: t("All Parcels Scanned Successfully!"),
               message: t(res?.remaining_item_message) || "",
-              buttons: [
-                {
-                  text: t("Go to List Page"),
-                  type: "primary",
-                  onPress: () => {
-                    setSecondModal((p: any) => ({ ...p, visible: false }));
-                    setNoParcelItemIds([]); // ✅ Reset
-                    getSliderDataFun();
-                  },
-                },
-              ],
+              buttons: buttons,
               color: GloblyTypeSlide == "outbound_scan" ? Colors.primary : Colors.green
 
             });
@@ -906,6 +976,22 @@ export default function ScannerScreens({ navigation, route }: any) {
               color: Colors.yellow
             });
           }
+        } else if (isSignatureAllowed) {
+          const buttons: any[] = [{
+            text: t("Signature"),
+            type: "primary",
+            onPress: () => {
+              setShowSig(true);
+            },
+          }]
+
+          setSecondModal({
+            visible: true,
+            title: t("Confirm Delivery"),
+            message: t("Delivery completed. Please provide your signature to confirm successful handover."),
+            buttons: buttons,
+            color: Colors.green,
+          });
         }
 
         setAllRecentScanData((prev) =>
@@ -1045,21 +1131,34 @@ export default function ScannerScreens({ navigation, route }: any) {
         console.log("res?.remaining_item", res?.data.remaining_item);
 
         if (Number(res?.data.remaining_item) == 0) {
+          const buttons: any[] = [
+            {
+              text: t("Go to List Page"),
+              type: "primary",
+              onPress: () => {
+                setSecondModal(p => ({ ...p, visible: false }));
+                setNoParcelItemIds([]);
+                getSliderDataFun();
+              },
+            },
+          ];
+
+          const isSignatureAllowed = Number(res?.data?.tms_current_status) === 5;
+
+          if (isSignatureAllowed) {
+            buttons.push({
+              text: t("Signature"),
+              type: "primary",
+              onPress: () => {
+                setShowSig(true);
+              },
+            });
+          }
           setSecondModal({
             visible: true,
             title: t("All Parcels Scanned Successfully!"),
             message: t(res?.data.remaining_item_message) || "",
-            buttons: [
-              {
-                text: t("Go to List Page"),
-                type: "primary",
-                onPress: () => {
-                  setSecondModal((p: any) => ({ ...p, visible: false }));
-                  setNoParcelItemIds([]); // Reset
-                  getSliderDataFun();
-                },
-              },
-            ],
+            buttons: buttons,
             color: GloblyTypeSlide == "outbound_scan" ? Colors.primary : Colors.green
 
           });
@@ -1180,15 +1279,6 @@ export default function ScannerScreens({ navigation, route }: any) {
 
   return (
     <GestureHandlerRootView key={refreshKey} style={styles.container}>
-      {/* <CameraView
-        ref={cameraRef}
-        enableTorch={flashEnabled}
-        style={StyleSheet.absoluteFill}
-        onBarcodeScanned={onBarcodeScanned}
-        barcodeScannerSettings={{
-          barcodeTypes: ["qr"],
-        }}
-      /> */}
       {
         Focused &&
         <CameraView
@@ -1279,13 +1369,22 @@ export default function ScannerScreens({ navigation, route }: any) {
         delivery_btn={ScannerModalOpen.delivery_btn}
       />
 
+      <SignatureModal
+        IsLoading={SignatureLoader}
+        visible={showSig}
+        defaultName={ItemsData?.display_name}
+        onClose={() => setShowSig(false)}
+        onSave={(base64, name) => {
+          console.log("Signature:", base64);
+          CustomerSignatureFun(base64, name)
+        }}
+        onClear={() => console.log("Cleared")}
+      />
+
       <LoadingModal visible={IsLoading} message={t("Please wait…")} />
       <BottomSheet snapPoints={["15%", "90%"]} ref={bottomSheetRef}>
         <BottomSheetFlatList
           data={AllScanedData}
-          nestedScrollEnabled={true}
-          style={{ width: width, padding: 15, height: height * 0.85 }}
-
           keyExtractor={(item: any, index: number) => `${index}`}
           renderItem={({ item, index }: any) => (
             <PickUpBox
@@ -1299,6 +1398,7 @@ export default function ScannerScreens({ navigation, route }: any) {
               start={item?.pickup_location}
               end={item?.deliver_location}
               customerData={item?.customer}
+              external_platform_data={item?.display_name}
               statusData={item?.tmsstatus}
               LacationProgress={false}
             />
@@ -1317,10 +1417,11 @@ export default function ScannerScreens({ navigation, route }: any) {
               </View>
             ) : null
           }
-          contentContainerStyle={{ paddingBottom: 50 }}
+          contentContainerStyle={{ padding: 15, paddingBottom: Math.max(bottom, 20), }}
+          style={{ width: width }}
+          showsVerticalScrollIndicator={false}
         />
       </BottomSheet>
-
       <NoParcelModal
         visible={NoParcelModalVisible}
         title={t("Select Missing Items")}
@@ -1438,99 +1539,97 @@ export default function ScannerScreens({ navigation, route }: any) {
         </SafeAreaView>
       </Modal>
 
+
+
       {SecondModal?.visible && (
-        <>
-          <Modal
-            isVisible={SecondModal.visible}
-            style={{ margin: 0, flex: 1 }}
-            animationIn={"bounceInUp"}
-            animationOut={"bounceOutDown"}
+        <ReAnimated.View
+          entering={FadeIn}
+          exiting={FadeInDown}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            justifyContent: "center",
+            alignItems: "center",
+            backgroundColor: SecondModal?.color || "rgba(0,0,0,0.6)",
+            zIndex: 999,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: Colors.white,
+              borderRadius: 14,
+              width: "80%",
+              paddingVertical: 25,
+              paddingHorizontal: 20,
+              alignItems: "center",
+            }}
           >
-            <View
-              style={{
-                flex: 1,
-                justifyContent: "center",
-                alignItems: "center",
-                backgroundColor: SecondModal?.color || "rgba(0,0,0,0.6)",
-              }}
-            >
-              <View
+            {SecondModal?.title ? (
+              <Text
                 style={{
-                  backgroundColor: Colors.white,
-                  borderRadius: 14,
-                  width: "80%",
-                  paddingVertical: 25,
-                  paddingHorizontal: 20,
-                  alignItems: "center",
+                  fontSize: 18,
+                  fontWeight: "600",
+                  textAlign: "center",
+                  color: "#000",
+                  marginBottom: 10,
                 }}
               >
-                {SecondModal?.title ? (
-                  <Text
-                    style={{
-                      fontSize: 18,
-                      fontWeight: "600",
-                      textAlign: "center",
-                      color: "#000",
-                      marginBottom: 10,
-                    }}
-                  >
-                    {SecondModal?.title}
-                  </Text>
-                ) : null}
+                {SecondModal?.title}
+              </Text>
+            ) : null}
 
-                {SecondModal?.message ? (
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      color: Colors.gray,
-                      textAlign: "center",
-                      marginBottom: 20,
-                    }}
-                  >
-                    {SecondModal?.message}
-                  </Text>
-                ) : null}
+            {SecondModal?.message ? (
+              <Text
+                style={{
+                  fontSize: 14,
+                  color: Colors.gray,
+                  textAlign: "center",
+                  marginBottom: 20,
+                }}
+              >
+                {SecondModal?.message}
+              </Text>
+            ) : null}
 
-                <View
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "center",
+                width: "100%",
+              }}
+            >
+              {SecondModal?.buttons?.map((btn: any, index: number) => (
+                <TouchableOpacity
+                  key={index}
                   style={{
-                    flexDirection: "row",
-                    justifyContent: "center",
-                    width: "100%",
+                    backgroundColor:
+                      btn.type === "primary" ? Colors.primary : "#E0E0E0",
+                    paddingVertical: 10,
+                    paddingHorizontal: 20,
+                    borderRadius: 8,
+                    marginHorizontal: 5,
+                    flex: 1,
+                    alignItems: "center",
                   }}
+                  onPress={btn.onPress}
                 >
-                  {SecondModal?.buttons?.map((btn: any, index: number) => (
-                    <TouchableOpacity
-                      key={index}
-                      style={{
-                        backgroundColor:
-                          btn.type === "primary" ? Colors.primary : "#E0E0E0",
-                        paddingVertical: 10,
-                        paddingHorizontal: 20,
-                        borderRadius: 8,
-                        marginHorizontal: 5,
-                        flex: 1,
-                        alignItems: "center",
-                      }}
-                      onPress={btn.onPress}
-                    >
-                      <Text
-                        style={{
-                          color:
-                            btn.type === "primary"
-                              ? Colors.white
-                              : Colors.black,
-                          fontFamily: FONTS.Medium,
-                        }}
-                      >
-                        {btn.text}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
+                  <Text
+                    style={{
+                      color:
+                        btn.type === "primary" ? Colors.white : Colors.black,
+                      fontFamily: FONTS.Medium,
+                    }}
+                  >
+                    {btn.text}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
-          </Modal>
-        </>
+          </View>
+        </ReAnimated.View>
       )}
     </GestureHandlerRootView>
   );

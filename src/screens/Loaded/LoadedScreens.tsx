@@ -70,7 +70,7 @@ export default function LoadedScreens({ navigation, route }: any) {
       let res = await ApiService(apiConstants.getOrderByDriver, {
         customData: {
           // token: userData?.user?.verify_token,
-          token:  userData?.user?.verify_token,
+          token: userData?.user?.verify_token,
           role: userData?.user?.role,
           relaties_id: userData?.relaties?.id,
 
@@ -122,21 +122,21 @@ export default function LoadedScreens({ navigation, route }: any) {
         <View style={styles.Flex}>
           <View style={{ flex: 1 / 1.05 }}>
             <CalenderDate date={SelectDate} setDate={setSelectDate} />
-            </View>
-            <TouchableOpacity
-              style={[
-                styles.CollPadByButton,
-                { transform: [{ rotate: !isCollapsed ? "0deg" : "180deg" }] },
-              ]}
-              onPress={() => setisCollapsed(!isCollapsed)}
-            >
-              <Image
-                source={Images.down}
-                style={styles.DownIcon}
-                tintColor={Colors.white}
-              />
+          </View>
+          <TouchableOpacity
+            style={[
+              styles.CollPadByButton,
+              { transform: [{ rotate: !isCollapsed ? "0deg" : "180deg" }] },
+            ]}
+            onPress={() => setisCollapsed(!isCollapsed)}
+          >
+            <Image
+              source={Images.down}
+              style={styles.DownIcon}
+              tintColor={Colors.white}
+            />
 
-            </TouchableOpacity>
+          </TouchableOpacity>
         </View>
         <View style={styles.Flex}>
           <DropDownBox
@@ -203,6 +203,8 @@ export default function LoadedScreens({ navigation, route }: any) {
                   start={item?.pickup_location}
                   end={item?.deliver_location}
                   customerData={item?.customer}
+                  external_platform_data={item?.display_name}
+
                   statusData={item?.tmsstatus}
                 />
               );

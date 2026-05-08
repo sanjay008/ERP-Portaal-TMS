@@ -219,7 +219,7 @@ export default function Parcel({ navigation, route }: any) {
                   { color: Colors.black },
                 ]}
               >
-                {item?.status_name || ""}
+                {t(item?.status_name) || ""}
               </Text>
             </TouchableOpacity>
           )}
@@ -268,6 +268,8 @@ export default function Parcel({ navigation, route }: any) {
               start={item?.pickup_location}
               end={item?.deliver_location}
               customerData={item?.customer}
+                  external_platform_data={item?.display_name}
+
               statusData={item?.tmsstatus}
             />
           );

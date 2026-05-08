@@ -13,6 +13,7 @@ import MapsViewBox from "@/src/components/MapsViewBox";
 import NoParcelModal from "@/src/components/NoParcelModal";
 import PickUpBox from "@/src/components/PickUpBox";
 import ScannerInfoModal from "@/src/components/ScannerInfoModal";
+import SignatureModal from "@/src/components/SignatureModal";
 import TwoTypeButton from "@/src/components/TwoTypeButton";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import ApiService from "@/src/utils/Apiservice";
@@ -64,12 +65,14 @@ export default function DetailsScreens({ navigation, route }: any) {
   const [IsLoading, setIsLoading] = useState<boolean>(false);
   const [BackButtonAvailble, setBackButtonAvailble] = useState(false);
   const { t } = useTranslation();
-  const [NoParcelOpenmodalType,setNoParcelOpenmodalType] = useState(type);
+  const [NoParcelOpenmodalType, setNoParcelOpenmodalType] = useState(type);
   const [DataLoading, setDataLoading] = useState<boolean>(false);
   const [NoParcelModalVisible, setNoParcelModalVisible] = useState(false);
   const [NoParcelOptions, setNoParcelOptions] = useState<any[]>([]);
   const [AllSlideData, setAllSlideData] = useState([]);
   const [SelectedNoParcelItems, setSelectedNoParcelItems] = useState<any[]>([]);
+  const [showSig, setShowSig] = useState<boolean>(false);
+  const [SignatureLoader, setSignatureLoader] = useState<boolean>(false);
   const [LocationDataMessage, setLocationDataMessage] = useState(null);
   const [AllDestinationRegionData, setAllDestinationRegionData] = useState<
     any[]
@@ -98,7 +101,7 @@ export default function DetailsScreens({ navigation, route }: any) {
     onPress: undefined,
   });
   const IsFocused = useIsFocused();
-  const [Count,setCount] = useState<number>(0)
+  const [Count, setCount] = useState<number>(0)
   const [AlertModalOpen, setAlerModalOpen] = useState<any>({
     visible: false,
     title: "",
@@ -144,7 +147,7 @@ export default function DetailsScreens({ navigation, route }: any) {
       return;
     }
     console.log("REkmegjerg", {
-      token:  UserData?.user?.verify_token,
+      token: UserData?.user?.verify_token,
       role: UserData?.user?.role,
       relaties_id: UserData?.relaties?.id,
       user_id: UserData?.user?.id,
@@ -155,7 +158,7 @@ export default function DetailsScreens({ navigation, route }: any) {
     try {
       let res = await ApiService(apiConstants.get_location_by_region_date, {
         customData: {
-          token:  UserData?.user?.verify_token,
+          token: UserData?.user?.verify_token,
           role: UserData?.user?.role,
           relaties_id: UserData?.relaties?.id,
           user_id: UserData?.user?.id,
@@ -219,9 +222,9 @@ export default function DetailsScreens({ navigation, route }: any) {
         console.log("Received pickup photo data:", data);
         setAllSelectImage(data);
         if (data?.length > 0) {
-          setTimeout(()=>{
+          setTimeout(() => {
             setComment(true);
-          },400)
+          }, 400)
         }
       },
     });
@@ -230,18 +233,18 @@ export default function DetailsScreens({ navigation, route }: any) {
         console.log("📦 Received delivery photo data:", data);
         setAllSelectImage(data);
         if (data?.length > 0) {
-          setTimeout(()=>{
+          setTimeout(() => {
             setComment(true);
-          },400)
+          }, 400)
         }
       },
     });
-   
+
     return () => {
       setPickUpDataSave(null);
       setDeliveyDataSave(null);
     };
-    
+
   }, [Focused]);
 
   const openCamera = async () => {
@@ -351,7 +354,7 @@ export default function DetailsScreens({ navigation, route }: any) {
     try {
       let res = await ApiService(apiConstants.get_order_data_by_id, {
         customData: {
-          token:  UserData?.user?.verify_token,
+          token: UserData?.user?.verify_token,
           role: UserData?.user?.role,
           relaties_id: UserData?.relaties?.id,
           user_id: UserData?.user?.id,
@@ -520,7 +523,7 @@ export default function DetailsScreens({ navigation, route }: any) {
     try {
       let res = await ApiService(apiConstants.get_AllSlideDataApi, {
         customData: {
-          token:  UserData?.user?.verify_token,
+          token: UserData?.user?.verify_token,
           role: UserData?.user?.role,
           relaties_id: UserData?.relaties?.id,
           user_id: UserData?.user?.id,
@@ -603,22 +606,34 @@ export default function DetailsScreens({ navigation, route }: any) {
         console.log("res?.remaining_item", res?.data.remaining_item);
 
         if (Number(res?.data.remaining_item) == 0) {
+          const buttons:any[] = [
+            {
+              text: t("Go to List Page"),
+              type: "primary",
+              onPress: () => {
+                setSecondModal(p => ({ ...p, visible: false }));
+                setNoParcelItemIds([]);
+                getSliderDataFun();
+              },
+            },
+          ];
+          const isSignatureAllowed = Number(res?.data?.tms_current_status) === 5;
+
+          if (isSignatureAllowed) {
+            buttons.push({
+              text: t("Signature"),
+              type: "primary",
+              onPress: () => {
+                setShowSig(true);
+              },
+            });
+          }
           setTimeout(() => {
             setSecondModal({
               visible: true,
               title: t("All Parcels Scanned Successfully!"),
               message: t(res?.data.remaining_item_message) || "",
-              buttons: [
-                {
-                  text: t("Go to List Page"),
-                  type: "primary",
-                  onPress: () => {
-                    setSecondModal((p: any) => ({ ...p, visible: false }));
-                    setNoParcelItemIds([]);
-                    getSliderDataFun();
-                  },
-                },
-              ],
+              buttons: buttons,
               color: GloblyTypeSlide == "outbound_scan" ? Colors.primary : Colors.green
             });
 
@@ -695,18 +710,77 @@ export default function DetailsScreens({ navigation, route }: any) {
     }
   };
 
-  useEffect(() => {
-   let Funcation = async()=>{
-    await GetIdByOrderFun();
-     if (NoParcelDetailsScreenEvent) {
-      setNoParcelModalVisible(true);
-      // setNoParcelOpenmodalType("")
+  const CustomerSignatureFun = async (signature: string | null = null, name: string | null = null,) => {
+    if (signature == null) {
+      setToast({
+        top: 45,
+        text: t("Please Signature."),
+        type: "error",
+        visible: true,
+      });
+      return
     }
-   }
-   Funcation()
-   if(Focused){
-     setCount(pre => pre+1)
-   }
+    setSignatureLoader(true)
+    try {
+
+      const payload = {
+        token: UserData?.user?.verify_token,
+        role: UserData?.user?.role,
+        relaties_id: UserData?.relaties?.id,
+        user_id: UserData?.user?.id,
+        name,
+        signature,
+        order_id: ItemsData?.id
+      };
+      const res = await ApiService(apiConstants.store_customer_signature, {
+        customData: payload,
+      });
+
+      if (res?.status) {
+        
+        setShowSig(false);
+        setSecondModal(p => ({ ...p, visible: false }));
+        setToast({
+          top: 45,
+          text: res?.message,
+          type: "success",
+          visible: true,
+        });
+      } else {
+        setToast({
+          top: 45,
+          text: res?.message,
+          type: "error",
+          visible: true,
+        });
+      }
+    } catch (error) {
+      console.log("CustomerSignatureFun Error:-", error);
+      setToast({
+        top: 45,
+        text: ErrorHandle(error).message,
+        type: "error",
+        visible: true,
+      });
+    }
+    finally {
+      setSignatureLoader(false);
+
+    }
+  }
+
+  useEffect(() => {
+    let Funcation = async () => {
+      await GetIdByOrderFun();
+      if (NoParcelDetailsScreenEvent) {
+        setNoParcelModalVisible(true);
+        // setNoParcelOpenmodalType("")
+      }
+    }
+    Funcation()
+    if (Focused) {
+      setCount(pre => pre + 1)
+    }
   }, [Focused]);
 
   return (
@@ -770,6 +844,8 @@ export default function DetailsScreens({ navigation, route }: any) {
             start={ItemsData?.pickup_location}
             end={ItemsData?.deliver_location}
             customerData={ItemsData?.customer}
+            external_platform_data={ItemsData?.display_name}
+
             contact={true}
           />
 
@@ -950,9 +1026,10 @@ export default function DetailsScreens({ navigation, route }: any) {
         title={t("Select Missing Items")}
         options={NoParcelOptions}
         personData={ItemsData?.customer}
+        external_platform_data={ItemsData?.display_name}
         OrderId={ItemsData?.id}
         type={1}
-        onClose={() => {setNoParcelModalVisible(false);setNoParcelDetailsScreenEvent(false)}}
+        onClose={() => { setNoParcelModalVisible(false); setNoParcelDetailsScreenEvent(false) }}
         onSubmit={(selectedIds) => {
           if (!selectedIds || selectedIds.length === 0) {
             setToast({
@@ -971,25 +1048,38 @@ export default function DetailsScreens({ navigation, route }: any) {
           setSelectedNoParcelItems(selectedItems);
           setNoParcelModalVisible(false);
           console.log("ItemsData", ItemsData?.customer?.display_name);
-           setNoParcelDetailsScreenEvent(false)
-          setTimeout(()=>{
+          setNoParcelDetailsScreenEvent(false)
+          setTimeout(() => {
             setScannerModalOpen({
-            visible: true,
-            InfoTitle: t("Scanner Info"),
-            type: 1,
-            RText: t("Take Photo"),
-            LText: t("Cancel"),
-            personData: ItemsData,
-            ProductItem: selectedItems,
-            OrderId: ItemsData?.id,
-            onPress: () => {
-              setScannerModalOpen((prev) => ({ ...prev, visible: false }));
-              navigation.navigate("Camera", { from: "Pickup" });
-              // goBackOrPopTo(navigation,"Camera", { from: "Pickup" })
-            },
-          });
-          },500)
+              visible: true,
+              InfoTitle: t("Scanner Info"),
+              type: 1,
+              RText: t("Take Photo"),
+              LText: t("Cancel"),
+              personData: ItemsData,
+              ProductItem: selectedItems,
+              OrderId: ItemsData?.id,
+              onPress: () => {
+                setScannerModalOpen((prev) => ({ ...prev, visible: false }));
+                navigation.navigate("Camera", { from: "Pickup" });
+                // goBackOrPopTo(navigation,"Camera", { from: "Pickup" })
+              },
+            });
+          }, 500)
         }}
+      />
+
+      <SignatureModal
+        IsLoading={SignatureLoader}
+        visible={showSig}
+        defaultName={ItemsData?.display_name}
+        onClose={() => setShowSig(false)}
+        onSave={(base64, name) => {
+          console.log("Signature:", base64);
+          CustomerSignatureFun(base64, name)
+
+        }}
+        onClear={() => console.log("Cleared")}
       />
       <ScannerInfoModal
         InfoTitle={ScannerModalOpen.InfoTitle}

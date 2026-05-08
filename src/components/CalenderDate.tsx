@@ -14,21 +14,13 @@ type Props = {
   setDate?: any;
 };
 
+const SUPPORTED_LOCALES = ["en", "nl", "ar"];
+const DEFAULT_LOCALE = "nl";
 
 LocaleConfig.locales["en"] = {
   monthNames: [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
   ],
   monthNamesShort: [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -57,36 +49,56 @@ LocaleConfig.locales["nl"] = {
   today: "Vandaag",
 };
 
+LocaleConfig.locales["ar"] = {
+  monthNames: [
+    "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو",
+    "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر",
+  ],
+  monthNamesShort: [
+    "ينا", "فبر", "مار", "أبر", "ماي", "يون",
+    "يول", "أغس", "سبت", "أكت", "نوف", "ديس",
+  ],
+  dayNames: [
+    "الأحد", "الاثنين", "الثلاثاء", "الأربعاء",
+    "الخميس", "الجمعة", "السبت",
+  ],
+  dayNamesShort: ["أحد", "اثن", "ثلا", "أرب", "خمي", "جمع", "سبت"],
+  today: "اليوم",
+};
+
 export default function CalenderDate({ date, setDate }: Props) {
   const [IsVisible, setVisible] = useState<boolean>(false);
   const { t } = useTranslation();
   const {
     SelectLanguage,
-    SelectActiveDate,setSelectActiveDate,
+    SelectActiveDate, setSelectActiveDate,
     TimeZone, setTimeZone
   } = useContext(GlobalContextData);
 
-  LocaleConfig.defaultLocale = SelectLanguage;
+  const resolvedLocale = SUPPORTED_LOCALES.includes(SelectLanguage)
+    ? SelectLanguage
+    : DEFAULT_LOCALE;
 
-  const getDateByTimezone = (timeZone:string) => {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-};
+  LocaleConfig.defaultLocale = resolvedLocale;
 
-useEffect(() => {
-  if (!date && setDate) {
-    const today = getDateByTimezone(TimeZone); 
-    setDate(today);
-    setSelectActiveDate(today);
-  }
-}, [date, setDate]);
+  const getDateByTimezone = (timeZone: string) => {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+  };
 
- 
-const today = getDateByTimezone(TimeZone);
+  useEffect(() => {
+    if (!date && setDate) {
+      const today = getDateByTimezone(TimeZone);
+      setDate(today);
+      setSelectActiveDate(today);
+    }
+  }, [date, setDate]);
+
+  const today = getDateByTimezone(TimeZone);
 
   return (
     <View style={styles.container}>
@@ -95,7 +107,7 @@ const today = getDateByTimezone(TimeZone);
           styles.DateShowContainer,
           { borderColor: date ? Colors.primary : Colors.Boxgray },
         ]}
-         onPress={() => setVisible(true)}
+        onPress={() => setVisible(true)}
       >
         <Image
           source={Images.date}
@@ -103,23 +115,12 @@ const today = getDateByTimezone(TimeZone);
           tintColor={date ? Colors.primary : Colors.darkText}
         />
         {date ? (
-          <Text style={styles.Text}>{formatDate(date, SelectLanguage)}</Text>
+          <Text style={styles.Text}>{formatDate(date, resolvedLocale)}</Text>
         ) : (
           <Text style={styles.DarkText}>{t("Select Date")}</Text>
         )}
       </Pressable>
 
-      {/* Calendar Button */}
-      {/* <View style={{width:46,height:46}}>
-      <TouchableOpacity
-        style={styles.Calender}
-        onPress={() => setVisible(true)}
-      >
-        <Image source={Images.calender} style={{ width: '50%', height: '50%' }} />
-      </TouchableOpacity>
-      </View> */}
-
-      {/* Calendar Modal */}
       <Modal
         isVisible={IsVisible}
         animationIn={"zoomIn"}
@@ -132,11 +133,8 @@ const today = getDateByTimezone(TimeZone);
           <Calendar
             onDayPress={(day) => {
               setDate(day.dateString);
-              setSelectActiveDate(day.dateString)
-              // console.log("today",day.dateString);
-              
+              setSelectActiveDate(day.dateString);
               setVisible(false);
-
             }}
             markedDates={{
               [date]: { selected: true, selectedColor: Colors.primary },
@@ -164,7 +162,6 @@ const today = getDateByTimezone(TimeZone);
                   marginHorizontal: 10,
                   marginTop: 10,
                   marginBottom: 10,
-                   
                 },
                 monthText: {
                   fontSize: 18,
@@ -180,18 +177,15 @@ const today = getDateByTimezone(TimeZone);
   );
 }
 
-// ---- Styles ---- //
 const styles = StyleSheet.create({
   container: {
-    // width: width,
-    width:'100%',
+    width: '100%',
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    // borderWidth:1
   },
   DateShowContainer: {
-    flex:1,
+    flex: 1,
     height: 50,
     borderRadius: 10,
     borderWidth: 1.2,

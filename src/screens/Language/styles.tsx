@@ -42,5 +42,8 @@ export const styles = StyleSheet.create({
     height:9,
     borderRadius:120,
     backgroundColor:Colors.primary,
+  },
+  contentContainerStyle:{
+    gap:15
   }
 });

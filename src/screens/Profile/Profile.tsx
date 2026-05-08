@@ -47,7 +47,6 @@ export default function Profile({ navigation }: any) {
     HeaderBgColor: "",
   });
   const { t } = useTranslation();
-
   const retrieveAppVersion = async () => {
 
     try {
@@ -71,6 +70,7 @@ export default function Profile({ navigation }: any) {
       HeaderBgColor: Colors.white,
       RColor: Colors.white,
       onPress: async () => {
+
         await AsyncStorage.clear();
         console.log("UserData", UserData);
         setUserData(null);

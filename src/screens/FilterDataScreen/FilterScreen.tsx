@@ -252,6 +252,8 @@ export default function FilterScreen({ navigation, route }: any) {
                     start={item?.pickup_location}
                     end={item?.deliver_location}
                     customerData={item?.customer}
+                    external_platform_data={item?.display_name}
+
                     statusData={item?.tmsstatus}
                     backOrder={true}
                   />

@@ -13,6 +13,7 @@ export default function GlobalContext({ children }: any) {
   const [PickUpDataSave, setPickUpDataSave] = useState<any>(null);
   const [NoParcelDetailsScreenEvent, setNoParcelDetailsScreenEvent] = useState(false)
   const [NoParcelItemIds, setNoParcelItemIds] = useState<number[]>([]);
+  const [AllLanguage,setAllLanguage] = useState<any>([]);
   const [SelectDeliveryReason, setSelectDeliveryReson] = useState(null);
   const [Toast, setToast] = useState({
     visible: false,
@@ -49,6 +50,8 @@ export default function GlobalContext({ children }: any) {
         OrderDeliveryMapingLableOption, setOrderDeliveryMapingLableOption,
         NoParcelDetailsScreenEvent, setNoParcelDetailsScreenEvent,
         TimeZone, setTimeZone,
+        AllLanguage,
+        setAllLanguage
       }}
     >
       {children}

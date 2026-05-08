@@ -2,7 +2,7 @@
   "expo": {
     "name": "ERP TMS Driver",
     "slug": "erp-portaal-tms-driver",
-    "version": "26.05.06",
+    "version": "26.05.08",
     "jsEngine": "hermes",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -22,14 +22,11 @@
         "NSPhotoLibraryUsageDescription": "ERP TMS Driver uses your photo library so you can choose product images to upload."
       },
       "supportsTablet": false,
-      "bundleIdentifier": "com.erptmsdriver.app",
-      "privacyManifest": {
-         "NSPrivacyAccessedAPITypes": []
-      }
+      "bundleIdentifier": "com.erptmsdriver.app"
     },
     "android": {
       "allowBackup": false,
-      "versionCode": 4,
+      "versionCode": 5,
       "hardwareAccelerated": true,
       "env": {
         "EXPO_ANDROID_KEYSTORE": "@EXPO_ANDROID_KEYSTORE",
@@ -99,14 +96,17 @@
           "android": {
             "kotlinVersion": "2.1.20"
           },
-           "ios": {
+          "ios": {
             "useFrameworks": "static",
             "deploymentTarget": "15.1"
           }
         }
       ],
       "expo-audio",
-      "expo-video"
+      "expo-video",
+      "expo-asset",
+      "expo-maps",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -14,7 +14,9 @@ export default function SplashScreens({ navigation }: any) {
     CompanyLogo,setCompanyLogo,
     Permission,setPermission,
     SelectLanguage,setSelectLanguage,
-    CompanysData,setCompanysData
+    CompanysData,setCompanysData,
+    AllLanguage,
+setAllLanguage
   } = useContext(GlobalContextData);
 
   const loadFonts = async () => {
@@ -33,6 +35,18 @@ export default function SplashScreens({ navigation }: any) {
   useEffect(() => {
     loadFonts();
   }, []);
+
+   const fetchLanguages = async () => {
+    try {
+      const data = await ApiService(apiConstants.langauge, {});
+
+      if (data?.status && Array.isArray(data?.data)) {
+        setAllLanguage(data?.data || []);
+      }
+    } catch (err) {
+      console.log("Error fetching languages:", err);
+    }
+  };
 
   const getAuthData = async () => {
     try {
@@ -110,6 +124,7 @@ export default function SplashScreens({ navigation }: any) {
 
   useEffect(() => {
     setTimeout(() => {
+      fetchLanguages();
       getAuthData();
     }, 2000);
   }, []);
