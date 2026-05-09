@@ -9,8 +9,8 @@ export function goBackOrPopTo(
   // Find last occurrence of targetScreen in stack
   const lastIndex = routes
     .map((r: any, i: number) => ({ name: r.name, index: i }))
-    .filter(r => r.name === targetScreen)
-    .map(r => r.index)
+    .filter((r: { name: string; }) => r.name === targetScreen)
+    .map((r: { index: any; }) => r.index)
     .pop();
 
   if (lastIndex !== undefined) {

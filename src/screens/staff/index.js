@@ -537,7 +537,7 @@ const Staff = ({ navigation, route }) => {
       });
 
       if (response?.status && response?.data) {
-        props.navigation.replace("BottomTabs", {
+        navigation.replace("BottomTabs", {
           permission: response?.data,
         });
         setPermission(response?.data);
@@ -1305,12 +1305,6 @@ const styles = StyleSheet.create({
     color: Colors.black,
     alignSelf: "center",
     marginVertical: RFValue(15),
-  },
-  error: {
-    color: Colors.red,
-    fontSize: RFValue(10),
-    fontFamily: 'regular',
-    marginTop: RFValue(1),
   },
   mview: {
     paddingHorizontal: 20,

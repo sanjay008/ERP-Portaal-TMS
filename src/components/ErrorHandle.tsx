@@ -95,7 +95,7 @@ export const useErrorHandle = () => {
  
       const apiMessage:any =
         responseData?.message ||
-        Object?.values(responseData?.errors || {})[0]?.[0] || 
+        (Object.values(responseData?.errors || {}) as any[])[0]?.[0] || 
         (typeof responseData === "string" ? responseData : null);
 
       if (apiMessage) {

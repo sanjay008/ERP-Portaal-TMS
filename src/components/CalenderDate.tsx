@@ -139,37 +139,39 @@ export default function CalenderDate({ date, setDate }: Props) {
             markedDates={{
               [date]: { selected: true, selectedColor: Colors.primary },
             }}
-            theme={{
-              backgroundColor: Colors.white,
-              calendarBackground: Colors.white,
-              textSectionTitleColor: Colors.darkText,
-              selectedDayBackgroundColor: Colors.primary,
-              selectedDayTextColor: Colors.white,
-              todayTextColor: Colors.primary,
-              dayTextColor: Colors.black,
-              monthTextColor: Colors.black,
-              textMonthFontSize: 18,
-              textMonthFontWeight: "600",
-              arrowColor: Colors.black,
-              textDayFontSize: 15,
-              textDayHeaderFontSize: 13,
-              textDayFontWeight: "400",
-              "stylesheet.calendar.header": {
-                header: {
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginHorizontal: 10,
-                  marginTop: 10,
-                  marginBottom: 10,
+            theme={
+              {
+                backgroundColor: Colors.white,
+                calendarBackground: Colors.white,
+                textSectionTitleColor: Colors.darkText,
+                selectedDayBackgroundColor: Colors.primary,
+                selectedDayTextColor: Colors.white,
+                todayTextColor: Colors.primary,
+                dayTextColor: Colors.black,
+                monthTextColor: Colors.black,
+                textMonthFontSize: 18,
+                textMonthFontWeight: "600",
+                arrowColor: Colors.black,
+                textDayFontSize: 15,
+                textDayHeaderFontSize: 13,
+                textDayFontWeight: "400",
+                "stylesheet.calendar.header": {
+                  header: {
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginHorizontal: 10,
+                    marginTop: 10,
+                    marginBottom: 10,
+                  },
+                  monthText: {
+                    fontSize: 18,
+                    fontWeight: "600",
+                    color: Colors.black,
+                  },
                 },
-                monthText: {
-                  fontSize: 18,
-                  fontWeight: "600",
-                  color: Colors.black,
-                },
-              },
-            }}
+              } as any
+            }
           />
         </View>
       </Modal>

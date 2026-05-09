@@ -977,7 +977,7 @@ export default function DetailsScreens({ navigation, route }: any) {
       <AddCommentModal
         IsVisible={comment}
         setIsVisible={setComment}
-        fun={(commentText: string, data: any[]) => {
+        fun={(commentText: string) => {
           const itemsToSend = SelectedNoParcelItems?.length
             ? [...SelectedNoParcelItems]
             : [];
@@ -992,7 +992,7 @@ export default function DetailsScreens({ navigation, route }: any) {
             return;
           }
 
-          return BackOrderFun(
+          BackOrderFun(
             ItemsData?.tmsstatus?.status_name == "Scheduled"
               ? "Backorder"
               : "Missed",

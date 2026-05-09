@@ -29,7 +29,7 @@ export default function Profile({ navigation }: any) {
     SelectLanguage,
     setSelectLanguage,
   } = useContext(GlobalContextData);
-  const [CurrentVersion, setCurrentVersion] = useState<number>(1);
+  const [CurrentVersion, setCurrentVersion] = useState<string>("1");
   const [AlertModalOpen, setAlerModalOpen] = useState<any>({
     visible: false,
     title: "",
@@ -51,7 +51,7 @@ export default function Profile({ navigation }: any) {
 
     try {
       const version =
-        Constants.expoConfig?.version || Constants.manifest?.version || "Beta";
+        Constants.expoConfig?.version || "Beta";
       setCurrentVersion(version);
     } catch (error) {
       console.error("Error retrieving app version:", error);

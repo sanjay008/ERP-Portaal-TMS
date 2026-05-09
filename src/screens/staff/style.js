@@ -158,12 +158,6 @@ import { FONTS } from "../../utils/storeData";
       alignSelf: "center",
       marginVertical: RFValue(15),
     },
-    error: {
-      color: Colors.red,
-      fontSize: RFValue(10),
-      fontFamily: FONTS.Regular,
-      marginTop: RFValue(1),
-    },
     mview: {
       paddingHorizontal: 20,
       justifyContent: "center",

@@ -66,6 +66,7 @@ export default function index() {
           <GlobalContext>
             {isConnected ? (
               <Stack.Navigator
+                id="MainStack"
                 initialRouteName={"SplashScreens"}
                 screenOptions={{
                   headerShown: false,
@@ -146,6 +147,7 @@ export default function index() {
               </Stack.Navigator>
             ) : (
               <Stack.Navigator
+                id="NoInternetStack"
                 initialRouteName={"NoInternet"}
                 screenOptions={{
                   headerShown: false,

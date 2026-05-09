@@ -393,3 +393,13 @@
 //     </SafeAreaView>
 //   );
 // }
+import React from 'react'
+import { Text, View } from 'react-native'
+
+export default function MapsScreens() {
+  return (
+    <View>
+      <Text>MapsScreens</Text>
+    </View>
+  )
+}

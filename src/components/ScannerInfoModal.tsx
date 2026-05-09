@@ -125,7 +125,7 @@ export default function ScannerInfoModal({
 
   // --- EFFECT: log whenever modal visibility changes ---
 
-  const handleOptionSelect = (item) => {
+  const handleOptionSelect = (item:any) => {
     console.log("Selected option:", item);
     setSelectDeliveryReson(item)
     setShowReasonList(false);

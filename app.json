@@ -2,24 +2,21 @@
   "expo": {
     "name": "ERP TMS Driver",
     "slug": "erp-portaal-tms-driver",
-    "version": "26.05.08",
-    "jsEngine": "hermes",
+    "version": "26.05.09",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "erpportaaltmsdriver",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "buildNumber": "1",
       "infoPlist": {
         "UIViewControllerBasedStatusBarAppearance": false,
-        "ITSAppUsesNonExemptEncryption": false,
-        "LSApplicationQueriesSchemes": [],
         "NSCameraUsageDescription": "ERP TMS Driver uses the camera to capture product images and scan barcodes for inventory updates.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "ERP TMS Driver uses your location to track delivery routes and verify attendance even when the app is not open.",
         "NSLocationAlwaysUsageDescription": "ERP TMS Driver uses your location to track delivery routes and verify attendance in the background.",
         "NSLocationWhenInUseUsageDescription": "ERP TMS Driver uses your location to detect your current store or workplace when the app is running.",
-        "NSPhotoLibraryUsageDescription": "ERP TMS Driver uses your photo library so you can choose product images to upload."
+        "NSPhotoLibraryUsageDescription": "ERP TMS Driver uses your photo library so you can choose product images to upload.",
+        "ITSAppUsesNonExemptEncryption": false
       },
       "supportsTablet": false,
       "bundleIdentifier": "com.erptmsdriver.app"
@@ -27,21 +24,12 @@
     "android": {
       "allowBackup": false,
       "versionCode": 5,
-      "hardwareAccelerated": true,
-      "env": {
-        "EXPO_ANDROID_KEYSTORE": "@EXPO_ANDROID_KEYSTORE",
-        "EXPO_ANDROID_KEYSTORE_PASSWORD": "@EXPO_ANDROID_KEYSTORE_PASSWORD",
-        "EXPO_ANDROID_KEYSTORE_ALIAS": "erp_tms_driver",
-        "EXPO_ANDROID_KEYSTORE_ALIAS_PASSWORD": "@EXPO_ANDROID_KEYSTORE_ALIAS_PASSWORD"
-      },
-      "supportsTablet": false,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/icon.png",
         "backgroundImage": "./assets/images/icon.png",
         "monochromeImage": "./assets/images/icon.png"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.erpportaal.ERP_Portaal_TMS",
       "permissions": [

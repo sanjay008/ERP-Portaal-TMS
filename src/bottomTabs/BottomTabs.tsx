@@ -14,7 +14,7 @@ import Parcel from "../screens/Parcel/Parcel";
 import Profile from "../screens/Profile/Profile";
 import ApiService from "../utils/Apiservice";
 import { Colors } from "../utils/colors";
-import { FONTS, getData, height, token } from "../utils/storeData";
+import { FONTS, getData, height } from "../utils/storeData";
 
 export default function BottomTabs() {
   const Tab = createBottomTabNavigator();
@@ -87,6 +87,7 @@ export default function BottomTabs() {
         </View>
       ) : (
         <Tab.Navigator
+          id="BottomTabs"
           initialRouteName={"Home"}
           screenOptions={{
             tabBarStyle: {
