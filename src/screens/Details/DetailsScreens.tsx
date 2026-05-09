@@ -606,17 +606,7 @@ export default function DetailsScreens({ navigation, route }: any) {
         console.log("res?.remaining_item", res?.data.remaining_item);
 
         if (Number(res?.data.remaining_item) == 0) {
-          const buttons:any[] = [
-            {
-              text: t("Go to List Page"),
-              type: "primary",
-              onPress: () => {
-                setSecondModal(p => ({ ...p, visible: false }));
-                setNoParcelItemIds([]);
-                getSliderDataFun();
-              },
-            },
-          ];
+          const buttons: any[] = [];
           const isSignatureAllowed = Number(res?.data?.tms_current_status) === 5;
 
           if (isSignatureAllowed) {
@@ -625,8 +615,19 @@ export default function DetailsScreens({ navigation, route }: any) {
               type: "primary",
               onPress: () => {
                 setShowSig(true);
+                setNoParcelItemIds([]);
               },
             });
+          } else {
+            buttons.push({
+              text: t("Go to List Page"),
+              type: "primary",
+              onPress: () => {
+                setSecondModal(p => ({ ...p, visible: false }));
+                setNoParcelItemIds([]);
+                getSliderDataFun();
+              },
+            },)
           }
           setTimeout(() => {
             setSecondModal({
@@ -737,7 +738,7 @@ export default function DetailsScreens({ navigation, route }: any) {
       });
 
       if (res?.status) {
-        
+
         setShowSig(false);
         setSecondModal(p => ({ ...p, visible: false }));
         setToast({

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+    ActivityIndicator,
     Alert,
     Dimensions,
     Image,
@@ -39,6 +40,7 @@ const Otp = ({ navigation, route }) => {
     const [locationStatus, setLocationStatus] = useState("");
     const [loading, setLoding] = useState(false);
     const [resendtext, setResendtext] = useState("");
+    const [PassWordLoader, setPassWordLoader] = useState(false);
 
     const handleResendOtp = () => {
         setTimer(60);
@@ -73,6 +75,7 @@ const Otp = ({ navigation, route }) => {
             setotpError("Voer OTP in");
         } else {
             try {
+                setPassWordLoader(true)
                 const company = await getData("COMPANYLOGIN");
                 const data = await ApiService(apiConstants.Verifyotp, {
                     customData: {
@@ -119,11 +122,30 @@ const Otp = ({ navigation, route }) => {
                     }, 1000);
                     Alert.alert("Oops!", data.message);
                 }
-            } catch (err) {
-                console.log("Error fetching connections:", err);
+            } catch (error) {
+
+                let errorMessage = "Something went wrong";
+
+                if (axios.isAxiosError(error)) {
+                    const axiosError = error;
+
+                    errorMessage =
+                        axiosError.response?.data?.message ||
+                        axiosError.response?.data?.error ||
+                        axiosError.message;
+                } else if (error instanceof Error) {
+                    errorMessage = error.message;
+                }
+
+                console.log("Actual Error:", errorMessage);
+                setotpError(errorMessage);
+
                 setTimeout(() => {
                     setLoding(false);
                 }, 1000);
+            }
+            finally {
+                setPassWordLoader(false)
             }
         }
     };
@@ -191,11 +213,16 @@ const Otp = ({ navigation, route }) => {
                     maxLength={6}
                 />
                 <Text style={styles.otperrortext}>{otpError}</Text>
-                <ButtonComponent
-                    onPress={onVerify}
-                    marginTop={RFValue(30)}
-                    title={t("verifiëren")}
-                />
+                {
+                    PassWordLoader ?
+                        <ActivityIndicator size={"small"} color={Colors.primary} />
+                        :
+                        <ButtonComponent
+                            onPress={onVerify}
+                            marginTop={RFValue(30)}
+                            title={t("verifiëren")}
+                        />
+                }
                 {timerActive ? (
                     <Text style={styles.resend}>
                         {timer < 10 ? `00:0${timer}` : `00:${timer}`}

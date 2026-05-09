@@ -763,7 +763,7 @@ export default function ScannerScreens({ navigation, route }: any) {
       console.log(res);
 
       if (res?.status) {
-        
+
         setShowSig(false);
         setSecondModal(p => ({ ...p, visible: false }));
         setToast({
@@ -838,7 +838,7 @@ export default function ScannerScreens({ navigation, route }: any) {
           delivered_lable_id: SelectDeliveryReason?.id,
         }),
       };
-console.log("Commentssss reeee",payload);
+      console.log("Commentssss reeee", payload);
 
       const res = await ApiService(apiConstants.status_update, {
         customData: payload,
@@ -863,17 +863,7 @@ console.log("Commentssss reeee",payload);
         const isSignatureAllowed = Number(res?.tms_current_status) === 5;
         if (!(GloblyTypeSlide == "outbound_scan")) {
           if (Number(res?.remaining_item) === 0) {
-            const buttons: any[] = [
-              {
-                text: t("Go to List Page"),
-                type: "primary",
-                onPress: () => {
-                  setSecondModal(p => ({ ...p, visible: false }));
-                  setNoParcelItemIds([]);
-                  getSliderDataFun();
-                },
-              },
-            ];
+            const buttons: any[] = [];
 
             if (isSignatureAllowed) {
               buttons.push({
@@ -883,6 +873,16 @@ console.log("Commentssss reeee",payload);
                   setShowSig(true);
                 },
               });
+            } else {
+              buttons.push({
+                text: t("Go to List Page"),
+                type: "primary",
+                onPress: () => {
+                  setSecondModal(p => ({ ...p, visible: false }));
+                  setNoParcelItemIds([]);
+                  getSliderDataFun();
+                },
+              },)
             }
 
             setSecondModal({
@@ -1131,17 +1131,7 @@ console.log("Commentssss reeee",payload);
         console.log("res?.remaining_item", res?.data.remaining_item);
 
         if (Number(res?.data.remaining_item) == 0) {
-          const buttons: any[] = [
-            {
-              text: t("Go to List Page"),
-              type: "primary",
-              onPress: () => {
-                setSecondModal(p => ({ ...p, visible: false }));
-                setNoParcelItemIds([]);
-                getSliderDataFun();
-              },
-            },
-          ];
+          const buttons: any[] = [];
 
           const isSignatureAllowed = Number(res?.data?.tms_current_status) === 5;
 
@@ -1153,6 +1143,16 @@ console.log("Commentssss reeee",payload);
                 setShowSig(true);
               },
             });
+          } else {
+            buttons.push({
+              text: t("Go to List Page"),
+              type: "primary",
+              onPress: () => {
+                setSecondModal(p => ({ ...p, visible: false }));
+                setNoParcelItemIds([]);
+                getSliderDataFun();
+              },
+            },)
           }
           setSecondModal({
             visible: true,
