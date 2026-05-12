@@ -18,7 +18,7 @@ import Input from "../../components/input";
 import Loader from "../../components/loading";
 import ApiService from "../../utils/Apiservice";
 import { Colors } from "../../utils/colors";
-import { getData, storeData } from "../../utils/storeData";
+import { FONTS, getData, storeData } from "../../utils/storeData";
 import { styles } from "./style";
 
 
