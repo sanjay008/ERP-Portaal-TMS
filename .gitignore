@@ -83,3 +83,7 @@ yarn-error.*
 *.tsbuildinfo
 
 # @end expo-cli
+*.json
+google-services.json
+GoogleService-Info.plist
+erp-tms-driver-1c855-firebase-adminsdk-fbsvc-efbab5ce72.json
