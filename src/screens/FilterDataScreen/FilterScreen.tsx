@@ -68,35 +68,33 @@ export default function FilterScreen({ navigation, route }: any) {
       const response = await ApiService(apiConstants.getOrderByDriver, {
         customData: payload,
       });
-
       if (response?.status) {
-        const newData = response.data;
+
+        const newData = response?.data || [];
+
         setAllFilterDataGet(newData);
 
-        const previousSelected = newData.find(
-          (el: any) => el?.id === selectRegionData?.id
+
+        if (newData.length === 0) {
+          setSelectRegionData({});
+          return;
+        }
+
+        const matchedRegion = newData.find(
+          (item: any) => item?.id === selectRegionData?.id
         );
 
-        if (previousSelected) {
-          setSelectRegionData(previousSelected);
-        } else if (newData.length > 0) {
-          setSelectRegionData(newData[0]);
-          // console.log("Final All Data",newData,[
-          //       ...(newData[0]?.pickup_orders ?? []),
-          //       ...(selectRegionData?.deliver_orders ?? []),
-          //     ]);
-        } else {
-          setSelectRegionData({});
-        }
+        setSelectRegionData(
+          matchedRegion || newData[0]
+        );
+
       } else {
+
         setAllFilterDataGet([]);
         setSelectRegionData({});
-        // setToast({
-        //   top: 45,
-        //   text: response?.message || "Something went wrong",
-        //   type: "error",
-        //   visible: true,
-        // });
+
+
+
       }
     } catch (error) {
       console.error("Get FilterWise Data Error:", error);

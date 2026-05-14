@@ -39,7 +39,7 @@ export default function BottomTabs() {
       setCompanysData(compay);
       try {
         let data = await getData("USERDATA");
-  
+
         setUserData(data?.data);
         if (Permission?.length == 0) {
           getPermision(data?.data);
@@ -93,6 +93,10 @@ export default function BottomTabs() {
             tabBarStyle: {
               height: height * 0.09,
               paddingTop: height * 0.01,
+              backgroundColor: Colors.white, 
+              elevation: 0, 
+              shadowOpacity: 0, 
+              borderTopWidth: 0, 
             },
 
             header: () => <CustomHeader />,

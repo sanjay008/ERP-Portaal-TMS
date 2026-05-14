@@ -36,13 +36,14 @@ const ButtonComponent = ({
     <TouchableOpacity
     disabled={disabled}
       onPress={onPress}
+      activeOpacity={0.85}
       style={{
         height: RFValue(41),
         width: width,
         backgroundColor: backgroundColor ? backgroundColor : Colors.primary,
         justifyContent: "center",
         alignItems: "center",
-        borderRadius: 10,
+        borderRadius: 7,
         marginTop: marginTop,
         marginBottom: marginBottom,
         borderWidth: borderWidth,

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Image, StyleSheet, Text, View } from "react-native";
 import { Images } from "../assets/images";
 import { GlobalContextData } from "../context/GlobalContext";
+import useUserGPS from "../hooks/useUserGPS";
 import { Colors } from "../utils/colors";
 import { FONTS } from "../utils/storeData";
 export default function CustomHeader() {
@@ -20,6 +21,8 @@ export default function CustomHeader() {
   } = useContext(GlobalContextData);
   const { t } = useTranslation();
 
+  useUserGPS(UserData?.user?.role == "chauffeur")
+
   return (
     <View style={styles.container}>
       <Image
@@ -27,7 +30,6 @@ export default function CustomHeader() {
         style={styles.logo}
         resizeMode="contain"
       />
-      {/* <Image source={Images.logo} style={styles.logo} resizeMode="contain" /> */}
       <View style={styles.SimpleFlex}>
         {UserData?.user?.profile_image ? (
           <Image
@@ -38,8 +40,8 @@ export default function CustomHeader() {
           <Image source={Images.userblanck} style={styles.DriverImage} />
         )}
         <Text style={styles.menuText}>{UserData?.user?.username?.length > 0
-              ? UserData.user.username
-              : UserData?.relaties?.display_name || ""}</Text>
+          ? UserData.user.username
+          : UserData?.relaties?.display_name || ""}</Text>
       </View>
     </View>
   );

@@ -637,100 +637,153 @@ export default function ScannerScreens({ navigation, route }: any) {
     }
   };
 
-  const AddImageOrCommentFun = async (
-    comment: string = "",
-    data: any[] = []
-  ) => {
-    let id = ItemsData?.id || ItemsData?.order_data?.id;
-    setIsLoading(true);
-    try {
-      let formData: any = new FormData();
+const AddImageOrCommentFun = async (
+  comment: string = '',
+  data: any[] = [],
+) => {
+  const id = ItemsData?.id || ItemsData?.order_data?.id;
 
-      formData.append("token", UserData?.user?.verify_token);
-      formData.append("role", UserData?.user?.role);
-      formData.append("relaties_id", UserData?.relaties?.id);
-      formData.append("user_id", UserData?.user?.id);
-      formData.append("order_comment", Description?.trim());
-      formData.append("order_id", id ? id : SelectPlace?.id);
+  setIsLoading(true);
 
-      const imagesToSend = data?.length > 0 ? data : AllSelectImage;
+  try {
+    const formData: any = new FormData();
 
-      console.log("REquestDataFromImgeAndComment", formData);
+    formData.append('token', UserData?.user?.verify_token);
+    formData.append('role', UserData?.user?.role);
+    formData.append('relaties_id', UserData?.relaties?.id);
+    formData.append('user_id', UserData?.user?.id);
+    formData.append('order_comment', Description?.trim());
+    formData.append('order_id', id ? id : SelectPlace?.id);
 
-      if (imagesToSend?.length === 0) {
-        setToast({
-          top: 45,
-          text: t("Please image upload!"),
-          type: "error",
-          visible: true,
-        });
-        return;
-      }
+    const filesToSend =
+      Array.isArray(data) && data.length > 0
+        ? data
+        : Array.isArray(AllSelectImage)
+        ? AllSelectImage
+        : [];
 
-      for (const uri of imagesToSend) {
-        const compressed = await ImageManipulator.manipulateAsync(
-          uri,
-          [{ resize: { width: 800 } }],
-          { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
-        );
-
-        const finalUri = compressed.uri.startsWith("file://")
-          ? compressed.uri
-          : "file://" + compressed.uri;
-
-        formData.append("doc[]", {
-          uri: finalUri,
-          name: `image_${Date.now()}.jpeg`,
-          type: "image/jpeg",
-        });
-      }
-
-      const res: any = await axios.post(
-        apiConstants.store_image_comment,
-        formData,
-        {
-          headers: { "Content-Type": "multipart/form-data" },
-          transformRequest: (data) => data,
-        }
-      );
-
-      if (Boolean(res?.data.status)) {
-        // Alert.alert("success");
-        setAllSelectImage([]);
-        setPickUpDataSave([]);
-        setDeliveyDataSave([]);
-        setDescrition("");
-        setToast({
-          top: 45,
-          text: t(res?.data?.message),
-          type: "success",
-          visible: true,
-        });
-        //  navigation.replace("Scanner", { key: Date.now() });
-        await GetIdByOrderFun();
-        setComment(false)
-      } else {
-        setComment(true)
-        setToast({
-          top: 45,
-          text: t(res?.data?.message),
-          type: "error",
-          visible: true,
-        });
-      }
-    } catch (error) {
-      setComment(true)
-      console.log("AddImageOrCommentFun Error:-", error);
+    if (filesToSend.length === 0) {
       setToast({
         top: 45,
-        text: ErrorHandle(error).message,
-        type: "error",
+        text: t('Please image upload!'),
+        type: 'error',
         visible: true,
       });
-    } finally {
-      setIsLoading(false);
+
+      return;
     }
-  };
+
+    for (let index = 0; index < filesToSend.length; index++) {
+      const item = filesToSend[index];
+
+      const uri =
+        typeof item === 'string'
+          ? item
+          : item?.uri || item?.path || '';
+
+      if (!uri) {
+        continue;
+      }
+
+      const lowerUri = uri.toLowerCase();
+
+      const isVideo =
+        lowerUri.includes('.mp4') ||
+        lowerUri.includes('.mov') ||
+        lowerUri.includes('.m4v');
+
+      if (isVideo) {
+        const finalVideoUri = uri.startsWith('file://')
+          ? uri
+          : `file://${uri}`;
+
+        let videoType = 'video/mp4';
+
+        if (lowerUri.includes('.mov')) {
+          videoType = 'video/quicktime';
+        }
+
+        formData.append('doc[]', {
+          uri: finalVideoUri,
+          name: `video_${Date.now()}_${index}.mp4`,
+          type: videoType,
+        });
+
+        continue;
+      }
+
+      const compressed = await ImageManipulator.manipulateAsync(
+        uri,
+        [{ resize: { width: 1280 } }],
+        {
+          compress: 0.7,
+          format: ImageManipulator.SaveFormat.JPEG,
+        },
+      );
+
+      const finalImageUri = compressed.uri.startsWith('file://')
+        ? compressed.uri
+        : `file://${compressed.uri}`;
+
+      formData.append('doc[]', {
+        uri: finalImageUri,
+        name: `image_${Date.now()}_${index}.jpg`,
+        type: 'image/jpeg',
+      });
+    }
+
+    const res: any = await axios.post(
+      apiConstants.store_image_comment,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        transformRequest: formData => formData,
+      },
+    );
+
+    if (Boolean(res?.data?.status)) {
+      setAllSelectImage([]);
+      setPickUpDataSave([]);
+      setDeliveyDataSave([]);
+      setDescrition('');
+
+      setToast({
+        top: 45,
+        text: t(res?.data?.message),
+        type: 'success',
+        visible: true,
+      });
+
+      await GetIdByOrderFun();
+
+      setComment(false);
+    } else {
+      setComment(true);
+
+      setToast({
+        top: 45,
+        text: t(res?.data?.message),
+        type: 'error',
+        visible: true,
+      });
+    }
+  } catch (error) {
+    setComment(true);
+
+    console.log('AddImageOrCommentFun Error:-', error);
+
+    setToast({
+      top: 45,
+      text: ErrorHandle(error).message,
+      type: 'error',
+      visible: true,
+    });
+  } finally {
+    setIsLoading(false);
+  }
+};
 
 
   const CustomerSignatureFun = async (signature: string | null = null, name: string | null = null,) => {
