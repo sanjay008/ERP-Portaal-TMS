@@ -84,7 +84,7 @@ yarn-error.*
 
 # @end expo-cli
 # Firebase secrets
-*.json
 google-services.json
 GoogleService-Info.plist
 erp-tms-driver-1c855-firebase-adminsdk-fbsvc-efbab5ce72.json*.json
+erp-tms-driver-1c855-firebase-adminsdk-fbsvc-efbab5ce72.json
