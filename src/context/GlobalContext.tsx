@@ -1,0 +1,60 @@
+import React, { createContext, useState } from "react";
+
+export const GlobalContextData = createContext<any>(null);
+
+export default function GlobalContext({ children }: any) {
+  const [UserData, setUserData] = useState<any>(null);
+  const [GOOGLE_API_KEY, setGOOGLE_API_KEY] = useState<string>("");
+  const [CompanyLogo, setCompanyLogo] = useState<any>(null);
+  const [Permission, setPermission] = useState<any[]>([]);
+  const [SelectCurrentDate, setSelectCurrentDate] = useState();
+  const [SelectLanguage, setSelectLanguage] = useState<string>("");
+  const [DeliveyDataSave, setDeliveyDataSave] = useState<any>(null);
+  const [PickUpDataSave, setPickUpDataSave] = useState<any>(null);
+  const [NoParcelDetailsScreenEvent, setNoParcelDetailsScreenEvent] = useState(false)
+  const [NoParcelItemIds, setNoParcelItemIds] = useState<number[]>([]);
+  const [AllLanguage,setAllLanguage] = useState<any>([]);
+  const [SelectDeliveryReason, setSelectDeliveryReson] = useState(null);
+  const [Toast, setToast] = useState({
+    visible: false,
+    text: "",
+    type: "success",
+    top: 45,
+  });
+  const [AllRegion, setAllRegion] = useState<any[]>([]);
+  const [CompanysData, setCompanysData] = useState<string>("");
+  const [GloblyTypeSlide, setGloblyTypeSlide] = useState("");
+  const [SelectActiveRegionData, setSelectActiveRegionData] = useState<any>(null);
+  const [SelectActiveDate, setSelectActiveDate] = useState<any>(null);
+  const [OrderDeliveryMapingLableOption, setOrderDeliveryMapingLableOption] = useState(null);
+  const [TimeZone, setTimeZone] = useState<string>("");
+  return (
+    <GlobalContextData.Provider
+      value={{
+        GOOGLE_API_KEY, setGOOGLE_API_KEY,
+        CompanyLogo, setCompanyLogo,
+        Permission, setPermission,
+        SelectLanguage, setSelectLanguage,
+        UserData, setUserData,
+        Toast, setToast,
+        AllRegion, setAllRegion,
+        CompanysData, setCompanysData,
+        SelectCurrentDate, setSelectCurrentDate,
+        DeliveyDataSave, setDeliveyDataSave,
+        GloblyTypeSlide, setGloblyTypeSlide,
+        PickUpDataSave, setPickUpDataSave,
+        NoParcelItemIds, setNoParcelItemIds,
+        SelectActiveRegionData, setSelectActiveRegionData,
+        SelectActiveDate, setSelectActiveDate,
+        SelectDeliveryReason, setSelectDeliveryReson,
+        OrderDeliveryMapingLableOption, setOrderDeliveryMapingLableOption,
+        NoParcelDetailsScreenEvent, setNoParcelDetailsScreenEvent,
+        TimeZone, setTimeZone,
+        AllLanguage,
+        setAllLanguage
+      }}
+    >
+      {children}
+    </GlobalContextData.Provider>
+  );
+}
