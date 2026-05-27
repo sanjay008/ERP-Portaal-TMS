@@ -1,6 +1,7 @@
 import apiConstants, { Verify_status } from "@/src/api/apiConstants";
 import { Images } from "@/src/assets/images";
 import { ApiFormatDate } from "@/src/components/ApiFormatDate";
+import ConformationModal from "@/src/components/ConformationModal";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
 import { goBackOrPopTo } from "@/src/components/goBackOrPopTo";
 import Loader from "@/src/components/loading";
@@ -10,6 +11,8 @@ import PickUpBox from "@/src/components/PickUpBox";
 import ScannerInfoModal from "@/src/components/ScannerInfoModal";
 import SignatureModal from "@/src/components/SignatureModal";
 import { GlobalContextData } from "@/src/context/GlobalContext";
+import { DropboxContext } from "@/src/context/UploadProider";
+import useDropboxUpload from "@/src/hooks/useDropboxUpload";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors.js";
 import { FONTS, height, width } from "@/src/utils/storeData";
@@ -17,6 +20,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import BottomSheet, {
   BottomSheetFlatList
 } from "@gorhom/bottom-sheet";
+import CheckBox from '@react-native-community/checkbox';
 import { useIsFocused } from "@react-navigation/native";
 import axios from "axios";
 import { Audio } from "expo-av";
@@ -39,15 +43,17 @@ import React, {
 import { useTranslation } from "react-i18next";
 import {
   Animated,
+  FlatList,
   Image,
   Keyboard,
   Platform,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   Vibration,
-  View,
+  View
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
@@ -151,6 +157,21 @@ export default function ScannerScreens({ navigation, route }: any) {
     bgColor: "",
     OrderData: null,
   });
+  type AlertModalType = {
+    visible: boolean;
+    title: string;
+    Description: string;
+    LButtonText: string;
+    RButtonText: string;
+    Icon: any;
+    RButtonStyle: object;
+    RColor: string;
+    LButtonStyle: object;
+    LColor: string;
+    onPress: () => void;
+    RButtonIcon?: any;
+    bgColor?: string | any;
+  };
   const [GetConformationQuestion, setGetConformationQuestion] =
     useState<string>("");
   const [facing, setFacing] = useState<CameraType>("back");
@@ -170,18 +191,55 @@ export default function ScannerScreens({ navigation, route }: any) {
     setSelectDeliveryReson,
     OrderDeliveryMapingLableOption,
     setOrderDeliveryMapingLableOption,
-    NoParcelDetailsScreenEvent, setNoParcelDetailsScreenEvent
+    NoParcelDetailsScreenEvent, setNoParcelDetailsScreenEvent,
+    AllDeliveyLabel, setAllDeliveyLabel,
+
+    SelectCurrentDeliveryLabel, setSelectCurrentDeliveryLabel,
+    AllDamageListReason, setAllDamageListReason
+
   } = useContext(GlobalContextData);
   const { t } = useTranslation();
   const { ErrorHandle } = useErrorHandle();
   const [cameraKey, setCameraKey] = useState(1);
   const { top, bottom } = useSafeAreaInsets();
   const [SignatureLoader, setSignatureLoader] = useState<boolean>(false);
+  const [ShowDeliveryLabelList, setShowDeliveryLabelList] = useState(0);
+  const [selectDamageData, setselectDamageData] = useState(null);
+  const [AlertModalOpen, setAlerModalOpen] = useState<AlertModalType>({
+    visible: false,
+    title: "",
+    Description: "",
+    LButtonText: "",
+    RButtonText: "",
+    Icon: null,
+    RButtonStyle: {},
+    RColor: Colors.white,
+    LButtonStyle: {},
+    LColor: Colors.black,
+    onPress: () => { },
+  });
   const playBeep = useCallback(async () => {
     const { sound } = await Audio.Sound.createAsync(Images.ScannerSound);
     await sound.playAsync();
   }, []);
-
+  const { setAccessToken,
+    AccessToken,
+    RefreshToken,
+    ClientId,
+    ClientSecret,
+  } = useContext(DropboxContext);
+  const {
+    loading,
+    uploadToDropbox,
+    refreshAccessToken,
+  } = useDropboxUpload({
+    clientId: ClientId || "",
+    clientSecret: ClientSecret || "",
+    refreshToken: RefreshToken || "",
+    accessToken: AccessToken || "",
+    setAccessToken,
+    setToast,
+  });
 
   const Focused = useIsFocused();
   useImperativeHandle(cameraRef, () => ({
@@ -262,6 +320,11 @@ export default function ScannerScreens({ navigation, route }: any) {
         if (data?.length > 0) {
           setAllSelectImage(data);
           setComment(true);
+          // uploadToDropbox([
+          //   "file:///image1.jpg",
+          //   "file:///image2.jpg",
+          //   "file:///image3.jpg",
+          // ]);
         }
       },
     });
@@ -272,6 +335,12 @@ export default function ScannerScreens({ navigation, route }: any) {
         if (data?.length > 0) {
           setAllSelectImage(data);
           setComment(true);
+          // uploadToDropbox([
+          //   "file:///image1.jpg",
+          //   "file:///image2.jpg",
+          //   "file:///image3.jpg",
+          // ]);
+
         }
       },
     });
@@ -349,14 +418,14 @@ export default function ScannerScreens({ navigation, route }: any) {
     [lastDetectedBarcode]
   );
 
-const refreshCamera = () => {
-  
+  const refreshCamera = () => {
 
-  setTimeout(() => {
-    setCameraKey(prev => prev + 1);
-    
-  }, 500);
-};
+
+    setTimeout(() => {
+      setCameraKey(prev => prev + 1);
+
+    }, 500);
+  };
 
   useEffect(() => {
     refreshCamera()
@@ -400,8 +469,18 @@ const refreshCamera = () => {
       console.log("✅ Verify API Response:", res);
 
       if (Boolean(res?.status)) {
+        if (AllDeliveyLabel?.length == 0) {
+          setAllDeliveyLabel(res?.data?.delivery_label_title_map || [])
+        }
+
+        if (AllDamageListReason?.length == 0) {
+          setAllDamageListReason(res?.data?.damaged_parcel || [])
+        }
         setOrderDeliveryMapingLableOption(res?.data?.order_label_mapping || []);
         setItemsData(res?.data?.order_data);
+        setShowDeliveryLabelList(res?.data?.delivery_btn || 0)
+
+
         const modalConfig: any = {
           visible: true,
           title: t(res?.data?.quetion),
@@ -417,9 +496,10 @@ const refreshCamera = () => {
           order_id: data?.order_id,
           type: res?.data?.order_data?.tmsstatus?.id == 2 ? 2 : 1,
           delivery_btn: res?.data?.delivery_btn,
-          OrderData: res?.data
+          OrderData: res?.data,
+
         };
-        console.log("responseeeee", res.data);
+        console.log("responseeeee", JSON.stringify(res.data));
 
         // Save current selection
         setSelectPlace({
@@ -434,9 +514,36 @@ const refreshCamera = () => {
           };
 
         }
+        if (res?.data?.delivery_btn == 1 && SelectCurrentDeliveryLabel == null || res?.data?.delivery_btn == 0) {
 
+          setConformationModal(modalConfig);
+        } else {
+          setAlerModalOpen({
+            visible: true,
+            title: t("Camera"),
+            Description: t("You have to take a picture for proof?"),
+            LButtonText: t("Cancel"),
+            RButtonText: t("Camera"),
+            Icon: Images.UploadPhoto,
+            RButtonStyle: Colors.primary,
+            RColor: Colors.white,
+            LButtonStyle: Colors.gray,
+            LColor: Colors.black,
+            onPress: () => {
+              console.log("Camera modal button pressed");
+              setDeliveyDataSave({
+                Data: res?.data?.order_data,
+                selectReason: item,
+                setData: setAllSelectImage,
+              });
+              navigation.navigate("Camera");
+              setAlerModalOpen((prev) => ({ ...prev, visible: false }));
+              // ✅ close parent AFTER navigating
+
+            },
+          });
+        }
         // setGetConformationQuestion(res?.data || "");
-        setConformationModal(modalConfig);
       } else {
 
         setConformationModal({
@@ -481,7 +588,8 @@ const refreshCamera = () => {
         user_id: UserData?.user?.id,
         item_id: data?.item_id,
         order_id: data?.order_id,
-        type: type ?? GloblyTypeSlide
+        type: type ?? GloblyTypeSlide,
+        is_damage: selectDamageData?.id
       };
 
       if (!payload.item_id || !payload.order_id) {
@@ -644,153 +752,153 @@ const refreshCamera = () => {
     }
   };
 
-const AddImageOrCommentFun = async (
-  comment: string = '',
-  data: any[] = [],
-) => {
-  const id = ItemsData?.id || ItemsData?.order_data?.id;
+  const AddImageOrCommentFun = async (
+    comment: string = '',
+    data: any[] = [],
+  ) => {
+    const id = ItemsData?.id || ItemsData?.order_data?.id;
 
-  setIsLoading(true);
+    setIsLoading(true);
 
-  try {
-    const formData: any = new FormData();
+    try {
+      const formData: any = new FormData();
 
-    formData.append('token', UserData?.user?.verify_token);
-    formData.append('role', UserData?.user?.role);
-    formData.append('relaties_id', UserData?.relaties?.id);
-    formData.append('user_id', UserData?.user?.id);
-    formData.append('order_comment', Description?.trim());
-    formData.append('order_id', id ? id : SelectPlace?.id);
+      formData.append('token', UserData?.user?.verify_token);
+      formData.append('role', UserData?.user?.role);
+      formData.append('relaties_id', UserData?.relaties?.id);
+      formData.append('user_id', UserData?.user?.id);
+      formData.append('order_comment', Description?.trim());
+      formData.append('order_id', id ? id : SelectPlace?.id);
 
-    const filesToSend =
-      Array.isArray(data) && data.length > 0
-        ? data
-        : Array.isArray(AllSelectImage)
-        ? AllSelectImage
-        : [];
+      const filesToSend =
+        Array.isArray(data) && data.length > 0
+          ? data
+          : Array.isArray(AllSelectImage)
+            ? AllSelectImage
+            : [];
 
-    if (filesToSend.length === 0) {
-      setToast({
-        top: 45,
-        text: t('Please image upload!'),
-        type: 'error',
-        visible: true,
-      });
-
-      return;
-    }
-
-    for (let index = 0; index < filesToSend.length; index++) {
-      const item = filesToSend[index];
-
-      const uri =
-        typeof item === 'string'
-          ? item
-          : item?.uri || item?.path || '';
-
-      if (!uri) {
-        continue;
-      }
-
-      const lowerUri = uri.toLowerCase();
-
-      const isVideo =
-        lowerUri.includes('.mp4') ||
-        lowerUri.includes('.mov') ||
-        lowerUri.includes('.m4v');
-
-      if (isVideo) {
-        const finalVideoUri = uri.startsWith('file://')
-          ? uri
-          : `file://${uri}`;
-
-        let videoType = 'video/mp4';
-
-        if (lowerUri.includes('.mov')) {
-          videoType = 'video/quicktime';
-        }
-
-        formData.append('doc[]', {
-          uri: finalVideoUri,
-          name: `video_${Date.now()}_${index}.mp4`,
-          type: videoType,
+      if (filesToSend.length === 0) {
+        setToast({
+          top: 45,
+          text: t('Please image upload!'),
+          type: 'error',
+          visible: true,
         });
 
-        continue;
+        return;
       }
 
-      const compressed = await ImageManipulator.manipulateAsync(
-        uri,
-        [{ resize: { width: 1280 } }],
+      for (let index = 0; index < filesToSend.length; index++) {
+        const item = filesToSend[index];
+
+        const uri =
+          typeof item === 'string'
+            ? item
+            : item?.uri || item?.path || '';
+
+        if (!uri) {
+          continue;
+        }
+
+        const lowerUri = uri.toLowerCase();
+
+        const isVideo =
+          lowerUri.includes('.mp4') ||
+          lowerUri.includes('.mov') ||
+          lowerUri.includes('.m4v');
+
+        if (isVideo) {
+          const finalVideoUri = uri.startsWith('file://')
+            ? uri
+            : `file://${uri}`;
+
+          let videoType = 'video/mp4';
+
+          if (lowerUri.includes('.mov')) {
+            videoType = 'video/quicktime';
+          }
+
+          formData.append('doc[]', {
+            uri: finalVideoUri,
+            name: `video_${Date.now()}_${index}.mp4`,
+            type: videoType,
+          });
+
+          continue;
+        }
+
+        const compressed = await ImageManipulator.manipulateAsync(
+          uri,
+          [{ resize: { width: 1280 } }],
+          {
+            compress: 0.7,
+            format: ImageManipulator.SaveFormat.JPEG,
+          },
+        );
+
+        const finalImageUri = compressed.uri.startsWith('file://')
+          ? compressed.uri
+          : `file://${compressed.uri}`;
+
+        formData.append('doc[]', {
+          uri: finalImageUri,
+          name: `image_${Date.now()}_${index}.jpg`,
+          type: 'image/jpeg',
+        });
+      }
+
+      const res: any = await axios.post(
+        apiConstants.store_image_comment,
+        formData,
         {
-          compress: 0.7,
-          format: ImageManipulator.SaveFormat.JPEG,
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+          transformRequest: formData => formData,
         },
       );
 
-      const finalImageUri = compressed.uri.startsWith('file://')
-        ? compressed.uri
-        : `file://${compressed.uri}`;
+      if (Boolean(res?.data?.status)) {
+        setAllSelectImage([]);
+        setPickUpDataSave([]);
+        setDeliveyDataSave([]);
+        setDescrition('');
 
-      formData.append('doc[]', {
-        uri: finalImageUri,
-        name: `image_${Date.now()}_${index}.jpg`,
-        type: 'image/jpeg',
-      });
-    }
+        setToast({
+          top: 45,
+          text: t(res?.data?.message),
+          type: 'success',
+          visible: true,
+        });
+        refreshCamera();
+        await GetIdByOrderFun();
 
-    const res: any = await axios.post(
-      apiConstants.store_image_comment,
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-        transformRequest: formData => formData,
-      },
-    );
+        setComment(false);
+      } else {
+        setComment(true);
 
-    if (Boolean(res?.data?.status)) {
-      setAllSelectImage([]);
-      setPickUpDataSave([]);
-      setDeliveyDataSave([]);
-      setDescrition('');
-
-      setToast({
-        top: 45,
-        text: t(res?.data?.message),
-        type: 'success',
-        visible: true,
-      });
-
-      await GetIdByOrderFun();
-
-      setComment(false);
-    } else {
+        setToast({
+          top: 45,
+          text: t(res?.data?.message),
+          type: 'error',
+          visible: true,
+        });
+      }
+    } catch (error) {
       setComment(true);
 
+      console.log('AddImageOrCommentFun Error:-', error);
+
       setToast({
         top: 45,
-        text: t(res?.data?.message),
+        text: ErrorHandle(error).message,
         type: 'error',
         visible: true,
       });
+    } finally {
+      setIsLoading(false);
     }
-  } catch (error) {
-    setComment(true);
-
-    console.log('AddImageOrCommentFun Error:-', error);
-
-    setToast({
-      top: 45,
-      text: ErrorHandle(error).message,
-      type: 'error',
-      visible: true,
-    });
-  } finally {
-    setIsLoading(false);
-  }
-};
+  };
 
 
   const CustomerSignatureFun = async (signature: string | null = null, name: string | null = null,) => {
@@ -856,15 +964,17 @@ const AddImageOrCommentFun = async (
 
 
   const CommentFun = async () => {
+    if (SelectCurrentDeliveryLabel && SelectCurrentDeliveryLabel?.damaged_required == 1 && selectDamageData == null) {
+      setCommentError(t("Choose  Damaged"));
+
+      return
+    }
     setIsLoading(true);
     try {
       if (!Description.trim()) {
         setCommentError(t("Please enter a comment"));
         return;
       }
-
-      // console.log("data",AllSelectImage,Description);
-      // return
 
       if (!SelectPlace?.item_id || !SelectPlace?.order_id) {
         setToast({
@@ -894,8 +1004,8 @@ const AddImageOrCommentFun = async (
         item_id: SelectPlace?.item_id,
         order_id: SelectPlace?.order_id,
         type: GloblyTypeSlide,
-        ...(SelectDeliveryReason !== null && {
-          delivered_lable_id: SelectDeliveryReason?.id,
+        ...(SelectCurrentDeliveryLabel !== null && {
+          delivered_lable_id: SelectCurrentDeliveryLabel?.id,
         }),
       };
       console.log("Commentssss reeee", payload);
@@ -907,20 +1017,18 @@ const AddImageOrCommentFun = async (
       if (res?.status) {
         setComment(false)
         await AddImageOrCommentFun();
-        if (SelectDeliveryReason !== null) {
-          setSelectDeliveryReson(null);
+        if (SelectCurrentDeliveryLabel !== null) {
+          setSelectCurrentDeliveryLabel(null);
         }
         console.log("✅ Comment & Status updated successfully:", res);
 
         fun?.();
         setComment(false);
-        // setRefreshCondition(true)
         console.log("res?.tms_current_status", res?.tms_current_status);
 
-        // ✅ Calculate actual remaining items (excluding No Parcel items)
         const actualRemaining =
           Number(res?.remaining_item) - NoParcelItemIds.length;
-        const isSignatureAllowed = Number(res?.tms_current_status) === 5;
+        const isSignatureAllowed = Number(res?.tms_current_status) === 5 && SelectCurrentDeliveryLabel?.signature_required == 1;
         if (!(GloblyTypeSlide == "outbound_scan")) {
           if (Number(res?.remaining_item) === 0) {
             const buttons: any[] = [];
@@ -973,38 +1081,14 @@ const AddImageOrCommentFun = async (
                       item
                     );
 
-                    // navigation.navigate("Details", {
-                    //   type: "scanner_noparcel",
-                    //   item: ItemsData,
-                    // });
                     goBackOrPopTo(navigation, "Details", {
                       type: "scanner_noparcel",
                       item: ItemsData,
-                      // order_id: item?.id || item?.order_data?.id,
                     })
 
                     setNoParcelDetailsScreenEvent(true)
 
-                    // setTimeout(async () => {
-                    //   const missingItems = await GetIdByOrderFun(SelectPlace?.order_id);
 
-                    //   // ✅ Filter out already marked No Parcel items
-                    //   const filteredItems = missingItems.filter(
-                    //     (item: any) => !NoParcelItemIds.includes(item.id)
-                    //   );
-
-                    //   if (filteredItems.length > 0) {
-                    //     setNoParcelOptions(filteredItems);
-                    //     setNoParcelModalVisible(true);
-                    //   } else {
-                    //     setToast({
-                    //       top: 45,
-                    //       text: t("All items are scanned!"),
-                    //       type: "info",
-                    //       visible: true,
-                    //     });
-                    //   }
-                    // }, 1000);
                   },
                 },
                 {
@@ -1016,7 +1100,7 @@ const AddImageOrCommentFun = async (
                     setSelectPlace(null);
                     setDescrition("");
                     setCommentError("");
-refreshCamera()
+                    refreshCamera()
                     setTimeout(async () => {
                       try {
                         const { status } =
@@ -1030,7 +1114,7 @@ refreshCamera()
                         console.log("❌ Error reopening scanner:", error);
                       }
                     }, 400);
-                    
+
                   },
                 },
               ],
@@ -1101,6 +1185,7 @@ refreshCamera()
 
       if (res?.status) {
         setItemsData(res?.data);
+
         console.log("response-=-=-", res?.data);
         cameraRef.current?.reset();
         // const labelsForModal = res.data.items
@@ -1133,6 +1218,21 @@ refreshCamera()
       console.log("❌ GetIdByOrderFun Error:", error);
       return [];
     }
+  };
+
+  const getTextColor = (bgColor: string) => {
+    if (!bgColor) return "#000";
+
+    const color = bgColor.replace("#", "");
+
+    const r = parseInt(color.substring(0, 2), 16);
+    const g = parseInt(color.substring(2, 4), 16);
+    const b = parseInt(color.substring(4, 6), 16);
+
+    // Brightness formula
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+
+    return brightness > 128 ? "#000" : "#FFF";
   };
 
   const BackOrderFun = async (selectedItems: any[] = []) => {
@@ -1194,7 +1294,7 @@ refreshCamera()
         if (Number(res?.data.remaining_item) == 0) {
           const buttons: any[] = [];
 
-          const isSignatureAllowed = Number(res?.data?.tms_current_status) === 5;
+          const isSignatureAllowed = Number(res?.data?.tms_current_status) === 5 && SelectCurrentDeliveryLabel?.signature_required == 1;
 
           if (isSignatureAllowed) {
             buttons.push({
@@ -1308,8 +1408,6 @@ refreshCamera()
       }
     } catch (error) {
       console.log("BackOrderFun Error:", error);
-
-      // ✅ Better error logging
       if (axios.isAxiosError(error)) {
         console.log("📛 API Error Details:", {
           status: error.response?.status,
@@ -1336,12 +1434,16 @@ refreshCamera()
   };
   useEffect(() => {
     setLastDetectedBarcode("");
+    return () => {
+      setSelectCurrentDeliveryLabel(null);
+    }
   }, [route.params?.refreshTime]);
 
   return (
     <GestureHandlerRootView key={refreshKey} style={styles.container}>
       {
         Focused &&
+
         <CameraView
           ref={cameraRef}
           // key={cameraKey}
@@ -1351,13 +1453,15 @@ refreshCamera()
           barcodeScannerSettings={{
             barcodeTypes: ["qr"],
           }}
+
         />
       }
-
       <Image
         source={Images.ScannerCenter}
         style={{ width, height, position: "absolute" }}
       />
+
+
 
       <View style={[styles.TopIcon, { top: top ? top * 1.2 : 40 }]}>
         <TouchableOpacity
@@ -1392,10 +1496,6 @@ refreshCamera()
             navigation.navigate("Camera", {
               from: "Pickup",
             });
-
-            // goBackOrPopTo(navigation,"Camera", {
-            //   from: "Pickup",
-            // })
           } else {
             ConformationModalOpen.onPress?.();
           }
@@ -1435,6 +1535,7 @@ refreshCamera()
         visible={showSig}
         defaultName={ItemsData?.display_name}
         onClose={() => setShowSig(false)}
+        selectDamageData={selectDamageData}
         onSave={(base64, name) => {
           console.log("Signature:", base64);
           CustomerSignatureFun(base64, name)
@@ -1450,12 +1551,16 @@ refreshCamera()
           renderItem={({ item, index }: any) => (
             <PickUpBox
               index={index}
+              additional_cost_label={item?.additional_cost_label}
               AllisCollapsed={true}
               downButton={true}
               LableStatus={item?.tmsstatus?.status_name}
               OrderId={item?.id}
+              driver_note={item?.driver_note || ""}
               ProductItem={item?.items}
               LableBackground={item?.tmsstatus?.color}
+              ItemData={item}
+
               start={item?.pickup_location}
               end={item?.deliver_location}
               customerData={item?.customer}
@@ -1576,6 +1681,53 @@ refreshCamera()
                   <Image source={Images.user} style={{ width: 18, height: 18 }} />
                 </View>
               </View>
+              {
+                SelectCurrentDeliveryLabel && SelectCurrentDeliveryLabel?.damaged_required == 1 &&
+                <FlatList
+                  data={AllDamageListReason}
+                  style={styles.CardWhite}
+                  keyExtractor={(item) => item.id.toString()}
+                  renderItem={({ item }) => (
+                    <Pressable
+                      onPress={() => setselectDamageData(item)}
+                      style={{
+                        flexDirection: 'row',
+                        gap: 20,
+                        alignItems: 'center',
+                        paddingVertical: 10,
+                        paddingHorizontal: 15,
+                        borderWidth: 1,
+                        borderColor: Colors.border,
+                        borderRadius: 10,
+                        marginBottom: 10,
+                        backgroundColor: item?.color || Colors.Boxgray
+                      }}
+                    >
+                      <CheckBox
+                        onValueChange={() => {
+                          setselectDamageData(item);
+                        }}
+                        value={selectDamageData?.id === item?.id}
+                        tintColors={{
+                          true: Colors.green,
+                          false: Colors.red,
+                        }}
+                      />
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          fontFamily: FONTS.Medium,
+                          color: getTextColor(item?.color) || Colors.black
+                        }}
+                      >
+                        {item?.title}
+                      </Text>
+
+
+                    </Pressable>
+                  )}
+                />
+              }
 
               <View style={{ marginTop: 5 }}>
                 <Text style={styles.Text}>{t("Description")}</Text>
@@ -1599,6 +1751,22 @@ refreshCamera()
           </KeyboardAwareScrollView>
         </SafeAreaView>
       </Modal>
+
+
+      <ConformationModal
+        IsVisible={AlertModalOpen.visible}
+        onClose={() => setAlerModalOpen((prev) => ({ ...prev, visible: false }))}
+        Title={AlertModalOpen.title}
+        Icon={AlertModalOpen.Icon}
+        LeftButtonText={AlertModalOpen.LButtonText}
+        RightButtonText={AlertModalOpen.RButtonText}
+        RightBgColor={AlertModalOpen.RButtonStyle}
+        LeftBGColor={AlertModalOpen.LButtonStyle}
+        RTextColor={AlertModalOpen.RColor}
+        LTextColor={AlertModalOpen.LColor}
+        onPress={AlertModalOpen.onPress}
+        Description={AlertModalOpen.Description}
+      />
 
 
 
@@ -1700,6 +1868,27 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "black",
+  },
+  CardWhite: {
+    backgroundColor: Colors.white,
+    marginTop: 10,
+    borderRadius: 4,
+    padding: 10
+  },
+  WhiteBox: {
+    flexGrow: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: Colors.darkText,
+    height: height * 0.6,
+  },
+  LabelBtn: {
+    width: width * 0.8,
+    marginVertical: 5,
+    height: 50,
+    borderRadius: 4,
+    justifyContent: "center",
+    alignItems: "center"
   },
   TopIcon: {
     position: "absolute",

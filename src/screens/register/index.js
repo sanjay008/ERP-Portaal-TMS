@@ -1,4 +1,5 @@
 import { GlobalContextData } from "@/src/context/GlobalContext";
+import { DropboxContext } from "@/src/context/UploadProider";
 import React, { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -50,6 +51,10 @@ const Register = ({ navigation, route }) => {
     Permission, setPermission,
     SelectLanguage, setSelectLanguage
   } = useContext(GlobalContextData);
+  const { setAccessToken,
+    setRefreshToken,
+    setClientId,
+    setClientSecret } = useContext(DropboxContext);
 
   useEffect(() => {
     selectiondata();
@@ -80,6 +85,11 @@ const Register = ({ navigation, route }) => {
         customData: { company_login: commpny?.trim() },
       });
       if (data?.status) {
+        console.log("Company Data:", data);
+        setAccessToken(data?.data?.default_company?.company_api_dropbox_access_token || "");
+        setRefreshToken(data?.data?.default_company?.company_api_dropbox_refresh_token || "");
+        setClientId(data?.data?.default_company?.company_api_dropbox_client_id || "");
+        setClientSecret(data?.data?.default_company?.company_api_dropbox_secret_id || "");
         storeData("COMPANYDATA", data?.data);
         storeData("COMPANYLOGIN", commpny?.trim());
         const logoUrl = data.data.default_company.company_logo;
@@ -163,13 +173,13 @@ const Register = ({ navigation, route }) => {
 
     setLoding(true);
     try {
-     
+
       const company = await getData("COMPANYLOGIN");
 
       const payload = {
         company_login: company,
         country_code: countryCode,
-  
+
         ...(showEmail
           ? { email: email.trim(), whatsapp_number: "" }
           : { whatsapp_number: number.trim(), email: "" }),

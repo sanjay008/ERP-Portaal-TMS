@@ -197,8 +197,12 @@ export default function LoadedScreens({ navigation, route }: any) {
                   index={index}
                   LableStatus={item?.tmsstatus?.status_name}
                   OrderId={item?.id}
+                    additional_cost_label={item?.additional_cost_label}
+            ItemData={item}
+
                   ProductItem={item?.items}
                   LableBackground={item?.tmsstatus?.color}
+                  driver_note={item?.driver_note || ""}
                   onPress={() => navigation.navigate("Details", { item: item, type: "Warehouse Loading" })}
                   start={item?.pickup_location}
                   end={item?.deliver_location}

@@ -108,7 +108,10 @@ export default function ScannerInfoModal({
     GloblyTypeSlide,
     setGloblyTypeSlide,
     SelectDeliveryReason, setSelectDeliveryReson,
-    OrderDeliveryMapingLableOption, setOrderDeliveryMapingLableOption
+    OrderDeliveryMapingLableOption, setOrderDeliveryMapingLableOption,
+    AllDeliveyLabel, setAllDeliveyLabel,
+    SelectCurrentDeliveryLabel, setSelectCurrentDeliveryLabel
+
   } = useContext(GlobalContextData);
 
   const deliveredAtOptions = [
@@ -122,14 +125,28 @@ export default function ScannerInfoModal({
     { id: 5, label: t("Wrong address") },
     { id: 6, label: t("Rejected") },
   ];
+  const getTextColor = (bgColor: string) => {
+    if (!bgColor) return "#000";
 
+    const color = bgColor.replace("#", "");
+
+    const r = parseInt(color.substring(0, 2), 16);
+    const g = parseInt(color.substring(2, 4), 16);
+    const b = parseInt(color.substring(4, 6), 16);
+
+    // Brightness formula
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+
+    return brightness > 128 ? "#000" : "#FFF";
+  };
   // --- EFFECT: log whenever modal visibility changes ---
 
-  const handleOptionSelect = (item:any) => {
+  const handleOptionSelect = (item: any) => {
     console.log("Selected option:", item);
-    setSelectDeliveryReson(item)
-    setShowReasonList(false);
-    setShowDeliveredAtList(false);
+    setSelectCurrentDeliveryLabel(item)
+    // setSelectDeliveryReson(item)
+    // setShowReasonList(false);
+    // setShowDeliveredAtList(false);
 
     setAlerModalOpen({
       visible: true,
@@ -241,7 +258,6 @@ export default function ScannerInfoModal({
                   type === 2) && (
 
                     <>
-                      {/* Collapsible Section */}
                       {type === 0 && (
                         <Collapsible collapsed={isCollapsed}>
                           <View style={styles.TotalProductConatiner}>
@@ -264,9 +280,6 @@ export default function ScannerInfoModal({
                           </View>
                         </Collapsible>
                       )}
-
-                      {/* Delivery Details (only when NOT Scheduled) */}
-
                       <>
 
                         <View style={[styles.Flex, { marginTop: 15 }]}>
@@ -322,7 +335,45 @@ export default function ScannerInfoModal({
                   <Text style={[styles.Text,]}>{t("Region")}: {OrderData?.order_data?.region_data?.name}</Text>
                 </View>
               </View>
+
+
               // pickup_date
+            }
+            {
+              delivery_btn == 1 &&
+              <FlatList
+                data={AllDeliveyLabel}
+                scrollEnabled={false}
+                contentContainerStyle={styles.WhiteBox}
+                renderItem={({ item }: any) => {
+                  const bgColor = item?.color || Colors.Boxgray;
+                  const textColor = getTextColor(bgColor);
+                  if(item?.id == 15) return
+                  return (
+                    <TouchableOpacity
+                      onPress={() => {
+                        handleOptionSelect(item)
+
+                      }}
+                      activeOpacity={0.85}
+                      style={[
+                        styles.LabelBtn,
+                        {
+                          backgroundColor: bgColor,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[styles.Text, {
+                          color: textColor,
+                        },]}
+                      >
+                        {item?.title}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                }}
+              />
             }
             {/* --- Reason Options --- */}
             {showReasonList && (
@@ -336,7 +387,7 @@ export default function ScannerInfoModal({
             )}
 
             {/* --- Delivered at Options --- */}
-            {showDeliveredAtList && (
+            {/* {showDeliveredAtList && (
               <View style={styles.optionContainer}>
                 {OrderDeliveryMapingLableOption?.delivery?.map((item: any) => (
                   <TouchableOpacity key={item.id} style={styles.ReasonButton} onPress={() => handleOptionSelect(item)}>
@@ -344,10 +395,11 @@ export default function ScannerInfoModal({
                   </TouchableOpacity>
                 ))}
               </View>
-            )}
+            )} */}
 
             {/* --- Footer Buttons --- */}
-            {!showReasonList && !showDeliveredAtList && (
+
+            {!showReasonList && !showDeliveredAtList && delivery_btn == 0 && (
               <View style={[styles.Flex, styles.LastButtonContainer]}>
                 <TouchableOpacity
                   style={[styles.Button, LButtonStyle, { width: RText ? "48%" : "60%" }, !RText && { marginHorizontal: "auto" }]}
@@ -361,7 +413,7 @@ export default function ScannerInfoModal({
                 {RText && (
                   <TouchableOpacity
                     style={[styles.Button, RButtonStyle]}
-                    onPress={() => { if (delivery_btn === 1 && !showDeliveredAtList) setShowDeliveredAtList(true); else onPress?.(); }}
+                    onPress={() => { onPress?.(); }}
                   >
                     <Text style={styles.Text}>{t(RText)}</Text>
                   </TouchableOpacity>
@@ -402,6 +454,17 @@ const styles = StyleSheet.create({
     zIndex: 99,
     justifyContent: "center",
     alignItems: "center",
+  },
+  WhiteBox: {
+    alignSelf: "center"
+  },
+  LabelBtn: {
+    width: width * 0.8,
+    marginVertical: 5,
+    height: 50,
+    borderRadius: 4,
+    justifyContent: "center",
+    alignItems: "center"
   },
   Backdrop: {
     position: "absolute",

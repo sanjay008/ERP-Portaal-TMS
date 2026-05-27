@@ -263,6 +263,10 @@ export default function Parcel({ navigation, route }: any) {
               LableStatus={item?.tmsstatus?.status_name}
               OrderId={item?.id}
               ProductItem={item?.items}
+                  driver_note={item?.driver_note || ""}
+                    additional_cost_label={item?.additional_cost_label}
+            ItemData={item}
+
               LableBackground={item?.tmsstatus?.color}
               onPress={() => navigation.navigate("Details", { item: item })}
               start={item?.pickup_location}

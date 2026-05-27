@@ -1,6 +1,7 @@
+import { Image } from 'expo-image';
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Colors } from "../utils/colors";
 import { FONTS } from "../utils/storeData";
 
@@ -27,19 +28,20 @@ export default function ParcelBox({
 }: Props) {
   const { t } = useTranslation();
 
-  const getDirectDropboxLink = (sharedLink: string) => {
-    if (!sharedLink) return "";
+ const getDirectDropboxLink = (sharedLink: string) => {
+  if (!sharedLink) return "";
 
-    let url = sharedLink
-      .replace("www.dropbox.com", "dl.dropboxusercontent.com")
-      .replace("dropbox.com", "dl.dropboxusercontent.com");
+  let url = sharedLink
+    .replace("www.dropbox.com", "dl.dropboxusercontent.com")
+    .replace("dropbox.com", "dl.dropboxusercontent.com");
 
-    url = url.replace(/[?&](dl|raw)=\d/, "");
 
-    url += (url.includes("?") ? "&" : "?") + "raw=1";
+  url = url.replace(/[?&](dl|raw)=\d/g, "");
 
-    return url;
-  };
+  url += (url.includes("?") ? "&" : "?") + "raw=1";
+
+  return encodeURI(url);
+};
 
   const displayTitle =
     title.length > 70 ? title.slice(0, 67).trim() + "..." : title;
@@ -91,6 +93,8 @@ export default function ParcelBox({
             style={styles.Icon}
             resizeMode="contain"
             tintColor={Colors.black}
+            cachePolicy="memory-disk"
+  transition={200}
           />
         </View>
       </View>

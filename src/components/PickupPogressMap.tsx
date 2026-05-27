@@ -8,16 +8,17 @@ import { FONTS } from "../utils/storeData";
 type Props = {
   start: string;
   end: string;
-  DeliveryLable:boolean;
+  ItemData?: any;
+  DeliveryLable: boolean;
 };
 
-export default function PickupPogressMap({ start = "", end = "" , DeliveryLable=false}: Props) {
+export default function PickupPogressMap({ start = "", end = "", DeliveryLable = false, ItemData = null }: Props) {
   const { t } = useTranslation();
   return (
     <View style={styles.container}>
       <View style={styles.MiniHandle}>
         <View style={styles.Location}>
-          <Image source={Images.StartPoint} style={{ width: 20, height: 20 ,marginBottom:5}} />
+          <Image source={Images.StartPoint} style={{ width: 20, height: 20, marginBottom: 5 }} />
 
           <DashedLine
             dashLength={4}
@@ -28,16 +29,26 @@ export default function PickupPogressMap({ start = "", end = "" , DeliveryLable=
             dashColor={Colors.black}
           />
 
-          <Image source={Images.EndPoint} style={{ width: 20, height: 20,marginTop:5 }} />
+          <Image source={Images.EndPoint} style={{ width: 20, height: 20, marginTop: 5 }} />
         </View>
         <View style={styles.locateName}>
-          <Text style={styles.DarkText}>{t("Pick Up")}</Text>
+          <Text style={styles.DarkText}>{DeliveryLable ? t("Warehouse") : t("Pick Up")}</Text>
 
           <Text style={styles.DarkText}>{DeliveryLable ? t("To Deliver") : t("Warehouse")}</Text>
         </View>
       </View>
       <View style={styles.AddressContainer}>
         <Text style={styles.Address}>{start}</Text>
+        {
+          ItemData &&
+            ["1"]?.includes(ItemData?.status) ?
+            <Text style={styles.Address}>{t("EAT")}:{ItemData?.pickup_estimated_time}/10Km</Text>
+            :
+            ["4"]?.includes(ItemData?.status) ?
+              <Text style={styles.Address}>{t("EAT")}: {ItemData?.deliver_estimated_time}/10Km</Text>
+              : null
+
+        }
         <Text style={styles.Address}>{end}</Text>
       </View>
     </View>
@@ -54,7 +65,7 @@ const styles = StyleSheet.create({
     maxWidth: "40%",
     flexDirection: "row",
     gap: 10,
-    justifyContent:'center'
+    justifyContent: 'center'
   },
   SimpleFlex: {
     flexDirection: "row",

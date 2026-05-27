@@ -1,3 +1,4 @@
+import { useNavigation } from "@react-navigation/native";
 import React, { useContext } from "react";
 import { useTranslation } from "react-i18next";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
@@ -22,7 +23,7 @@ export default function CustomHeader() {
   const { t } = useTranslation();
 
   useUserGPS(UserData?.user?.role == "chauffeur")
-
+  const navigation = useNavigation<any>();
   return (
     <View style={styles.container}>
       <Image
@@ -30,7 +31,9 @@ export default function CustomHeader() {
         style={styles.logo}
         resizeMode="contain"
       />
-      <Pressable style={styles.SimpleFlex} onPress={()=>navigation.navigate("Profile")}>
+      <Pressable style={styles.SimpleFlex} onPress={() => navigation.navigate("BottomTabs", {
+        screen: "Profile",
+      })}>
         {UserData?.user?.profile_image ? (
           <Image
             source={{ uri: UserData?.user?.profile_image }}

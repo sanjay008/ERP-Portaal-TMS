@@ -1,10 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
+import CheckBox from "@react-native-community/checkbox";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Dimensions,
   Platform,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -41,6 +43,7 @@ export interface SignatureModalProps {
   showNameField?: boolean;
   IsLoading?: boolean;
   defaultName?: string | null;
+  selectDamageData?: any;
 }
 
 const SignatureModal: React.FC<SignatureModalProps> = ({
@@ -54,6 +57,7 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
   showNameField = true,
   IsLoading = false,
   defaultName = "",
+  selectDamageData = null
 }) => {
   const { t } = useTranslation();
   const signatureRef = useRef<SignatureViewRef>(null);
@@ -70,6 +74,20 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
     opacity: opacity.value,
     transform: [{ scale: scale.value }],
   }));
+    const getTextColor = (bgColor: string) => {
+    if (!bgColor) return "#000";
+
+    const color = bgColor.replace("#", "");
+
+    const r = parseInt(color.substring(0, 2), 16);
+    const g = parseInt(color.substring(2, 4), 16);
+    const b = parseInt(color.substring(4, 6), 16);
+
+    // Brightness formula
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+
+    return brightness > 128 ? "#000" : "#FFF";
+  };
 
   const handleUnmount = useCallback(() => setRendered(false), []);
 
@@ -151,7 +169,42 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
         style={[StyleSheet.absoluteFill, styles.backdrop, backdropStyle]}
         pointerEvents={visible ? "auto" : "none"}
       />
+      <Pressable
+        
+        style={{
+          width:"90%",
+          flexDirection: 'row',
+          gap: 20,
+          alignItems: 'center',
+          paddingVertical: 10,
+          paddingHorizontal: 15,
+          borderWidth: 1,
+          borderColor: Colors.border,
+          borderRadius: 10,
+          marginBottom: 10,
+          backgroundColor: selectDamageData?.color || Colors.Boxgray
+        }}
+      >
+        <CheckBox
 
+          value={true}
+          tintColors={{
+            true: Colors.green,
+            false: Colors.red,
+          }}
+        />
+        <Text
+          style={{
+            fontSize: 14,
+            fontFamily: FONTS.Medium,
+            color: getTextColor(selectDamageData?.color) || Colors.black
+          }}
+        >
+          {selectDamageData?.title}
+        </Text>
+
+
+      </Pressable>
       <Animated.View style={[styles.card, cardStyle]}>
         <View style={styles.header}>
           <TouchableOpacity
@@ -226,7 +279,7 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
             <SignatureCanvas
               ref={signatureRef}
               onOK={handleSignatureOK}
-              onEmpty={() => {}}
+              onEmpty={() => { }}
               descriptionText=""
               clearText=""
               confirmText=""

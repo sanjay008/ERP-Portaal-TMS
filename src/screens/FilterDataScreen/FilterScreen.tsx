@@ -39,6 +39,9 @@ export default function FilterScreen({ navigation, route }: any) {
     SelectCurrentDate,
     GloblyTypeSlide,
     setSelectCurrentDate,
+    AllDeliveyLabel, setAllDeliveyLabel,
+    setSelectCurrentDeliveryLabel,
+    AllDamageListReason, setAllDamageListReason
   } = useContext(GlobalContextData);
   const [SelectDate, setSelectDate] = useState<string>("");
   const [IsLoading, setLoading] = useState<boolean>(false);
@@ -68,6 +71,7 @@ export default function FilterScreen({ navigation, route }: any) {
       });
 
       if (response?.status) {
+
         const newData = Array.isArray(response?.data)
           ? response.data
           : [];
@@ -133,6 +137,8 @@ export default function FilterScreen({ navigation, route }: any) {
 
 
   useEffect(() => {
+
+    setSelectCurrentDeliveryLabel(null);
     if (UserData !== null && Focused && SelectDate) {
       getFilterDataFun();
       if (SelectDate) {
@@ -145,73 +151,79 @@ export default function FilterScreen({ navigation, route }: any) {
     setScanBTNAvailble(!shouldAllowNavigation);
   }, [SelectDate, UserData, Focused, Type, item]);
 
-const RegionDetailsDataFun = async (
-  selectRegion = selectRegionData,
-) => {
-  if (!selectRegion?.id) {
-    setRegionOrderData([]);
-    return null;
-  }
-
-  try {
-    setLoading(true);
-
-    const payload = {
-      token: UserData?.user?.verify_token,
-      role: UserData?.user?.role,
-      relaties_id: UserData?.relaties?.id,
-      user_id: UserData?.user?.id,
-      date: SelectDate,
-      type: GloblyTypeSlide ?? item?.type ?? Type,
-      region_id: selectRegion?.id,
-    };
-
-    const response = await ApiService(
-      apiConstants.get_tms_orders_flat_by_region,
-      {
-        customData: payload,
-      },
-    );
-
-    console.log('RegionDetailsDataFun', response);
-
-    if (response?.status) {
-      setRegionOrderData(
-        Array.isArray(response?.data)
-          ? response.data
-          : [],
-      );
-    } else {
+  const RegionDetailsDataFun = async (
+    selectRegion = selectRegionData,
+  ) => {
+    if (!selectRegion?.id) {
       setRegionOrderData([]);
-
-      if (response?.message !== 'No Data Found.') {
-        setToast({
-          top: 45,
-          text: response?.message || 'Something went wrong',
-          type: 'error',
-          visible: true,
-        });
-      }
+      return null;
     }
 
-    return response;
-  } catch (error: any) {
-    console.log('RegionDetailsDataFun Error:-', error);
+    try {
+      setLoading(true);
 
-    setRegionOrderData([]);
+      const payload = {
+        token: UserData?.user?.verify_token,
+        role: UserData?.user?.role,
+        relaties_id: UserData?.relaties?.id,
+        user_id: UserData?.user?.id,
+        date: SelectDate,
+        type: GloblyTypeSlide ?? item?.type ?? Type,
+        region_id: selectRegion?.id,
+      };
 
-    setToast({
-      top: 45,
-      text: ErrorHandle(error)?.message || 'Something went wrong',
-      type: 'error',
-      visible: true,
-    });
+      const response = await ApiService(
+        apiConstants.get_tms_orders_flat_by_region,
+        {
+          customData: payload,
+        },
+      );
 
-    return null;
-  } finally {
-    setLoading(false);
-  }
-};
+      console.log('RegionDetailsDataFun', response);
+
+      if (response?.status) {
+        if(AllDamageListReason?.length == 0){
+          setAllDamageListReason(response?.damaged_parcel || [])
+        }
+        if (AllDeliveyLabel?.length == 0) {
+          setAllDeliveyLabel(response?.delivery_label_title_map || []);
+        }
+        setRegionOrderData(
+          Array.isArray(response?.data)
+            ? response.data
+            : [],
+        );
+      } else {
+        setRegionOrderData([]);
+
+        if (response?.message !== 'No Data Found.') {
+          setToast({
+            top: 45,
+            text: response?.message || 'Something went wrong',
+            type: 'error',
+            visible: true,
+          });
+        }
+      }
+
+      return response;
+    } catch (error: any) {
+      console.log('RegionDetailsDataFun Error:-', error);
+
+      setRegionOrderData([]);
+
+      setToast({
+        top: 45,
+        text: ErrorHandle(error)?.message || 'Something went wrong',
+        type: 'error',
+        visible: true,
+      });
+
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -260,19 +272,6 @@ const RegionDetailsDataFun = async (
               // ContainerStyle={{ flex: ScanBTNAvailble ? 1 / 1.05 : 1 }}
               ContainerStyle={{ flex: 1 / 1.05 }}
             />
-            {/* {ScanBTNAvailble && (
-              <TwoTypeButton
-                onlyIcon={true}
-                Icon={Images.Scan}
-                style={{ width: 46, height: 46 }}
-                onPress={() =>
-                  navigation.navigate("Scanner", {
-                    fun: getFilterDataFun,
-                    type: SlideType,
-                  })
-                }
-              />
-            )} */}
             <TwoTypeButton
               onlyIcon={true}
               Icon={Images.Scan}
@@ -330,7 +329,9 @@ const RegionDetailsDataFun = async (
                     LableStatus={item?.tmsstatus?.status_name}
                     OrderId={item?.id}
                     ProductItem={item?.items}
+                    driver_note={item?.driver_note || ""}
                     LableBackground={item?.tmsstatus?.color}
+                    additional_cost_label={item?.additional_cost_label}
                     onPress={() => {
                       if (ScanBTNAvailble) {
                         console.log("Navigation blocked");
@@ -342,7 +343,7 @@ const RegionDetailsDataFun = async (
                     end={item?.deliver_location}
                     customerData={item?.customer}
                     external_platform_data={item?.display_name}
-
+                    ItemData={item}
                     statusData={item?.tmsstatus}
                     backOrder={true}
                   />

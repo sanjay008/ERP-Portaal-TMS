@@ -1,6 +1,7 @@
 import apiConstants from "@/src/api/apiConstants";
 import { Images } from "@/src/assets/images";
 import { GlobalContextData } from "@/src/context/GlobalContext";
+import { DropboxContext } from "@/src/context/UploadProider";
 import ApiService from "@/src/utils/Apiservice";
 import { getData } from "@/src/utils/storeData";
 import * as Font from "expo-font";
@@ -10,15 +11,18 @@ import i18n from "../Translation/i18n";
 export default function SplashScreens({ navigation }: any) {
   const [fontsLoaded, setFontsLoaded] = useState(false);
   const {
-    GOOGLE_API_KEY,setGOOGLE_API_KEY,
-    CompanyLogo,setCompanyLogo,
-    Permission,setPermission,
-    SelectLanguage,setSelectLanguage,
-    CompanysData,setCompanysData,
+    GOOGLE_API_KEY, setGOOGLE_API_KEY,
+    CompanyLogo, setCompanyLogo,
+    Permission, setPermission,
+    SelectLanguage, setSelectLanguage,
+    CompanysData, setCompanysData,
     AllLanguage,
-setAllLanguage
+    setAllLanguage
   } = useContext(GlobalContextData);
-
+  const { setAccessToken,
+    setRefreshToken,
+    setClientId,
+    setClientSecret } = useContext(DropboxContext);
   const loadFonts = async () => {
     await Font.loadAsync({
       regular: require("../../assets/fonts/Lexend-Regular.ttf"),
@@ -36,7 +40,7 @@ setAllLanguage
     loadFonts();
   }, []);
 
-   const fetchLanguages = async () => {
+  const fetchLanguages = async () => {
     try {
       const data = await ApiService(apiConstants.langauge, {});
 
@@ -50,24 +54,36 @@ setAllLanguage
 
   const getAuthData = async () => {
     try {
-      const [languages, auth, company, logo,companyData] = await Promise.all([
+      const [languages, auth, company, logo, companyData,fullcompany] = await Promise.all([
         getData("userLanguage"),
         getData("AUTH"),
         getData("USERDATA"),
         getData("COMPANYLOGO"),
-        getData("COMPANYLOGIN")
+        getData("COMPANYLOGIN"),
+        getData("COMPANYDATA"),
       ]);
 
-       if (languages) {
+      if (languages) {
         await i18n.changeLanguage(languages);
         setSelectLanguage(languages);
       }
 
-      if(companyData){
-      setCompanysData(companyData)
+      if (companyData) {
+        setCompanysData(companyData);
+       
+      }
+      if(fullcompany){
+        console.log("default_company_dropbox_access_token",fullcompany?.default_company?.company_api_dropbox_access_token);
+        
+        if (fullcompany?.default_company) {
+          setAccessToken(fullcompany?.default_company?.company_api_dropbox_access_token || "");
+          setRefreshToken(fullcompany?.default_company?.company_api_dropbox_refresh_token || "");
+          setClientId(fullcompany?.default_company?.company_api_dropbox_client_id || "");
+          setClientSecret(fullcompany?.default_company?.company_api_dropbox_secret_id || "");
+        }
       }
 
-     
+
       if (logo) setCompanyLogo(logo);
 
       if (!languages) {
@@ -86,37 +102,38 @@ setAllLanguage
         console.log("Client data missing");
         navigation.replace("OnBoarding");
         return;
-      }else{
-      if (company) {
-        let permissionData;
-        try {
-          permissionData = await ApiService(apiConstants.permission, {
-            customData: {
-              token: client.verify_token,
-              role: client.role,
-              relaties_id: company?.data?.relaties?.id,
-              user_id: client.id,
-            },
-          });
-        } catch (apiError) {
-          console.log("API fetch error:", apiError);
-          navigation.replace("BottomTabs");
-          return;
-        }
-
-        if (permissionData?.status) {
-          const Permission = permissionData.data;
-          setPermission(Permission);
-
+      } else {
+        if (company) {
           
+          let permissionData;
+          try {
+            permissionData = await ApiService(apiConstants.permission, {
+              customData: {
+                token: client.verify_token,
+                role: client.role,
+                relaties_id: company?.data?.relaties?.id,
+                user_id: client.id,
+              },
+            });
+          } catch (apiError) {
+            console.log("API fetch error:", apiError);
             navigation.replace("BottomTabs");
             return;
-          
-        }
+          }
 
-        navigation.replace("BottomTabs");
-      }
+          if (permissionData?.status) {
+            const Permission = permissionData.data;
+            setPermission(Permission);
+
+
+            navigation.replace("BottomTabs");
+            return;
+
+          }
+
+          navigation.replace("BottomTabs");
         }
+      }
     } catch (error) {
       console.log("Permission or Auth error:", error);
     }

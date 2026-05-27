@@ -34,6 +34,7 @@ import {
   Platform,
   ScrollView,
   Text,
+  TouchableOpacity,
   View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -53,7 +54,9 @@ export default function DetailsScreens({ navigation, route }: any) {
     setNoParcelItemIds,
     SelectActiveDate,
     SelectActiveRegionData,
-    NoParcelDetailsScreenEvent, setNoParcelDetailsScreenEvent
+    NoParcelDetailsScreenEvent, setNoParcelDetailsScreenEvent,
+    AllDeliveyLabel, setAllDeliveyLabel,
+    SelectCurrentDeliveryLabel, setSelectCurrentDeliveryLabel
   } = useContext(GlobalContextData);
   const [ItemsData, setItemsData] = useState(item);
   const Focused = useIsFocused();
@@ -73,8 +76,8 @@ export default function DetailsScreens({ navigation, route }: any) {
   const [showSig, setShowSig] = useState<boolean>(false);
   const [SignatureLoader, setSignatureLoader] = useState<boolean>(false);
   const [LocationDataMessage, setLocationDataMessage] = useState(null);
-  
-  
+
+
   const [AllDestinationRegionData, setAllDestinationRegionData] = useState<
     any[]
   >([]);
@@ -367,7 +370,7 @@ export default function DetailsScreens({ navigation, route }: any) {
       if (res?.status) {
         setItemsData(res?.data);
         setPermissionData(res?.permissions_data);
-        console.log("Success!", res.data);
+        console.log("Success!", res?.data);
 
         // ✅ Filter out items that are already marked as "No Parcel"
         const labelsForModal = res.data.items
@@ -608,7 +611,7 @@ export default function DetailsScreens({ navigation, route }: any) {
 
         if (Number(res?.data.remaining_item) == 0) {
           const buttons: any[] = [];
-          const isSignatureAllowed = Number(res?.data?.tms_current_status) === 5;
+          const isSignatureAllowed = Number(res?.data?.tms_current_status) === 5 && SelectCurrentDeliveryLabel?.signature_required == 1;
 
           if (isSignatureAllowed) {
             buttons.push({
@@ -670,7 +673,7 @@ export default function DetailsScreens({ navigation, route }: any) {
                   type: "primary",
                   onPress: () => {
                     setSecondModal((p: any) => ({ ...p, visible: false }));
-                    
+
                     navigation.navigate("Scanner", {
                       type: GloblyTypeSlide,
                     });
@@ -712,7 +715,20 @@ export default function DetailsScreens({ navigation, route }: any) {
       setLableLoading(false);
     }
   };
- 
+  const getTextColor = (bgColor: string) => {
+    if (!bgColor) return "#000";
+
+    const color = bgColor.replace("#", "");
+
+    const r = parseInt(color.substring(0, 2), 16);
+    const g = parseInt(color.substring(2, 4), 16);
+    const b = parseInt(color.substring(4, 6), 16);
+
+    // Brightness formula
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+
+    return brightness > 128 ? "#000" : "#FFF";
+  };
   const CustomerSignatureFun = async (signature: string | null = null, name: string | null = null,) => {
     if (signature == null) {
       setToast({
@@ -807,22 +823,6 @@ export default function DetailsScreens({ navigation, route }: any) {
           {PermissionData?.can_scan_order && (
             <View style={styles.Flex}>
               <View />
-              {/* <TouchableOpacity
-                style={[styles.BackButton]}
-                onPress={() =>
-                  BackOrderFun(
-                    ItemsData?.tmsstatus?.status_name == "Scheduled"
-                      ? "Backorder"
-                      : "Missed"
-                  )
-                }
-              >
-                <Text style={[styles.Text, { color: Colors.white }]}>
-                  {ItemsData?.tmsstatus?.status_name == "Scheduled"
-                    ? t("Back Order")
-                    : t("Missing")}
-                </Text>
-              </TouchableOpacity> */}
               <TwoTypeButton
                 onlyIcon={true}
                 Icon={Images.Scan}
@@ -843,21 +843,30 @@ export default function DetailsScreens({ navigation, route }: any) {
             LableStatus={ItemsData?.tmsstatus?.status_name}
             OrderId={ItemsData?.id}
             ProductItem={ItemsData?.items}
+            driver_note={null}
             LableBackground={ItemsData?.tmsstatus?.color}
             start={ItemsData?.pickup_location}
             end={ItemsData?.deliver_location}
+            ItemData={ItemsData}
+            additional_cost_label={ItemsData?.additional_cost_label}
             customerData={ItemsData?.customer}
             external_platform_data={ItemsData?.display_name}
-
             contact={true}
           />
+
+          {
+            ItemsData?.driver_note &&
+            <View style={styles.DriverBG}>
+              <Text style={[styles.Text, { color: "#FFEA00" }]}>{ItemsData?.driver_note || ""}</Text>
+            </View>
+          }
 
           <MapsViewBox
             data={AllDestinationRegionData}
             msg={LocationDataMessage}
           />
 
-          {PermissionData?.can_scan_order && (
+          {PermissionData?.can_scan_order && !(ItemsData?.tmsstatus?.id == 4) ? (
             <View style={styles.Flex}>
               <TwoTypeButton
                 title={t("No Parcel")}
@@ -891,7 +900,63 @@ export default function DetailsScreens({ navigation, route }: any) {
                 IconStyle={{ width: 22, height: 22 }}
               />
             </View>
-          )}
+          )
+            : ItemsData?.tmsstatus?.id == 4 &&
+            <FlatList
+              data={AllDeliveyLabel}
+              scrollEnabled={false}
+              renderItem={({ item }: any) => {
+                const bgColor = item?.color || Colors.Boxgray;
+                const textColor = getTextColor(bgColor);
+
+                return (
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (item?.id == 15) {
+
+                        if (NoParcelOptions.length > 0) {
+                          setNoParcelModalVisible(true);
+                        } else {
+                          setToast({
+                            top: 45,
+                            text: t("All items are scanned!"),
+                            type: "info",
+                            visible: true,
+                          });
+                        }
+
+                      } else {
+
+                        navigation.navigate("Scanner", {
+                          fun: GetIdByOrderFun,
+                          type: type,
+                        })
+                        setSelectCurrentDeliveryLabel(item)
+                      }
+                    }
+                    }
+                    activeOpacity={0.85}
+                    style={[
+                      styles.LabelBtn,
+                      {
+                        backgroundColor: bgColor,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[styles.Text, {
+                        color: textColor,
+                      },]}
+                    >
+                      {item?.title}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          }
+
+
           {getMergedImages(ItemsData, AllSelectImage)?.length > 0 && (
             <FlatList
               horizontal
@@ -1099,7 +1164,7 @@ export default function DetailsScreens({ navigation, route }: any) {
         }
         delivery_btn={ScannerModalOpen.delivery_btn}
       />{" "}
-     <SecondCustomModal SecondModal={SecondModal} />
+      <SecondCustomModal SecondModal={SecondModal} />
       <LoadingModal
         visible={IsLoading || LableLoading}
         message={t("Please wait…")}

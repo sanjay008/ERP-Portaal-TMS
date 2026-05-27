@@ -12,6 +12,20 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 15,
     flexGrow: 1,
   },
+    DriverBG:{
+    backgroundColor:"#595959",
+    padding:5,
+    borderRadius:4
+
+  },
+  LabelBtn:{
+    width:"100%",
+    marginVertical:5,
+    height:50,
+    borderRadius:4,
+    justifyContent:"center",
+    alignItems:"center"
+  },
   LoaderContainer:{
     flex:1,
     justifyContent:'center',

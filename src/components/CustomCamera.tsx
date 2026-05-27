@@ -260,6 +260,7 @@
 // });
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo-camera";
+import { ImageManipulator } from "expo-image-manipulator";
 import { router } from "expo-router";
 import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -284,6 +285,9 @@ import { FONTS } from "../utils/storeData";
 
 export default function CustomCamera({ navigation, route }: any) {
   const params = route?.params || {};
+
+ 
+ 
   const { Data, selectReason, maxDuration = 15 } = params;
 
   const [permission, requestPermission] = useCameraPermissions();
@@ -318,17 +322,15 @@ export default function CustomCamera({ navigation, route }: any) {
     return `${m}:${s}`;
   };
 
-  // Validation: at least 3 photos OR at least 1 video
   const isDoneEnabled = videos.length >= 1 || photos.length >= 3;
 
-  // Hint message for user
   const validationHint = (() => {
     if (videos.length >= 1 || photos.length >= 3) return null;
     if (isVideoMode) {
       return t("Please record at least 1 video");
     }
     if (photos.length === 0) return t("Please take at least 3 photos");
-    return t(`${3 - photos.length} more photo(s) needed`);
+    return `${3 - photos.length} ${t("more photo(s) needed")}`;
   })();
 
   const toggleMode = useCallback(() => {
@@ -351,16 +353,35 @@ export default function CustomCamera({ navigation, route }: any) {
 
   const takePhoto = useCallback(async () => {
     if (!cameraRef.current || isCameraSwitching || isRecordingRef.current) return;
+
     try {
-      const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 0.7,
+        skipProcessing: true,
+        exif: false,
+      });
+      console.log("Photo taken:", photo);
+
       if (photo?.uri) {
-        setPhotos((prev) => [...prev, photo.uri]);
+
+        const context = ImageManipulator.manipulate(photo.uri);
+
+        context.resize({
+          width: 500,
+        });
+
+        const compressedImage = await context.renderAsync();
+
+        const savedImage = await compressedImage.saveAsync({
+          compress: 0.3,
+        });
+
+        setPhotos((prev) => [...prev, savedImage.uri]);
       }
     } catch (e) {
       console.log("takePictureAsync error:", e);
     }
   }, [isCameraSwitching]);
-
   const startRecording = useCallback(async () => {
     if (!cameraRef.current || isRecordingRef.current || isCameraSwitching) return;
 
