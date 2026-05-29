@@ -79,7 +79,7 @@ export default function PickUpBox({
         return;
       }
 
-      const message = t("Hello! This is a test message.");
+      const message = ItemData?.message || "";
       let url = "";
 
       const formattedNumber = phoneNumber.replace("+", "");
@@ -284,7 +284,7 @@ export default function PickUpBox({
             <TouchableOpacity activeOpacity={0.85} onPress={handleCall}>
               <Text style={styles.Text}>{getPhoneNumber()}</Text>
             </TouchableOpacity>
-            <TouchableOpacity activeOpacity={0.85} onPress={() => WhatsaapRedirectFun(1)}>
+            <TouchableOpacity activeOpacity={0.85} onPress={() => WhatsaapRedirectFun(2)}>
               <Image source={Images.WhatsApp} style={styles.Icon} />
             </TouchableOpacity>
           </View>

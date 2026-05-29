@@ -1,8 +1,9 @@
 import BottomTabs from "@/src/bottomTabs/BottomTabs";
 import LayoutHeader from "@/src/components/_LayoutHeader";
 import CustomCamera from "@/src/components/CustomCamera";
+import DriverGPSTraking from "@/src/components/DriverGPSTraking";
+import DropboxUploadRunner from "@/src/components/DropboxUploadRunner";
 import GlobalContext from "@/src/context/GlobalContext";
-import DropboxProvider from "@/src/context/UploadProider";
 import Chat from "@/src/screens/Chat/Chat";
 import DeliveryScreens from "@/src/screens/Delivery/DeliveryScreens";
 import DetailsScreens from "@/src/screens/Details/DetailsScreens";
@@ -59,13 +60,14 @@ export default function index() {
           <Component {...props} />
         </LayoutHeader>
       );
-
+    
   return (
     <>
       <I18nextProvider i18n={i18n}>
         <MenuProvider>
-          <DropboxProvider>
           <GlobalContext>
+            <DropboxUploadRunner />
+            <DriverGPSTraking />
             {isConnected ? (
               <Stack.Navigator
                 id="MainStack"
@@ -160,7 +162,6 @@ export default function index() {
               </Stack.Navigator>
             )}
           </GlobalContext>
-          </DropboxProvider>
         </MenuProvider>
       </I18nextProvider>
     </>

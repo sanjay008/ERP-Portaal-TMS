@@ -72,9 +72,7 @@ export default function SplashScreens({ navigation }: any) {
         setCompanysData(companyData);
        
       }
-      if(fullcompany){
-        console.log("default_company_dropbox_access_token",fullcompany?.default_company?.company_api_dropbox_access_token);
-        
+      if(fullcompany){   
         if (fullcompany?.default_company) {
           setAccessToken(fullcompany?.default_company?.company_api_dropbox_access_token || "");
           setRefreshToken(fullcompany?.default_company?.company_api_dropbox_refresh_token || "");

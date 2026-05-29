@@ -4,6 +4,7 @@ import { ApiFormatDate } from "@/src/components/ApiFormatDate";
 import ConformationModal from "@/src/components/ConformationModal";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
 import { goBackOrPopTo } from "@/src/components/goBackOrPopTo";
+import InvalidQRModal from "@/src/components/InvalidQRModal";
 import Loader from "@/src/components/loading";
 import LoadingModal from "@/src/components/LoadingModal";
 import NoParcelModal from "@/src/components/NoParcelModal";
@@ -12,9 +13,9 @@ import ScannerInfoModal from "@/src/components/ScannerInfoModal";
 import SignatureModal from "@/src/components/SignatureModal";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import { DropboxContext } from "@/src/context/UploadProider";
-import useDropboxUpload from "@/src/hooks/useDropboxUpload";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors.js";
+import { appendToLocalUploadQueue } from "@/src/utils/localUploadQueue";
 import { FONTS, height, width } from "@/src/utils/storeData";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import BottomSheet, {
@@ -30,7 +31,6 @@ import {
   CameraView,
   useCameraPermissions,
 } from "expo-camera";
-import * as ImageManipulator from "expo-image-manipulator";
 import { goBack } from "expo-router/build/global-state/routing";
 import React, {
   useCallback,
@@ -42,6 +42,7 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  ActivityIndicator,
   Animated,
   FlatList,
   Image,
@@ -122,6 +123,8 @@ export default function ScannerScreens({ navigation, route }: any) {
   const [UpdateStatusHandle, setUpdateStatusHandle] = useState<null | boolean>(
     null
   );
+  const [showQRError, setShowQRError] = useState(false);
+  const [CommentLoader, setCommentLoader] = useState<boolean>(false);
   const [Refreshcondition, setRefreshCondition] = useState(false);
   const animatedHeight = useRef(new Animated.Value(height)).current;
   const [keyboardVisible, setKeyboardVisible] = useState(false);
@@ -193,10 +196,10 @@ export default function ScannerScreens({ navigation, route }: any) {
     setOrderDeliveryMapingLableOption,
     NoParcelDetailsScreenEvent, setNoParcelDetailsScreenEvent,
     AllDeliveyLabel, setAllDeliveyLabel,
-
     SelectCurrentDeliveryLabel, setSelectCurrentDeliveryLabel,
-    AllDamageListReason, setAllDamageListReason
-
+    AllDamageListReason, setAllDamageListReason,
+    selectDamageData, setselectDamageData,
+    CommentId, setCommentId
   } = useContext(GlobalContextData);
   const { t } = useTranslation();
   const { ErrorHandle } = useErrorHandle();
@@ -204,7 +207,11 @@ export default function ScannerScreens({ navigation, route }: any) {
   const { top, bottom } = useSafeAreaInsets();
   const [SignatureLoader, setSignatureLoader] = useState<boolean>(false);
   const [ShowDeliveryLabelList, setShowDeliveryLabelList] = useState(0);
-  const [selectDamageData, setselectDamageData] = useState(null);
+  const [DropBoxUploadImageData, setDropBoxUploadImageData] = useState<any[]>([]);
+  const [ImageStoreLoader, setImageStoreLoader] = useState<boolean>(false);
+
+  const [CommentStep, setCommentStep] = useState<number>(1);
+  const [ReposonseOrderData, setResponseOrderData] = useState<any>(null);
   const [AlertModalOpen, setAlerModalOpen] = useState<AlertModalType>({
     visible: false,
     title: "",
@@ -222,24 +229,32 @@ export default function ScannerScreens({ navigation, route }: any) {
     const { sound } = await Audio.Sound.createAsync(Images.ScannerSound);
     await sound.playAsync();
   }, []);
+
+  const deliveryTypeRef = useRef(false);
+  const signatureReopenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const reopenSignatureAfterCamera = useCallback((data: any[]) => {
+    if (!data?.length) return;
+    setAllSelectImage(data);
+    setComment(false);
+    if (signatureReopenTimerRef.current) {
+      clearTimeout(signatureReopenTimerRef.current);
+    }
+    setShowSig(false);
+    signatureReopenTimerRef.current = setTimeout(() => {
+      signatureReopenTimerRef.current = null;
+      setShowSig(true);
+    }, 350);
+  }, []);
+
   const { setAccessToken,
     AccessToken,
     RefreshToken,
     ClientId,
     ClientSecret,
+    LocalImagesUploadbeforeData, setLocalImagesUploadbeforeData,
+    DropBoxUploadImageDataQues, setDropBoxUploadImageDataQues
   } = useContext(DropboxContext);
-  const {
-    loading,
-    uploadToDropbox,
-    refreshAccessToken,
-  } = useDropboxUpload({
-    clientId: ClientId || "",
-    clientSecret: ClientSecret || "",
-    refreshToken: RefreshToken || "",
-    accessToken: AccessToken || "",
-    setAccessToken,
-    setToast,
-  });
 
   const Focused = useIsFocused();
   useImperativeHandle(cameraRef, () => ({
@@ -313,45 +328,41 @@ export default function ScannerScreens({ navigation, route }: any) {
     };
   }, []);
 
+
   useEffect(() => {
     setPickUpDataSave({
-      setData: (data: any[]) => {
+      setData: async (data: any[]) => {
         console.log("📸 Received pickup photo data:", data);
         if (data?.length > 0) {
           setAllSelectImage(data);
           setComment(true);
-          // uploadToDropbox([
-          //   "file:///image1.jpg",
-          //   "file:///image2.jpg",
-          //   "file:///image3.jpg",
-          // ]);
         }
       },
     });
 
     setDeliveyDataSave({
-      setData: (data: any[]) => {
+      setData: async (data: any[]) => {
         console.log("📦 Received delivery photo data:", data);
         if (data?.length > 0) {
           setAllSelectImage(data);
-          setComment(true);
-          // uploadToDropbox([
-          //   "file:///image1.jpg",
-          //   "file:///image2.jpg",
-          //   "file:///image3.jpg",
-          // ]);
-
+          if (!deliveryTypeRef.current) {
+            setComment(true);
+            setShowSig(false);
+          } else {
+            reopenSignatureAfterCamera(data);
+          }
         }
       },
+      type: deliveryTypeRef.current,
     });
-
-
 
     return () => {
       setPickUpDataSave(null);
-      setDeliveyDataSave(null);
+      if (signatureReopenTimerRef.current) {
+        clearTimeout(signatureReopenTimerRef.current);
+      }
     };
-  }, [Focused]);
+  }, [Focused, reopenSignatureAfterCamera]);
 
   const onBarcodeScanned = useCallback(
     async ({ data, type }: { data: string; type: string }) => {
@@ -367,6 +378,7 @@ export default function ScannerScreens({ navigation, route }: any) {
           parsedData = JSON.parse(data);
         } catch (err) {
           console.log("❌ Invalid QR JSON:", err);
+          setShowQRError(true);
           setToast({
             top: 45,
             text: t("Invalid QR code format"),
@@ -375,9 +387,7 @@ export default function ScannerScreens({ navigation, route }: any) {
           });
           return;
         }
-
         console.log("✅ Parsed QR Data:", parsedData);
-
         if (!parsedData?.item_id || !parsedData?.order_id) {
           console.log("Missing IDs in QR:", parsedData);
           setToast({
@@ -397,6 +407,7 @@ export default function ScannerScreens({ navigation, route }: any) {
       } catch (error: any) {
         if (axios.isAxiosError(error)) {
           console.log("⚠️ QR Processing Error:", error);
+          setShowQRError(true);
           setToast({
             top: 45,
             text: t(error?.response?.data?.message) ?? t(error?.message) ?? t("Invalid QR code format"),
@@ -405,14 +416,14 @@ export default function ScannerScreens({ navigation, route }: any) {
           });
           return;
         }
-        setConformationModal({
-          visible: true,
-          Icon: Images.InValidScanner,
-          title: t("Invalid QR code. Please try again."),
-          LButtonText: t("Cancel"),
-          RColor: Colors.white,
-          bgColor: Colors.red
-        });
+        // setConformationModal({
+        //   visible: true,
+        //   Icon: Images.InValidScanner,
+        //   title: t("Invalid QR code. Please try again."),
+        //   LButtonText: t("Cancel"),
+        //   RColor: Colors.white,
+        //   bgColor: Colors.red
+        // });
       }
     },
     [lastDetectedBarcode]
@@ -476,6 +487,9 @@ export default function ScannerScreens({ navigation, route }: any) {
         if (AllDamageListReason?.length == 0) {
           setAllDamageListReason(res?.data?.damaged_parcel || [])
         }
+        setselectDamageData(
+          res?.data?.damaged_parcel?.find(el => el?.id == 34) || null
+        );
         setOrderDeliveryMapingLableOption(res?.data?.order_label_mapping || []);
         setItemsData(res?.data?.order_data);
         setShowDeliveryLabelList(res?.data?.delivery_btn || 0)
@@ -515,7 +529,7 @@ export default function ScannerScreens({ navigation, route }: any) {
 
         }
         if (res?.data?.delivery_btn == 1 && SelectCurrentDeliveryLabel == null || res?.data?.delivery_btn == 0) {
-
+          setResponseOrderData(res?.data?.order_data)
           setConformationModal(modalConfig);
         } else {
           setAlerModalOpen({
@@ -531,10 +545,17 @@ export default function ScannerScreens({ navigation, route }: any) {
             LColor: Colors.black,
             onPress: () => {
               console.log("Camera modal button pressed");
+              deliveryTypeRef.current = false;
               setDeliveyDataSave({
                 Data: res?.data?.order_data,
                 selectReason: item,
-                setData: setAllSelectImage,
+                setData: async (data: any[]) => {
+                  if (data?.length > 0) {
+                    setAllSelectImage(data);
+                    setComment(true);
+                  }
+                },
+                type: false,
               });
               navigation.navigate("Camera");
               setAlerModalOpen((prev) => ({ ...prev, visible: false }));
@@ -758,7 +779,7 @@ export default function ScannerScreens({ navigation, route }: any) {
   ) => {
     const id = ItemsData?.id || ItemsData?.order_data?.id;
 
-    setIsLoading(true);
+    setCommentLoader(true);
 
     try {
       const formData: any = new FormData();
@@ -769,86 +790,15 @@ export default function ScannerScreens({ navigation, route }: any) {
       formData.append('user_id', UserData?.user?.id);
       formData.append('order_comment', Description?.trim());
       formData.append('order_id', id ? id : SelectPlace?.id);
+      let image_data = Array.isArray(data) && data?.length > 0
+        ? data
+        : Array.isArray(AllSelectImage)
+          ? AllSelectImage
+          : [];
 
-      const filesToSend =
-        Array.isArray(data) && data.length > 0
-          ? data
-          : Array.isArray(AllSelectImage)
-            ? AllSelectImage
-            : [];
-
-      if (filesToSend.length === 0) {
-        setToast({
-          top: 45,
-          text: t('Please image upload!'),
-          type: 'error',
-          visible: true,
-        });
-
-        return;
-      }
-
-      for (let index = 0; index < filesToSend.length; index++) {
-        const item = filesToSend[index];
-
-        const uri =
-          typeof item === 'string'
-            ? item
-            : item?.uri || item?.path || '';
-
-        if (!uri) {
-          continue;
-        }
-
-        const lowerUri = uri.toLowerCase();
-
-        const isVideo =
-          lowerUri.includes('.mp4') ||
-          lowerUri.includes('.mov') ||
-          lowerUri.includes('.m4v');
-
-        if (isVideo) {
-          const finalVideoUri = uri.startsWith('file://')
-            ? uri
-            : `file://${uri}`;
-
-          let videoType = 'video/mp4';
-
-          if (lowerUri.includes('.mov')) {
-            videoType = 'video/quicktime';
-          }
-
-          formData.append('doc[]', {
-            uri: finalVideoUri,
-            name: `video_${Date.now()}_${index}.mp4`,
-            type: videoType,
-          });
-
-          continue;
-        }
-
-        const compressed = await ImageManipulator.manipulateAsync(
-          uri,
-          [{ resize: { width: 1280 } }],
-          {
-            compress: 0.7,
-            format: ImageManipulator.SaveFormat.JPEG,
-          },
-        );
-
-        const finalImageUri = compressed.uri.startsWith('file://')
-          ? compressed.uri
-          : `file://${compressed.uri}`;
-
-        formData.append('doc[]', {
-          uri: finalImageUri,
-          name: `image_${Date.now()}_${index}.jpg`,
-          type: 'image/jpeg',
-        });
-      }
 
       const res: any = await axios.post(
-        apiConstants.store_image_comment,
+        apiConstants.store_tms_comment,
         formData,
         {
           headers: {
@@ -859,11 +809,22 @@ export default function ScannerScreens({ navigation, route }: any) {
       );
 
       if (Boolean(res?.data?.status)) {
+        console.log('✅ Comment/Image stored successfully:', res?.data);
+        const orderLogId = res?.data?.data?.order_log_id;
+        setCommentId(orderLogId);
+        const orderId = SelectPlace?.order_id ?? ItemsData?.id ?? ItemsData?.order_data?.id;
+        if (image_data.length > 0 && orderLogId != null && orderId != null) {
+          appendToLocalUploadQueue(setLocalImagesUploadbeforeData, {
+            order_id: orderId,
+            image_data: [...image_data],
+            item_id: SelectPlace?.item_id || null,
+            commentId: orderLogId,
+          });
+        }
         setAllSelectImage([]);
         setPickUpDataSave([]);
         setDeliveyDataSave([]);
         setDescrition('');
-
         setToast({
           top: 45,
           text: t(res?.data?.message),
@@ -896,7 +857,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         visible: true,
       });
     } finally {
-      setIsLoading(false);
+      setCommentLoader(false);
     }
   };
 
@@ -921,7 +882,8 @@ export default function ScannerScreens({ navigation, route }: any) {
         user_id: UserData?.user?.id,
         name: name,
         signature,
-        order_id: ItemsData?.id
+        order_id: ItemsData?.id,
+        is_damage: selectDamageData?.id
       };
 
 
@@ -931,7 +893,19 @@ export default function ScannerScreens({ navigation, route }: any) {
       console.log(res);
 
       if (res?.status) {
-
+        if (AllSelectImage?.length > 0 && CommentId != null) {
+          const orderId = SelectPlace?.order_id ?? ItemsData?.id ?? ItemsData?.order_data?.id;
+          if (orderId != null) {
+            appendToLocalUploadQueue(setLocalImagesUploadbeforeData, {
+              order_id: orderId,
+              image_data: [...AllSelectImage],
+              item_id: SelectPlace?.item_id || null,
+              commentId: CommentId,
+            });
+          }
+        }
+        setAllSelectImage([]);
+        deliveryTypeRef.current = false;
         setShowSig(false);
         setSecondModal(p => ({ ...p, visible: false }));
         setToast({
@@ -969,7 +943,7 @@ export default function ScannerScreens({ navigation, route }: any) {
 
       return
     }
-    setIsLoading(true);
+    setCommentLoader(true);
     try {
       if (!Description.trim()) {
         setCommentError(t("Please enter a comment"));
@@ -1159,7 +1133,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         visible: true,
       });
     } finally {
-      setIsLoading(false);
+      setCommentLoader(false);
     }
   };
 
@@ -1432,6 +1406,7 @@ export default function ScannerScreens({ navigation, route }: any) {
       console.log("Camera Reset Error:", e);
     }
   };
+
   useEffect(() => {
     setLastDetectedBarcode("");
     return () => {
@@ -1442,26 +1417,22 @@ export default function ScannerScreens({ navigation, route }: any) {
   return (
     <GestureHandlerRootView key={refreshKey} style={styles.container}>
       {
-        Focused &&
+        Focused && !showSig && !comment && !showQRError &&
 
         <CameraView
           ref={cameraRef}
-          // key={cameraKey}
           enableTorch={flashEnabled}
           style={StyleSheet.absoluteFill}
           onBarcodeScanned={onBarcodeScanned}
           barcodeScannerSettings={{
             barcodeTypes: ["qr"],
           }}
-
         />
       }
       <Image
         source={Images.ScannerCenter}
         style={{ width, height, position: "absolute" }}
       />
-
-
 
       <View style={[styles.TopIcon, { top: top ? top * 1.2 : 40 }]}>
         <TouchableOpacity
@@ -1535,9 +1506,22 @@ export default function ScannerScreens({ navigation, route }: any) {
         visible={showSig}
         defaultName={ItemsData?.display_name}
         onClose={() => setShowSig(false)}
-        selectDamageData={selectDamageData}
+        onPress={() => {
+          deliveryTypeRef.current = true;
+          setShowSig(false);
+          setDeliveyDataSave({
+            Data: ReposonseOrderData,
+            selectReason: item,
+            setData: async (data: any[]) => {
+              reopenSignatureAfterCamera(data);
+            },
+            type: true,
+          });
+          navigation.navigate("Camera");
+        }}
         onSave={(base64, name) => {
           console.log("Signature:", base64);
+        
           CustomerSignatureFun(base64, name)
         }}
         onClear={() => console.log("Cleared")}
@@ -1647,26 +1631,28 @@ export default function ScannerScreens({ navigation, route }: any) {
 
         avoidKeyboard={false} // important for Modal + keyboard
       >
-        <SafeAreaView style={{ flex: 1 }}>
+        <View style={{ flex: 1 }}>
+          <SafeAreaView />
           <KeyboardAwareScrollView
             style={{ flex: 1 }}
             contentContainerStyle={{
               flex: 1,
               justifyContent: "center",
-              // paddingBottom: keyboardHeight + insets.bottom + 20, 
+              backgroundColor: Colors.green,
             }}
             enableOnAndroid={true}
-
             extraHeight={200}
-
             keyboardShouldPersistTaps="handled"
           >
+
             <View
               style={[
                 styles.CommentBox,
 
               ]}
             >
+
+
               <View>
                 <Text style={styles.Text}>{t("Name")}</Text>
                 <View style={styles.InputBox}>
@@ -1717,10 +1703,10 @@ export default function ScannerScreens({ navigation, route }: any) {
                         style={{
                           fontSize: 14,
                           fontFamily: FONTS.Medium,
-                          color: getTextColor(item?.color) || Colors.black
+                          color: Colors.white,
                         }}
                       >
-                        {item?.title}
+                        {t(item?.title)}
                       </Text>
 
 
@@ -1744,12 +1730,20 @@ export default function ScannerScreens({ navigation, route }: any) {
                 {Commenterror ? <Text style={styles.Error}>{Commenterror}</Text> : null}
               </View>
 
-              <TouchableOpacity style={styles.ButtonSubmit} onPress={CommentFun}>
-                <Text style={[styles.Text, { color: Colors.white }]}>{t("Submit")}</Text>
+              <TouchableOpacity style={styles.ButtonSubmit} disabled={CommentLoader} onPress={CommentFun}>
+                {
+                  CommentLoader ? (
+                    <ActivityIndicator size="small" color={Colors.white} />
+                  ) :
+                    <Text style={[styles.Text, { color: Colors.white }]}>{t("Submit")}</Text>
+                }
               </TouchableOpacity>
+
+
+
             </View>
           </KeyboardAwareScrollView>
-        </SafeAreaView>
+        </View>
       </Modal>
 
 
@@ -1860,6 +1854,18 @@ export default function ScannerScreens({ navigation, route }: any) {
           </View>
         </ReAnimated.View>
       )}
+
+      <InvalidQRModal
+        visible={showQRError}
+        onScanAgain={() => {
+          resetCamera();
+          setShowQRError(false);
+        }}
+        onGoBack={() => {
+          setShowQRError(false);
+          navigation.goBack();
+        }}
+      />
     </GestureHandlerRootView>
   );
 }
@@ -1868,6 +1874,27 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "black",
+  },
+  Box: {
+    width: 30,
+    height: 30,
+    borderRadius: 4,
+    backgroundColor: Colors.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+
+  },
+  ResetButton: {
+    alignSelf: 'center',
+    marginBottom: 10,
+    width: "90%",
+    padding: 15,
+    backgroundColor: Colors.lightGreen,
+    borderRadius: 4,
+    flexDirection: 'row',
+    justifyContent: "space-between",
+    alignItems: 'center',
+
   },
   CardWhite: {
     backgroundColor: Colors.white,

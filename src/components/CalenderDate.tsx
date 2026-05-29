@@ -91,12 +91,12 @@ export default function CalenderDate({ date, setDate }: Props) {
   };
 
   useEffect(() => {
-    if (!date && setDate) {
+    if (!date && setDate && TimeZone) {
       const today = getDateByTimezone(TimeZone);
       setDate(today);
       setSelectActiveDate(today);
     }
-  }, [date, setDate]);
+  }, [TimeZone]);
 
   const today = getDateByTimezone(TimeZone);
 
@@ -107,7 +107,14 @@ export default function CalenderDate({ date, setDate }: Props) {
           styles.DateShowContainer,
           { borderColor: date ? Colors.primary : Colors.Boxgray },
         ]}
-        onPress={() => setVisible(true)}
+        onPress={() => {
+          if (!date && TimeZone && setDate) {
+            const today = getDateByTimezone(TimeZone);
+            setDate(today);
+            setSelectActiveDate(today);
+          }
+          requestAnimationFrame(() => setVisible(true));
+        }}
       >
         <Image
           source={Images.date}
@@ -128,6 +135,9 @@ export default function CalenderDate({ date, setDate }: Props) {
         backdropColor="rgba(0,0,0,0.4)"
         onBackButtonPress={() => setVisible(false)}
         onBackdropPress={() => setVisible(false)}
+        useNativeDriver
+        hideModalContentWhileAnimating
+        statusBarTranslucent
       >
         <View style={styles.CalenderView}>
           <Calendar
@@ -136,9 +146,13 @@ export default function CalenderDate({ date, setDate }: Props) {
               setSelectActiveDate(day.dateString);
               setVisible(false);
             }}
-            markedDates={{
-              [date]: { selected: true, selectedColor: Colors.primary },
-            }}
+            markedDates={
+              date
+                ? {
+                    [date]: { selected: true, selectedColor: Colors.primary },
+                  }
+                : {}
+            }
             theme={
               {
                 backgroundColor: Colors.white,

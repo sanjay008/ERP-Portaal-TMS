@@ -37,7 +37,13 @@ export const SimpleFlex = StyleSheet.create({
    flexDirection:'row',
    alignItems:'center',
    gap:10,
-}
+},
+SpaceBetween: {
+  width:"100%",
+  flexDirection:'row',
+  alignItems:'center',
+  justifyContent:'space-between',
+},
 });
 
 export const FONTS = {

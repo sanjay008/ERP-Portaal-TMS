@@ -1,6 +1,7 @@
 import React, { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  ActivityIndicator,
   Image,
   Platform,
   StyleSheet,
@@ -16,14 +17,15 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Images } from "../assets/images";
 import { GlobalContextData } from "../context/GlobalContext";
 import { Colors } from "../utils/colors";
-import { FONTS, height } from "../utils/storeData";
+import { FONTS, height, SimpleFlex } from "../utils/storeData";
 type Props = {
   IsVisible: boolean;
   setIsVisible: (value: boolean) => void;
   fun?: (value: string) => void;
+  imageLoad?: boolean;
 };
 
-export default function AddCommentModal({ IsVisible, setIsVisible, fun }: Props) {
+export default function AddCommentModal({ IsVisible, setIsVisible, fun, imageLoad = false }: Props) {
   const { t } = useTranslation();
   const [comment, setComment] = useState<string>("");
   const [Description, setDescrition] = useState<string>("");
@@ -41,6 +43,7 @@ export default function AddCommentModal({ IsVisible, setIsVisible, fun }: Props)
     setDescrition("");
     setIsVisible(false)
   }
+  
   return (
     <Modal
       isVisible={IsVisible}
@@ -114,7 +117,15 @@ export default function AddCommentModal({ IsVisible, setIsVisible, fun }: Props)
                 <Text style={styles.Error}>{Commenterror}</Text>
               }
             </View>
-
+            {
+              imageLoad &&
+              <View style={SimpleFlex.Flex}>
+                <Text style={styles.Error}>
+                  {t("Uploading images in background")}...
+                </Text>
+                <ActivityIndicator size="small" color={Colors.primary} />
+              </View>
+            }
             <TouchableOpacity style={styles.Button} onPress={CommentFun}>
               <Text style={[styles.Text, { color: Colors.white }]}>
                 {t("Submit")}

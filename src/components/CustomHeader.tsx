@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { Images } from "../assets/images";
 import { GlobalContextData } from "../context/GlobalContext";
-import useUserGPS from "../hooks/useUserGPS";
 import { Colors } from "../utils/colors";
 import { FONTS } from "../utils/storeData";
 export default function CustomHeader() {
@@ -22,7 +21,6 @@ export default function CustomHeader() {
   } = useContext(GlobalContextData);
   const { t } = useTranslation();
 
-  useUserGPS(UserData?.user?.role == "chauffeur")
   const navigation = useNavigation<any>();
   return (
     <View style={styles.container}>

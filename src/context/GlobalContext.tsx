@@ -30,7 +30,10 @@ export default function GlobalContext({ children }: any) {
   const [TimeZone, setTimeZone] = useState<string>("");
   const [AllDeliveyLabel, setAllDeliveyLabel] = useState<any []>([]);
   const [SelectCurrentDeliveryLabel,setSelectCurrentDeliveryLabel] = useState<any>(null);
-  const [AllDamageListReason,setAllDamageListReason] = useState([])
+  const [AllDamageListReason,setAllDamageListReason] = useState([]);
+  const [selectRegionData, setSelectRegionData] = useState<any>(null);
+  const [selectDamageData, setselectDamageData] = useState<any>(null);
+  const [CommentId, setCommentId] = useState<any>(null);
   return (
     <GlobalContextData.Provider
       value={{
@@ -57,7 +60,10 @@ export default function GlobalContext({ children }: any) {
         SelectCurrentDeliveryLabel,setSelectCurrentDeliveryLabel,
         AllLanguage,
         setAllLanguage,
-        AllDamageListReason,setAllDamageListReason
+        AllDamageListReason,setAllDamageListReason,
+        selectRegionData, setSelectRegionData,
+        selectDamageData, setselectDamageData,
+        CommentId, setCommentId
       }}
     >
       {children}

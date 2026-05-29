@@ -1,4 +1,5 @@
 import React, { ReactNode, useContext } from "react";
+import { useTranslation } from "react-i18next";
 import { StatusBar, StyleSheet, View } from "react-native";
 import { GlobalContextData } from "../context/GlobalContext";
 import { Colors } from "../utils/colors";
@@ -10,7 +11,10 @@ interface LayoutHeaderProps {
 
 
 export default function LayoutHeader({ children }: LayoutHeaderProps) {
-  const { Toast, setToast } = useContext(GlobalContextData);
+  const { Toast, setToast, UserData } = useContext(GlobalContextData);
+  const { t } = useTranslation();
+ 
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle={"dark-content"} backgroundColor={Colors.white} />

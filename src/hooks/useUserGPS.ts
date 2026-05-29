@@ -1,62 +1,238 @@
 import * as Location from 'expo-location';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import apiConstants from '../api/apiConstants';
+import { GlobalContextData } from '../context/GlobalContext';
+import ApiService from '../utils/Apiservice';
 
 type UserCoordinateProps = {
   latitude: number;
   longitude: number;
-  heading?: number | null;
-  speed?: number | null;
-  accuracy?: number | null;
+  heading: number | null;
+  speed: number | null;
+  accuracy: number | null;
 };
 
-const DISTANCE_INTERVAL = 5;
-const TIME_INTERVAL = 2000;
+const TIME_INTERVAL = 3000;
+const DISTANCE_INTERVAL = 50;
+const API_DISTANCE_THRESHOLD = 50;
+const REQUIRED_ROLE = 'chauffeur';
 
-export default function useUserGPS(enabled: boolean = true) {
-  const [userCoordinate, setUserCoordinate] =
-    useState<UserCoordinateProps>({
-      latitude: 0,
-      longitude: 0,
-      heading: null,
-      speed: null,
-      accuracy: null,
-    });
+function haversineDistance(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+): number {
+  const R = 6371000;
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+let permissionGranted: boolean | null = null;
+
+async function ensurePermission(): Promise<boolean> {
+  if (permissionGranted !== null) return permissionGranted;
+  const { status } = await Location.requestForegroundPermissionsAsync();
+  permissionGranted = status === 'granted';
+  return permissionGranted;
+}
+
+function getTodayDate(): string {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+type ValidatedPayload = {
+  token: string;
+  role: string;
+  planning_date: string;
+  relaties_id: string;
+  user_id: string;
+  region_id: string;
+  latitude: string;
+  longitude: string;
+  heading: string;
+  accuracy: string;
+  speed: string;
+};
+
+type PayloadValidationResult =
+  | { valid: true; payload: ValidatedPayload }
+  | { valid: false; reason: string };
+
+function buildAndValidatePayload(
+  coord: UserCoordinateProps,
+  UserData: any,
+  SelectCurrentDate: string | null | undefined,
+  selectRegionData: any,
+): PayloadValidationResult {
+  if (!UserData?.user) {
+    return { valid: false, reason: 'UserData or user is null — user not logged in' };
+  }
+
+  const role = UserData?.user?.role;
+  if (role !== REQUIRED_ROLE) {
+    return { valid: false, reason: `Role is "${role}" — only "${REQUIRED_ROLE}" is allowed` };
+  }
+
+  const token = UserData?.user?.verify_token;
+  if (!token) {
+    return { valid: false, reason: 'verify_token is missing' };
+  }
+
+  const user_id = UserData?.user?.id;
+  if (!user_id) {
+    return { valid: false, reason: 'user_id is missing' };
+  }
+
+  const relaties_id = UserData?.relaties?.id;
+  if (!relaties_id) {
+    return { valid: false, reason: 'relaties_id is missing' };
+  }
+
+  if (!selectRegionData?.id) {
+    return { valid: false, reason: 'selectRegionData or region id is null/missing' };
+  }
+
+  const region_id = selectRegionData.id;
+
+  if (!coord.latitude || !coord.longitude) {
+    return { valid: false, reason: `Invalid coordinates — lat: ${coord.latitude}, lon: ${coord.longitude}` };
+  }
+
+  const planning_date = SelectCurrentDate ?? getTodayDate();
+
+  return {
+    valid: true,
+    payload: {
+      token: String(token),
+      role: String(role),
+      planning_date: String(planning_date),
+      relaties_id: String(relaties_id),
+      user_id: String(user_id),
+      region_id: String(region_id),
+      latitude: String(coord.latitude),
+      longitude: String(coord.longitude),
+      heading: String(coord.heading ?? ''),
+      accuracy: String(coord.accuracy ?? ''),
+      speed: String(coord.speed ?? ''),
+    },
+  };
+}
+
+export default function useUserGPS() {
+  const { UserData, SelectCurrentDate, selectRegionData } =
+    useContext(GlobalContextData);
+
+  const [isGpsTracking, setIsGpsTracking] = useState(true);
+  const [userCoordinate, setUserCoordinate] = useState<UserCoordinateProps>({
+    latitude: 0,
+    longitude: 0,
+    heading: null,
+    speed: null,
+    accuracy: null,
+  });
+  const [isSending, setIsSending] = useState(false);
+  const [permissionDenied, setPermissionDenied] = useState(false);
 
   const subscriptionRef = useRef<Location.LocationSubscription | null>(null);
+  const lastSentCoordRef = useRef<{ latitude: number; longitude: number } | null>(null);
+  const isSendingRef = useRef(false);
+
+  const contextRef = useRef({ UserData, SelectCurrentDate, selectRegionData });
+  useEffect(() => {
+    contextRef.current = { UserData, SelectCurrentDate, selectRegionData };
+  }, [UserData, SelectCurrentDate, selectRegionData]);
+
+  const isChauffeur = UserData?.user?.role === REQUIRED_ROLE;
+  const canTrack = isGpsTracking && isChauffeur;
+
+  const sendLocationToBackend = useCallback(async (coord: UserCoordinateProps) => {
+    if (isSendingRef.current) return;
+
+    const { UserData, SelectCurrentDate, selectRegionData } = contextRef.current;
+
+    const result:any = buildAndValidatePayload(coord, UserData, SelectCurrentDate, selectRegionData);
+
+    if (!result.valid) {
+      console.warn(`[useUserGPS] API call skipped — ${result.reason}`);
+      return;
+    }
+
+    isSendingRef.current = true;
+    setIsSending(true);
+
+    try {
+      const res = await ApiService(
+        apiConstants.update_driver_live_location,
+        { customData: result.payload },
+      );
+
+      if (res?.status) {
+        lastSentCoordRef.current = {
+          latitude: coord.latitude,
+          longitude: coord.longitude,
+        };
+      } else {
+        console.warn('[useUserGPS] API responded with failure status');
+      }
+    } catch (error) {
+      console.error('[useUserGPS] Failed to send location:', error);
+    } finally {
+      isSendingRef.current = false;
+      setIsSending(false);
+    }
+  }, []);
 
   useEffect(() => {
-    if (!enabled) {
-      if (subscriptionRef.current) {
-        subscriptionRef.current.remove();
-        subscriptionRef.current = null;
+    if (!canTrack) {
+      if (!isGpsTracking) {
+      } else if (!isChauffeur) {
+        console.warn(`[useUserGPS] Tracking blocked — role is "${UserData?.user?.role}", required "${REQUIRED_ROLE}"`);
       }
 
+      subscriptionRef.current?.remove();
+      subscriptionRef.current = null;
+      lastSentCoordRef.current = null;
+      isSendingRef.current = false;
       return;
     }
 
     let mounted = true;
 
     const startTracking = async () => {
-      const { status } =
-        await Location.requestForegroundPermissionsAsync();
+      const granted = await ensurePermission();
 
-      if (status !== 'granted') {
+      if (!granted) {
+        setPermissionDenied(true);
+        console.warn('[useUserGPS] Location permission denied');
         return;
       }
 
-      const currentLocation = await Location.getCurrentPositionAsync({
+      const initial = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.BestForNavigation,
       });
 
-      if (mounted) {
-        setUserCoordinate({
-          latitude: currentLocation.coords.latitude,
-          longitude: currentLocation.coords.longitude,
-          heading: currentLocation.coords.heading,
-          speed: currentLocation.coords.speed,
-          accuracy: currentLocation.coords.accuracy,
-        });
-      }
+      if (!mounted) return;
+
+      const initialCoord: UserCoordinateProps = {
+        latitude: initial.coords.latitude,
+        longitude: initial.coords.longitude,
+        heading: initial.coords.heading,
+        speed: initial.coords.speed,
+        accuracy: initial.coords.accuracy,
+      };
+
+      setUserCoordinate(initialCoord);
+      sendLocationToBackend(initialCoord);
 
       subscriptionRef.current = await Location.watchPositionAsync(
         {
@@ -65,25 +241,32 @@ export default function useUserGPS(enabled: boolean = true) {
           distanceInterval: DISTANCE_INTERVAL,
         },
         location => {
-          const latitude = location.coords.latitude;
-          const longitude = location.coords.longitude;
+          if (!mounted) return;
+
+          const { latitude, longitude, heading, speed, accuracy } = location.coords;
+
+          const newCoord: UserCoordinateProps = {
+            latitude,
+            longitude,
+            heading,
+            speed,
+            accuracy,
+          };
 
           setUserCoordinate(prev => {
-            if (
-              prev.latitude === latitude &&
-              prev.longitude === longitude
-            ) {
-              return prev;
-            }
-
-            return {
-              latitude,
-              longitude,
-              heading: location.coords.heading,
-              speed: location.coords.speed,
-              accuracy: location.coords.accuracy,
-            };
+            if (prev.latitude === latitude && prev.longitude === longitude) return prev;
+            return newCoord;
           });
+
+          const last = lastSentCoordRef.current;
+          const distanceMoved =
+            last !== null
+              ? haversineDistance(last.latitude, last.longitude, latitude, longitude)
+              : Infinity;
+
+          if (distanceMoved >= API_DISTANCE_THRESHOLD) {
+            sendLocationToBackend(newCoord);
+          }
         },
       );
     };
@@ -92,15 +275,17 @@ export default function useUserGPS(enabled: boolean = true) {
 
     return () => {
       mounted = false;
-
-      if (subscriptionRef.current) {
-        subscriptionRef.current.remove();
-        subscriptionRef.current = null;
-      }
+      subscriptionRef.current?.remove();
+      subscriptionRef.current = null;
     };
-  }, [enabled]);
+  }, [canTrack, sendLocationToBackend]);
 
   return {
     userCoordinate,
+    isSending,
+    permissionDenied,
+    isGpsTracking,
+    isChauffeur,
+    setIsGpsTracking,
   };
 }

@@ -41,13 +41,14 @@ export default function FilterScreen({ navigation, route }: any) {
     setSelectCurrentDate,
     AllDeliveyLabel, setAllDeliveyLabel,
     setSelectCurrentDeliveryLabel,
-    AllDamageListReason, setAllDamageListReason
+    AllDamageListReason, setAllDamageListReason,
+    selectRegionData, setSelectRegionData
   } = useContext(GlobalContextData);
   const [SelectDate, setSelectDate] = useState<string>("");
   const [IsLoading, setLoading] = useState<boolean>(false);
   const [AllFilterData, setAllFilterDataGet] = useState<object[]>([]);
   const { t } = useTranslation();
-  const [selectRegionData, setSelectRegionData] = useState<any | null>(null);
+  
   const [isCollapsed, setisCollapsed] = useState<boolean>(true);
   const { ErrorHandle } = useErrorHandle();
   const [ScanBTNAvailble, setScanBTNAvailble] = useState<boolean>(
@@ -235,6 +236,8 @@ export default function FilterScreen({ navigation, route }: any) {
           style={{ flex: 1, marginTop: -20, paddingTop: 15 }}
           contentContainerStyle={styles.ContainerStyle}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
           refreshControl={
             <RefreshControl
               refreshing={IsLoading}

@@ -34,6 +34,13 @@ module.exports = {
     get_location_by_region_date:`${baseUrlnew}tms-driver/get-location-by-region-date`,
     store_customer_signature:`${baseUrlnew}tms-driver/store-customer-signature`,
     get_tms_orders_flat_by_region:`${baseUrlnew}tms-driver/get-tms-orders-flat-by-region`,
+    
+    // new tms api
+    store_tms_comment:`${baseUrlnew}tms-driver/store-tms-comment`,
+    store_tms_comment_img_new:`${baseUrlnew}tms-driver/store-tms-comment-img-new`,
+    update_driver_live_location:`${baseUrlnew}tms-driver/update-driver-live-location`,
+
+
 };
 
 

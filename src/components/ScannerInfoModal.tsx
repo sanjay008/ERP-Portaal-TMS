@@ -368,7 +368,7 @@ export default function ScannerInfoModal({
                           color: textColor,
                         },]}
                       >
-                        {item?.title}
+                        {t(item?.title)}
                       </Text>
                     </TouchableOpacity>
                   );

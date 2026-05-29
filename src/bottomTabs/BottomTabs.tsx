@@ -91,7 +91,7 @@ export default function BottomTabs() {
           initialRouteName={"Home"}
           screenOptions={{
             tabBarStyle: {
-              height: height * 0.09,
+              height: height * 0.095,
               paddingTop: height * 0.01,
               backgroundColor: Colors.white, 
               elevation: 0, 

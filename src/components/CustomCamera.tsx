@@ -286,8 +286,8 @@ import { FONTS } from "../utils/storeData";
 export default function CustomCamera({ navigation, route }: any) {
   const params = route?.params || {};
 
- 
- 
+
+
   const { Data, selectReason, maxDuration = 15 } = params;
 
   const [permission, requestPermission] = useCameraPermissions();
@@ -355,28 +355,34 @@ export default function CustomCamera({ navigation, route }: any) {
     if (!cameraRef.current || isCameraSwitching || isRecordingRef.current) return;
 
     try {
-      const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.7,
-        skipProcessing: true,
-        exif: false,
-      });
-      console.log("Photo taken:", photo);
+      const photo =
+        await cameraRef.current.takePictureAsync({
+          quality: 1,
+          skipProcessing: false,
+          exif: false,
+        });
 
       if (photo?.uri) {
 
-        const context = ImageManipulator.manipulate(photo.uri);
+        const context =
+          ImageManipulator.manipulate(
+            photo.uri
+          );
 
         context.resize({
-          width: 500,
+          width: 2200,
         });
 
-        const compressedImage = await context.renderAsync();
+        const compressedImage =
+          await context.renderAsync();
 
-        const savedImage = await compressedImage.saveAsync({
-          compress: 0.3,
-        });
+        const savedImage =
+          await compressedImage.saveAsync();
 
-        setPhotos((prev) => [...prev, savedImage.uri]);
+        setPhotos((prev) => [
+          ...prev,
+          savedImage.uri,
+        ]);
       }
     } catch (e) {
       console.log("takePictureAsync error:", e);

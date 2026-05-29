@@ -40,14 +40,16 @@ export default function PickupPogressMap({ start = "", end = "", DeliveryLable =
       <View style={styles.AddressContainer}>
         <Text style={styles.Address}>{start}</Text>
         {
-          ItemData &&
-            ["1"]?.includes(ItemData?.status) ?
-            <Text style={styles.Address}>{t("EAT")}:{ItemData?.pickup_estimated_time}/10Km</Text>
-            :
-            ["4"]?.includes(ItemData?.status) ?
-              <Text style={styles.Address}>{t("EAT")}: {ItemData?.deliver_estimated_time}/10Km</Text>
-              : null
-
+          !!ItemData?.route_stop?.eta_time_formatted && (
+            <Text style={styles.Address}>
+              {t("ETA")}:{" "}
+              {ItemData.route_stop.eta_time_formatted} /{" "}
+              {Number(
+                ItemData?.route_stop?.leg_distance_km
+              ).toFixed(2)}{" "}
+              {t("KM")}
+            </Text>
+          )
         }
         <Text style={styles.Address}>{end}</Text>
       </View>

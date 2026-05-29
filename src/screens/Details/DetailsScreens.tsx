@@ -17,11 +17,11 @@ import SecondCustomModal from "@/src/components/SecondCustomModal";
 import SignatureModal from "@/src/components/SignatureModal";
 import TwoTypeButton from "@/src/components/TwoTypeButton";
 import { GlobalContextData } from "@/src/context/GlobalContext";
+import { DropboxContext } from "@/src/context/UploadProider";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
 import { useIsFocused } from "@react-navigation/native";
 import axios from "axios";
-import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import * as IntentLauncher from "expo-intent-launcher";
 import { StatusBar } from "expo-status-bar";
@@ -53,11 +53,22 @@ export default function DetailsScreens({ navigation, route }: any) {
     NoParcelItemIds,
     setNoParcelItemIds,
     SelectActiveDate,
+    SelectCurrentDate,
     SelectActiveRegionData,
     NoParcelDetailsScreenEvent, setNoParcelDetailsScreenEvent,
     AllDeliveyLabel, setAllDeliveyLabel,
-    SelectCurrentDeliveryLabel, setSelectCurrentDeliveryLabel
+    SelectCurrentDeliveryLabel, setSelectCurrentDeliveryLabel,
+    selectRegionData, setSelectRegionData
+
   } = useContext(GlobalContextData);
+  const { setAccessToken,
+    AccessToken,
+    RefreshToken,
+    ClientId,
+    ClientSecret,
+    LocalImagesUploadbeforeData, setLocalImagesUploadbeforeData,
+    DropBoxUploadImageDataQues, setDropBoxUploadImageDataQues
+  } = useContext(DropboxContext);
   const [ItemsData, setItemsData] = useState(item);
   const Focused = useIsFocused();
   const [comment, setComment] = useState<boolean | any>(false);
@@ -67,6 +78,7 @@ export default function DetailsScreens({ navigation, route }: any) {
   const [IsLoading, setIsLoading] = useState<boolean>(false);
   const [BackButtonAvailble, setBackButtonAvailble] = useState(false);
   const { t } = useTranslation();
+
   const [NoParcelOpenmodalType, setNoParcelOpenmodalType] = useState(type);
   const [DataLoading, setDataLoading] = useState<boolean>(false);
   const [NoParcelModalVisible, setNoParcelModalVisible] = useState(false);
@@ -121,6 +133,8 @@ export default function DetailsScreens({ navigation, route }: any) {
     Desctiption: "",
     onPress: "",
   });
+  const [DropBoxUploadImageData, setDropBoxUploadImageData] = useState<any[]>([]);
+
   const [SecondModal, setSecondModal] = useState<{
     visible: boolean;
     title: string;
@@ -222,10 +236,12 @@ export default function DetailsScreens({ navigation, route }: any) {
 
   useEffect(() => {
     setPickUpDataSave({
-      setData: (data: any[]) => {
+      setData: async (data: any[]) => {
         console.log("Received pickup photo data:", data);
         setAllSelectImage(data);
         if (data?.length > 0) {
+          let resluts = await uploadToDropbox(data);
+          setDropBoxUploadImageData(resluts);
           setTimeout(() => {
             setComment(true);
           }, 400)
@@ -233,10 +249,12 @@ export default function DetailsScreens({ navigation, route }: any) {
       },
     });
     setDeliveyDataSave({
-      setData: (data: any[]) => {
+      setData: async (data: any[]) => {
         console.log("📦 Received delivery photo data:", data);
         setAllSelectImage(data);
         if (data?.length > 0) {
+          let results = await uploadToDropbox(data);
+          setDropBoxUploadImageData(results);
           setTimeout(() => {
             setComment(true);
           }, 400)
@@ -352,7 +370,17 @@ export default function DetailsScreens({ navigation, route }: any) {
   };
 
   const GetIdByOrderFun = async () => {
-    console.log("order_id=-=-=-=-=", order_id);
+  
+console.log("Req Dataaa",{
+          token: UserData?.user?.verify_token,
+          role: UserData?.user?.role,
+          relaties_id: UserData?.relaties?.id,
+          user_id: UserData?.user?.id,
+          order_id: ItemsData?.id || ItemsData?.order_data?.id,
+          type: type,
+          region_id: selectRegionData?.id,
+          date: ApiFormatDate(SelectActiveDate),
+        });
 
     setDataLoading(true);
     try {
@@ -364,6 +392,8 @@ export default function DetailsScreens({ navigation, route }: any) {
           user_id: UserData?.user?.id,
           order_id: ItemsData?.id || ItemsData?.order_data?.id,
           type: type,
+          region_id: selectRegionData?.id,
+          date: ApiFormatDate(SelectActiveDate),
         },
       });
 
@@ -386,6 +416,7 @@ export default function DetailsScreens({ navigation, route }: any) {
         setNoParcelOptions(labelsForModal);
 
       } else {
+       console.log("Failed to fetch order details:", res?.message);
         setToast({
           top: 45,
           text: t(res?.message),
@@ -420,32 +451,10 @@ export default function DetailsScreens({ navigation, route }: any) {
 
       const imagesToSend = data && data.length > 0 ? data : AllSelectImage;
 
-      if (imagesToSend?.length == 0) {
-        setToast({
-          top: 45,
-          text: t("Please image upload!"),
-          type: "error",
-          visible: true,
-        });
-        return;
-      }
 
-      for (const uri of imagesToSend) {
-        const compressed = await ImageManipulator.manipulateAsync(
-          uri,
-          [{ resize: { width: 800 } }],
-          { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
-        );
-
-        formData.append("doc[]", {
-          uri: compressed.uri,
-          name: `image_${Date.now()}.jpg`,
-          type: "image/jpeg",
-        });
-      }
 
       let res: any = await axios.post(
-        apiConstants.store_image_comment,
+        apiConstants.store_tms_comment,
         formData,
         {
           headers: { "Content-Type": "multipart/form-data" },
@@ -453,6 +462,17 @@ export default function DetailsScreens({ navigation, route }: any) {
       );
 
       if (Boolean(res?.data.status)) {
+        console.log('✅ Comment stored successfully:', res?.data);
+        // UploadImageStoreApiFun(res?.data?.data?.order_id, res?.data?.data?.order_log_id);
+        let newLocalUpdate = [...LocalImagesUploadbeforeData]
+        let newDataObj = {
+          order_id: res?.data?.data?.order_id,
+          image_data: imagesToSend,
+          item_id: null,
+          commentId: res?.data?.data?.order_log_id
+        }
+        newLocalUpdate.push(newDataObj)
+        setLocalImagesUploadbeforeData(newLocalUpdate);
         setPickUpDataSave([]);
         setDeliveyDataSave([]);
         setAllSelectImage([]);
@@ -481,6 +501,141 @@ export default function DetailsScreens({ navigation, route }: any) {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const UploadImageStoreApiFun = async (orderId: string, OrderLogId: string) => {
+    if (DropBoxUploadImageData?.length == 0) {
+      console.log("No images to upload, skipping UploadImageStoreApiFun.");
+      return;
+    }
+    try {
+
+      const formData = new FormData();
+
+      formData.append(
+        "token",
+        UserData?.user?.verify_token
+      );
+
+      formData.append(
+        "role",
+        UserData?.user?.role
+      );
+
+      formData.append(
+        "relaties_id",
+        UserData?.relaties?.id
+      );
+
+      formData.append(
+        "user_id",
+        UserData?.user?.id
+      );
+
+      formData.append(
+        "order_id",
+        orderId ||
+        ItemsData?.id ||
+        ItemsData?.order_data?.id ||
+        ""
+      );
+
+      formData.append(
+        "order_log_id",
+        OrderLogId
+      );
+
+
+      if (
+        DropBoxUploadImageData?.length > 0
+      ) {
+
+        DropBoxUploadImageData.forEach(
+          (image, index) => {
+
+            formData.append(
+              `images[${index}][file_path]`,
+              image?.file_path || ""
+            );
+
+            formData.append(
+              `images[${index}][file]`,
+              image?.file || ""
+            );
+
+            formData.append(
+              `images[${index}][file_extension]`,
+              image?.file_extension || ""
+            );
+
+            formData.append(
+              `images[${index}][dropbox_id]`,
+              image?.dropbox_id || ""
+            );
+
+            formData.append(
+              `images[${index}][shared_link]`,
+              image?.shared_link || ""
+            );
+          }
+        );
+      }
+
+      console.log(
+        "Final FormData:",
+        formData
+      );
+
+      const response: any = await axios.post(
+        apiConstants.store_tms_comment_img_new,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        },
+      );
+
+      const data: any =
+        await response?.data;
+
+      console.log(
+        "UploadImageStoreApiFun Response:",
+        data
+      );
+
+      if (!(data?.status_code == 200)) {
+
+        throw new Error(
+          data?.message ||
+          t("Something went wrong")
+        );
+      }
+      setDropBoxUploadImageData([]);
+
+      setToast({
+        text: t(data?.message || t("Image uploaded successfully")),
+        type: "success",
+        visible: true,
+      });
+
+    } catch (error) {
+
+      console.log(
+        "UploadImageStoreApiFun Error:",
+        error
+      );
+
+      setToast({
+        top: 45,
+        text:
+          ErrorHandle(error).message,
+        type: "error",
+        visible: true,
+      });
+
+      return null;
     }
   };
 
@@ -907,7 +1062,7 @@ export default function DetailsScreens({ navigation, route }: any) {
               scrollEnabled={false}
               renderItem={({ item }: any) => {
                 const bgColor = item?.color || Colors.Boxgray;
-                const textColor = getTextColor(bgColor);
+       
 
                 return (
                   <TouchableOpacity
@@ -945,10 +1100,10 @@ export default function DetailsScreens({ navigation, route }: any) {
                   >
                     <Text
                       style={[styles.Text, {
-                        color: textColor,
+                        color: Colors.white,
                       },]}
                     >
-                      {item?.title}
+                      {t(item?.title)}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -1026,15 +1181,7 @@ export default function DetailsScreens({ navigation, route }: any) {
             />
           )}
 
-          {/* {PermissionData?.can_scan_order && (
-            <Pressable onPress={() => setComment(true)}>
-              <TwoTypeInput
-                Icon={Images.comment}
-                placeholder={t("Write Comment")}
-                edit={false}
-              />
-            </Pressable>
-          )} */}
+  
 
           {ItemsData?.tmslogdata_itemcomment?.length > 0 && (
             <CommentViewBox data={ItemsData?.tmslogdata_itemcomment} />
