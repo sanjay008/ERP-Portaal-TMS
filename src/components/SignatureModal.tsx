@@ -12,7 +12,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import Animated, {
   Easing,
@@ -30,8 +30,14 @@ import { Colors } from "../utils/colors";
 import { FONTS, SimpleFlex, width } from "../utils/storeData";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
+
+const IS_SMALL = SCREEN_H < 680;
+
 const MODAL_W = Math.min(SCREEN_W * 0.92, 480);
-const MODAL_H = Math.min(SCREEN_H * 0.58, 520);
+const MODAL_H = IS_SMALL
+  ? Math.min(SCREEN_H * 0.52, 380)
+  : Math.min(SCREEN_H * 0.58, 520);
+
 const DURATION = 260;
 
 export interface SignatureModalProps {
@@ -59,8 +65,7 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
   showNameField = true,
   IsLoading = false,
   defaultName = "",
-onPress
-
+  onPress,
 }) => {
   const { t } = useTranslation();
   const signatureRef = useRef<SignatureViewRef>(null);
@@ -71,26 +76,23 @@ onPress
   const [Reset, setReset] = useState(false);
   const [canvasKey, setCanvasKey] = useState(0);
   const opacity = useSharedValue(0);
-  const { AllDamageListReason, setAllDamageListReason, selectDamageData, setselectDamageData,setDeliveyDataSave } = useContext(GlobalContextData)
+  const { AllDamageListReason, setAllDamageListReason, selectDamageData, setselectDamageData, setDeliveyDataSave } = useContext(GlobalContextData);
   const scale = useSharedValue(0.88);
-const [selectDamageDatumTemporary, setSelectDamageDatumTemporary] = useState<any>(null);
+  const [selectDamageDatumTemporary, setSelectDamageDatumTemporary] = useState<any>(null);
+
   const backdropStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
   const cardStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,
     transform: [{ scale: scale.value }],
   }));
+
   const getTextColor = (bgColor: string) => {
     if (!bgColor) return "#000";
-
     const color = bgColor.replace("#", "");
-
     const r = parseInt(color.substring(0, 2), 16);
     const g = parseInt(color.substring(2, 4), 16);
     const b = parseInt(color.substring(4, 6), 16);
-
-    // Brightness formula
     const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-
     return brightness > 128 ? "#000" : "#FFF";
   };
 
@@ -104,26 +106,14 @@ const [selectDamageDatumTemporary, setSelectDamageDatumTemporary] = useState<any
       setName(defaultName ?? "");
       setNameError(false);
       pendingNameRef.current = "";
-      opacity.value = withTiming(1, {
-        duration: DURATION,
-        easing: Easing.out(Easing.cubic),
-      });
-      scale.value = withSpring(1, {
-        damping: 18,
-        stiffness: 220,
-        mass: 0.6,
-      });
+      opacity.value = withTiming(1, { duration: DURATION, easing: Easing.out(Easing.cubic) });
+      scale.value = withSpring(1, { damping: 18, stiffness: 220, mass: 0.6 });
     } else {
-      opacity.value = withTiming(0, {
-        duration: DURATION,
-        easing: Easing.in(Easing.cubic),
-      });
+      opacity.value = withTiming(0, { duration: DURATION, easing: Easing.in(Easing.cubic) });
       scale.value = withTiming(
         0.88,
         { duration: DURATION, easing: Easing.in(Easing.quad) },
-        (done) => {
-          if (done) runOnJS(handleUnmount)();
-        }
+        (done) => { if (done) runOnJS(handleUnmount)(); }
       );
     }
   }, [visible]);
@@ -176,229 +166,218 @@ const [selectDamageDatumTemporary, setSelectDamageDatumTemporary] = useState<any
         style={[StyleSheet.absoluteFill, styles.backdrop, backdropStyle]}
         pointerEvents={visible ? "auto" : "none"}
       />
-      {
-        !Reset ?
-          <>
-            <TouchableOpacity style={styles.ResetButton} onPress={() => {
-              setReset(true);
-            }}>
-              <Text style={{
-                fontSize: 14,
-                fontFamily: FONTS.Medium,
-                color: Colors.red,
-              }}>{t("Reset")}</Text>
-              <View style={styles.Box}>
-                <FontAwesome name="close" size={18} color="black" />
-              </View>
-            </TouchableOpacity>
-            <Pressable
-              style={{
-                width: "90%",
-                flexDirection: 'row',
-                gap: 20,
-                alignItems: 'center',
-                paddingVertical: 10,
-                paddingHorizontal: 15,
-                borderWidth: 1,
-                borderColor: Colors.border,
-                borderRadius: 10,
-                marginBottom: 10,
-                backgroundColor: selectDamageData?.color || Colors.Boxgray
-              }}
+      {!Reset ? (
+        <>
+          <View style={styles.hintRow}>
+            <Text style={styles.hintText}>{t("Signature")}</Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.ResetButton}
+            onPress={() => { setReset(true); }}
+          >
+            <Text style={styles.resetLabel}>{t("Reset")}</Text>
+            <View style={styles.Box}>
+              <FontAwesome name="close" size={18} color="black" />
+            </View>
+          </TouchableOpacity>
+
+          <Pressable
+            style={[
+              styles.selectedDamageRow,
+              { backgroundColor: selectDamageData?.color || Colors.Boxgray },
+            ]}
+          >
+            <CheckBox
+              value={true}
+              tintColors={{ true: Colors.white, false: Colors.white }}
+              tintColor={Colors.white}
+              onTintColor={Colors.white}
+              onCheckColor={Colors.white}
+              onFillColor={selectDamageData?.color || Colors.Boxgray}
+            />
+            <Text
+              style={[
+                styles.selectedDamageText,
+                { color: getTextColor(selectDamageData?.color) || Colors.black },
+              ]}
             >
-              <CheckBox
+              {selectDamageData?.title}
+            </Text>
+          </Pressable>
 
-                value={true}
-                tintColors={{
-                  true: Colors.green,
-                  false: Colors.red,
-                }}
-              />
-              <Text
-                style={{
-                  fontSize: 14,
-                  fontFamily: FONTS.Medium,
-                  color: getTextColor(selectDamageData?.color) || Colors.black
-                }}
+          <Animated.View style={[styles.card, cardStyle]}>
+            <View style={styles.header}>
+              <TouchableOpacity
+                style={styles.closeBtn}
+                onPress={onClose}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                activeOpacity={0.7}
               >
-                {selectDamageData?.title}
-              </Text>
+                <Ionicons name="close" size={20} color={Colors.darkText} />
+              </TouchableOpacity>
 
+              {title !== "" && (
+                <Text style={styles.titleText} numberOfLines={1}>
+                  {title}
+                </Text>
+              )}
 
-            </Pressable>
-            <Animated.View style={[styles.card, cardStyle]}>
-              <View style={styles.header}>
+              <View style={styles.headerRight}>
                 <TouchableOpacity
-                  style={styles.closeBtn}
-                  onPress={onClose}
+                  style={styles.clearBtn}
+                  onPress={handleClear}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="close" size={20} color={Colors.darkText} />
+                  <Ionicons name="trash-outline" size={19} color={Colors.darkText} />
                 </TouchableOpacity>
-
-                {title !== "" && (
-                  <Text style={styles.titleText} numberOfLines={1}>
-                    {title}
-                  </Text>
-                )}
-
-                <View style={styles.headerRight}>
-                  <TouchableOpacity
-                    style={styles.clearBtn}
-                    onPress={handleClear}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="trash-outline" size={19} color={Colors.darkText} />
-                  </TouchableOpacity>
-
-
-                </View>
               </View>
+            </View>
 
-              <View style={styles.divider} />
+            <View style={styles.divider} />
 
-              {showNameField && (
-                <View style={styles.nameFieldWrapper}>
-                  <Text style={styles.nameLabel}>{t("Name")}</Text>
-                  <TextInput
-                    style={[styles.nameInput, nameError && styles.nameInputError]}
-                    value={name}
-                    onChangeText={(val) => {
-                      setName(val);
-                      if (val.trim() !== "") setNameError(false);
-                    }}
-                    placeholder={t("Enter name")}
-                    placeholderTextColor={Colors.inActive}
-                    returnKeyType="done"
-                    autoCorrect={false}
-                    autoCapitalize="words"
-                    maxLength={80}
-                  />
-                  {nameError && (
-                    <Text style={styles.nameErrorText}>{t("Name is required")}</Text>
-                  )}
-                </View>
-              )}
-
-              <View style={styles.canvasWrapper}>
-                <View style={styles.canvasBorder}>
-                  <SignatureCanvas
-                    key={canvasKey}
-                    ref={signatureRef}
-                    onOK={handleSignatureOK}
-                    onEmpty={() => { }}
-                    descriptionText=""
-                    clearText=""
-                    confirmText=""
-                    webStyle={webStyle}
-                    autoClear={false}
-                    penColor={penColor}
-                    style={styles.canvas}
-                    scrollable={false}
-                    androidHardwareAccelerationDisabled={false}
-                  />
-                </View>
-
-                <View style={styles.hintRow}>
-                  <Ionicons name="pencil-outline" size={12} color={Colors.inActive} />
-                  <Text style={styles.hintText}>{t("Signature")}</Text>
-                </View>
-              </View>
-
-            </Animated.View>
-            <TouchableOpacity
-              style={styles.saveBtn}
-              onPress={handleSave}
-              activeOpacity={0.8}
-            >
-              {IsLoading ? (
-                <ActivityIndicator size={"small"} color={Colors.black} />
-              ) : (
-                <>
-                  <Ionicons name="checkmark" size={16} color={Colors.white} />
-                  <Text style={styles.saveBtnText}>{t("Save")}</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </>
-          :
-          <FlatList
-            data={AllDamageListReason}
-            ListFooterComponent={
-              <View style={SimpleFlex.SpaceBetween}>
-                <TouchableOpacity style={[styles.saveBtn, { width: selectDamageDatumTemporary?.id !== selectDamageData?.id && selectDamageDatumTemporary!== null ? "48%" : "100%", backgroundColor: Colors.darkText, }]} onPress={() => {
-                  setReset(false);
-                  setSelectDamageDatumTemporary(null);
-
-                }}>
-                  <Text style={styles.footerButtonText}>{t("Cancel")}</Text>
-                </TouchableOpacity>
-                {
-                  selectDamageDatumTemporary?.id !== selectDamageData?.id && selectDamageDatumTemporary!== null &&
-                <TouchableOpacity style={[styles.saveBtn, { width: "48%", }]} onPress={() => {
-                  setReset(false);
-                  setselectDamageData(selectDamageDatumTemporary);
-                  setSelectDamageDatumTemporary(null);
-                    onPress?.();
-                }}>
-                  <Text style={styles.footerButtonText}>{t("Camera")}</Text>
-                </TouchableOpacity>
-                }
-              </View>
-            }
-            style={{ width: "90%", flexGrow: 0, alignSelf: "center" }}
-            contentContainerStyle={styles.LabelList}
-            scrollEnabled={false}
-            renderItem={({ item }: any) => {
-              const bgColor = item?.color || Colors.Boxgray;
-
-
-              return (
-                <Pressable
-                  onPress={() => setSelectDamageDatumTemporary(item)}
-                  style={{
-                    flexDirection: 'row',
-                    gap: 20,
-                    alignItems: 'center',
-                    paddingVertical: 10,
-                    paddingHorizontal: 15,
-                    borderWidth: 1,
-                    borderColor: Colors.border,
-                    borderRadius: 10,
-                    marginBottom: 10,
-                    backgroundColor: item?.color || Colors.Boxgray
+            {showNameField && (
+              <View style={styles.nameFieldWrapper}>
+                <Text style={styles.nameLabel}>{t("Name")}</Text>
+                <TextInput
+                  style={[styles.nameInput, nameError && styles.nameInputError]}
+                  value={name}
+                  onChangeText={(val) => {
+                    setName(val);
+                    if (val.trim() !== "") setNameError(false);
                   }}
-                >
-                  <CheckBox
-                    onValueChange={() => {
-                      setSelectDamageDatumTemporary(item);
-                    }}
-                    value={selectDamageDatumTemporary ? selectDamageDatumTemporary?.id === item?.id : selectDamageData?.id === item?.id}
-                    tintColors={{
-                      true: Colors.green,
-                      false: Colors.red,
-                    }}
-                  />
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      fontFamily: FONTS.Medium,
-                      color: Colors.white,
+                  placeholder={t("Enter name")}
+                  placeholderTextColor={Colors.inActive}
+                  returnKeyType="done"
+                  autoCorrect={false}
+                  autoCapitalize="words"
+                  maxLength={80}
+                />
+                {nameError && (
+                  <Text style={styles.nameErrorText}>{t("Name is required")}</Text>
+                )}
+              </View>
+            )}
+
+            <View style={styles.canvasWrapper}>
+              <View style={styles.canvasBorder}>
+                <SignatureCanvas
+                  key={canvasKey}
+                  ref={signatureRef}
+                  onOK={handleSignatureOK}
+                  onEmpty={() => {}}
+                  descriptionText=""
+                  clearText=""
+                  confirmText=""
+                  webStyle={webStyle}
+                  autoClear={false}
+                  penColor={penColor}
+                  style={styles.canvas}
+                  scrollable={false}
+                  androidHardwareAccelerationDisabled={false}
+                />
+              </View>
+            </View>
+          </Animated.View>
+
+          <TouchableOpacity
+            style={styles.saveBtn}
+            onPress={handleSave}
+            activeOpacity={0.8}
+          >
+            {IsLoading ? (
+              <ActivityIndicator size={"small"} color={Colors.white} />
+            ) : (
+              <>
+                <Ionicons name="checkmark" size={16} color={Colors.white} />
+                <Text style={styles.saveBtnText}>{t("Save")}</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </>
+      ) : (
+        <FlatList
+          data={AllDamageListReason}
+          ListFooterComponent={
+            <View style={SimpleFlex.SpaceBetween}>
+              <TouchableOpacity
+                style={[
+                  styles.saveBtn,
+                  {
+                    width:
+                      selectDamageDatumTemporary?.id !== selectDamageData?.id &&
+                      selectDamageDatumTemporary !== null
+                        ? "48%"
+                        : "100%",
+                    backgroundColor: Colors.darkText,
+                  },
+                ]}
+                onPress={() => {
+                  setReset(false);
+                  setSelectDamageDatumTemporary(null);
+                }}
+              >
+                <Text style={styles.footerButtonText}>{t("Cancel")}</Text>
+              </TouchableOpacity>
+
+              {selectDamageDatumTemporary?.id !== selectDamageData?.id &&
+                selectDamageDatumTemporary !== null && (
+                  <TouchableOpacity
+                    style={[styles.saveBtn, { width: "48%" }]}
+                    onPress={() => {
+                      setReset(false);
+                      setselectDamageData(selectDamageDatumTemporary);
+                      setSelectDamageDatumTemporary(null);
+                      onPress?.();
                     }}
                   >
-                    {t(item?.title)}
-                  </Text>
-
-
-                </Pressable>
-              );
-            }}
-          />
-      }
-
-
+                    <Text style={styles.footerButtonText}>{t("Camera")}</Text>
+                  </TouchableOpacity>
+                )}
+            </View>
+          }
+          style={{ width: "90%", flexGrow: 0, alignSelf: "center" }}
+          contentContainerStyle={styles.LabelList}
+          scrollEnabled={IS_SMALL}
+          renderItem={({ item }: any) => {
+            return (
+              <Pressable
+                onPress={() => setSelectDamageDatumTemporary(item)}
+                style={{
+                  flexDirection: "row",
+                  gap: 20,
+                  alignItems: "center",
+                  paddingVertical: IS_SMALL ? 7 : 10,
+                  paddingHorizontal: 15,
+                  borderWidth: 1,
+                  borderColor: Colors.border,
+                  borderRadius: 10,
+                  marginBottom: IS_SMALL ? 7 : 10,
+                  backgroundColor: item?.color || Colors.Boxgray,
+                }}
+              >
+                <CheckBox
+                  onValueChange={() => { setSelectDamageDatumTemporary(item); }}
+                  value={
+                    selectDamageDatumTemporary
+                      ? selectDamageDatumTemporary?.id === item?.id
+                      : selectDamageData?.id === item?.id
+                  }
+                  tintColors={{ true: Colors.white, false: Colors.white }}
+                  tintColor={Colors.white}
+                  onTintColor={Colors.white}
+                  onCheckColor={Colors.white}
+                  onFillColor={item?.color || Colors.Boxgray}
+                />
+                <Text style={{ fontSize: 14, fontFamily: FONTS.Medium, color: Colors.white }}>
+                  {t(item?.title)}
+                </Text>
+              </Pressable>
+            );
+          }}
+        />
+      )}
     </View>
   );
 };
@@ -411,6 +390,7 @@ const styles = StyleSheet.create({
     elevation: 999,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: Colors.green,
   },
   footerButtonText: {
     fontSize: 14,
@@ -419,9 +399,8 @@ const styles = StyleSheet.create({
   },
   LabelList: {
     backgroundColor: Colors.white,
-    padding: 20,
+    padding: IS_SMALL ? 12 : 20,
     borderRadius: 10,
-
   },
   backdrop: {
     backgroundColor: Colors.transparant,
@@ -448,7 +427,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 14,
-    paddingVertical: 11,
+    paddingVertical: IS_SMALL ? 7 : 11,
     gap: 8,
   },
   closeBtn: {
@@ -486,14 +465,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 14,
-    height: 50,
+    height: IS_SMALL ? 44 : 50,
     width: "90%",
     justifyContent: "center",
     borderRadius: 4,
     backgroundColor: Colors.borderColor,
     gap: 5,
-    marginTop: 12,
-    marginBottom: 10,
+    marginTop: IS_SMALL ? 8 : 12,
+    marginBottom: IS_SMALL ? 6 : 10,
   },
   saveBtnText: {
     fontSize: 13,
@@ -507,9 +486,9 @@ const styles = StyleSheet.create({
   },
   nameFieldWrapper: {
     paddingHorizontal: 14,
-    paddingTop: 11,
-    paddingBottom: 4,
-    gap: 5,
+    paddingTop: IS_SMALL ? 7 : 11,
+    paddingBottom: IS_SMALL ? 2 : 4,
+    gap: IS_SMALL ? 3 : 5,
   },
   nameLabel: {
     fontSize: 12,
@@ -519,7 +498,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   nameInput: {
-    height: 38,
+    height: IS_SMALL ? 34 : 38,
     borderWidth: 1.5,
     borderColor: Colors.Boxgray,
     borderRadius: 6,
@@ -541,8 +520,8 @@ const styles = StyleSheet.create({
   },
   canvasWrapper: {
     flex: 1,
-    padding: 14,
-    paddingBottom: 12,
+    padding: IS_SMALL ? 8 : 14,
+    paddingBottom: IS_SMALL ? 6 : 12,
   },
   canvasBorder: {
     flex: 1,
@@ -562,12 +541,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 4,
-    marginTop: 7,
+    marginTop: IS_SMALL ? 4 : 7,
+    zIndex: 99999,
+    marginBottom: IS_SMALL ? 6 : 10,
   },
   hintText: {
-    fontSize: 11,
+    fontSize: 20,
     fontFamily: FONTS.Regular,
-    color: Colors.inActive,
+    color: Colors.white,
     letterSpacing: 0.25,
   },
   Box: {
@@ -575,21 +556,40 @@ const styles = StyleSheet.create({
     height: 30,
     borderRadius: 4,
     backgroundColor: Colors.white,
-    justifyContent: 'center',
-    alignItems: 'center',
-
+    justifyContent: "center",
+    alignItems: "center",
   },
   ResetButton: {
-    alignSelf: 'center',
-    marginBottom: 10,
+    alignSelf: "center",
+    marginBottom: IS_SMALL ? 6 : 10,
     width: "90%",
-    padding: 15,
+    padding: IS_SMALL ? 7 : 10,
     backgroundColor: Colors.lightGreen,
     borderRadius: 4,
-    flexDirection: 'row',
+    flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: 'center',
-
+    alignItems: "center",
+  },
+  resetLabel: {
+    fontSize: 14,
+    fontFamily: FONTS.Medium,
+    color: Colors.red,
+  },
+  selectedDamageRow: {
+    width: "90%",
+    flexDirection: "row",
+    gap: 20,
+    alignItems: "center",
+    paddingVertical: IS_SMALL ? 7 : 10,
+    paddingHorizontal: 15,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    marginBottom: IS_SMALL ? 6 : 10,
+  },
+  selectedDamageText: {
+    fontSize: 14,
+    fontFamily: FONTS.Medium,
   },
   LabelBtn: {
     width: width * 0.8,
@@ -597,7 +597,7 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: 4,
     justifyContent: "center",
-    alignItems: "center"
+    alignItems: "center",
   },
   Text: {
     fontSize: 14,

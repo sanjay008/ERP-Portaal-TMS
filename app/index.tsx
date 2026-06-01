@@ -94,6 +94,7 @@ export default function index() {
                 />
                 <Stack.Screen
                   name="Scanner"
+                  options={{ statusBarAnimation: "slide",gestureEnabled: false, }}
                   component={withLayoutHeader(ScannerScreens)}
                 />
                 <Stack.Screen

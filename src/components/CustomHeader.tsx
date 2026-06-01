@@ -6,6 +6,7 @@ import { Images } from "../assets/images";
 import { GlobalContextData } from "../context/GlobalContext";
 import { Colors } from "../utils/colors";
 import { FONTS } from "../utils/storeData";
+import ProfileImageViewer from "./ProfileImageViewer";
 export default function CustomHeader() {
   const {
     GOOGLE_API_KEY,
@@ -33,10 +34,7 @@ export default function CustomHeader() {
         screen: "Profile",
       })}>
         {UserData?.user?.profile_image ? (
-          <Image
-            source={{ uri: UserData?.user?.profile_image }}
-            style={styles.DriverImage}
-          />
+            <ProfileImageViewer imageUri={UserData?.user?.profile_image} imageStyle={styles.DriverImage}/>
         ) : (
           <Image source={Images.userblanck} style={styles.DriverImage} />
         )}

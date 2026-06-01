@@ -1,5 +1,6 @@
 import { Images } from "@/src/assets/images";
 import ConformationModal from "@/src/components/ConformationModal";
+import ProfileImageViewer from "@/src/components/ProfileImageViewer";
 import ProfileItem from "@/src/components/ProfileItem";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import { Colors } from "@/src/utils/colors";
@@ -8,7 +9,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import React, { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FlatList, Image, Text, View } from "react-native";
+import { FlatList, Text, View } from "react-native";
 import { styles } from "./styles";
 
 type ArrayProps = {
@@ -161,10 +162,7 @@ export default function Profile({ navigation }: any) {
   return (
     <View style={styles.container}>
       <View style={styles.SimpleFlex}>
-        <Image
-          source={{ uri: UserData?.user?.profile_image }}
-          style={styles.UserImage}
-        />
+     <ProfileImageViewer imageUri={UserData?.user?.profile_image} />
         <View style={{ gap: 5 }}>
           <Text style={styles.Text}>
             {UserData?.user?.username?.length > 0

@@ -5,13 +5,14 @@ import CustomHeader from "@/src/components/CustomHeader";
 import DropDownBox from "@/src/components/DropDownBox";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
 import PickUpBox from "@/src/components/PickUpBox";
+import SearchInput from "@/src/components/SearchInput";
 import TwoTypeButton from "@/src/components/TwoTypeButton";
 import Loader from "@/src/components/loading";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
 import { useIsFocused } from "@react-navigation/native";
-import React, { useCallback, useContext, useEffect, useState } from "react";
+import React, { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FlatList,
@@ -48,7 +49,7 @@ export default function FilterScreen({ navigation, route }: any) {
   const [IsLoading, setLoading] = useState<boolean>(false);
   const [AllFilterData, setAllFilterDataGet] = useState<object[]>([]);
   const { t } = useTranslation();
-  
+  const [search, setSearch] = useState('');
   const [isCollapsed, setisCollapsed] = useState<boolean>(true);
   const { ErrorHandle } = useErrorHandle();
   const [ScanBTNAvailble, setScanBTNAvailble] = useState<boolean>(
@@ -183,7 +184,7 @@ export default function FilterScreen({ navigation, route }: any) {
       console.log('RegionDetailsDataFun', response);
 
       if (response?.status) {
-        if(AllDamageListReason?.length == 0){
+        if (AllDamageListReason?.length == 0) {
           setAllDamageListReason(response?.damaged_parcel || [])
         }
         if (AllDeliveyLabel?.length == 0) {
@@ -225,6 +226,27 @@ export default function FilterScreen({ navigation, route }: any) {
       setLoading(false);
     }
   };
+
+const FilterData = useMemo(() => {
+    const q = search?.trim().toLowerCase();
+    if (!q) return RegionOrderData ?? [];
+
+    const cleaned = q.startsWith('#') ? q.slice(1) : q;
+    const parts = cleaned.split(/\s+/);
+    const idPart = parts[0];
+    const namePart = parts.slice(1).join(' ').trim();
+
+    return (RegionOrderData ?? []).filter((item: any) => {
+        const itemId = item?.id?.toString() ?? '';
+        const itemName = item?.display_name?.toLowerCase() ?? '';
+
+        if (namePart) {
+            return itemId.includes(idPart) && itemName.includes(namePart);
+        }
+
+        return itemId.includes(cleaned) || itemName.includes(cleaned);
+    });
+}, [search, RegionOrderData]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -272,29 +294,37 @@ export default function FilterScreen({ navigation, route }: any) {
               labelFieldKey="name"
               fun={(item) => RegionDetailsDataFun(item)}
               valueFieldKey="id"
-              // ContainerStyle={{ flex: ScanBTNAvailble ? 1 / 1.05 : 1 }}
-              ContainerStyle={{ flex: 1 / 1.05 }}
+
+              ContainerStyle={{ flex: SlideType !== "pickup_dropoff" ? 1 / 1.05 : 1 }}
             />
-            <TwoTypeButton
-              onlyIcon={true}
-              Icon={Images.Scan}
-              style={{ width: 46, height: 46 }}
-              onPress={() =>
-                navigation.navigate("Scanner", {
-                  fun: getFilterDataFun,
-                  type: !ScanBTNAvailble ? "allow_all_order" : SlideType,
-                })
-              }
-            />
+            {
+              SlideType !== "pickup_dropoff" &&
+              <TwoTypeButton
+                onlyIcon={true}
+                Icon={Images.Scan}
+                style={{ width: 46, height: 46 }}
+                onPress={() =>
+                  navigation.navigate("Scanner", {
+                    fun: getFilterDataFun,
+                    type: !ScanBTNAvailble ? "allow_all_order" : SlideType,
+                  })
+                }
+              />
+            }
           </View>
+
+          <SearchInput
+            value={search}
+            setValue={setSearch}
+            suggestions={RegionOrderData}
+            placeholder={t("Search by ID or name") + "..."}
+            onSelect={(item) => console.log(item)}
+            containerStyle={{ marginBottom: 15, }}
+          />
 
           {selectRegionData && AllFilterData?.length > 0 ? (
             <FlatList
-              // data={[
-              //   ...(selectRegionData?.pickup_orders ?? []),
-              //   ...(selectRegionData?.deliver_orders ?? []),
-              // ]}
-              data={RegionOrderData}
+              data={FilterData}
               ListEmptyComponent={() =>
                 IsLoading ? null : (
                   <View style={styles.FooterContainer}>

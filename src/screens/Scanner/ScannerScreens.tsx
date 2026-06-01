@@ -23,6 +23,7 @@ import BottomSheet, {
 } from "@gorhom/bottom-sheet";
 import CheckBox from '@react-native-community/checkbox';
 import { useIsFocused } from "@react-navigation/native";
+import { NavigationBar } from "@zoontek/react-native-navigation-bar";
 import axios from "axios";
 import { Audio } from "expo-av";
 import {
@@ -46,8 +47,7 @@ import {
   Animated,
   FlatList,
   Image,
-  Keyboard,
-  Platform,
+  Keyboard, KeyboardAvoidingView, Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -364,6 +364,21 @@ export default function ScannerScreens({ navigation, route }: any) {
     };
   }, [Focused, reopenSignatureAfterCamera]);
 
+  useEffect(() => {
+    const shouldLockScreen =
+      SecondModal.visible || showSig || comment;
+      if(shouldLockScreen) {
+        NavigationBar.setHidden(true);
+          console.log(" NavigationBar.setHidden(true)");
+          
+      }else{
+        NavigationBar.setHidden(false);
+        console.log("NavigationBar.setHidden(false)");
+        
+      }
+  }, [showSig,comment])
+
+
   const onBarcodeScanned = useCallback(
     async ({ data, type }: { data: string; type: string }) => {
       console.log("Scanned QR Raw Data:", data);
@@ -528,10 +543,15 @@ export default function ScannerScreens({ navigation, route }: any) {
           };
 
         }
-        if (res?.data?.delivery_btn == 1 && SelectCurrentDeliveryLabel == null || res?.data?.delivery_btn == 0) {
-          setResponseOrderData(res?.data?.order_data)
+        console.log("res?.data?.delivery_btn == 1 && SelectCurrentDeliveryLabel == null || res?.data?.delivery_btn == 0", res?.data?.delivery_btn == 1 && SelectCurrentDeliveryLabel == null || res?.data?.delivery_btn == 0)
+        console.log("res?.data?.total_remaining_item_to_scan == 1", res?.data?.total_remaining_item_to_scan)
+        const isLastParcel =
+          res?.data?.total_remaining_item_to_scan == 1;
+
+        if (isLastParcel && SelectCurrentDeliveryLabel == null) {
+          setResponseOrderData(res?.data?.order_data);
           setConformationModal(modalConfig);
-        } else {
+        } else if (isLastParcel && SelectCurrentDeliveryLabel !== null) {
           setAlerModalOpen({
             visible: true,
             title: t("Camera"),
@@ -544,8 +564,8 @@ export default function ScannerScreens({ navigation, route }: any) {
             LButtonStyle: Colors.gray,
             LColor: Colors.black,
             onPress: () => {
-              console.log("Camera modal button pressed");
               deliveryTypeRef.current = false;
+
               setDeliveyDataSave({
                 Data: res?.data?.order_data,
                 selectReason: item,
@@ -557,12 +577,17 @@ export default function ScannerScreens({ navigation, route }: any) {
                 },
                 type: false,
               });
-              navigation.navigate("Camera");
-              setAlerModalOpen((prev) => ({ ...prev, visible: false }));
-              // ✅ close parent AFTER navigating
 
+              navigation.navigate("Camera");
+
+              setAlerModalOpen(prev => ({
+                ...prev,
+                visible: false,
+              }));
             },
           });
+        } else {
+          await StatusUpdateFun(data, true);
         }
         // setGetConformationQuestion(res?.data || "");
       } else {
@@ -1008,13 +1033,7 @@ export default function ScannerScreens({ navigation, route }: any) {
             const buttons: any[] = [];
 
             if (isSignatureAllowed) {
-              buttons.push({
-                text: t("Signature"),
-                type: "primary",
-                onPress: () => {
-                  setShowSig(true);
-                },
-              });
+              setShowSig(true);
             } else {
               buttons.push({
                 text: t("Go to List Page"),
@@ -1025,16 +1044,16 @@ export default function ScannerScreens({ navigation, route }: any) {
                   getSliderDataFun();
                 },
               },)
+              setSecondModal({
+                visible: true,
+                title: t("All Parcels Scanned Successfully!"),
+                message: t(res?.remaining_item_message) || "",
+                buttons: buttons,
+                color: GloblyTypeSlide == "outbound_scan" ? Colors.primary : Colors.green
+
+              });
             }
 
-            setSecondModal({
-              visible: true,
-              title: t("All Parcels Scanned Successfully!"),
-              message: t(res?.remaining_item_message) || "",
-              buttons: buttons,
-              color: GloblyTypeSlide == "outbound_scan" ? Colors.primary : Colors.green
-
-            });
           } else if (!(GloblyTypeSlide == "outbound_scan")) {
             // Still items to scan
             setSecondModal({
@@ -1096,21 +1115,9 @@ export default function ScannerScreens({ navigation, route }: any) {
             });
           }
         } else if (isSignatureAllowed) {
-          const buttons: any[] = [{
-            text: t("Signature"),
-            type: "primary",
-            onPress: () => {
-              setShowSig(true);
-            },
-          }]
+          setShowSig(true);
 
-          setSecondModal({
-            visible: true,
-            title: t("Confirm Delivery"),
-            message: t("Delivery completed. Please provide your signature to confirm successful handover."),
-            buttons: buttons,
-            color: Colors.green,
-          });
+
         }
 
         setAllRecentScanData((prev) =>
@@ -1271,13 +1278,7 @@ export default function ScannerScreens({ navigation, route }: any) {
           const isSignatureAllowed = Number(res?.data?.tms_current_status) === 5 && SelectCurrentDeliveryLabel?.signature_required == 1;
 
           if (isSignatureAllowed) {
-            buttons.push({
-              text: t("Signature"),
-              type: "primary",
-              onPress: () => {
-                setShowSig(true);
-              },
-            });
+            setShowSig(true);
           } else {
             buttons.push({
               text: t("Go to List Page"),
@@ -1288,15 +1289,15 @@ export default function ScannerScreens({ navigation, route }: any) {
                 getSliderDataFun();
               },
             },)
-          }
-          setSecondModal({
-            visible: true,
-            title: t("All Parcels Scanned Successfully!"),
-            message: t(res?.data.remaining_item_message) || "",
-            buttons: buttons,
-            color: GloblyTypeSlide == "outbound_scan" ? Colors.primary : Colors.green
+            setSecondModal({
+              visible: true,
+              title: t("All Parcels Scanned Successfully!"),
+              message: t(res?.data.remaining_item_message) || "",
+              buttons: buttons,
+              color: GloblyTypeSlide == "outbound_scan" ? Colors.primary : Colors.green
 
-          });
+            });
+          }
         } else if (!(GloblyTypeSlide == "outbound_scan")) {
           const actualRemaining =
             Number(res?.data.remaining_item) - selectedItems.length;
@@ -1521,7 +1522,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         }}
         onSave={(base64, name) => {
           console.log("Signature:", base64);
-        
+
           CustomerSignatureFun(base64, name)
         }}
         onClear={() => console.log("Cleared")}
@@ -1622,14 +1623,14 @@ export default function ScannerScreens({ navigation, route }: any) {
           });
         }}
       />
+
       <Modal
         isVisible={comment}
         style={{ margin: 0 }}
         animationIn="bounceInUp"
         animationOut="bounceOutDown"
         propagateSwipe={true}
-
-        avoidKeyboard={false} // important for Modal + keyboard
+        avoidKeyboard={true}
       >
         <View style={{ flex: 1 }}>
           <SafeAreaView />
@@ -1641,18 +1642,13 @@ export default function ScannerScreens({ navigation, route }: any) {
               backgroundColor: Colors.green,
             }}
             enableOnAndroid={true}
-            extraHeight={200}
+            extraScrollHeight={20}
+            extraHeight={120}
             keyboardShouldPersistTaps="handled"
+            enableAutomaticScroll={true}
+            scrollToOverflowEnabled={true}
           >
-
-            <View
-              style={[
-                styles.CommentBox,
-
-              ]}
-            >
-
-
+            <View style={[styles.CommentBox]}>
               <View>
                 <Text style={styles.Text}>{t("Name")}</Text>
                 <View style={styles.InputBox}>
@@ -1661,59 +1657,61 @@ export default function ScannerScreens({ navigation, route }: any) {
                     editable={false}
                     placeholderTextColor={Colors.darkText}
                     placeholder={t("Enter your name")}
-                    value={UserData?.user?.username?.length > 0 ? UserData?.user?.username : UserData?.relaties?.display_name ?? ""}
+                    value={
+                      UserData?.user?.username?.length > 0
+                        ? UserData?.user?.username
+                        : UserData?.relaties?.display_name ?? ""
+                    }
                     onChangeText={setComment}
                   />
                   <Image source={Images.user} style={{ width: 18, height: 18 }} />
                 </View>
               </View>
-              {
-                SelectCurrentDeliveryLabel && SelectCurrentDeliveryLabel?.damaged_required == 1 &&
-                <FlatList
-                  data={AllDamageListReason}
-                  style={styles.CardWhite}
-                  keyExtractor={(item) => item.id.toString()}
-                  renderItem={({ item }) => (
-                    <Pressable
-                      onPress={() => setselectDamageData(item)}
-                      style={{
-                        flexDirection: 'row',
-                        gap: 20,
-                        alignItems: 'center',
-                        paddingVertical: 10,
-                        paddingHorizontal: 15,
-                        borderWidth: 1,
-                        borderColor: Colors.border,
-                        borderRadius: 10,
-                        marginBottom: 10,
-                        backgroundColor: item?.color || Colors.Boxgray
-                      }}
-                    >
-                      <CheckBox
-                        onValueChange={() => {
-                          setselectDamageData(item);
-                        }}
-                        value={selectDamageData?.id === item?.id}
-                        tintColors={{
-                          true: Colors.green,
-                          false: Colors.red,
-                        }}
-                      />
-                      <Text
+
+              {SelectCurrentDeliveryLabel &&
+                SelectCurrentDeliveryLabel?.damaged_required == 1 && (
+                  <FlatList
+                    data={AllDamageListReason}
+                    style={styles.CardWhite}
+                    keyExtractor={(item) => item.id.toString()}
+                    renderItem={({ item }) => (
+                      <Pressable
+                        onPress={() => setselectDamageData(item)}
                         style={{
-                          fontSize: 14,
-                          fontFamily: FONTS.Medium,
-                          color: Colors.white,
+                          flexDirection: "row",
+                          gap: 20,
+                          alignItems: "center",
+                          paddingVertical: 10,
+                          paddingHorizontal: 15,
+                          borderWidth: 1,
+                          borderColor: Colors.border,
+                          borderRadius: 10,
+                          marginBottom: 10,
+                          backgroundColor: item?.color || Colors.Boxgray,
                         }}
                       >
-                        {t(item?.title)}
-                      </Text>
-
-
-                    </Pressable>
-                  )}
-                />
-              }
+                        <CheckBox
+                          onValueChange={() => setselectDamageData(item)}
+                          value={selectDamageData?.id === item?.id}
+                          tintColors={{ true: Colors.white, false: Colors.white }}
+                          tintColor={Colors.white}
+                          onTintColor={Colors.white}
+                          onCheckColor={Colors.white}
+                          onFillColor={item?.color || Colors.Boxgray}
+                        />
+                        <Text
+                          style={{
+                            fontSize: 14,
+                            fontFamily: FONTS.Medium,
+                            color: Colors.white,
+                          }}
+                        >
+                          {t(item?.title)}
+                        </Text>
+                      </Pressable>
+                    )}
+                  />
+                )}
 
               <View style={{ marginTop: 5 }}>
                 <Text style={styles.Text}>{t("Description")}</Text>
@@ -1727,20 +1725,29 @@ export default function ScannerScreens({ navigation, route }: any) {
                   numberOfLines={5}
                   textAlignVertical="top"
                 />
-                {Commenterror ? <Text style={styles.Error}>{Commenterror}</Text> : null}
+                {Commenterror ? (
+                  <Text style={styles.Error}>{Commenterror}</Text>
+                ) : null}
               </View>
 
-              <TouchableOpacity style={styles.ButtonSubmit} disabled={CommentLoader} onPress={CommentFun}>
-                {
-                  CommentLoader ? (
+              <KeyboardAvoidingView
+                behavior={Platform.OS === "ios" ? "position" : "height"}
+                keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}
+              >
+                <TouchableOpacity
+                  style={styles.ButtonSubmit}
+                  disabled={CommentLoader}
+                  onPress={CommentFun}
+                >
+                  {CommentLoader ? (
                     <ActivityIndicator size="small" color={Colors.white} />
-                  ) :
-                    <Text style={[styles.Text, { color: Colors.white }]}>{t("Submit")}</Text>
-                }
-              </TouchableOpacity>
-
-
-
+                  ) : (
+                    <Text style={[styles.Text, { color: Colors.white }]}>
+                      {t("Submit")}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </KeyboardAvoidingView>
             </View>
           </KeyboardAwareScrollView>
         </View>
@@ -1784,9 +1791,9 @@ export default function ScannerScreens({ navigation, route }: any) {
             style={{
               backgroundColor: Colors.white,
               borderRadius: 14,
-              width: "80%",
+              width: "90%",
               paddingVertical: 25,
-              paddingHorizontal: 20,
+              paddingHorizontal: 15,
               alignItems: "center",
             }}
           >
@@ -1963,7 +1970,7 @@ const styles = StyleSheet.create({
     padding: 10,
     fontSize: 14,
     backgroundColor: Colors.white,
-    minHeight: 240,
+    minHeight: 120,
     fontFamily: FONTS.Regular,
     color: Colors.black,
     marginTop: 10,

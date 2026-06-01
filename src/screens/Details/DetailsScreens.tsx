@@ -20,6 +20,8 @@ import { GlobalContextData } from "@/src/context/GlobalContext";
 import { DropboxContext } from "@/src/context/UploadProider";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
+import { appendToLocalUploadQueue } from "@/src/utils/localUploadQueue";
+import { FONTS } from "@/src/utils/storeData";
 import { useIsFocused } from "@react-navigation/native";
 import axios from "axios";
 import * as ImagePicker from "expo-image-picker";
@@ -33,6 +35,7 @@ import {
   Image,
   Platform,
   ScrollView,
+  StyleSheet,
   Text,
   TouchableOpacity,
   View
@@ -238,26 +241,18 @@ export default function DetailsScreens({ navigation, route }: any) {
     setPickUpDataSave({
       setData: async (data: any[]) => {
         console.log("Received pickup photo data:", data);
-        setAllSelectImage(data);
         if (data?.length > 0) {
-          let resluts = await uploadToDropbox(data);
-          setDropBoxUploadImageData(resluts);
-          setTimeout(() => {
-            setComment(true);
-          }, 400)
+          setAllSelectImage(data);
+          setComment(true);
         }
       },
     });
     setDeliveyDataSave({
       setData: async (data: any[]) => {
         console.log("📦 Received delivery photo data:", data);
-        setAllSelectImage(data);
         if (data?.length > 0) {
-          let results = await uploadToDropbox(data);
-          setDropBoxUploadImageData(results);
-          setTimeout(() => {
-            setComment(true);
-          }, 400)
+          setAllSelectImage(data);
+          setComment(true);
         }
       },
     });
@@ -370,17 +365,6 @@ export default function DetailsScreens({ navigation, route }: any) {
   };
 
   const GetIdByOrderFun = async () => {
-  
-console.log("Req Dataaa",{
-          token: UserData?.user?.verify_token,
-          role: UserData?.user?.role,
-          relaties_id: UserData?.relaties?.id,
-          user_id: UserData?.user?.id,
-          order_id: ItemsData?.id || ItemsData?.order_data?.id,
-          type: type,
-          region_id: selectRegionData?.id,
-          date: ApiFormatDate(SelectActiveDate),
-        });
 
     setDataLoading(true);
     try {
@@ -416,7 +400,7 @@ console.log("Req Dataaa",{
         setNoParcelOptions(labelsForModal);
 
       } else {
-       console.log("Failed to fetch order details:", res?.message);
+        console.log("Failed to fetch order details:", res?.message);
         setToast({
           top: 45,
           text: t(res?.message),
@@ -463,16 +447,24 @@ console.log("Req Dataaa",{
 
       if (Boolean(res?.data.status)) {
         console.log('✅ Comment stored successfully:', res?.data);
-        // UploadImageStoreApiFun(res?.data?.data?.order_id, res?.data?.data?.order_log_id);
-        let newLocalUpdate = [...LocalImagesUploadbeforeData]
-        let newDataObj = {
-          order_id: res?.data?.data?.order_id,
-          image_data: imagesToSend,
-          item_id: null,
-          commentId: res?.data?.data?.order_log_id
+        const orderLogId = res?.data?.data?.order_log_id;
+        const orderId =
+          res?.data?.data?.order_id ??
+          ItemsData?.id ??
+          ItemsData?.order_data?.id ??
+          item?.id ??
+          order_id;
+        const imageUris = [...(imagesToSend || [])].filter(Boolean);
+
+        if (imageUris.length > 0 && orderLogId != null && orderId != null) {
+          appendToLocalUploadQueue(setLocalImagesUploadbeforeData, {
+            order_id: orderId,
+            image_data: imageUris,
+            item_id: null,
+            commentId: orderLogId,
+          });
         }
-        newLocalUpdate.push(newDataObj)
-        setLocalImagesUploadbeforeData(newLocalUpdate);
+
         setPickUpDataSave([]);
         setDeliveyDataSave([]);
         setAllSelectImage([]);
@@ -769,14 +761,8 @@ console.log("Req Dataaa",{
           const isSignatureAllowed = Number(res?.data?.tms_current_status) === 5 && SelectCurrentDeliveryLabel?.signature_required == 1;
 
           if (isSignatureAllowed) {
-            buttons.push({
-              text: t("Signature"),
-              type: "primary",
-              onPress: () => {
-                setShowSig(true);
-                setNoParcelItemIds([]);
-              },
-            });
+            setShowSig(true);
+            setNoParcelItemIds([]);
           } else {
             buttons.push({
               text: t("Go to List Page"),
@@ -787,17 +773,17 @@ console.log("Req Dataaa",{
                 getSliderDataFun();
               },
             },)
-          }
-          setTimeout(() => {
-            setSecondModal({
-              visible: true,
-              title: t("All Parcels Scanned Successfully!"),
-              message: t(res?.data.remaining_item_message) || "",
-              buttons: buttons,
-              color: GloblyTypeSlide == "outbound_scan" ? Colors.primary : Colors.green
-            });
+            setTimeout(() => {
+              setSecondModal({
+                visible: true,
+                title: t("All Parcels Scanned Successfully!"),
+                message: t(res?.data.remaining_item_message) || "",
+                buttons: buttons,
+                color: GloblyTypeSlide == "outbound_scan" ? Colors.primary : Colors.green
+              });
 
-          }, 100)
+            }, 100)
+          }
         } else if (!(GloblyTypeSlide == "outbound_scan")) {
           setTimeout(() => {
             setSecondModal({
@@ -942,6 +928,10 @@ console.log("Req Dataaa",{
 
     }
   }
+  const isVideoUrl = (url?: string): boolean => {
+    if (!url) return false;
+    return /\.(mp4|mov|avi|mkv|webm|3gp)(\?.*)?$/i.test(url);
+  };
 
   useEffect(() => {
     let Funcation = async () => {
@@ -975,7 +965,7 @@ console.log("Req Dataaa",{
           bounces={false}
           overScrollMode="never"
         >
-          {PermissionData?.can_scan_order && (
+          {/* {PermissionData?.can_scan_order && (
             <View style={styles.Flex}>
               <View />
               <TwoTypeButton
@@ -990,7 +980,7 @@ console.log("Req Dataaa",{
                 }
               />
             </View>
-          )}
+          )} */}
           <PickUpBox
             AllisCollapsed={true}
             downButton={true}
@@ -1062,7 +1052,7 @@ console.log("Req Dataaa",{
               scrollEnabled={false}
               renderItem={({ item }: any) => {
                 const bgColor = item?.color || Colors.Boxgray;
-       
+
 
                 return (
                   <TouchableOpacity
@@ -1145,17 +1135,81 @@ console.log("Req Dataaa",{
                   ? getDirectDropboxLink(item?.shared_link)
                   : item?.uri;
 
+                const isVideo = isVideoUrl(uri);
+
                 return (
                   <View style={styles.Image}>
                     {uri ? (
-                      <Image
-                        source={{ uri }}
-                        style={{
-                          borderRadius: 7,
-                          width: "100%",
-                          height: "100%",
-                        }}
-                      />
+                      isVideo ? (
+                        <View style={{ width: "100%", height: "100%", borderRadius: 7, overflow: "hidden", backgroundColor: "#000" }}>
+                          <Image
+                            source={{ uri }}
+                            style={{ width: "100%", height: "100%", borderRadius: 7 }}
+                            resizeMode="cover"
+                          />
+                          <View
+                            style={{
+                              ...StyleSheet.absoluteFillObject,
+                              backgroundColor: "rgba(0,0,0,0.35)",
+                              borderRadius: 7,
+                            }}
+                          />
+                          <View
+                            style={{
+                              position: "absolute",
+                              top: 0, left: 0, right: 0, bottom: 0,
+                              justifyContent: "center",
+                              alignItems: "center",
+                            }}
+                          >
+                            <View
+                              style={{
+                                width: 28,
+                                height: 28,
+                                borderRadius: 14,
+                                backgroundColor: "rgba(255,255,255,0.85)",
+                                justifyContent: "center",
+                                alignItems: "center",
+                              }}
+                            >
+                              <View
+                                style={{
+                                  width: 0,
+                                  height: 0,
+                                  borderTopWidth: 6,
+                                  borderBottomWidth: 6,
+                                  borderLeftWidth: 10,
+                                  borderTopColor: "transparent",
+                                  borderBottomColor: "transparent",
+                                  borderLeftColor: "#000",
+                                  marginLeft: 2,
+                                }}
+                              />
+                            </View>
+                          </View>
+                          <View
+                            style={{
+                              position: "absolute",
+                              bottom: 4,
+                              left: 5,
+                              backgroundColor: "rgba(0,0,0,0.5)",
+                              borderRadius: 3,
+                              paddingHorizontal: 4,
+                              paddingVertical: 1,
+                            }}
+                          >
+                            <Text style={{ fontSize: 8, color: "#fff", fontFamily: FONTS.Medium }}>
+                              {t("Video")}
+                            </Text>
+                          </View>
+                        </View>
+                      ) : (
+                        <Image
+                          source={{ uri }}
+                          style={{ borderRadius: 7, width: "100%", height: "100%" }}
+                          resizeMode="cover"
+                        />
+                      )
                     ) : (
                       <View
                         style={{
@@ -1181,7 +1235,7 @@ console.log("Req Dataaa",{
             />
           )}
 
-  
+
 
           {ItemsData?.tmslogdata_itemcomment?.length > 0 && (
             <CommentViewBox data={ItemsData?.tmslogdata_itemcomment} />

@@ -1,16 +1,16 @@
 import React, { useEffect } from "react";
 import {
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Animated, {
-    Extrapolation,
-    interpolate,
-    useAnimatedStyle,
-    useSharedValue,
-    withTiming
+  Extrapolation,
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming
 } from "react-native-reanimated";
 import { Colors } from "../utils/colors";
 
@@ -87,9 +87,9 @@ const SecondCustomModal = ({
             {
               backgroundColor: Colors.white,
               borderRadius: 14,
-              width: "80%",
+              width: "90%",
               paddingVertical: 25,
-              paddingHorizontal: 20,
+              paddingHorizontal: 15,
               alignItems: "center",
             },
             contentStyle,

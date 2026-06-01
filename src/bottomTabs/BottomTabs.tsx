@@ -2,7 +2,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import React, { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Image, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import apiConstants from "../api/apiConstants";
 import { Images } from "../assets/images";
 import CustomHeader from "../components/CustomHeader";
@@ -19,6 +19,7 @@ import { FONTS, getData, height } from "../utils/storeData";
 export default function BottomTabs() {
   const Tab = createBottomTabNavigator();
   const { t } = useTranslation();
+  const {top,bottom} = useSafeAreaInsets();
   const [IsLoading, setLoading] = useState<boolean>(false);
   const {
     Permission,
@@ -30,6 +31,8 @@ export default function BottomTabs() {
     setSelectLanguage,
   } = useContext(GlobalContextData);
   useEffect(() => {
+
+
     const getUserData = async () => {
       let compay = await getData("COMPANYLOGIN");
       if (!SelectLanguage) {
@@ -74,7 +77,7 @@ export default function BottomTabs() {
     getUserData();
   }, []);
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.white }}>
+    <View style={{ flex: 1, backgroundColor: Colors.white, paddingBottom: bottom * 0.55, paddingTop: top }}>
       {IsLoading ? (
         <View
           style={{
@@ -91,12 +94,12 @@ export default function BottomTabs() {
           initialRouteName={"Home"}
           screenOptions={{
             tabBarStyle: {
-              height: height * 0.095,
+              minHeight: 75,  
               paddingTop: height * 0.01,
-              backgroundColor: Colors.white, 
-              elevation: 0, 
-              shadowOpacity: 0, 
-              borderTopWidth: 0, 
+              backgroundColor: Colors.white,
+              elevation: 0,
+              shadowOpacity: 0,
+              borderTopWidth: 0,
             },
 
             header: () => <CustomHeader />,
@@ -205,6 +208,6 @@ export default function BottomTabs() {
           />
         </Tab.Navigator>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
