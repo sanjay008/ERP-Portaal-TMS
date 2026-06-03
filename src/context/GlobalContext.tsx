@@ -12,6 +12,7 @@ export default function GlobalContext({ children }: any) {
   const [DeliveyDataSave, setDeliveyDataSave] = useState<any>(null);
   const [PickUpDataSave, setPickUpDataSave] = useState<any>(null);
   const [NoParcelDetailsScreenEvent, setNoParcelDetailsScreenEvent] = useState(false)
+  const [isGpsTracking, setIsGpsTracking] = useState(false)
   const [NoParcelItemIds, setNoParcelItemIds] = useState<number[]>([]);
   const [AllLanguage,setAllLanguage] = useState<any>([]);
   const [SelectDeliveryReason, setSelectDeliveryReson] = useState(null);
@@ -63,7 +64,8 @@ export default function GlobalContext({ children }: any) {
         AllDamageListReason,setAllDamageListReason,
         selectRegionData, setSelectRegionData,
         selectDamageData, setselectDamageData,
-        CommentId, setCommentId
+        CommentId, setCommentId,
+        isGpsTracking, setIsGpsTracking
       }}
     >
       {children}

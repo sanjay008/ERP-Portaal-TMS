@@ -1,5 +1,6 @@
 import apiConstants from "@/src/api/apiConstants";
 import { Images } from "@/src/assets/images";
+import AnimatedTooltip from "@/src/components/AnimatedTooltip";
 import CalenderDate from "@/src/components/CalenderDate";
 import CustomHeader from "@/src/components/CustomHeader";
 import DropDownBox from "@/src/components/DropDownBox";
@@ -29,6 +30,7 @@ import { styles } from "./styles";
 export default function FilterScreen({ navigation, route }: any) {
   const { item, Type } = route?.params || {};
   const [SlideType, setSlideType] = useState(item || Type);
+  const [tooltipVisible, setTooltipVisible] = useState(false);
   const Focused = useIsFocused();
   const {
     UserData,
@@ -43,7 +45,8 @@ export default function FilterScreen({ navigation, route }: any) {
     AllDeliveyLabel, setAllDeliveyLabel,
     setSelectCurrentDeliveryLabel,
     AllDamageListReason, setAllDamageListReason,
-    selectRegionData, setSelectRegionData
+    selectRegionData, setSelectRegionData,
+    isGpsTracking, setIsGpsTracking
   } = useContext(GlobalContextData);
   const [SelectDate, setSelectDate] = useState<string>("");
   const [IsLoading, setLoading] = useState<boolean>(false);
@@ -56,7 +59,8 @@ export default function FilterScreen({ navigation, route }: any) {
     !(GloblyTypeSlide == "Pickup / Dropoff")
   );
   const [RegionOrderData, setRegionOrderData] = useState([]);
-
+  const [TemopryryDataStore, setTemopryryDataStore] = useState([]);
+  const [TotalCountParcel, setTotalCountParcel] = useState<{ pickup: number, dropoff: number }>({ pickup: 0, dropoff: 0 });
   const getFilterDataFun = useCallback(async () => {
     try {
       const payload = {
@@ -72,8 +76,9 @@ export default function FilterScreen({ navigation, route }: any) {
         customData: payload,
       });
 
+      console.log('Get FilterWise Data Response:', response);
       if (response?.status) {
-
+        setTemopryryDataStore(response?.data || []);
         const newData = Array.isArray(response?.data)
           ? response.data
           : [];
@@ -92,7 +97,7 @@ export default function FilterScreen({ navigation, route }: any) {
 
         const selectedRegion =
           matchedRegion || newData?.[0] || null;
-
+        setTotalCountParcel({ pickup: selectedRegion?.pickup_orders?.length || 0, dropoff: selectedRegion?.deliver_orders?.length || 0 })
         setSelectRegionData(selectedRegion);
 
         if (selectedRegion?.id) {
@@ -227,7 +232,7 @@ export default function FilterScreen({ navigation, route }: any) {
     }
   };
 
-const FilterData = useMemo(() => {
+  const FilterData = useMemo(() => {
     const q = search?.trim().toLowerCase();
     if (!q) return RegionOrderData ?? [];
 
@@ -237,16 +242,27 @@ const FilterData = useMemo(() => {
     const namePart = parts.slice(1).join(' ').trim();
 
     return (RegionOrderData ?? []).filter((item: any) => {
-        const itemId = item?.id?.toString() ?? '';
-        const itemName = item?.display_name?.toLowerCase() ?? '';
+      const itemId = item?.id?.toString() ?? '';
+      const itemName = item?.display_name?.toLowerCase() ?? '';
 
-        if (namePart) {
-            return itemId.includes(idPart) && itemName.includes(namePart);
-        }
+      if (namePart) {
+        return itemId.includes(idPart) && itemName.includes(namePart);
+      }
 
-        return itemId.includes(cleaned) || itemName.includes(cleaned);
+      return itemId.includes(cleaned) || itemName.includes(cleaned);
     });
-}, [search, RegionOrderData]);
+  }, [search, RegionOrderData]);
+
+  useEffect(() => {
+    if (selectRegionData?.id) {
+      const matchedRegion = TemopryryDataStore.find(
+        (item: any) => item?.id === selectRegionData?.id,
+      );
+      setTotalCountParcel({ pickup: matchedRegion?.pickup_orders?.length || 0, dropoff: matchedRegion?.deliver_orders?.length || 0 })
+    } else {
+      setTotalCountParcel({ pickup: 0, dropoff: 0 });
+    }
+  }, [selectRegionData, RegionOrderData]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -295,10 +311,9 @@ const FilterData = useMemo(() => {
               fun={(item) => RegionDetailsDataFun(item)}
               valueFieldKey="id"
 
-              ContainerStyle={{ flex: SlideType !== "pickup_dropoff" ? 1 / 1.05 : 1 }}
+              ContainerStyle={{ flex:  1 / 1.05  }}
             />
-            {
-              SlideType !== "pickup_dropoff" &&
+            
               <TwoTypeButton
                 onlyIcon={true}
                 Icon={Images.Scan}
@@ -307,21 +322,58 @@ const FilterData = useMemo(() => {
                   navigation.navigate("Scanner", {
                     fun: getFilterDataFun,
                     type: !ScanBTNAvailble ? "allow_all_order" : SlideType,
+                    is_scan:false
                   })
                 }
               />
+            
+          </View>
+          <View style={[styles.Flex, { marginBottom: 10 }]}>
+            <SearchInput
+              value={search}
+              setValue={setSearch}
+              suggestions={RegionOrderData}
+              placeholder={t("Search by ID or name") + "..."}
+              onSelect={(item) => console.log(item)}
+              containerStyle={{ flex: SlideType == "pickup_dropoff" && UserData?.user?.role === "chauffeur" ? 1 / 1.05 : 1 }}
+            />
+            {
+              SlideType == "pickup_dropoff" && UserData?.user?.role === "chauffeur" &&
+              <TouchableOpacity
+                style={[
+                  styles.button,
+                  {
+                    backgroundColor: isGpsTracking ? Colors.green : Colors.red,
+                  },
+                ]}
+                onPress={() => {
+                  if (!selectRegionData) {
+                    setTooltipVisible(true);
+                    return;
+                  }
+                  setIsGpsTracking(prev => !prev)
+                }}
+                activeOpacity={0.8}
+              >
+                <AnimatedTooltip
+                  visible={tooltipVisible}
+                  message={t("Please select a region first. GPS tracking can be enabled afterward.")}
+                  onClose={() => setTooltipVisible(false)}
+                />
+                <Image
+                  source={isGpsTracking ? Images.TrackOn : Images.TrackOff}
+                  style={{ width: 20, height: 20 }}
+                  tintColor={Colors.white}
+                />
+
+              </TouchableOpacity>
             }
           </View>
-
-          <SearchInput
-            value={search}
-            setValue={setSearch}
-            suggestions={RegionOrderData}
-            placeholder={t("Search by ID or name") + "..."}
-            onSelect={(item) => console.log(item)}
-            containerStyle={{ marginBottom: 15, }}
-          />
-
+          <View style={styles.CountContainer}>
+            <Text style={styles.CountContainerText}>
+              {`${t("Pick")} (${TotalCountParcel.pickup}) - ${t("Drop")} (${TotalCountParcel.dropoff})`}
+            </Text>
+          </View>
           {selectRegionData && AllFilterData?.length > 0 ? (
             <FlatList
               data={FilterData}
@@ -395,6 +447,7 @@ const FilterData = useMemo(() => {
             </View>
           )}
         </ScrollView>
+
       </View>
       {/* <TouchableOpacity style={styles.RefreshButton} onPress={getFilterDataFun}>
         <Image source={Images.refresh} style={styles.RefreshIcon} />

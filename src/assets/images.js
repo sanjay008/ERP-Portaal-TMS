@@ -87,6 +87,8 @@ export const Images = {
   Home: require("./image/home.png"),
   NoParcel: require("./image/NoParcel.png"),
   LocationIcon: require("./image/location.png"),
+  TrackOn: require("./image/TrackOn.png"),
+  TrackOff: require("./image/TrackOff.png"),
 
   
 

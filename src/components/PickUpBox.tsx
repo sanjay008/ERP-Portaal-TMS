@@ -65,6 +65,12 @@ export default function PickUpBox({
     return encodeURI(url);
   };
 
+  const getPhoneNumber = () => {
+    const mobile = ItemData?.wa_whatsapp_number;
+    if (!mobile) return null;
+    return mobile;
+  };
+
   const WhatsaapRedirectFun = async (type: number) => {
     try {
       const phoneNumber = getPhoneNumber();
@@ -79,17 +85,14 @@ export default function PickUpBox({
         return;
       }
 
-      const message = ItemData?.message || "";
+      const message = ItemData?.driver_whatsapp_message || "";
       let url = "";
 
-      const formattedNumber = phoneNumber.replace("+", "");
-
       if (type === 1) {
-        url = `https://api.whatsapp.com/send/?phone=${formattedNumber}&type=phone_number&app_absent=0`;
+        url = `https://api.whatsapp.com/send/?phone=${phoneNumber}&type=phone_number&app_absent=0`;
       } else if (type === 2) {
         const encodedMsg = encodeURIComponent(message);
-
-        url = `https://api.whatsapp.com/send/?phone=${formattedNumber}&text=${encodedMsg}&type=phone_number&app_absent=0`;
+        url = `https://api.whatsapp.com/send/?phone=${phoneNumber}&text=${encodedMsg}&type=phone_number&app_absent=0`;
       } else {
         setToast({
           top: 45,
@@ -103,7 +106,6 @@ export default function PickUpBox({
       await Linking.openURL(url);
     } catch (error) {
       console.log("WhatsApp redirect error:", error);
-
       setToast({
         top: 45,
         text: t("Something went wrong while opening WhatsApp."),
@@ -111,33 +113,6 @@ export default function PickUpBox({
         visible: true,
       });
     }
-  };
-
-  const getPhoneNumber = () => {
-    let countryCode = "";
-    let mobile = "";
-    if (!ItemData?.external_platform) {
-
-      if (["1", "2"].includes(ItemData?.status)) {
-        countryCode = ItemData?.direct_client?.country_code || "";
-        mobile = ItemData?.direct_client?.mobiel || "";
-      } else if (["4"].includes(ItemData?.status)) {
-        countryCode = ItemData?.customer?.country_code || "";
-        mobile = ItemData?.customer?.mobiel || "";
-      }
-    } else {
-      mobile = ItemData?.external_phone
-    }
-
-
-    if (!mobile) return null;
-
-
-    if (countryCode && !countryCode.startsWith("+")) {
-      countryCode = `+${countryCode}`;
-    }
-
-    return `${countryCode} ${mobile}`.trim();
   };
 
   const handleCall = async () => {

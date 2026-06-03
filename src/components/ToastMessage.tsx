@@ -1,3 +1,4 @@
+import { useNavigation } from "@react-navigation/native";
 import React, { useContext, useEffect, useState } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 import Animated, {
@@ -8,7 +9,7 @@ import Animated, {
 import { Images } from "../assets/images";
 import { GlobalContextData } from "../context/GlobalContext";
 import { Colors } from "../utils/colors";
-import { FONTS } from "../utils/storeData";
+import { clearAllData, FONTS } from "../utils/storeData";
 
 type Props = {
   top?: number;
@@ -26,12 +27,10 @@ export default function ToastMessage({
   onClose,
 }: Props) {
   const [isVisible, setIsVisible] = useState(visible);
-
+  const { setUserData } = useContext(GlobalContextData);
+  const navigation = useNavigation<any>();
   const translateY = useSharedValue(-150);
-
-
   const lineWidth = useSharedValue(0);
-
   const { setToast } = useContext(GlobalContextData);
 
   const containerStyle = useAnimatedStyle(() => ({
@@ -42,21 +41,28 @@ export default function ToastMessage({
     width: `${lineWidth.value}%`,
   }));
 
+  const LogOut = async () => {
+    try {
+      await clearAllData();
+      setUserData(null);
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "OnBoarding" }],
+      });
+    } catch (error) {
+      console.log("Error during logout:", error);
+    }
+  };
+
   useEffect(() => {
     if (visible) {
       setIsVisible(true);
 
-      // Slide down
       translateY.value = withTiming(0, { duration: 400 });
-
-      // Line progress
       lineWidth.value = withTiming(120, { duration: 3000 });
 
       const timer = setTimeout(() => {
-        // Slide up
         translateY.value = withTiming(-150, { duration: 400 });
-
-        // Reset line
         lineWidth.value = withTiming(0, { duration: 300 });
 
         setTimeout(() => {
@@ -68,6 +74,10 @@ export default function ToastMessage({
           });
           setIsVisible(false);
           onClose?.();
+
+          if (text === "Token Expired.") {
+            LogOut();
+          }
         }, 300);
       }, 3000);
 
@@ -100,8 +110,8 @@ export default function ToastMessage({
               type === "success"
                 ? Colors.green
                 : type === "error"
-                ? Colors.red
-                : Colors.blue1,
+                  ? Colors.red
+                  : Colors.blue1,
           },
           lineStyle,
         ]}

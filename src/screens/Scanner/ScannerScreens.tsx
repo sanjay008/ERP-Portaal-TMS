@@ -1,5 +1,6 @@
 import apiConstants, { Verify_status } from "@/src/api/apiConstants";
 import { Images } from "@/src/assets/images";
+import AnimatedModal from "@/src/components/AnimatedModal";
 import { ApiFormatDate } from "@/src/components/ApiFormatDate";
 import ConformationModal from "@/src/components/ConformationModal";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
@@ -62,7 +63,7 @@ import Modal from "react-native-modal";
 import ReAnimated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 export default function ScannerScreens({ navigation, route }: any) {
-  const { fun = () => { }, type, item } = route?.params ?? {};
+  const { fun = () => { }, type, item, is_scan = true } = route?.params ?? {};
   const [permission, requestPermission] = useCameraPermissions();
   const [ItemsData, setItemsData] = useState(item);
   const [isNoParcelFlow, setIsNoParcelFlow] = useState(false);
@@ -203,14 +204,31 @@ export default function ScannerScreens({ navigation, route }: any) {
   } = useContext(GlobalContextData);
   const { t } = useTranslation();
   const { ErrorHandle } = useErrorHandle();
+
+  const getActiveDeliveryLabel = () =>
+    pendingDeliveryLabelRef.current ?? SelectCurrentDeliveryLabel;
+
+  const clearDeliveryLabelSelection = () => {
+    pendingDeliveryLabelRef.current = null;
+    setSelectCurrentDeliveryLabel(null);
+  };
+
+  const handleSelectDeliveryLabel = (labelItem: any) => {
+    pendingDeliveryLabelRef.current = labelItem;
+    setSelectCurrentDeliveryLabel(labelItem);
+  };
+
   const [cameraKey, setCameraKey] = useState(1);
   const { top, bottom } = useSafeAreaInsets();
   const [SignatureLoader, setSignatureLoader] = useState<boolean>(false);
   const [ShowDeliveryLabelList, setShowDeliveryLabelList] = useState(0);
   const [DropBoxUploadImageData, setDropBoxUploadImageData] = useState<any[]>([]);
   const [ImageStoreLoader, setImageStoreLoader] = useState<boolean>(false);
-
+  const [EvetyTimeShowDeliveryLabelList, setEvetyTimeShowDeliveryLabelList] = useState<boolean>(false);
+  const parcelScanCountRef = useRef(0);
+  const pendingDeliveryLabelRef = useRef<any>(null);
   const [CommentStep, setCommentStep] = useState<number>(1);
+  const [OnPressPresentData, setOnPressPresentData] = useState<any>(null);
   const [ReposonseOrderData, setResponseOrderData] = useState<any>(null);
   const [AlertModalOpen, setAlerModalOpen] = useState<AlertModalType>({
     visible: false,
@@ -303,6 +321,13 @@ export default function ScannerScreens({ navigation, route }: any) {
       }, 200);
     }
   }, [Focused]);
+
+  useEffect(() => {
+    if (!Focused) {
+      parcelScanCountRef.current = 0;
+    }
+  }, [Focused]);
+
   useEffect(() => {
     const showListener = Keyboard.addListener("keyboardDidShow", (e) => {
       setKeyboardHeight(e.endCoordinates.height);
@@ -367,16 +392,16 @@ export default function ScannerScreens({ navigation, route }: any) {
   useEffect(() => {
     const shouldLockScreen =
       SecondModal.visible || showSig || comment;
-      if(shouldLockScreen) {
-        NavigationBar.setHidden(true);
-          console.log(" NavigationBar.setHidden(true)");
-          
-      }else{
-        NavigationBar.setHidden(false);
-        console.log("NavigationBar.setHidden(false)");
-        
-      }
-  }, [showSig,comment])
+    if (shouldLockScreen) {
+      NavigationBar.setHidden(true);
+
+
+    } else {
+      NavigationBar.setHidden(false);
+
+
+    }
+  }, [showSig, comment])
 
 
   const onBarcodeScanned = useCallback(
@@ -460,7 +485,6 @@ export default function ScannerScreens({ navigation, route }: any) {
       setRefreshCondition(false)
     }
   }, [Refreshcondition])
-
   const QuestiongetApi = async (data: any) => {
     console.log("Calling Verify Status API with:", data);
 
@@ -505,10 +529,40 @@ export default function ScannerScreens({ navigation, route }: any) {
         setselectDamageData(
           res?.data?.damaged_parcel?.find(el => el?.id == 34) || null
         );
+        if (is_scan === false && res?.data?.order_data?.tmsstatus?.id !== 1) {
+          const modalConfig: any = {
+            visible: true,
+            title: t("This parcel cannot be scanned. Only pickup parcels are allowed for scanning."),
+            Icon: Images.OrderIconFull,
+            LButtonText: t("Cancel"),
+            RButtonStyle: Colors.primary,
+            RColor: Colors.white,
+            personData: res?.data?.order_data || [],
+            ProductItem: res?.data?.order_data?.items || [],
+            order_id: data?.order_id,
+            type: res?.data?.order_data?.tmsstatus?.id == 2 ? 2 : 1,
+            delivery_btn: 0,
+            OrderData: res?.data,
+          };
+
+          modalConfig.onPress = async () => {
+            navigation.goBack();
+          };
+          setConformationModal(modalConfig);
+
+          return 
+        }
         setOrderDeliveryMapingLableOption(res?.data?.order_label_mapping || []);
         setItemsData(res?.data?.order_data);
         setShowDeliveryLabelList(res?.data?.delivery_btn || 0)
 
+        parcelScanCountRef.current += 1;
+        let currentDeliveryLabel: any = null;
+        if (parcelScanCountRef.current === 1 && getActiveDeliveryLabel() != null) {
+          currentDeliveryLabel = getActiveDeliveryLabel();
+        } else {
+          clearDeliveryLabelSelection();
+        }
 
         const modalConfig: any = {
           visible: true,
@@ -543,15 +597,15 @@ export default function ScannerScreens({ navigation, route }: any) {
           };
 
         }
-        console.log("res?.data?.delivery_btn == 1 && SelectCurrentDeliveryLabel == null || res?.data?.delivery_btn == 0", res?.data?.delivery_btn == 1 && SelectCurrentDeliveryLabel == null || res?.data?.delivery_btn == 0)
-        console.log("res?.data?.total_remaining_item_to_scan == 1", res?.data?.total_remaining_item_to_scan)
+
+        console.log("SelectCurrentDeliveryLabel == null && res?.data?.order_data?.status == 4", currentDeliveryLabel == null && res?.data?.order_data?.status == "4", currentDeliveryLabel, res?.data?.order_data?.status)
         const isLastParcel =
           res?.data?.total_remaining_item_to_scan == 1;
 
-        if (isLastParcel && SelectCurrentDeliveryLabel == null) {
+        if (isLastParcel && currentDeliveryLabel == null || res?.data?.error_key) {
           setResponseOrderData(res?.data?.order_data);
           setConformationModal(modalConfig);
-        } else if (isLastParcel && SelectCurrentDeliveryLabel !== null) {
+        } else if (isLastParcel && currentDeliveryLabel !== null) {
           setAlerModalOpen({
             visible: true,
             title: t("Camera"),
@@ -586,6 +640,9 @@ export default function ScannerScreens({ navigation, route }: any) {
               }));
             },
           });
+        } else if (currentDeliveryLabel == null && res?.data?.order_data?.status == "4") {
+          setEvetyTimeShowDeliveryLabelList(true);
+          console.log("res?.data?.status == 4dsdsdd", res?.data?.order_data?.status == "4", EvetyTimeShowDeliveryLabelList, currentDeliveryLabel, currentDeliveryLabel == null && res?.data?.order_data?.status == "4")
         } else {
           await StatusUpdateFun(data, true);
         }
@@ -622,11 +679,13 @@ export default function ScannerScreens({ navigation, route }: any) {
     }
   };
 
+
   const StatusUpdateFun = async (data: any, scan = false) => {
     if (!scan) return;
     setIsLoading(true);
 
     try {
+      const activeDeliveryLabel = getActiveDeliveryLabel();
       const payload = {
         token: UserData?.user?.verify_token,
         role: UserData?.user?.role,
@@ -635,7 +694,10 @@ export default function ScannerScreens({ navigation, route }: any) {
         item_id: data?.item_id,
         order_id: data?.order_id,
         type: type ?? GloblyTypeSlide,
-        is_damage: selectDamageData?.id
+        is_damage: selectDamageData?.id,
+        ...(activeDeliveryLabel != null && {
+          delivered_lable_id: activeDeliveryLabel?.id,
+        })
       };
 
       if (!payload.item_id || !payload.order_id) {
@@ -655,7 +717,9 @@ export default function ScannerScreens({ navigation, route }: any) {
       });
 
       if (res?.status) {
-
+        clearDeliveryLabelSelection();
+        setEvetyTimeShowDeliveryLabelList(false);
+        setLastDetectedBarcode("");
         console.log("✅ Status Updated:", res);
         fun?.();
 
@@ -671,7 +735,9 @@ export default function ScannerScreens({ navigation, route }: any) {
         setCameraKey(prev => prev + 1);
         cameraRef.current?.reset();
         resetCamera();
+
       } else {
+        clearDeliveryLabelSelection();
         setToast({
           top: 45,
           text: t(res?.message) || t("Failed to update status"),
@@ -1016,9 +1082,7 @@ export default function ScannerScreens({ navigation, route }: any) {
       if (res?.status) {
         setComment(false)
         await AddImageOrCommentFun();
-        if (SelectCurrentDeliveryLabel !== null) {
-          setSelectCurrentDeliveryLabel(null);
-        }
+        clearDeliveryLabelSelection();
         console.log("✅ Comment & Status updated successfully:", res);
 
         fun?.();
@@ -1769,7 +1833,21 @@ export default function ScannerScreens({ navigation, route }: any) {
         Description={AlertModalOpen.Description}
       />
 
-
+      {
+        EvetyTimeShowDeliveryLabelList &&
+        <AnimatedModal
+          visible={EvetyTimeShowDeliveryLabelList}
+          setVisible={setEvetyTimeShowDeliveryLabelList}
+          AllDeliveyLabel={AllDeliveyLabel}
+          fun={async () => {
+            await StatusUpdateFun(SelectPlace, true);
+          }}
+          setSelectCurrentDeliveryLabel={handleSelectDeliveryLabel}
+          AllDamageListReason={AllDamageListReason}
+          setselectDamageData={setselectDamageData}
+          selectDamageData={selectDamageData}
+        />
+      }
 
       {SecondModal?.visible && (
         <ReAnimated.View
@@ -1937,6 +2015,7 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 25,
   },
+
   Icons: {
     width: 24,
     height: 24,

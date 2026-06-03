@@ -7,15 +7,39 @@ export const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.white,
   },
-  wrapper:{
-    flex:1,
-    backgroundColor:Colors.background,
+  wrapper: {
+    flex: 1,
+    backgroundColor: Colors.background,
     padding: 15,
-    marginBottom:-15
+    marginBottom: -15
   },
-  Header:{
-    margin:-15,
-    marginBottom:20
+  button: {
+    width: 46,
+    height: 46,
+    backgroundColor: Colors.primary,
+    borderRadius: 7,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  CountContainerText:{
+    color:Colors.white,
+    fontFamily: FONTS.Medium,
+    fontSize: 14,
+  },
+  CountContainer:{
+    marginBottom: 15,
+    backgroundColor: Colors.red,
+    padding: 10,
+    borderRadius: 6,
+  },
+  text: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  Header: {
+    margin: -15,
+    marginBottom: 20
   },
   Flex: {
     flexDirection: "row",
@@ -39,33 +63,33 @@ export const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  RefreshButton:{
+  RefreshButton: {
     width: 46,
-    height:46,
-    backgroundColor:Colors.primary,
-    borderRadius:6,
-    justifyContent:'center',
-    alignItems:'center',
-    position:'absolute',
-    bottom:'10%',
+    height: 46,
+    backgroundColor: Colors.primary,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'absolute',
+    bottom: '10%',
     right: '5%',
     zIndex: 999,
   },
-  RefreshIcon:{
-    width:'50%',
-    height:'50%',
-    tintColor:Colors.white
+  RefreshIcon: {
+    width: '50%',
+    height: '50%',
+    tintColor: Colors.white
   },
-  DownIcon:{
-    width:25,
-    height:25,
+  DownIcon: {
+    width: 25,
+    height: 25,
   },
-  CollPadByButton:{
-    width:46,
-    height:46,
-    borderRadius:7,
-    backgroundColor:Colors.primary,
-    justifyContent:'center',
-    alignItems:'center'
+  CollPadByButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 7,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center'
   }
 });

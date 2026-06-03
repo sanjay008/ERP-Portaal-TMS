@@ -62,6 +62,7 @@ type ValidatedPayload = {
   heading: string;
   accuracy: string;
   speed: string;
+  is_active: number;
 };
 
 type PayloadValidationResult =
@@ -73,6 +74,7 @@ function buildAndValidatePayload(
   UserData: any,
   SelectCurrentDate: string | null | undefined,
   selectRegionData: any,
+  isActive: number,
 ): PayloadValidationResult {
   if (!UserData?.user) {
     return { valid: false, reason: 'UserData or user is null — user not logged in' };
@@ -124,15 +126,15 @@ function buildAndValidatePayload(
       heading: String(coord.heading ?? ''),
       accuracy: String(coord.accuracy ?? ''),
       speed: String(coord.speed ?? ''),
+      is_active: isActive,
     },
   };
 }
 
 export default function useUserGPS() {
-  const { UserData, SelectCurrentDate, selectRegionData } =
+  const { UserData, SelectCurrentDate, selectRegionData, isGpsTracking, setIsGpsTracking } =
     useContext(GlobalContextData);
 
-  const [isGpsTracking, setIsGpsTracking] = useState(true);
   const [userCoordinate, setUserCoordinate] = useState<UserCoordinateProps>({
     latitude: 0,
     longitude: 0,
@@ -146,6 +148,7 @@ export default function useUserGPS() {
   const subscriptionRef = useRef<Location.LocationSubscription | null>(null);
   const lastSentCoordRef = useRef<{ latitude: number; longitude: number } | null>(null);
   const isSendingRef = useRef(false);
+  const deactivateCalledRef = useRef(false);
 
   const contextRef = useRef({ UserData, SelectCurrentDate, selectRegionData });
   useEffect(() => {
@@ -155,12 +158,12 @@ export default function useUserGPS() {
   const isChauffeur = UserData?.user?.role === REQUIRED_ROLE;
   const canTrack = isGpsTracking && isChauffeur;
 
-  const sendLocationToBackend = useCallback(async (coord: UserCoordinateProps) => {
+  const sendLocationToBackend = useCallback(async (coord: UserCoordinateProps, isActive: number) => {
     if (isSendingRef.current) return;
 
     const { UserData, SelectCurrentDate, selectRegionData } = contextRef.current;
 
-    const result:any = buildAndValidatePayload(coord, UserData, SelectCurrentDate, selectRegionData);
+    const result: any = buildAndValidatePayload(coord, UserData, SelectCurrentDate, selectRegionData, isActive);
 
     if (!result.valid) {
       console.warn(`[useUserGPS] API call skipped — ${result.reason}`);
@@ -177,10 +180,12 @@ export default function useUserGPS() {
       );
 
       if (res?.status) {
-        lastSentCoordRef.current = {
-          latitude: coord.latitude,
-          longitude: coord.longitude,
-        };
+        if (isActive === 1) {
+          lastSentCoordRef.current = {
+            latitude: coord.latitude,
+            longitude: coord.longitude,
+          };
+        }
       } else {
         console.warn('[useUserGPS] API responded with failure status');
       }
@@ -194,7 +199,15 @@ export default function useUserGPS() {
 
   useEffect(() => {
     if (!canTrack) {
-      if (!isGpsTracking) {
+      if (!isGpsTracking && isChauffeur && !deactivateCalledRef.current) {
+        deactivateCalledRef.current = true;
+
+        const lastCoord = lastSentCoordRef.current;
+        const coordToSend: UserCoordinateProps = lastCoord
+          ? { latitude: lastCoord.latitude, longitude: lastCoord.longitude, heading: null, speed: null, accuracy: null }
+          : { latitude: 0, longitude: 0, heading: null, speed: null, accuracy: null };
+
+        sendLocationToBackend(coordToSend, 0);
       } else if (!isChauffeur) {
         console.warn(`[useUserGPS] Tracking blocked — role is "${UserData?.user?.role}", required "${REQUIRED_ROLE}"`);
       }
@@ -206,6 +219,7 @@ export default function useUserGPS() {
       return;
     }
 
+    deactivateCalledRef.current = false;
     let mounted = true;
 
     const startTracking = async () => {
@@ -232,7 +246,7 @@ export default function useUserGPS() {
       };
 
       setUserCoordinate(initialCoord);
-      sendLocationToBackend(initialCoord);
+      sendLocationToBackend(initialCoord, 1);
 
       subscriptionRef.current = await Location.watchPositionAsync(
         {
@@ -265,7 +279,7 @@ export default function useUserGPS() {
               : Infinity;
 
           if (distanceMoved >= API_DISTANCE_THRESHOLD) {
-            sendLocationToBackend(newCoord);
+            sendLocationToBackend(newCoord, 1);
           }
         },
       );
