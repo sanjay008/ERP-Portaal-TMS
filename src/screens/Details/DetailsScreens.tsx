@@ -167,14 +167,6 @@ export default function DetailsScreens({ navigation, route }: any) {
       });
       return;
     }
-    console.log("REkmegjerg", {
-      token: UserData?.user?.verify_token,
-      role: UserData?.user?.role,
-      relaties_id: UserData?.relaties?.id,
-      user_id: UserData?.user?.id,
-      region_id: SelectActiveRegionData?.id,
-      date: ApiFormatDate(SelectActiveDate),
-    });
 
     try {
       let res = await ApiService(apiConstants.get_location_by_region_date, {
@@ -996,6 +988,7 @@ export default function DetailsScreens({ navigation, route }: any) {
             additional_cost_label={ItemsData?.additional_cost_label}
             customerData={ItemsData?.customer}
             external_platform_data={ItemsData?.display_name}
+            external_order_id={ItemsData?.external_order_id}
             contact={true}
           />
 

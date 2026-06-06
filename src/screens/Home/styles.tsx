@@ -38,6 +38,6 @@ export const styles = StyleSheet.create({
         fontSize:14,
         color:Colors.black,
         fontFamily:FONTS.Medium,
-
+      
     }
 });

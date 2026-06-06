@@ -13,6 +13,9 @@ import LanguageScreens from "@/src/screens/Language/LanguageScreens";
 import LoadedScreens from "@/src/screens/Loaded/LoadedScreens";
 import MapsScreens from "@/src/screens/Maps/MapsScreens";
 import NoInternet from "@/src/screens/NoInternet/NoInternet";
+import AllOrder from "@/src/screens/Order Analysis/AllOrder";
+import OrderDetails from "@/src/screens/Order Analysis/OrderDetails";
+import ScanDetails from "@/src/screens/Order Analysis/ScanDetails";
 import Parcel from "@/src/screens/Parcel/Parcel";
 import Profile from "@/src/screens/Profile/Profile";
 import ScannerScreens from "@/src/screens/Scanner/ScannerScreens";
@@ -86,6 +89,21 @@ export default function index() {
                 <Stack.Screen
                   name="Details"
                   component={withLayoutHeader(DetailsScreens)}
+                  options={{ statusBarAnimation: "slide" }}
+                />
+                <Stack.Screen
+                  name="AllOrder"
+                  component={withLayoutHeader(AllOrder)}
+                  options={{ statusBarAnimation: "slide" }}
+                />
+                <Stack.Screen
+                  name="OrderDetails"
+                  component={withLayoutHeader(OrderDetails)}
+                  options={{ statusBarAnimation: "slide" }}
+                />
+                <Stack.Screen
+                  name="ScanDetails"
+                  component={withLayoutHeader(ScanDetails)}
                   options={{ statusBarAnimation: "slide" }}
                 />
                 <Stack.Screen

@@ -10,7 +10,7 @@ import TwoTypeButton from "@/src/components/TwoTypeButton";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
-import { SimpleFlex, token } from "@/src/utils/storeData";
+import { SimpleFlex } from "@/src/utils/storeData";
 import React, { useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -266,6 +266,7 @@ export default function Parcel({ navigation, route }: any) {
                   driver_note={item?.driver_note || ""}
                     additional_cost_label={item?.additional_cost_label}
             ItemData={item}
+            external_order_id={item?.external_order_id}
 
               LableBackground={item?.tmsstatus?.color}
               onPress={() => navigation.navigate("Details", { item: item })}

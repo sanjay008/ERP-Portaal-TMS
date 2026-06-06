@@ -7,7 +7,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import Collapsible from "react-native-collapsible";
 import DashedLine from "react-native-dashed-line";
@@ -36,6 +36,8 @@ type Props = {
   delivery_btn?: number;
   bgColor?: string;
   OrderData?: null | any;
+  NewScanText?: string;
+  onNewScanPress?: () => void;
 };
 
 type AlertModalType = {
@@ -70,7 +72,9 @@ export default function ScannerInfoModal({
   ProductItem = [],
   delivery_btn = 0,
   bgColor,
-  OrderData = null
+  OrderData = null,
+  NewScanText,
+  onNewScanPress,
 }: Props) {
   const { t } = useTranslation();
   const navigation = useNavigation<any>();
@@ -110,7 +114,9 @@ export default function ScannerInfoModal({
     SelectDeliveryReason, setSelectDeliveryReson,
     OrderDeliveryMapingLableOption, setOrderDeliveryMapingLableOption,
     AllDeliveyLabel, setAllDeliveyLabel,
-    SelectCurrentDeliveryLabel, setSelectCurrentDeliveryLabel
+    SelectCurrentDeliveryLabel, setSelectCurrentDeliveryLabel,
+    AllDamageListReason,
+    selectDamageData, setselectDamageData,
 
   } = useContext(GlobalContextData);
 
@@ -228,9 +234,7 @@ export default function ScannerInfoModal({
                     <View>
                       <Text style={[styles.Text, { fontSize: 15 }]}>
                         {
-
-
-                          personData?.pickup_person_data?.display_name || ""
+                          personData?.display_name || ""
                         }
                       </Text>
                       <Text style={[styles.OrderIdText, { color: Colors.orderdark }]}>
@@ -397,29 +401,178 @@ export default function ScannerInfoModal({
               </View>
             )} */}
 
+            {/* {!showReasonList &&
+              !showDeliveredAtList &&
+              SelectCurrentDeliveryLabel?.damaged_required == 1 &&
+              AllDamageListReason?.length > 0 && (
+                <View style={styles.DamageListContainer}>
+                  <FlatList
+                    data={AllDamageListReason}
+                    scrollEnabled={false}
+                    keyExtractor={(item) => item.id.toString()}
+                    renderItem={({ item }) => (
+                      <Pressable
+                        onPress={() => setselectDamageData(item)}
+                        style={[
+                          styles.DamageRow,
+                          { backgroundColor: item?.color || Colors.Boxgray },
+                        ]}
+                      >
+                        <CheckBox
+                          onValueChange={() => setselectDamageData(item)}
+                          value={selectDamageData?.id === item?.id}
+                          tintColors={{ true: Colors.white, false: Colors.white }}
+                          tintColor={Colors.white}
+                          onTintColor={Colors.white}
+                          onCheckColor={Colors.white}
+                          onFillColor={item?.color || Colors.Boxgray}
+                        />
+                        <Text
+                          style={[
+                            styles.Text,
+                            {
+                              color: getTextColor(item?.color || Colors.Boxgray),
+                              flex: 1,
+                            },
+                          ]}
+                        >
+                          {t(item?.title)}
+                        </Text>
+                      </Pressable>
+                    )}
+                  />
+                </View>
+              )} */}
+
             {/* --- Footer Buttons --- */}
+            {!showReasonList && !showDeliveredAtList && (() => {
+              const showLeft = delivery_btn == 0 || (delivery_btn == 1 && !!onClose);
+              const showRight = delivery_btn == 0 && !!RText;
+              const showNewScan = !!onNewScanPress;
 
-            {!showReasonList && !showDeliveredAtList && delivery_btn == 0 && (
-              <View style={[styles.Flex, styles.LastButtonContainer]}>
-                <TouchableOpacity
-                  style={[styles.Button, LButtonStyle, { width: RText ? "48%" : "60%" }, !RText && { marginHorizontal: "auto" }]}
-                  onPress={() => { if (LText === t("No delivery")) setShowReasonList(true); else onClose?.(); }}
-                >
-                  <Text style={styles.Text}>
-                    {LText ? t(LText) : t('Cancel')}
-                  </Text>
-                </TouchableOpacity>
+              const leftLabel =
+                delivery_btn == 1 ? t("Cancel") : LText ? t(LText) : t("Cancel");
+              const leftOnPress =
+                delivery_btn == 1
+                  ? onClose
+                  : () => {
+                      if (LText === t("No delivery")) setShowReasonList(true);
+                      else onClose?.();
+                    };
 
-                {RText && (
-                  <TouchableOpacity
-                    style={[styles.Button, RButtonStyle]}
-                    onPress={() => { onPress?.(); }}
-                  >
-                    <Text style={styles.Text}>{t(RText)}</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            )}
+              const rowButtons: {
+                key: string;
+                label: string;
+                onPress?: () => void;
+                style?: object;
+                textColor?: string;
+              }[] = [];
+
+              if (showLeft) {
+                rowButtons.push({
+                  key: "left",
+                  label: leftLabel,
+                  onPress: leftOnPress,
+                  style: LButtonStyle,
+                });
+              }
+              if (showNewScan) {
+                rowButtons.push({
+                  key: "newScan",
+                  label: NewScanText || t("New scan"),
+                  onPress: onNewScanPress,
+                  style: { backgroundColor: Colors.primary },
+                  textColor: Colors.white,
+                });
+              }
+
+              const threeButtonLayout = showRight && showLeft && showNewScan;
+
+              if (threeButtonLayout) {
+                return (
+                  <View style={styles.LastButtonContainer}>
+                    <TouchableOpacity
+                      style={[styles.Button, styles.ButtonFullWidth, RButtonStyle]}
+                      onPress={() => onPress?.()}
+                    >
+                      <Text style={styles.Text}>{t(RText!)}</Text>
+                    </TouchableOpacity>
+                    <View style={styles.Flex}>
+                      {rowButtons.map((btn) => (
+                        <TouchableOpacity
+                          key={btn.key}
+                          style={[styles.Button, btn.style]}
+                          onPress={btn.onPress}
+                        >
+                          <Text
+                            style={[
+                              styles.Text,
+                              btn.textColor ? { color: btn.textColor } : null,
+                            ]}
+                          >
+                            {btn.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                );
+              }
+
+              const allRowButtons = [...rowButtons];
+              if (showRight) {
+                allRowButtons.push({
+                  key: "right",
+                  label: t(RText!),
+                  onPress: () => onPress?.(),
+                  style: RButtonStyle,
+                });
+              }
+
+              if (allRowButtons.length === 0) return null;
+
+              if (allRowButtons.length === 1) {
+                const btn = allRowButtons[0];
+                return (
+                  <View style={[styles.LastButtonContainer, styles.FooterCenter]}>
+                    <TouchableOpacity
+                      style={[styles.Button, styles.ButtonSingle, btn.style]}
+                      onPress={btn.onPress}
+                    >
+                      <Text
+                        style={[
+                          styles.Text,
+                          btn.textColor ? { color: btn.textColor } : null,
+                        ]}
+                      >
+                        {btn.label}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                );
+              }
+
+              return (
+                <View style={[styles.Flex, styles.LastButtonContainer]}>
+                  {allRowButtons.map((btn) => (
+                    <TouchableOpacity
+                      key={btn.key}
+                      style={[styles.Button, btn.style]}
+                      onPress={btn.onPress}
+                    >
+                      <Text
+                        style={[
+                          styles.Text,
+                          btn.textColor ? { color: btn.textColor } : null,
+                        ]}
+                      >
+                        {btn.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              );
+            })()}
           </View>
         </View>
       </View>
@@ -466,6 +619,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center"
   },
+  DamageListContainer: {
+    paddingHorizontal: 15,
+    paddingBottom: 5,
+  },
+  DamageRow: {
+    flexDirection: "row",
+    gap: 20,
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    marginBottom: 10,
+  },
   Backdrop: {
     position: "absolute",
     top: 0,
@@ -487,8 +655,11 @@ const styles = StyleSheet.create({
   ContentContainerStyle: { gap: 10 },
   DarkText: { fontSize: 13, color: Colors.darkText, fontFamily: FONTS.Medium },
   DasheLine: { marginVertical: 15 },
-  LastButtonContainer: { padding: 15 },
+  LastButtonContainer: { padding: 15, gap: 10 },
+  FooterCenter: { alignItems: "center" },
   Button: { width: "48%", height: 45, backgroundColor: Colors.background, borderRadius: 4, justifyContent: "center", alignItems: "center" },
+  ButtonSingle: { width: "60%" },
+  ButtonFullWidth: { width: "100%", marginBottom: 0 },
   optionContainer: { padding: 20, alignItems: "center" },
   ReasonButton: { backgroundColor: "#4169E1", borderRadius: 6, paddingVertical: 12, marginVertical: 6, width: "80%", alignItems: "center" },
   ReasonText: { fontSize: 15, fontFamily: FONTS.SemiBold, color: "#fff" },

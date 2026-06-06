@@ -33,7 +33,6 @@ export default function PickUpBox({
   StatusIcon = null,
   statusData = null,
   IndexActive = true,
-
   backOrder = false,
   defaultExpand = false,
   AllisCollapsed = null,
@@ -41,7 +40,8 @@ export default function PickUpBox({
   external_platform_data = null,
   driver_note = null,
   additional_cost_label = null,
-  ItemData
+  ItemData,
+  external_order_id = null,
 }: any) {
   const { t } = useTranslation();
   const [isCollapsed, setisCollapsed] = useState<boolean>(AllisCollapsed !== null ? AllisCollapsed : true);
@@ -56,9 +56,7 @@ export default function PickUpBox({
       .replace("www.dropbox.com", "dl.dropboxusercontent.com")
       .replace("dropbox.com", "dl.dropboxusercontent.com");
 
-
     url = url.replace(/[?&](dl|raw)=\d/g, "");
-
 
     url += (url.includes("?") ? "&" : "?") + "raw=1";
 
@@ -117,9 +115,7 @@ export default function PickUpBox({
 
   const handleCall = async () => {
     const phoneNumber = getPhoneNumber();
-
     if (!phoneNumber) return;
-
     try {
       await Linking.openURL(`tel:${phoneNumber}`);
     } catch (error) {
@@ -128,8 +124,9 @@ export default function PickUpBox({
   };
 
   useEffect(() => {
-    setisCollapsed(AllisCollapsed)
-  }, [AllisCollapsed])
+    setisCollapsed(AllisCollapsed);
+  }, [AllisCollapsed]);
+
   return (
     <Pressable
       style={[styles.container, pickup && styles.BorderOrBg]}
@@ -139,20 +136,28 @@ export default function PickUpBox({
         <View style={styles.TopContainer}>
           <View style={styles.NumberBox}>
             {IndexActive ? (
-              <Text style={[styles.Text]}>{index + 1}</Text>
+              <Text style={styles.Text}>{index + 1}</Text>
             ) : (
-              <Text style={[styles.Text]}>{index}</Text>
+              <Text style={styles.Text}>{index}</Text>
             )}
           </View>
 
-          <View style={{ flex: 1 }}>
-            <Text style={[[styles.Text], { fontSize: customerData?.display_name?.length > 25 ? 12 : 15, flex: 1 }]} >
-              {external_platform_data || ""}
+          <View style={styles.TopTextWrapper}>
+            {!!external_platform_data && (
               <Text
-                style={[styles.OrderIdText, pickup && { color: Colors.black }]}
+                style={styles.PlatformText}
+                numberOfLines={2}
+                ellipsizeMode="tail"
               >
-                {`\n#${OrderId}` || 0}
+                {external_platform_data}
               </Text>
+            )}
+            <Text
+              style={[styles.OrderIdText, pickup && { color: Colors.black }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {`#${OrderId}`}
             </Text>
           </View>
         </View>
@@ -177,6 +182,8 @@ export default function PickUpBox({
                 color: Colors.black,
               },
             ]}
+            numberOfLines={2}
+            ellipsizeMode="tail"
           >
             {t(LableStatus)}
           </Text>
@@ -187,23 +194,21 @@ export default function PickUpBox({
         <Text style={styles.OrderIdText}>{t("Total Parcel")}</Text>
         <View style={[SimpleFlex.Flex, { marginVertical: 5 }]}>
           <Text style={styles.Text}>{ProductItem?.length}</Text>
-          {
-            AllisCollapsed == null || downButton &&
+          {(AllisCollapsed == null || downButton) && (
             <TouchableOpacity
               style={{
                 transform: [{ rotate: !isCollapsed ? "0deg" : "180deg" }],
                 paddingHorizontal: 10,
                 paddingVertical: 10,
-                // borderWidth:1,
               }}
               onPress={() => setisCollapsed(!isCollapsed)}
             >
               <Image source={Images.down} style={{ width: 18, height: 18 }} />
             </TouchableOpacity>
-          }
+          )}
           {StatusIcon && (
             <Image
-              source={{ uri: getDirectDropboxLink(StatusIcon), }}
+              source={{ uri: getDirectDropboxLink(StatusIcon) }}
               style={styles.NumberBox}
               cachePolicy="memory-disk"
               transition={200}
@@ -211,6 +216,7 @@ export default function PickUpBox({
           )}
         </View>
       </View>
+
       <CustomCollapsible visible={isCollapsed}>
         <View style={styles.TotalProductConatiner}>
           <FlatList
@@ -235,12 +241,13 @@ export default function PickUpBox({
           />
         </View>
       </CustomCollapsible>
-      {
-        driver_note &&
+
+      {driver_note && (
         <View style={styles.DriverBG}>
           <Text style={[styles.Text, { color: "#FFEA00" }]}>{driver_note || ""}</Text>
         </View>
-      }
+      )}
+
       {LacationProgress && (
         <View style={{ marginTop: 15 }}>
           <PickupPogressMap
@@ -265,27 +272,20 @@ export default function PickUpBox({
           </View>
         </View>
       )}
-      {!!additional_cost_label && (
-        <View style={styles.labelContainer}>
+
+      {!!external_order_id && (
+        <View style={[styles.labelContainer, { width: "100%", marginTop: 10 }]}>
           <Text style={styles.labelText}>
-            {additional_cost_label}
+            {t("Easytrans")} - {external_order_id}
           </Text>
         </View>
       )}
-      {/* <View style={styles.Flex}>
-        <Text
-          style={[
-            styles.OrderIdText,
-            { fontSize: 14 },
-            pickup && { color: Colors.black },
-          ]}
-        >
-          {t("Pickup")}
-        </Text>
-        <View style={styles.NumberBox}>
-          <Text style={[styles.Text]}>3</Text>
+
+      {!!additional_cost_label && (
+        <View style={styles.labelContainer}>
+          <Text style={styles.labelText}>{additional_cost_label}</Text>
         </View>
-      </View> */}
+      )}
     </Pressable>
   );
 }
@@ -307,8 +307,7 @@ const styles = StyleSheet.create({
   DriverBG: {
     backgroundColor: "#595959",
     padding: 5,
-    borderRadius: 4
-
+    borderRadius: 4,
   },
   BorderOrBg: {
     borderWidth: 1,
@@ -319,7 +318,20 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 10,
     alignItems: "center",
-    width: "60%",
+    flex: 1,
+    paddingRight: 8,
+  },
+  TopTextWrapper: {
+    flex: 1,
+    flexDirection: "column",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  PlatformText: {
+    fontSize: 14,
+    fontFamily: FONTS.SemiBold,
+    color: Colors.black,
+    flexShrink: 1,
   },
   labelContainer: {
     marginTop: 8,
@@ -329,7 +341,6 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     alignSelf: "flex-start",
   },
-
   labelText: {
     fontSize: 14,
     color: Colors.white,

@@ -199,6 +199,7 @@ export default function LoadedScreens({ navigation, route }: any) {
                   OrderId={item?.id}
                     additional_cost_label={item?.additional_cost_label}
             ItemData={item}
+            external_order_id={item?.external_order_id}
 
                   ProductItem={item?.items}
                   LableBackground={item?.tmsstatus?.color}

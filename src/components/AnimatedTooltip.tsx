@@ -1,30 +1,34 @@
 import React, { useEffect } from 'react';
 import {
-    Modal,
-    Pressable,
-    StyleSheet,
-    Text,
-    View,
+  Modal,
+  Pressable,
+  StyleProp,
+  StyleSheet,
+  Text,
+  View,
+  ViewStyle,
 } from 'react-native';
 import Animated, {
-    Easing,
-    Extrapolation,
-    interpolate,
-    useAnimatedStyle,
-    useSharedValue,
-    withTiming,
+  Easing,
+  Extrapolation,
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
 } from 'react-native-reanimated';
 
 type Props = {
   visible: boolean;
   message: string;
   onClose: () => void;
+  style?: StyleProp<ViewStyle>;
 };
 
 export default function AnimatedTooltip({
   visible,
   message,
   onClose,
+  style,
 }: Props) {
   const progress = useSharedValue(0);
 
@@ -72,7 +76,7 @@ export default function AnimatedTooltip({
         onPress={onClose}
       >
         <Animated.View
-          style={[styles.container, animatedStyle]}
+          style={[styles.container,style, animatedStyle]}
         >
           <View style={styles.tooltip}>
             <Text style={styles.text}>

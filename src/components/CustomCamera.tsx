@@ -260,7 +260,6 @@
 // });
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo-camera";
-import { ImageManipulator } from "expo-image-manipulator";
 import { router } from "expo-router";
 import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -302,6 +301,7 @@ export default function CustomCamera({ navigation, route }: any) {
   const [isCameraSwitching, setIsCameraSwitching] = useState(false);
 
   const isRecordingRef = useRef(false);
+  const isTakingPhotoRef = useRef(false);
   const timerRef = useRef<any>(null);
   const switchLockRef = useRef<any>(null);
 
@@ -352,40 +352,30 @@ export default function CustomCamera({ navigation, route }: any) {
   }, [isVideoMode, isCameraSwitching, micPermission]);
 
   const takePhoto = useCallback(async () => {
-    if (!cameraRef.current || isCameraSwitching || isRecordingRef.current) return;
+    if (
+      !cameraRef.current ||
+      isCameraSwitching ||
+      isRecordingRef.current ||
+      isTakingPhotoRef.current
+    ) {
+      return;
+    }
 
+    isTakingPhotoRef.current = true;
     try {
-      const photo =
-        await cameraRef.current.takePictureAsync({
-          quality: 1,
-          skipProcessing: false,
-          exif: false,
-        });
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 0.8,
+        skipProcessing: true,
+        exif: false,
+      });
 
       if (photo?.uri) {
-
-        const context =
-          ImageManipulator.manipulate(
-            photo.uri
-          );
-
-        context.resize({
-          width: 2200,
-        });
-
-        const compressedImage =
-          await context.renderAsync();
-
-        const savedImage =
-          await compressedImage.saveAsync();
-
-        setPhotos((prev) => [
-          ...prev,
-          savedImage.uri,
-        ]);
+        setPhotos((prev) => [...prev, photo.uri]);
       }
     } catch (e) {
       console.log("takePictureAsync error:", e);
+    } finally {
+      isTakingPhotoRef.current = false;
     }
   }, [isCameraSwitching]);
   const startRecording = useCallback(async () => {

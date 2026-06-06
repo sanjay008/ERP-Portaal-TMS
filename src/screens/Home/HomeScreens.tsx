@@ -1,14 +1,15 @@
 import apiConstants from "@/src/api/apiConstants";
 import { Images } from "@/src/assets/images";
+import BottomButton from "@/src/components/BottomButton";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
 import Loader from "@/src/components/loading";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
-import { getData, token } from "@/src/utils/storeData";
+import { getData } from "@/src/utils/storeData";
 import React, { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FlatList, Image, Pressable, Text, View } from "react-native";
+import { BackHandler, FlatList, Image, Platform, Pressable, Text, View } from "react-native";
 import { styles } from "./styles";
 
 export default function HomeScreens({ navigation, route }: any) {
@@ -16,20 +17,19 @@ export default function HomeScreens({ navigation, route }: any) {
   const [AllSlideData, setAllSlideData] = useState([]);
   const [IsLoading, setIsLoading] = useState(false);
   const { t } = useTranslation();
-  const { UserData, setUserData, Toast, setToast, AllRegion, setAllRegion,GloblyTypeSlide,setGloblyTypeSlide,TimeZone, setTimeZone} =
+  const { UserData, isGpsTracking, setIsGpsTracking, setUserData, Toast, setToast, AllRegion, setAllRegion, GloblyTypeSlide, setGloblyTypeSlide, TimeZone, setTimeZone } =
     useContext(GlobalContextData);
   const { ErrorHandle } = useErrorHandle();
-
   const getSliderDataFun = async () => {
     setIsLoading(true);
     const CompanyLogin = await getData("COMPANYDATA");
     setTimeZone(CompanyLogin?.default_company?.timezone || "");
-    
+
 
     try {
       let res = await ApiService(apiConstants.get_AllSlideDataApi, {
         customData: {
-          token:  UserData?.user?.verify_token,
+          token: UserData?.user?.verify_token,
           role: UserData?.user?.role,
           relaties_id: UserData?.relaties?.id,
           user_id: UserData?.user?.id,
@@ -92,11 +92,14 @@ export default function HomeScreens({ navigation, route }: any) {
                 styles.SlideContainer,
                 { backgroundColor: item?.color_code || Colors.Boxgray },
               ]}
-              onPress={() =>{
+              onPress={() => {
                 setGloblyTypeSlide(item?.type)
-                if(item?.type == "outbound_scan"){
+                console.log("GloblyTypeSlide", GloblyTypeSlide, "Item Type:", item?.type)
+                if (item?.type == "outbound_scan") {
                   navigation.navigate("Scanner", { item: item })
-                }else{
+                } else if (item?.type == "AllOrder") {
+                  navigation.navigate("AllOrder", { Type: item?.type })
+                } else {
                   navigation.navigate("FilterScreen", { item: item })
                 }
               }
@@ -113,6 +116,24 @@ export default function HomeScreens({ navigation, route }: any) {
               <Text style={styles.Text}>{t(item?.item_title)}</Text>
             </Pressable>
           );
+        }}
+      />
+      <BottomButton
+        visible={isGpsTracking}
+        label={t("Close shift")}
+        onPress={() => {
+          setIsGpsTracking(false);
+          setToast({
+            top: 45,
+            text: t("Shift closed successfully"),
+            type: "success",
+            visible: true,
+          });
+          if (Platform.OS === "android") {
+            setTimeout(() => {
+              BackHandler.exitApp();
+            }, 2000)
+          }
         }}
       />
     </View>

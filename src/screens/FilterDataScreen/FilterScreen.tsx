@@ -10,6 +10,7 @@ import SearchInput from "@/src/components/SearchInput";
 import TwoTypeButton from "@/src/components/TwoTypeButton";
 import Loader from "@/src/components/loading";
 import { GlobalContextData } from "@/src/context/GlobalContext";
+import { requestLocationAccess } from "@/src/hooks/useUserGPS";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
 import { useIsFocused } from "@react-navigation/native";
@@ -29,9 +30,10 @@ import { styles } from "./styles";
 
 export default function FilterScreen({ navigation, route }: any) {
   const { item, Type } = route?.params || {};
-  const [SlideType, setSlideType] = useState(item || Type);
+  const [SlideType, setSlideType] = useState(item?.type || Type);
   const [tooltipVisible, setTooltipVisible] = useState(false);
   const Focused = useIsFocused();
+  const [ScanerbtnDisableTiptool, setScanerbtnDisableTiptool] = useState(false);
   const {
     UserData,
     setUserData,
@@ -46,9 +48,11 @@ export default function FilterScreen({ navigation, route }: any) {
     setSelectCurrentDeliveryLabel,
     AllDamageListReason, setAllDamageListReason,
     selectRegionData, setSelectRegionData,
-    isGpsTracking, setIsGpsTracking
+    isGpsTracking, setIsGpsTracking,
+    SelectActiveDate, setSelectActiveDate,
+
   } = useContext(GlobalContextData);
-  const [SelectDate, setSelectDate] = useState<string>("");
+  const [SelectDate, setSelectDate] = useState<string>(SelectActiveDate || "");
   const [IsLoading, setLoading] = useState<boolean>(false);
   const [AllFilterData, setAllFilterDataGet] = useState<object[]>([]);
   const { t } = useTranslation();
@@ -56,11 +60,38 @@ export default function FilterScreen({ navigation, route }: any) {
   const [isCollapsed, setisCollapsed] = useState<boolean>(true);
   const { ErrorHandle } = useErrorHandle();
   const [ScanBTNAvailble, setScanBTNAvailble] = useState<boolean>(
-    !(GloblyTypeSlide == "Pickup / Dropoff")
+    !(GloblyTypeSlide == "pickup_dropoff")
   );
   const [RegionOrderData, setRegionOrderData] = useState([]);
   const [TemopryryDataStore, setTemopryryDataStore] = useState([]);
   const [TotalCountParcel, setTotalCountParcel] = useState<{ pickup: number, dropoff: number }>({ pickup: 0, dropoff: 0 });
+  const [isGpsPermissionLoading, setIsGpsPermissionLoading] = useState(false);
+
+  const handleGpsTrackingPress = useCallback(async () => {
+    if (!selectRegionData) {
+      setTooltipVisible(true);
+      return;
+    }
+
+    setIsGpsPermissionLoading(true);
+    try {
+      const granted = await requestLocationAccess();
+      if (granted) {
+        setIsGpsTracking(true);
+        return;
+      }
+      setIsGpsTracking(false);
+      setToast({
+        top: 45,
+        text: t("Location permission is required to enable GPS tracking."),
+        type: "error",
+        visible: true,
+      });
+    } finally {
+      setIsGpsPermissionLoading(false);
+    }
+  }, [selectRegionData, setIsGpsTracking, setToast, t]);
+
   const getFilterDataFun = useCallback(async () => {
     try {
       const payload = {
@@ -155,6 +186,7 @@ export default function FilterScreen({ navigation, route }: any) {
     const currentType = Type || item?.type;
     setSlideType(currentType);
     const shouldAllowNavigation = currentType === "pickup_dropoff";
+    console.log("Current Type:", currentType, "GloblyTypeSlide:", GloblyTypeSlide, "Item Type:", item?.type);
     setScanBTNAvailble(!shouldAllowNavigation);
   }, [SelectDate, UserData, Focused, Type, item]);
 
@@ -232,26 +264,31 @@ export default function FilterScreen({ navigation, route }: any) {
     }
   };
 
-  const FilterData = useMemo(() => {
-    const q = search?.trim().toLowerCase();
-    if (!q) return RegionOrderData ?? [];
+const FilterData = useMemo(() => {
+  const q = search?.trim().toLowerCase();
+  if (!q) return RegionOrderData ?? [];
 
-    const cleaned = q.startsWith('#') ? q.slice(1) : q;
-    const parts = cleaned.split(/\s+/);
-    const idPart = parts[0];
-    const namePart = parts.slice(1).join(' ').trim();
+  const cleaned = q.startsWith('#') ? q.slice(1) : q;
+  const parts = cleaned.split(/\s+/);
+  const idPart = parts[0];
+  const namePart = parts.slice(1).join(' ').trim();
 
-    return (RegionOrderData ?? []).filter((item: any) => {
-      const itemId = item?.id?.toString() ?? '';
-      const itemName = item?.display_name?.toLowerCase() ?? '';
+  return (RegionOrderData ?? []).filter((item: any) => {
+    const itemId = item?.id?.toString().toLowerCase() ?? '';
+    const itemName = item?.display_name?.toLowerCase() ?? '';
+    const itemExtId = item?.external_order_id?.toString().toLowerCase() ?? '';
 
-      if (namePart) {
-        return itemId.includes(idPart) && itemName.includes(namePart);
-      }
+    if (namePart) {
+      return itemId.includes(idPart) && itemName.includes(namePart);
+    }
 
-      return itemId.includes(cleaned) || itemName.includes(cleaned);
-    });
-  }, [search, RegionOrderData]);
+    return (
+      itemId.includes(cleaned) ||
+      itemName.includes(cleaned) ||
+      itemExtId.includes(cleaned)
+    );
+  });
+}, [search, RegionOrderData]);
 
   useEffect(() => {
     if (selectRegionData?.id) {
@@ -261,6 +298,9 @@ export default function FilterScreen({ navigation, route }: any) {
       setTotalCountParcel({ pickup: matchedRegion?.pickup_orders?.length || 0, dropoff: matchedRegion?.deliver_orders?.length || 0 })
     } else {
       setTotalCountParcel({ pickup: 0, dropoff: 0 });
+    }
+    if (selectRegionData == null) {
+      setIsGpsTracking(false);
     }
   }, [selectRegionData, RegionOrderData]);
 
@@ -311,22 +351,32 @@ export default function FilterScreen({ navigation, route }: any) {
               fun={(item) => RegionDetailsDataFun(item)}
               valueFieldKey="id"
 
-              ContainerStyle={{ flex:  1 / 1.05  }}
+              ContainerStyle={{ flex: 1 / 1.05 }}
             />
-            
-              <TwoTypeButton
-                onlyIcon={true}
-                Icon={Images.Scan}
-                style={{ width: 46, height: 46 }}
-                onPress={() =>
-                  navigation.navigate("Scanner", {
-                    fun: getFilterDataFun,
-                    type: !ScanBTNAvailble ? "allow_all_order" : SlideType,
-                    is_scan:false
-                  })
+
+            <TwoTypeButton
+              onlyIcon={true}
+              Icon={Images.Scan}
+              style={{ width: 46, height: 46 }}
+              onPress={() => {
+                if (!isGpsTracking && SlideType == "pickup_dropoff") {
+                  setScanerbtnDisableTiptool(true);
+                  return;
                 }
-              />
-            
+                navigation.navigate("Scanner", {
+                  fun: getFilterDataFun,
+                  type: SlideType,
+                  is_scan: false
+                })
+              }
+              }
+            />
+            <AnimatedTooltip
+              visible={ScanerbtnDisableTiptool}
+              message={t("GPS/Location Services must be enabled before you can scan.")}
+              onClose={() => setScanerbtnDisableTiptool(false)}
+              style={{ top: "14%", right: 10 }}
+            />
           </View>
           <View style={[styles.Flex, { marginBottom: 10 }]}>
             <SearchInput
@@ -335,25 +385,21 @@ export default function FilterScreen({ navigation, route }: any) {
               suggestions={RegionOrderData}
               placeholder={t("Search by ID or name") + "..."}
               onSelect={(item) => console.log(item)}
-              containerStyle={{ flex: SlideType == "pickup_dropoff" && UserData?.user?.role === "chauffeur" ? 1 / 1.05 : 1 }}
+              containerStyle={{ flex: SlideType == "pickup_dropoff" && UserData?.user?.role === "chauffeur" && !isGpsTracking ? 1 / 1.05 : 1 }}
             />
             {
-              SlideType == "pickup_dropoff" && UserData?.user?.role === "chauffeur" &&
+              SlideType == "pickup_dropoff" && UserData?.user?.role === "chauffeur" && !isGpsTracking &&
               <TouchableOpacity
                 style={[
                   styles.button,
                   {
                     backgroundColor: isGpsTracking ? Colors.green : Colors.red,
+                    opacity: isGpsPermissionLoading ? 0.6 : 1,
                   },
                 ]}
-                onPress={() => {
-                  if (!selectRegionData) {
-                    setTooltipVisible(true);
-                    return;
-                  }
-                  setIsGpsTracking(prev => !prev)
-                }}
+                onPress={handleGpsTrackingPress}
                 activeOpacity={0.8}
+                disabled={isGpsPermissionLoading}
               >
                 <AnimatedTooltip
                   visible={tooltipVisible}
@@ -369,11 +415,12 @@ export default function FilterScreen({ navigation, route }: any) {
               </TouchableOpacity>
             }
           </View>
-          <View style={styles.CountContainer}>
-            <Text style={styles.CountContainerText}>
-              {`${t("Pick")} (${TotalCountParcel.pickup}) - ${t("Drop")} (${TotalCountParcel.dropoff})`}
-            </Text>
-          </View>
+            <View style={styles.CountContainer}>
+              <Text style={styles.CountContainerText}>
+                {`${t("Pick")} (${TotalCountParcel.pickup}) - ${t("Drop")} (${TotalCountParcel.dropoff})`}
+              </Text>
+            </View>
+
           {selectRegionData && AllFilterData?.length > 0 ? (
             <FlatList
               data={FilterData}
@@ -418,7 +465,7 @@ export default function FilterScreen({ navigation, route }: any) {
                     LableBackground={item?.tmsstatus?.color}
                     additional_cost_label={item?.additional_cost_label}
                     onPress={() => {
-                      if (ScanBTNAvailble) {
+                      if (ScanBTNAvailble || !isGpsTracking) {
                         console.log("Navigation blocked");
                         return;
                       }
@@ -428,6 +475,8 @@ export default function FilterScreen({ navigation, route }: any) {
                     end={item?.deliver_location}
                     customerData={item?.customer}
                     external_platform_data={item?.display_name}
+                    external_order_id={item?.external_order_id}
+
                     ItemData={item}
                     statusData={item?.tmsstatus}
                     backOrder={true}
@@ -449,9 +498,6 @@ export default function FilterScreen({ navigation, route }: any) {
         </ScrollView>
 
       </View>
-      {/* <TouchableOpacity style={styles.RefreshButton} onPress={getFilterDataFun}>
-        <Image source={Images.refresh} style={styles.RefreshIcon} />
-      </TouchableOpacity> */}
     </SafeAreaView>
   );
 }

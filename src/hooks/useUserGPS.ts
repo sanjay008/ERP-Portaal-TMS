@@ -1,8 +1,48 @@
 import * as Location from 'expo-location';
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { Linking } from 'react-native';
 import apiConstants from '../api/apiConstants';
 import { GlobalContextData } from '../context/GlobalContext';
 import ApiService from '../utils/Apiservice';
+
+type LocationPermissionStatus = {
+  granted: boolean;
+  canAskAgain: boolean;
+};
+
+export async function checkLocationPermission(): Promise<LocationPermissionStatus> {
+  const { status, canAskAgain } = await Location.getForegroundPermissionsAsync();
+  return {
+    granted: status === Location.PermissionStatus.GRANTED,
+    canAskAgain: canAskAgain !== false,
+  };
+}
+
+export async function requestLocationAccess(): Promise<boolean> {
+  const current = await checkLocationPermission();
+  if (current.granted) {
+    return true;
+  }
+
+  if (!current.canAskAgain) {
+    await Linking.openSettings();
+    const afterSettings = await checkLocationPermission();
+    return afterSettings.granted;
+  }
+
+  const { status, canAskAgain } = await Location.requestForegroundPermissionsAsync();
+  if (status === Location.PermissionStatus.GRANTED) {
+    return true;
+  }
+
+  if (canAskAgain === false) {
+    await Linking.openSettings();
+    const afterSettings = await checkLocationPermission();
+    return afterSettings.granted;
+  }
+
+  return false;
+}
 
 type UserCoordinateProps = {
   latitude: number;
@@ -31,15 +71,6 @@ function haversineDistance(
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-let permissionGranted: boolean | null = null;
-
-async function ensurePermission(): Promise<boolean> {
-  if (permissionGranted !== null) return permissionGranted;
-  const { status } = await Location.requestForegroundPermissionsAsync();
-  permissionGranted = status === 'granted';
-  return permissionGranted;
 }
 
 function getTodayDate(): string {
@@ -223,13 +254,16 @@ export default function useUserGPS() {
     let mounted = true;
 
     const startTracking = async () => {
-      const granted = await ensurePermission();
+      const permission = await checkLocationPermission();
 
-      if (!granted) {
+      if (!permission.granted) {
         setPermissionDenied(true);
+        setIsGpsTracking(false);
         console.warn('[useUserGPS] Location permission denied');
         return;
       }
+
+      setPermissionDenied(false);
 
       const initial = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.BestForNavigation,
@@ -301,5 +335,7 @@ export default function useUserGPS() {
     isGpsTracking,
     isChauffeur,
     setIsGpsTracking,
+    requestLocationAccess,
+    checkLocationPermission,
   };
 }

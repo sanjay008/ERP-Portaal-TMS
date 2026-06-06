@@ -1,4 +1,3 @@
-import CheckBox from "@react-native-community/checkbox";
 import React, { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -8,6 +7,7 @@ import {
     FlatList,
     Modal,
     Pressable,
+    ScrollView,
     StatusBar,
     StyleSheet,
     Text,
@@ -17,6 +17,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Colors } from "../utils/colors";
 import { FONTS } from "../utils/storeData";
+import PickUpBox from "./PickUpBox";
 
 const { width, height } = Dimensions.get("window");
 
@@ -29,6 +30,9 @@ type Props = {
     setselectDamageData?: (item: any) => void;
     selectDamageData?: any;
     fun?: () => void;
+    onCancel?: () => void;
+    GloblyTypeSlide?: string | null;
+    ItemsData: any;
 };
 
 export default function AnimatedModal({
@@ -40,6 +44,9 @@ export default function AnimatedModal({
     setselectDamageData,
     selectDamageData,
     fun,
+    GloblyTypeSlide,
+    onCancel,
+    ItemsData,
 }: Props) {
     const { t } = useTranslation();
     const insets = useSafeAreaInsets();
@@ -107,7 +114,12 @@ export default function AnimatedModal({
 
     const handleClose = () => {
         setVisible(false);
+        onCancel?.();
+    };
+
+    const completeSelection = () => {
         fun?.();
+        setVisible(false);
     };
 
     const hasDamageList = AllDamageListReason && AllDamageListReason.length > 0;
@@ -118,11 +130,11 @@ export default function AnimatedModal({
             setSelectCurrentDeliveryLabel(item);
         }
         if (!hasDamageList) {
-            handleClose();
+            completeSelection();
             return;
         }
         if (selectDamageData) {
-            handleClose();
+            completeSelection();
         }
     };
 
@@ -132,11 +144,10 @@ export default function AnimatedModal({
         }
     };
 
-
     useEffect(() => {
         if (!visible) return;
         if (hasDamageList && !hasDeliveryLabel && selectDamageData) {
-            handleClose();
+            completeSelection();
         }
     }, [selectDamageData]);
 
@@ -160,72 +171,63 @@ export default function AnimatedModal({
 
             <Animated.View style={[styles.screen, { opacity, transform: [{ translateY }] }]}>
                 <View style={[styles.safeArea, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+                    <ScrollView
+                        showsVerticalScrollIndicator={false}
+                        bounces={false}
+                        keyboardShouldPersistTaps="handled"
+                        contentContainerStyle={styles.scrollContent}
+                    >
+                        {GloblyTypeSlide === "outbound_scan" && (
+                            <View style={styles.orderBlock}>
+                                <Text style={styles.orderLabel}>{t("Order")}</Text>
+                                <PickUpBox
+                                    AllisCollapsed={false}
+                                    downButton={true}
+                                    data={ItemsData}
+                                    LableStatus={ItemsData?.tmsstatus?.status_name}
+                                    OrderId={ItemsData?.id}
+                                    ProductItem={ItemsData?.items}
+                                    driver_note={null}
+                                    LableBackground={ItemsData?.tmsstatus?.color}
+                                    start={ItemsData?.pickup_location}
+                                    end={ItemsData?.deliver_location}
+                                    ItemData={ItemsData}
+                                    additional_cost_label={ItemsData?.additional_cost_label}
+                                    customerData={ItemsData?.customer}
+                                    external_platform_data={ItemsData?.display_name}
+                                    external_order_id={ItemsData?.external_order_id}
+                                    contact={true}
+                                />
+                            </View>
+                        )}
 
-                    {hasDamageList && (
-                        <View style={styles.section}>
-                            <Text style={styles.sectionTitle}>{t("Damage Reason")}</Text>
-                            <FlatList
-                                data={AllDamageListReason}
-                                keyExtractor={(item) => item.id.toString()}
-                                scrollEnabled={false}
-                                renderItem={({ item }) => {
-                                    const bgColor = item?.color || Colors.Boxgray;
-                                    const textColor = getTextColor(bgColor);
-                                    const isSelected = selectDamageData?.id === item?.id;
-                                    return (
-                                        <Pressable
-                                            onPress={() => handleDamageSelect(item)}
-                                            style={[
-                                                styles.damageRow,
-                                                { backgroundColor: bgColor, borderColor: isSelected ? Colors.white : "transparent" },
-                                            ]}
-                                        >
-                                            <CheckBox
-                                                onValueChange={() => handleDamageSelect(item)}
-                                                value={isSelected}
-                                                tintColors={{ true: Colors.white, false: Colors.white }}
-                                                tintColor={Colors.white}
-                                                onTintColor={Colors.white}
-                                                onCheckColor={Colors.white}
-                                                onFillColor={bgColor}
-                                            />
-                                            <Text style={[styles.damageText, { color: textColor }]}>
-                                                {t(item?.title)}
-                                            </Text>
-                                        </Pressable>
-                                    );
-                                }}
-                            />
-                        </View>
-                    )}
-
-                    {hasDeliveryLabel && (
-                        <View style={styles.section}>
-                            <Text style={styles.sectionTitle}>{t("Delivery Label")}</Text>
-                            <FlatList
-                                data={AllDeliveyLabel}
-                                keyExtractor={(item) => item.id.toString()}
-                                scrollEnabled={false}
-                                renderItem={({ item }) => {
-                                    if (item?.id === 15) return null;
-                                    const bgColor = item?.color || Colors.Boxgray;
-                                    const textColor = getTextColor(bgColor);
-                                    return (
-                                        <TouchableOpacity
-                                            onPress={() => handleDeliveryLabelSelect(item)}
-                                            activeOpacity={0.82}
-                                            style={[styles.labelBtn, { backgroundColor: bgColor }]}
-                                        >
-                                            <Text style={[styles.labelText, { color: textColor }]}>
-                                                {t(item?.title)}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    );
-                                }}
-                            />
-                        </View>
-                    )}
-
+                        {hasDeliveryLabel && (
+                            <View style={styles.section}>
+                                <Text style={styles.sectionTitle}>{t("Delivery Label")}</Text>
+                                <FlatList
+                                    data={AllDeliveyLabel}
+                                    keyExtractor={(item) => item.id.toString()}
+                                    scrollEnabled={false}
+                                    renderItem={({ item }) => {
+                                        if (item?.id === 15) return null;
+                                        const bgColor = item?.color || Colors.Boxgray;
+                                        const textColor = getTextColor(bgColor);
+                                        return (
+                                            <TouchableOpacity
+                                                onPress={() => handleDeliveryLabelSelect(item)}
+                                                activeOpacity={0.82}
+                                                style={[styles.labelBtn, { backgroundColor: bgColor }]}
+                                            >
+                                                <Text style={[styles.labelText, { color: textColor }]}>
+                                                    {t(item?.title)}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        );
+                                    }}
+                                />
+                            </View>
+                        )}
+                    </ScrollView>
                 </View>
             </Animated.View>
         </Modal>
@@ -250,6 +252,19 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingTop: 16,
         paddingBottom: 24,
+    },
+    scrollContent: {
+        paddingBottom: 16,
+    },
+    orderBlock: {
+        marginBottom: 20,
+    },
+    orderLabel: {
+        fontSize: 16,
+        fontFamily: FONTS.SemiBold,
+        color: Colors.darkText,
+        marginBottom: 10,
+        paddingHorizontal: 4,
     },
     section: {
         marginBottom: 20,

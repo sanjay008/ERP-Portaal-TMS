@@ -1,4 +1,4 @@
-import apiConstants, { Verify_status } from "@/src/api/apiConstants";
+import apiConstants from "@/src/api/apiConstants";
 import { Images } from "@/src/assets/images";
 import AnimatedModal from "@/src/components/AnimatedModal";
 import { ApiFormatDate } from "@/src/components/ApiFormatDate";
@@ -24,7 +24,6 @@ import BottomSheet, {
 } from "@gorhom/bottom-sheet";
 import CheckBox from '@react-native-community/checkbox';
 import { useIsFocused } from "@react-navigation/native";
-import { NavigationBar } from "@zoontek/react-native-navigation-bar";
 import axios from "axios";
 import { Audio } from "expo-av";
 import {
@@ -38,7 +37,6 @@ import React, {
   useCallback,
   useContext,
   useEffect,
-  useImperativeHandle,
   useRef,
   useState,
 } from "react";
@@ -48,7 +46,8 @@ import {
   Animated,
   FlatList,
   Image,
-  Keyboard, KeyboardAvoidingView, Platform,
+  Keyboard,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -68,7 +67,7 @@ export default function ScannerScreens({ navigation, route }: any) {
   const [ItemsData, setItemsData] = useState(item);
   const [isNoParcelFlow, setIsNoParcelFlow] = useState(false);
   const [showSig, setShowSig] = useState<boolean>(false);
-
+  const [EvetyTimeShowDeliveryLabelList, setEvetyTimeShowDeliveryLabelList] = useState<boolean>(false);
   // const [NoParcelItemIds, setNoParcelItemIds] = useState<number[]>([]);
   const [IsLoading, setIsLoading] = useState<boolean>(false);
   const [ConformationModalOpen, setConformationModal] = useState<any>({
@@ -124,6 +123,8 @@ export default function ScannerScreens({ navigation, route }: any) {
   const [UpdateStatusHandle, setUpdateStatusHandle] = useState<null | boolean>(
     null
   );
+  const pendingDeliveryLabelRef = useRef<any>(null);
+  const deliveryLabelModalPendingRef = useRef(false);
   const [showQRError, setShowQRError] = useState(false);
   const [CommentLoader, setCommentLoader] = useState<boolean>(false);
   const [Refreshcondition, setRefreshCondition] = useState(false);
@@ -202,33 +203,19 @@ export default function ScannerScreens({ navigation, route }: any) {
     selectDamageData, setselectDamageData,
     CommentId, setCommentId
   } = useContext(GlobalContextData);
+
+  const selectCurrentDeliveryLabelRef = useRef<any>(null);
+  selectCurrentDeliveryLabelRef.current = SelectCurrentDeliveryLabel;
   const { t } = useTranslation();
   const { ErrorHandle } = useErrorHandle();
-
-  const getActiveDeliveryLabel = () =>
-    pendingDeliveryLabelRef.current ?? SelectCurrentDeliveryLabel;
-
-  const clearDeliveryLabelSelection = () => {
-    pendingDeliveryLabelRef.current = null;
-    setSelectCurrentDeliveryLabel(null);
-  };
-
-  const handleSelectDeliveryLabel = (labelItem: any) => {
-    pendingDeliveryLabelRef.current = labelItem;
-    setSelectCurrentDeliveryLabel(labelItem);
-  };
-
   const [cameraKey, setCameraKey] = useState(1);
   const { top, bottom } = useSafeAreaInsets();
   const [SignatureLoader, setSignatureLoader] = useState<boolean>(false);
   const [ShowDeliveryLabelList, setShowDeliveryLabelList] = useState(0);
   const [DropBoxUploadImageData, setDropBoxUploadImageData] = useState<any[]>([]);
   const [ImageStoreLoader, setImageStoreLoader] = useState<boolean>(false);
-  const [EvetyTimeShowDeliveryLabelList, setEvetyTimeShowDeliveryLabelList] = useState<boolean>(false);
-  const parcelScanCountRef = useRef(0);
-  const pendingDeliveryLabelRef = useRef<any>(null);
+
   const [CommentStep, setCommentStep] = useState<number>(1);
-  const [OnPressPresentData, setOnPressPresentData] = useState<any>(null);
   const [ReposonseOrderData, setResponseOrderData] = useState<any>(null);
   const [AlertModalOpen, setAlerModalOpen] = useState<AlertModalType>({
     visible: false,
@@ -275,18 +262,145 @@ export default function ScannerScreens({ navigation, route }: any) {
   } = useContext(DropboxContext);
 
   const Focused = useIsFocused();
-  useImperativeHandle(cameraRef, () => ({
-    reset: async () => {
+
+  const isAnyScannerModalOpen =
+    ConformationModalOpen?.visible ||
+    SecondModal?.visible ||
+    ScannerModalOpen?.visible ||
+    NoParcelModalVisible ||
+    AlertModalOpen?.visible ||
+    EvetyTimeShowDeliveryLabelList;
+
+  const [isVerifyingScan, setIsVerifyingScan] = useState(false);
+  const isVerifyingScanRef = useRef(false);
+
+  const isScannerBlockedByModal =
+    isAnyScannerModalOpen ||
+    showSig ||
+    comment ||
+    showQRError;
+
+  const isScannerBlockedByModalRef = useRef(false);
+  isScannerBlockedByModalRef.current =
+    isScannerBlockedByModal || deliveryLabelModalPendingRef.current;
+
+  const shouldPauseCameraPreview = isAnyScannerModalOpen;
+
+  const wasCameraPausedByOverlayRef = useRef(false);
+
+  const restartScannerPreview = useCallback(() => {
+    setLastDetectedBarcode("");
+    setTimeout(async () => {
       try {
-        await cameraRef.current?.resumePreview();
-        setTimeout(async () => {
-          await cameraRef.current?.resumePreview();
-        }, 200);
-      } catch (e) {
-        console.log("Camera reset error", e);
+        if (cameraRef.current?.resumePreview) {
+          await cameraRef.current.resumePreview();
+          return;
+        }
+      } catch (error) {
+        console.log("resumePreview failed, remounting camera:", error);
       }
-    },
-  }));
+      setCameraKey((prev) => prev + 1);
+    }, 400);
+  }, []);
+
+  const closeConformationModalAndUnlockScan = useCallback(() => {
+    setConformationModal((prev: any) => ({ ...prev, visible: false }));
+    setIsVerifyingScan(false);
+    setLastDetectedBarcode("");
+    restartScannerPreview();
+  }, [restartScannerPreview]);
+
+  const clearDeliveryLabelSelection = useCallback(() => {
+    pendingDeliveryLabelRef.current = null;
+    selectCurrentDeliveryLabelRef.current = null;
+    setSelectCurrentDeliveryLabel(null);
+  }, []);
+
+  const closeDeliveryLabelModalAndUnlockScan = useCallback(() => {
+    deliveryLabelModalPendingRef.current = false;
+    setEvetyTimeShowDeliveryLabelList(false);
+    setIsVerifyingScan(false);
+    isVerifyingScanRef.current = false;
+    setLastDetectedBarcode("");
+    restartScannerPreview();
+  }, [restartScannerPreview]);
+
+  const openCameraProofAfterLabelSelect = useCallback(() => {
+    deliveryLabelModalPendingRef.current = false;
+    setEvetyTimeShowDeliveryLabelList(false);
+    const selectedLabel =
+      pendingDeliveryLabelRef.current ?? SelectCurrentDeliveryLabel;
+    setAlerModalOpen({
+      visible: true,
+      title: t("Camera"),
+      Description: t("You have to take a picture for proof?"),
+      LButtonText: t("Cancel"),
+      RButtonText: t("Camera"),
+      Icon: Images.UploadPhoto,
+      RButtonStyle: Colors.primary,
+      RColor: Colors.white,
+      LButtonStyle: Colors.gray,
+      LColor: Colors.black,
+      onPress: () => {
+        deliveryTypeRef.current = false;
+        setDeliveyDataSave({
+          Data: ItemsData,
+          selectReason: selectedLabel,
+          setData: async (data: any[]) => {
+            if (data?.length > 0) {
+              setAllSelectImage(data);
+              setComment(true);
+            }
+          },
+          type: false,
+        });
+        navigation.navigate("Camera");
+        setAlerModalOpen((prev) => ({ ...prev, visible: false }));
+      },
+    });
+  }, [ItemsData, navigation, SelectCurrentDeliveryLabel, setDeliveyDataSave, t]);
+
+  useEffect(() => {
+    if (!Focused) {
+      wasCameraPausedByOverlayRef.current = false;
+      return;
+    }
+
+    const syncCameraWithOverlay = async () => {
+      try {
+        if (shouldPauseCameraPreview) {
+          await cameraRef.current?.pausePreview?.();
+          wasCameraPausedByOverlayRef.current = true;
+          return;
+        }
+
+        if (!wasCameraPausedByOverlayRef.current) return;
+
+        wasCameraPausedByOverlayRef.current = false;
+        restartScannerPreview();
+      } catch (error) {
+        console.log("Camera overlay sync:", error);
+      }
+    };
+
+    syncCameraWithOverlay();
+  }, [shouldPauseCameraPreview, Focused, restartScannerPreview]);
+
+  useEffect(() => {
+    if (isAnyScannerModalOpen) {
+      isVerifyingScanRef.current = false;
+      setIsVerifyingScan(false);
+    }
+  }, [isAnyScannerModalOpen]);
+
+  useEffect(() => {
+    if (!isScannerBlockedByModal) {
+      setLastDetectedBarcode("");
+      isVerifyingScanRef.current = false;
+      setIsVerifyingScan(false);
+    }
+  }, [isScannerBlockedByModal]);
+
   useEffect(() => {
 
 
@@ -321,13 +435,10 @@ export default function ScannerScreens({ navigation, route }: any) {
       }, 200);
     }
   }, [Focused]);
-
-  useEffect(() => {
-    if (!Focused) {
-      parcelScanCountRef.current = 0;
-    }
-  }, [Focused]);
-
+  const handleSelectDeliveryLabel = (labelItem: any) => {
+    pendingDeliveryLabelRef.current = labelItem;
+    setSelectCurrentDeliveryLabel(labelItem);
+  };
   useEffect(() => {
     const showListener = Keyboard.addListener("keyboardDidShow", (e) => {
       setKeyboardHeight(e.endCoordinates.height);
@@ -370,6 +481,8 @@ export default function ScannerScreens({ navigation, route }: any) {
         console.log("📦 Received delivery photo data:", data);
         if (data?.length > 0) {
           setAllSelectImage(data);
+          console.log("SelectCurrentDeliveryLabel", SelectCurrentDeliveryLabel);
+
           if (!deliveryTypeRef.current) {
             setComment(true);
             setShowSig(false);
@@ -389,30 +502,18 @@ export default function ScannerScreens({ navigation, route }: any) {
     };
   }, [Focused, reopenSignatureAfterCamera]);
 
-  useEffect(() => {
-    const shouldLockScreen =
-      SecondModal.visible || showSig || comment;
-    if (shouldLockScreen) {
-      NavigationBar.setHidden(true);
-
-
-    } else {
-      NavigationBar.setHidden(false);
-
-
-    }
-  }, [showSig, comment])
-
-
   const onBarcodeScanned = useCallback(
     async ({ data, type }: { data: string; type: string }) => {
       console.log("Scanned QR Raw Data:", data);
 
+      if (!data || isScannerBlockedByModalRef.current || isVerifyingScanRef.current) return;
+      if (data === lastDetectedBarcode) return;
+
+      setLastDetectedBarcode(data);
+      isVerifyingScanRef.current = true;
+      setIsVerifyingScan(true);
+
       try {
-        if (!data || data === lastDetectedBarcode) return;
-
-        setLastDetectedBarcode(data);
-
         let parsedData: any;
         try {
           parsedData = JSON.parse(data);
@@ -439,7 +540,6 @@ export default function ScannerScreens({ navigation, route }: any) {
           return;
         }
 
-        // Optional: give user feedback
         Vibration.vibrate(500);
         await playBeep();
 
@@ -454,37 +554,34 @@ export default function ScannerScreens({ navigation, route }: any) {
             type: "error",
             visible: true,
           });
-          return;
         }
-        // setConformationModal({
-        //   visible: true,
-        //   Icon: Images.InValidScanner,
-        //   title: t("Invalid QR code. Please try again."),
-        //   LButtonText: t("Cancel"),
-        //   RColor: Colors.white,
-        //   bgColor: Colors.red
-        // });
+      } finally {
+        if (
+          !isScannerBlockedByModalRef.current &&
+          !deliveryLabelModalPendingRef.current
+        ) {
+          isVerifyingScanRef.current = false;
+          setIsVerifyingScan(false);
+        }
       }
     },
-    [lastDetectedBarcode]
+    [lastDetectedBarcode, playBeep, t]
   );
 
   const refreshCamera = () => {
-
-
     setTimeout(() => {
       setCameraKey(prev => prev + 1);
-
     }, 500);
   };
 
   useEffect(() => {
-    refreshCamera()
     if (Refreshcondition && Focused) {
-      setRefreshKey(prev => prev + 1)
-      setRefreshCondition(false)
+      refreshCamera();
+      setRefreshKey(prev => prev + 1);
+      setRefreshCondition(false);
     }
-  }, [Refreshcondition])
+  }, [Refreshcondition, Focused]);
+
   const QuestiongetApi = async (data: any) => {
     console.log("Calling Verify Status API with:", data);
 
@@ -510,7 +607,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         });
         return;
       }
-      console.log("Verify Status", Verify_status);
+      console.log("Verify Status", type ?? GloblyTypeSlide, type, GloblyTypeSlide);
 
       let res = await ApiService(apiConstants.Verify_status, {
         customData: payload,
@@ -529,12 +626,21 @@ export default function ScannerScreens({ navigation, route }: any) {
         setselectDamageData(
           res?.data?.damaged_parcel?.find(el => el?.id == 34) || null
         );
-        if (is_scan === false && res?.data?.order_data?.tmsstatus?.id !== 1) {
+
+        console.log("is_scan", !is_scan &&
+          Number(res?.data?.order_data?.status) !== 1 &&
+          type === 'pickup_dropoff');
+        if (
+          !is_scan &&
+          Number(res?.data?.order_data?.status) !== 1 &&
+          type === 'pickup_dropoff'
+        ) {
           const modalConfig: any = {
             visible: true,
             title: t("This parcel cannot be scanned. Only pickup parcels are allowed for scanning."),
             Icon: Images.OrderIconFull,
             LButtonText: t("Cancel"),
+            RButtonText: "",
             RButtonStyle: Colors.primary,
             RColor: Colors.white,
             personData: res?.data?.order_data || [],
@@ -545,23 +651,31 @@ export default function ScannerScreens({ navigation, route }: any) {
             OrderData: res?.data,
           };
 
-          modalConfig.onPress = async () => {
-            navigation.goBack();
-          };
           setConformationModal(modalConfig);
 
-          return 
+          return
         }
         setOrderDeliveryMapingLableOption(res?.data?.order_label_mapping || []);
         setItemsData(res?.data?.order_data);
-        setShowDeliveryLabelList(res?.data?.delivery_btn || 0)
+        setShowDeliveryLabelList(res?.data?.delivery_btn || 0);
 
-        parcelScanCountRef.current += 1;
-        let currentDeliveryLabel: any = null;
-        if (parcelScanCountRef.current === 1 && getActiveDeliveryLabel() != null) {
-          currentDeliveryLabel = getActiveDeliveryLabel();
-        } else {
-          clearDeliveryLabelSelection();
+        setSelectPlace({
+          item_id: data?.item_id,
+          order_id: data?.order_id,
+        });
+
+        const isStatus4 =
+          Number(res?.data?.order_data?.tmsstatus?.id) === 4;
+        const hasDeliveryLabel =
+          pendingDeliveryLabelRef.current != null ||
+          selectCurrentDeliveryLabelRef.current != null;
+
+        const shouldShowDeliveryLabelModal = isStatus4 && !hasDeliveryLabel && !res?.data?.error_key;
+
+        if (shouldShowDeliveryLabelModal) {
+          deliveryLabelModalPendingRef.current = true;
+          setEvetyTimeShowDeliveryLabelList(true);
+          return;
         }
 
         const modalConfig: any = {
@@ -580,15 +694,9 @@ export default function ScannerScreens({ navigation, route }: any) {
           type: res?.data?.order_data?.tmsstatus?.id == 2 ? 2 : 1,
           delivery_btn: res?.data?.delivery_btn,
           OrderData: res?.data,
-
+          NewScanText: t("New scan"),
         };
         console.log("responseeeee", JSON.stringify(res.data));
-
-        // Save current selection
-        setSelectPlace({
-          item_id: data?.item_id,
-          order_id: data?.order_id,
-        });
 
         if (res?.data?.isscaned) {
 
@@ -597,15 +705,10 @@ export default function ScannerScreens({ navigation, route }: any) {
           };
 
         }
-
-        console.log("SelectCurrentDeliveryLabel == null && res?.data?.order_data?.status == 4", currentDeliveryLabel == null && res?.data?.order_data?.status == "4", currentDeliveryLabel, res?.data?.order_data?.status)
-        const isLastParcel =
-          res?.data?.total_remaining_item_to_scan == 1;
-
-        if (isLastParcel && currentDeliveryLabel == null || res?.data?.error_key) {
-          setResponseOrderData(res?.data?.order_data);
+        if (SelectCurrentDeliveryLabel == null || res?.data?.error_key) {
+          setResponseOrderData(res?.data?.order_data)
           setConformationModal(modalConfig);
-        } else if (isLastParcel && currentDeliveryLabel !== null) {
+        } else {
           setAlerModalOpen({
             visible: true,
             title: t("Camera"),
@@ -618,8 +721,8 @@ export default function ScannerScreens({ navigation, route }: any) {
             LButtonStyle: Colors.gray,
             LColor: Colors.black,
             onPress: () => {
+              console.log("Camera modal button pressed");
               deliveryTypeRef.current = false;
-
               setDeliveyDataSave({
                 Data: res?.data?.order_data,
                 selectReason: item,
@@ -631,20 +734,12 @@ export default function ScannerScreens({ navigation, route }: any) {
                 },
                 type: false,
               });
-
               navigation.navigate("Camera");
+              setAlerModalOpen((prev) => ({ ...prev, visible: false }));
+              // ✅ close parent AFTER navigating
 
-              setAlerModalOpen(prev => ({
-                ...prev,
-                visible: false,
-              }));
             },
           });
-        } else if (currentDeliveryLabel == null && res?.data?.order_data?.status == "4") {
-          setEvetyTimeShowDeliveryLabelList(true);
-          console.log("res?.data?.status == 4dsdsdd", res?.data?.order_data?.status == "4", EvetyTimeShowDeliveryLabelList, currentDeliveryLabel, currentDeliveryLabel == null && res?.data?.order_data?.status == "4")
-        } else {
-          await StatusUpdateFun(data, true);
         }
         // setGetConformationQuestion(res?.data || "");
       } else {
@@ -670,6 +765,7 @@ export default function ScannerScreens({ navigation, route }: any) {
       }
     } catch (error) {
       console.log("❌ Error in QuestiongetApi:", error);
+      setIsVerifyingScan(false);
       setToast({
         top: 45,
         text: ErrorHandle(error).message,
@@ -679,13 +775,11 @@ export default function ScannerScreens({ navigation, route }: any) {
     }
   };
 
-
   const StatusUpdateFun = async (data: any, scan = false) => {
     if (!scan) return;
     setIsLoading(true);
 
     try {
-      const activeDeliveryLabel = getActiveDeliveryLabel();
       const payload = {
         token: UserData?.user?.verify_token,
         role: UserData?.user?.role,
@@ -695,9 +789,9 @@ export default function ScannerScreens({ navigation, route }: any) {
         order_id: data?.order_id,
         type: type ?? GloblyTypeSlide,
         is_damage: selectDamageData?.id,
-        ...(activeDeliveryLabel != null && {
-          delivered_lable_id: activeDeliveryLabel?.id,
-        })
+        ...(SelectCurrentDeliveryLabel != null && {
+          delivered_lable_id: SelectCurrentDeliveryLabel?.id,
+        }),
       };
 
       if (!payload.item_id || !payload.order_id) {
@@ -718,26 +812,23 @@ export default function ScannerScreens({ navigation, route }: any) {
 
       if (res?.status) {
         clearDeliveryLabelSelection();
+        deliveryLabelModalPendingRef.current = false;
         setEvetyTimeShowDeliveryLabelList(false);
-        setLastDetectedBarcode("");
         console.log("✅ Status Updated:", res);
         fun?.();
-
         setAllRecentScanData((prev) =>
           prev.includes(data?.order_id) ? prev : [...prev, data?.order_id]
         );
 
         setConformationModal((prev: any) => ({ ...prev, visible: false }));
+        setLastDetectedBarcode("");
+        isVerifyingScanRef.current = false;
+        setIsVerifyingScan(false);
         await GetScanedOrderDataLatestFun([
           ...AllRecentScanData,
           data?.order_id,
         ]);
-        setCameraKey(prev => prev + 1);
-        cameraRef.current?.reset();
-        resetCamera();
-
       } else {
-        clearDeliveryLabelSelection();
         setToast({
           top: 45,
           text: t(res?.message) || t("Failed to update status"),
@@ -1005,6 +1096,24 @@ export default function ScannerScreens({ navigation, route }: any) {
           type: "success",
           visible: true,
         });
+        const buttons: any[] = [];
+        buttons.push({
+          text: t("Go to List Page"),
+          type: "primary",
+          onPress: () => {
+            setSecondModal(p => ({ ...p, visible: false }));
+            setNoParcelItemIds([]);
+            getSliderDataFun();
+          },
+        },)
+        setSecondModal({
+          visible: true,
+          title: t("All Parcels Scanned Successfully!"),
+          message: t(res?.remaining_item_message) || "",
+          buttons: buttons,
+          color: GloblyTypeSlide == "outbound_scan" ? Colors.primary : Colors.green
+
+        });
       } else {
         setToast({
           top: 45,
@@ -1069,6 +1178,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         item_id: SelectPlace?.item_id,
         order_id: SelectPlace?.order_id,
         type: GloblyTypeSlide,
+        is_damage: selectDamageData?.id,
         ...(SelectCurrentDeliveryLabel !== null && {
           delivered_lable_id: SelectCurrentDeliveryLabel?.id,
         }),
@@ -1080,9 +1190,9 @@ export default function ScannerScreens({ navigation, route }: any) {
       });
 
       if (res?.status) {
-        setComment(false)
+        const savedDeliveryLabel = SelectCurrentDeliveryLabel;
+        setComment(false);
         await AddImageOrCommentFun();
-        clearDeliveryLabelSelection();
         console.log("✅ Comment & Status updated successfully:", res);
 
         fun?.();
@@ -1091,13 +1201,25 @@ export default function ScannerScreens({ navigation, route }: any) {
 
         const actualRemaining =
           Number(res?.remaining_item) - NoParcelItemIds.length;
-        const isSignatureAllowed = Number(res?.tms_current_status) === 5 && SelectCurrentDeliveryLabel?.signature_required == 1;
+        const isSignatureAllowed =
+          Number(res?.tms_current_status) === 5 &&
+          savedDeliveryLabel?.signature_required == 1;
+
+        clearDeliveryLabelSelection();
+        deliveryLabelModalPendingRef.current = false;
+        setEvetyTimeShowDeliveryLabelList(false);
         if (!(GloblyTypeSlide == "outbound_scan")) {
           if (Number(res?.remaining_item) === 0) {
             const buttons: any[] = [];
 
             if (isSignatureAllowed) {
-              setShowSig(true);
+              buttons.push({
+                text: t("Signature"),
+                type: "primary",
+                onPress: () => {
+                  setShowSig(true);
+                },
+              });
             } else {
               buttons.push({
                 text: t("Go to List Page"),
@@ -1108,16 +1230,16 @@ export default function ScannerScreens({ navigation, route }: any) {
                   getSliderDataFun();
                 },
               },)
-              setSecondModal({
-                visible: true,
-                title: t("All Parcels Scanned Successfully!"),
-                message: t(res?.remaining_item_message) || "",
-                buttons: buttons,
-                color: GloblyTypeSlide == "outbound_scan" ? Colors.primary : Colors.green
-
-              });
             }
 
+            setSecondModal({
+              visible: true,
+              title: t("All Parcels Scanned Successfully!"),
+              message: t(res?.remaining_item_message) || "",
+              buttons: buttons,
+              color: GloblyTypeSlide == "outbound_scan" ? Colors.primary : Colors.green
+
+            });
           } else if (!(GloblyTypeSlide == "outbound_scan")) {
             // Still items to scan
             setSecondModal({
@@ -1153,25 +1275,9 @@ export default function ScannerScreens({ navigation, route }: any) {
                   type: "primary",
                   onPress: () => {
                     setSecondModal((p: any) => ({ ...p, visible: false }));
-                    setLastDetectedBarcode("");
                     setSelectPlace(null);
                     setDescrition("");
                     setCommentError("");
-                    refreshCamera()
-                    setTimeout(async () => {
-                      try {
-                        const { status } =
-                          await Camera.requestCameraPermissionsAsync();
-                        if (status === "granted") {
-                          setHasPermission(true);
-                        } else {
-                          await requestPermission();
-                        }
-                      } catch (error) {
-                        console.log("❌ Error reopening scanner:", error);
-                      }
-                    }, 400);
-
                   },
                 },
               ],
@@ -1179,9 +1285,21 @@ export default function ScannerScreens({ navigation, route }: any) {
             });
           }
         } else if (isSignatureAllowed) {
-          setShowSig(true);
+          const buttons: any[] = [{
+            text: t("Signature"),
+            type: "primary",
+            onPress: () => {
+              setShowSig(true);
+            },
+          }]
 
-
+          setSecondModal({
+            visible: true,
+            title: t("Confirm Delivery"),
+            message: t("Delivery completed. Please provide your signature to confirm successful handover."),
+            buttons: buttons,
+            color: Colors.green,
+          });
         }
 
         setAllRecentScanData((prev) =>
@@ -1232,7 +1350,8 @@ export default function ScannerScreens({ navigation, route }: any) {
         setItemsData(res?.data);
 
         console.log("response-=-=-", res?.data);
-        cameraRef.current?.reset();
+        setLastDetectedBarcode("");
+        setTimeout(() => setCameraKey((prev) => prev + 1), 400);
         // const labelsForModal = res.data.items
         //   .filter((item: any) => Number(item.scan_qty) === 0)
         //   .map((item: any) => ({
@@ -1342,7 +1461,13 @@ export default function ScannerScreens({ navigation, route }: any) {
           const isSignatureAllowed = Number(res?.data?.tms_current_status) === 5 && SelectCurrentDeliveryLabel?.signature_required == 1;
 
           if (isSignatureAllowed) {
-            setShowSig(true);
+            buttons.push({
+              text: t("Signature"),
+              type: "primary",
+              onPress: () => {
+                setShowSig(true);
+              },
+            });
           } else {
             buttons.push({
               text: t("Go to List Page"),
@@ -1353,15 +1478,15 @@ export default function ScannerScreens({ navigation, route }: any) {
                 getSliderDataFun();
               },
             },)
-            setSecondModal({
-              visible: true,
-              title: t("All Parcels Scanned Successfully!"),
-              message: t(res?.data.remaining_item_message) || "",
-              buttons: buttons,
-              color: GloblyTypeSlide == "outbound_scan" ? Colors.primary : Colors.green
-
-            });
           }
+          setSecondModal({
+            visible: true,
+            title: t("All Parcels Scanned Successfully!"),
+            message: t(res?.data.remaining_item_message) || "",
+            buttons: buttons,
+            color: GloblyTypeSlide == "outbound_scan" ? Colors.primary : Colors.green
+
+          });
         } else if (!(GloblyTypeSlide == "outbound_scan")) {
           const actualRemaining =
             Number(res?.data.remaining_item) - selectedItems.length;
@@ -1406,22 +1531,9 @@ export default function ScannerScreens({ navigation, route }: any) {
                 type: "primary",
                 onPress: () => {
                   setSecondModal((p: any) => ({ ...p, visible: false }));
-                  setLastDetectedBarcode("");
                   setSelectPlace(null);
                   setDescrition("");
                   setCommentError("");
-                  refreshCamera()
-                  setTimeout(async () => {
-                    try {
-                      const { status } =
-                        await Camera.requestCameraPermissionsAsync();
-                      if (status === "granted") {
-                        setHasPermission(true);
-                      }
-                    } catch (error) {
-                      console.log("❌ Error reopening scanner:", error);
-                    }
-                  }, 400);
                 },
               },
             ],
@@ -1463,14 +1575,6 @@ export default function ScannerScreens({ navigation, route }: any) {
       });
     }
   };
-  const resetCamera = async () => {
-    try {
-      await cameraRef.current?.resumePreview();  // camera ON
-      // scanning restart
-    } catch (e) {
-      console.log("Camera Reset Error:", e);
-    }
-  };
 
   useEffect(() => {
     setLastDetectedBarcode("");
@@ -1482,18 +1586,18 @@ export default function ScannerScreens({ navigation, route }: any) {
   return (
     <GestureHandlerRootView key={refreshKey} style={styles.container}>
       {
-        Focused && !showSig && !comment && !showQRError &&
-
-        <CameraView
-          ref={cameraRef}
-          enableTorch={flashEnabled}
-          style={StyleSheet.absoluteFill}
-          onBarcodeScanned={onBarcodeScanned}
-          barcodeScannerSettings={{
-            barcodeTypes: ["qr"],
-          }}
-        />
-      }
+        Focused && !showSig && !comment && !showQRError && (
+          <CameraView
+            ref={cameraRef}
+            key={cameraKey}
+            enableTorch={flashEnabled}
+            style={StyleSheet.absoluteFill}
+            onBarcodeScanned={isScannerBlockedByModal ? undefined : onBarcodeScanned}
+            barcodeScannerSettings={{
+              barcodeTypes: ["qr"],
+            }}
+          />
+        )}
       <Image
         source={Images.ScannerCenter}
         style={{ width, height, position: "absolute" }}
@@ -1539,14 +1643,15 @@ export default function ScannerScreens({ navigation, route }: any) {
         ProductItem={ConformationModalOpen?.ProductItem}
         OrderId={ConformationModalOpen.order_id}
         bgColor={ConformationModalOpen?.bgColor || ""}
-        onClose={() =>
-          setConformationModal((prev: any[]) => ({
-            ...prev,
-            visible: false,
-          }))
-        }
+        onClose={closeConformationModalAndUnlockScan}
         OrderData={ConformationModalOpen?.OrderData}
         delivery_btn={ConformationModalOpen?.delivery_btn}
+        NewScanText={ConformationModalOpen?.NewScanText}
+        onNewScanPress={
+          ConformationModalOpen?.NewScanText
+            ? closeConformationModalAndUnlockScan
+            : undefined
+        }
       />
       <ScannerInfoModal
         InfoTitle={ScannerModalOpen.InfoTitle}
@@ -1609,7 +1714,7 @@ export default function ScannerScreens({ navigation, route }: any) {
               ProductItem={item?.items}
               LableBackground={item?.tmsstatus?.color}
               ItemData={item}
-
+              external_order_id={item?.external_order_id}
               start={item?.pickup_location}
               end={item?.deliver_location}
               customerData={item?.customer}
@@ -1675,7 +1780,7 @@ export default function ScannerScreens({ navigation, route }: any) {
             OrderData: ItemsData,
             RText: t("Take Photo"),
             LText: t("Cancel"),
-            personData: ItemsData?.customer.display_name,
+            personData: ItemsData.display_name,
             ProductItem: selectedItems,
             OrderId: ItemsData?.id,
             onPress: () => {
@@ -1687,14 +1792,14 @@ export default function ScannerScreens({ navigation, route }: any) {
           });
         }}
       />
-
       <Modal
         isVisible={comment}
         style={{ margin: 0 }}
         animationIn="bounceInUp"
         animationOut="bounceOutDown"
         propagateSwipe={true}
-        avoidKeyboard={true}
+
+        avoidKeyboard={false} // important for Modal + keyboard
       >
         <View style={{ flex: 1 }}>
           <SafeAreaView />
@@ -1706,13 +1811,18 @@ export default function ScannerScreens({ navigation, route }: any) {
               backgroundColor: Colors.green,
             }}
             enableOnAndroid={true}
-            extraScrollHeight={20}
-            extraHeight={120}
+            extraHeight={200}
             keyboardShouldPersistTaps="handled"
-            enableAutomaticScroll={true}
-            scrollToOverflowEnabled={true}
           >
-            <View style={[styles.CommentBox]}>
+
+            <View
+              style={[
+                styles.CommentBox,
+
+              ]}
+            >
+
+
               <View>
                 <Text style={styles.Text}>{t("Name")}</Text>
                 <View style={styles.InputBox}>
@@ -1721,61 +1831,64 @@ export default function ScannerScreens({ navigation, route }: any) {
                     editable={false}
                     placeholderTextColor={Colors.darkText}
                     placeholder={t("Enter your name")}
-                    value={
-                      UserData?.user?.username?.length > 0
-                        ? UserData?.user?.username
-                        : UserData?.relaties?.display_name ?? ""
-                    }
+                    value={UserData?.user?.username?.length > 0 ? UserData?.user?.username : UserData?.relaties?.display_name ?? ""}
                     onChangeText={setComment}
                   />
                   <Image source={Images.user} style={{ width: 18, height: 18 }} />
                 </View>
               </View>
-
-              {SelectCurrentDeliveryLabel &&
-                SelectCurrentDeliveryLabel?.damaged_required == 1 && (
-                  <FlatList
-                    data={AllDamageListReason}
-                    style={styles.CardWhite}
-                    keyExtractor={(item) => item.id.toString()}
-                    renderItem={({ item }) => (
-                      <Pressable
-                        onPress={() => setselectDamageData(item)}
+              {
+                (
+                  (SelectCurrentDeliveryLabel != null &&
+                    SelectCurrentDeliveryLabel?.damaged_required === 1) ||
+                  Number(ItemsData?.status) === 1
+                ) &&
+                <FlatList
+                  data={AllDamageListReason}
+                  style={styles.CardWhite}
+                  keyExtractor={(item) => item.id.toString()}
+                  renderItem={({ item }) => (
+                    <Pressable
+                      onPress={() => setselectDamageData(item)}
+                      style={{
+                        flexDirection: 'row',
+                        gap: 20,
+                        alignItems: 'center',
+                        paddingVertical: 10,
+                        paddingHorizontal: 15,
+                        borderWidth: 1,
+                        borderColor: Colors.border,
+                        borderRadius: 10,
+                        marginBottom: 10,
+                        backgroundColor: item?.color || Colors.Boxgray
+                      }}
+                    >
+                      <CheckBox
+                        onValueChange={() => {
+                          setselectDamageData(item);
+                        }}
+                        value={selectDamageData?.id === item?.id}
+                        tintColors={{ true: Colors.white, false: Colors.white }}
+                        tintColor={Colors.white}
+                        onTintColor={Colors.white}
+                        onCheckColor={Colors.white}
+                        onFillColor={item?.color || Colors.Boxgray}
+                      />
+                      <Text
                         style={{
-                          flexDirection: "row",
-                          gap: 20,
-                          alignItems: "center",
-                          paddingVertical: 10,
-                          paddingHorizontal: 15,
-                          borderWidth: 1,
-                          borderColor: Colors.border,
-                          borderRadius: 10,
-                          marginBottom: 10,
-                          backgroundColor: item?.color || Colors.Boxgray,
+                          fontSize: 14,
+                          fontFamily: FONTS.Medium,
+                          color: Colors.white,
                         }}
                       >
-                        <CheckBox
-                          onValueChange={() => setselectDamageData(item)}
-                          value={selectDamageData?.id === item?.id}
-                          tintColors={{ true: Colors.white, false: Colors.white }}
-                          tintColor={Colors.white}
-                          onTintColor={Colors.white}
-                          onCheckColor={Colors.white}
-                          onFillColor={item?.color || Colors.Boxgray}
-                        />
-                        <Text
-                          style={{
-                            fontSize: 14,
-                            fontFamily: FONTS.Medium,
-                            color: Colors.white,
-                          }}
-                        >
-                          {t(item?.title)}
-                        </Text>
-                      </Pressable>
-                    )}
-                  />
-                )}
+                        {t(item?.title)}
+                      </Text>
+
+
+                    </Pressable>
+                  )}
+                />
+              }
 
               <View style={{ marginTop: 5 }}>
                 <Text style={styles.Text}>{t("Description")}</Text>
@@ -1789,29 +1902,20 @@ export default function ScannerScreens({ navigation, route }: any) {
                   numberOfLines={5}
                   textAlignVertical="top"
                 />
-                {Commenterror ? (
-                  <Text style={styles.Error}>{Commenterror}</Text>
-                ) : null}
+                {Commenterror ? <Text style={styles.Error}>{Commenterror}</Text> : null}
               </View>
 
-              <KeyboardAvoidingView
-                behavior={Platform.OS === "ios" ? "position" : "height"}
-                keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}
-              >
-                <TouchableOpacity
-                  style={styles.ButtonSubmit}
-                  disabled={CommentLoader}
-                  onPress={CommentFun}
-                >
-                  {CommentLoader ? (
+              <TouchableOpacity style={styles.ButtonSubmit} disabled={CommentLoader} onPress={CommentFun}>
+                {
+                  CommentLoader ? (
                     <ActivityIndicator size="small" color={Colors.white} />
-                  ) : (
-                    <Text style={[styles.Text, { color: Colors.white }]}>
-                      {t("Submit")}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              </KeyboardAvoidingView>
+                  ) :
+                    <Text style={[styles.Text, { color: Colors.white }]}>{t("Submit")}</Text>
+                }
+              </TouchableOpacity>
+
+
+
             </View>
           </KeyboardAwareScrollView>
         </View>
@@ -1833,21 +1937,19 @@ export default function ScannerScreens({ navigation, route }: any) {
         Description={AlertModalOpen.Description}
       />
 
-      {
-        EvetyTimeShowDeliveryLabelList &&
-        <AnimatedModal
-          visible={EvetyTimeShowDeliveryLabelList}
-          setVisible={setEvetyTimeShowDeliveryLabelList}
-          AllDeliveyLabel={AllDeliveyLabel}
-          fun={async () => {
-            await StatusUpdateFun(SelectPlace, true);
-          }}
-          setSelectCurrentDeliveryLabel={handleSelectDeliveryLabel}
-          AllDamageListReason={AllDamageListReason}
-          setselectDamageData={setselectDamageData}
-          selectDamageData={selectDamageData}
-        />
-      }
+      <AnimatedModal
+        visible={EvetyTimeShowDeliveryLabelList}
+        setVisible={setEvetyTimeShowDeliveryLabelList}
+        onCancel={closeDeliveryLabelModalAndUnlockScan}
+        AllDeliveyLabel={AllDeliveyLabel}
+        fun={openCameraProofAfterLabelSelect}
+        setSelectCurrentDeliveryLabel={handleSelectDeliveryLabel}
+        AllDamageListReason={AllDamageListReason}
+        setselectDamageData={setselectDamageData}
+        selectDamageData={selectDamageData}
+        GloblyTypeSlide={GloblyTypeSlide}
+      ItemsData={ItemsData}
+      />
 
       {SecondModal?.visible && (
         <ReAnimated.View
@@ -1869,9 +1971,9 @@ export default function ScannerScreens({ navigation, route }: any) {
             style={{
               backgroundColor: Colors.white,
               borderRadius: 14,
-              width: "90%",
+              width: "95%",
               paddingVertical: 25,
-              paddingHorizontal: 15,
+              paddingHorizontal: 20,
               alignItems: "center",
             }}
           >
@@ -1915,7 +2017,7 @@ export default function ScannerScreens({ navigation, route }: any) {
                   style={{
                     backgroundColor:
                       btn.type === "primary" ? Colors.primary : "#E0E0E0",
-                    paddingVertical: 10,
+                    paddingVertical: 15,
                     paddingHorizontal: 20,
                     borderRadius: 8,
                     marginHorizontal: 5,
@@ -1943,7 +2045,6 @@ export default function ScannerScreens({ navigation, route }: any) {
       <InvalidQRModal
         visible={showQRError}
         onScanAgain={() => {
-          resetCamera();
           setShowQRError(false);
         }}
         onGoBack={() => {
@@ -2015,7 +2116,6 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 25,
   },
-
   Icons: {
     width: 24,
     height: 24,
@@ -2049,7 +2149,7 @@ const styles = StyleSheet.create({
     padding: 10,
     fontSize: 14,
     backgroundColor: Colors.white,
-    minHeight: 120,
+    minHeight: 240,
     fontFamily: FONTS.Regular,
     color: Colors.black,
     marginTop: 10,

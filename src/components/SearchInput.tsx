@@ -19,6 +19,7 @@ import { FONTS } from '../utils/storeData';
 type OrderItem = {
     id: number;
     display_name: string;
+    external_order_id?: string | null;
     [key: string]: any;
 };
 
@@ -131,6 +132,11 @@ export default function SearchInput({ value, setValue, suggestions, onSelect, co
                                     <Text style={styles.dropText} numberOfLines={1} ellipsizeMode="tail">
                                         {item.display_name}
                                     </Text>
+                                    {item.external_order_id != null && (
+                                        <Text style={styles.dropOrderId} numberOfLines={1} ellipsizeMode="tail">
+                                            #{item.external_order_id}
+                                        </Text>
+                                    )}
                                 </Pressable>
                                 {index < filtered.length - 1 && (
                                     <View style={styles.separator} />
@@ -222,6 +228,12 @@ const styles = StyleSheet.create({
         fontSize: 13,
         fontFamily: FONTS.Regular,
         color: Colors.black,
+    },
+    dropOrderId: {
+        fontSize: 12,
+        fontFamily: FONTS.Regular,
+        color: Colors.inActive,
+        flexShrink: 0,
     },
     separator: {
         height: 0.5,
