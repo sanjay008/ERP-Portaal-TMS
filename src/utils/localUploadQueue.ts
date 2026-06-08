@@ -22,11 +22,6 @@ export const appendToLocalUploadQueue = (
   const order_id = item.order_id != null ? item.order_id : null;
 
   if (image_data.length === 0 || commentId == null || order_id == null) {
-    console.log("appendToLocalUploadQueue skipped:", {
-      images: image_data.length,
-      commentId,
-      order_id,
-    });
     return false;
   }
 
@@ -41,7 +36,6 @@ export const appendToLocalUploadQueue = (
   setLocalImagesUploadbeforeData((prev: LocalUploadQueueItem[]) => {
     const next = [...(prev || []), payload];
     AsyncStorage.setItem(LOCAL_UPLOAD_QUEUE_KEY, JSON.stringify(next)).catch((e) => {
-      console.log("appendToLocalUploadQueue storage error:", e);
     });
     return next;
   });

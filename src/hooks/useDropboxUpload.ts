@@ -156,7 +156,6 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
       return data.access_token;
 
     } catch (e: any) {
-      console.log("Refresh Token Error:", e);
       showToast(e?.message || t("dropbox_token_refresh_failed"));
       throw e;
     }
@@ -173,7 +172,6 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         const mimeType = EXTENSION_TO_MIME[extension] || "";
 
         if (!ALLOWED_MIME_TYPES.has(mimeType)) {
-          console.log("Invalid file type skipped:", extension);
           return null;
         }
 
@@ -223,8 +221,6 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         }
 
         if (uploadRes.status !== 200) {
-          console.log("Dropbox Upload Failed:", uploadRes.body);
-
           if (retry < 3) {
             await new Promise<void>((resolve) => setTimeout(resolve, 2000));
             return uploadSingleFile(uri, folder, retry + 1);
@@ -268,14 +264,9 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
           file: originalFileName,
           shared_link: sharedLink,
         };
-
-        console.log("Document uploaded successfully:", fileJson);
-
         return fileJson;
 
       } catch (e: any) {
-        console.log("Single File Upload Error:", e);
-
         if (retry < 3) {
           await new Promise<void>((resolve) => setTimeout(resolve, 2000));
           return uploadSingleFile(uri, folder, retry + 1);
@@ -296,7 +287,6 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         await AsyncStorage.removeItem(STORAGE_QUEUE_KEY);
       }
     } catch (e) {
-      console.log("Save Queue Error:", e);
     }
   }, []);
 
@@ -308,7 +298,6 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         await AsyncStorage.removeItem(STORAGE_API_QUEUE_KEY);
       }
     } catch (e) {
-      console.log("Save API Queue Error:", e);
     }
   }, []);
 
@@ -319,7 +308,6 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
       errors.push(item);
       await AsyncStorage.setItem(STORAGE_ERROR_KEY, JSON.stringify(errors));
     } catch (e) {
-      console.log("Save Error Queue Error:", e);
     }
   }, []);
 
@@ -332,7 +320,6 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
       errors.push({ item, message, time: new Date().toISOString() });
       await AsyncStorage.setItem(STORAGE_API_ERROR_KEY, JSON.stringify(errors));
     } catch (e) {
-      console.log("Save API Error Queue Error:", e);
     }
   }, []);
 
@@ -342,7 +329,6 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
   const storeImageToDatabase = useCallback(
     async (item: DropboxQueueItem): Promise<{ success: boolean; message?: string }> => {
       if (!UserData?.user?.verify_token) {
-        console.log("Store Image DB Error: User data not available");
         return { success: false, message: "User data not available" };
       }
 
@@ -378,9 +364,6 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         });
 
         const data = response?.data;
-
-        console.log("UploadImageStoreApiFun Response:", data);
-
         if (!isStoreImageApiSuccess(data)) {
           throw new Error(data?.message || t("something_went_wrong"));
         }
@@ -389,7 +372,6 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
       } catch (e: any) {
         const message =
           e?.response?.data?.message || e?.message || "Unknown API error";
-        console.log("Store Image DB Error:", message, e?.response?.data);
         showToast(message);
         return { success: false, message };
       }
@@ -447,7 +429,6 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
       if (isApiProcessingRef.current || queue.length === 0) return;
 
       if (apiStoppedRef.current) {
-        console.log("API Error: Store Image API stopped after repeated failures");
         return;
       }
 
@@ -483,12 +464,10 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         } else {
           apiErrorCountRef.current += 1;
           const errorMessage = result.message || t("something_went_wrong");
-          console.log("API Error:", errorMessage, "Count:", apiErrorCountRef.current);
           await saveApiErrorToStorage(item, errorMessage);
 
           if (apiErrorCountRef.current >= 2) {
             apiStoppedRef.current = true;
-            console.log("API Error: Store Image API failed twice, stopping permanently");
             return;
           }
 
@@ -508,7 +487,6 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         }
 
       } catch (e) {
-        console.log("Process API Queue Error:", e);
       } finally {
         isApiProcessingRef.current = false;
 
@@ -545,7 +523,6 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
       if (!setDropBoxUploadImageDataQues || !setLocalImagesUploadbeforeData) return false;
 
       if (!item.commentId) {
-        console.log("Process Queue Item skipped: missing commentId");
         return true;
       }
 
@@ -593,14 +570,11 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
           apiErrorCountRef.current = 0;
           syncApiQueue([...apiQueue, doneItem]);
         }
-
-        console.log("Queue Item Uploaded:", doneItem);
         processingLocalKeysRef.current.delete(itemKey);
 
         return true;
 
       } catch (e: any) {
-        console.log("Process Queue Item Error:", e);
         processingLocalKeysRef.current.delete(itemKey);
         syncLocalQueue([...latestQueueRef.current, batchItem]);
         showToast(e?.message || t("upload_failed"));
@@ -634,14 +608,12 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         }
 
         if (errorItems.length > 0) {
-          console.log("Failed Upload Items:", errorItems.length);
           for (const errItem of errorItems) {
             await saveErrorToStorage(errItem);
           }
         }
 
       } catch (e) {
-        console.log("Process Queue Error:", e);
       } finally {
         isProcessingRef.current = false;
         setLoading(false);
@@ -661,9 +633,6 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
 
       const errors: LocalUploadItem[] = JSON.parse(existing);
       if (errors.length === 0) return;
-
-      console.log("Retrying Error Upload Images Length:", errors.length);
-
       await AsyncStorage.removeItem(STORAGE_ERROR_KEY);
 
       const stillFailed: LocalUploadItem[] = [];
@@ -674,12 +643,10 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
       }
 
       if (stillFailed.length > 0) {
-        console.log("Still Failed After Retry:", stillFailed.length);
         await AsyncStorage.setItem(STORAGE_ERROR_KEY, JSON.stringify(stillFailed));
       }
 
     } catch (e) {
-      console.log("Retry Error Queue Error:", e);
     }
   }, [processQueueItem]);
 
@@ -698,14 +665,12 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         if (storedErrors) {
           const errors: LocalUploadItem[] = JSON.parse(storedErrors);
           if (errors.length > 0) {
-            console.log("Error Upload Images Length:", errors.length);
           }
         }
 
         if (storedApiErrors) {
           const apiErrors = JSON.parse(storedApiErrors);
           if (apiErrors.length > 0) {
-            console.log("API Error Upload Images Length:", apiErrors.length);
           }
         }
 
@@ -740,7 +705,6 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         }
 
       } catch (e) {
-        console.log("Restore Queue Error:", e);
       } finally {
         setRestored(true);
       }
@@ -795,8 +759,6 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
       });
 
       await BackgroundTask.registerTaskAsync(TASK_NAME, { minimumInterval: 15 * 60 });
-
-      console.log("Background Task Registered");
     };
 
     registerBackgroundTask();

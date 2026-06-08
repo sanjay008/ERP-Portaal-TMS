@@ -5,6 +5,7 @@ import { useErrorHandle } from "@/src/components/ErrorHandle";
 import Loader from "@/src/components/loading";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import ApiService from "@/src/utils/Apiservice";
+import { bootstrapAppDateTime } from "@/src/utils/appDateTime";
 import { Colors } from "@/src/utils/colors";
 import { getData } from "@/src/utils/storeData";
 import React, { useContext, useEffect, useState } from "react";
@@ -17,13 +18,18 @@ export default function HomeScreens({ navigation, route }: any) {
   const [AllSlideData, setAllSlideData] = useState([]);
   const [IsLoading, setIsLoading] = useState(false);
   const { t } = useTranslation();
-  const { UserData, isGpsTracking, setIsGpsTracking, setUserData, Toast, setToast, AllRegion, setAllRegion, GloblyTypeSlide, setGloblyTypeSlide, TimeZone, setTimeZone } =
+  const { UserData, isGpsTracking, setIsGpsTracking, setUserData, Toast, setToast, AllRegion, setAllRegion, GloblyTypeSlide, setGloblyTypeSlide, TimeZone, setTimeZone, SelectActiveDate, setSelectActiveDate } =
     useContext(GlobalContextData);
   const { ErrorHandle } = useErrorHandle();
   const getSliderDataFun = async () => {
     setIsLoading(true);
     const CompanyLogin = await getData("COMPANYDATA");
-    setTimeZone(CompanyLogin?.default_company?.timezone || "");
+    bootstrapAppDateTime(
+      CompanyLogin?.default_company?.timezone,
+      setTimeZone,
+      setSelectActiveDate,
+      SelectActiveDate,
+    );
 
 
     try {
@@ -94,7 +100,6 @@ export default function HomeScreens({ navigation, route }: any) {
               ]}
               onPress={() => {
                 setGloblyTypeSlide(item?.type)
-                console.log("GloblyTypeSlide", GloblyTypeSlide, "Item Type:", item?.type)
                 if (item?.type == "outbound_scan") {
                   navigation.navigate("Scanner", { item: item })
                 } else if (item?.type == "AllOrder") {

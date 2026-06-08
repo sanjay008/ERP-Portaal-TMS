@@ -18,7 +18,7 @@ import CustomCollapsible from "./CustomCollapsible";
 import ParcelBox from "./ParcelBox";
 import PickupPogressMap from "./PickupPogressMap";
 
-export default function PickUpBox({
+function PickUpBox({
   index = 0,
   onPress,
   contact,
@@ -103,7 +103,6 @@ export default function PickUpBox({
 
       await Linking.openURL(url);
     } catch (error) {
-      console.log("WhatsApp redirect error:", error);
       setToast({
         top: 45,
         text: t("Something went wrong while opening WhatsApp."),
@@ -119,7 +118,7 @@ export default function PickUpBox({
     try {
       await Linking.openURL(`tel:${phoneNumber}`);
     } catch (error) {
-      console.log("Call Error:", error);
+      // call failed
     }
   };
 
@@ -224,7 +223,7 @@ export default function PickUpBox({
             style={{ width: "100%", gap: 10 }}
             contentContainerStyle={styles.ContentContainerStyle}
             scrollEnabled={false}
-            keyExtractor={(item, index) => `${index}`}
+            keyExtractor={(item, index) => String(item?.id ?? index)}
             renderItem={({ item, index }) => {
               return (
                 <ParcelBox
@@ -289,6 +288,8 @@ export default function PickUpBox({
     </Pressable>
   );
 }
+
+export default React.memo(PickUpBox);
 
 const styles = StyleSheet.create({
   container: {

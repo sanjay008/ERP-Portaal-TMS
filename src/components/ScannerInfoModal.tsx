@@ -79,7 +79,6 @@ export default function ScannerInfoModal({
   const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const [isCollapsed, setisCollapsed] = useState<boolean>(true);
-  console.log(OrderData);
 
   const [showReasonList, setShowReasonList] = useState<boolean>(false);
   const [showDeliveredAtList, setShowDeliveredAtList] = useState<boolean>(false);
@@ -148,7 +147,6 @@ export default function ScannerInfoModal({
   // --- EFFECT: log whenever modal visibility changes ---
 
   const handleOptionSelect = (item: any) => {
-    console.log("Selected option:", item);
     setSelectCurrentDeliveryLabel(item)
     // setSelectDeliveryReson(item)
     // setShowReasonList(false);
@@ -166,7 +164,6 @@ export default function ScannerInfoModal({
       LButtonStyle: Colors.gray,
       LColor: Colors.black,
       onPress: () => {
-        console.log("Camera modal button pressed");
         setDeliveyDataSave({
           Data: personData,
           selectReason: item,

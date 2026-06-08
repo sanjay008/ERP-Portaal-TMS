@@ -10,7 +10,7 @@ import SearchInput from "@/src/components/SearchInput";
 import TwoTypeButton from "@/src/components/TwoTypeButton";
 import Loader from "@/src/components/loading";
 import { GlobalContextData } from "@/src/context/GlobalContext";
-import { requestLocationAccess } from "@/src/hooks/useUserGPS";
+import { areLocationServicesEnabled, requestLocationAccess } from "@/src/hooks/useUserGPS";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
 import { useIsFocused } from "@react-navigation/native";
@@ -76,21 +76,40 @@ export default function FilterScreen({ navigation, route }: any) {
     setIsGpsPermissionLoading(true);
     try {
       const granted = await requestLocationAccess();
-      if (granted) {
-        setIsGpsTracking(true);
+      if (!granted) {
+        setIsGpsTracking(false);
+        setToast({
+          top: 45,
+          text: t("Location permission is required to enable GPS tracking."),
+          type: "error",
+          visible: true,
+        });
         return;
       }
-      setIsGpsTracking(false);
-      setToast({
-        top: 45,
-        text: t("Location permission is required to enable GPS tracking."),
-        type: "error",
-        visible: true,
-      });
+
+      const servicesEnabled = await areLocationServicesEnabled();
+      if (!servicesEnabled) {
+        setIsGpsTracking(false);
+        setToast({
+          top: 45,
+          text: t("Current location is unavailable. Make sure that location services are enabled"),
+          type: "error",
+          visible: true,
+        });
+        return;
+      }
+
+      setIsGpsTracking(true);
     } finally {
       setIsGpsPermissionLoading(false);
     }
   }, [selectRegionData, setIsGpsTracking, setToast, t]);
+
+  useEffect(() => {
+    if (SelectActiveDate && !SelectDate) {
+      setSelectDate(SelectActiveDate);
+    }
+  }, [SelectActiveDate, SelectDate]);
 
   const getFilterDataFun = useCallback(async () => {
     try {
@@ -107,7 +126,6 @@ export default function FilterScreen({ navigation, route }: any) {
         customData: payload,
       });
 
-      console.log('Get FilterWise Data Response:', response);
       if (response?.status) {
         setTemopryryDataStore(response?.data || []);
         const newData = Array.isArray(response?.data)
@@ -186,7 +204,6 @@ export default function FilterScreen({ navigation, route }: any) {
     const currentType = Type || item?.type;
     setSlideType(currentType);
     const shouldAllowNavigation = currentType === "pickup_dropoff";
-    console.log("Current Type:", currentType, "GloblyTypeSlide:", GloblyTypeSlide, "Item Type:", item?.type);
     setScanBTNAvailble(!shouldAllowNavigation);
   }, [SelectDate, UserData, Focused, Type, item]);
 
@@ -218,8 +235,6 @@ export default function FilterScreen({ navigation, route }: any) {
         },
       );
 
-      console.log('RegionDetailsDataFun', response);
-
       if (response?.status) {
         if (AllDamageListReason?.length == 0) {
           setAllDamageListReason(response?.damaged_parcel || [])
@@ -247,8 +262,6 @@ export default function FilterScreen({ navigation, route }: any) {
 
       return response;
     } catch (error: any) {
-      console.log('RegionDetailsDataFun Error:-', error);
-
       setRegionOrderData([]);
 
       setToast({
@@ -384,7 +397,7 @@ const FilterData = useMemo(() => {
               setValue={setSearch}
               suggestions={RegionOrderData}
               placeholder={t("Search by ID or name") + "..."}
-              onSelect={(item) => console.log(item)}
+              onSelect={() => {}}
               containerStyle={{ flex: SlideType == "pickup_dropoff" && UserData?.user?.role === "chauffeur" && !isGpsTracking ? 1 / 1.05 : 1 }}
             />
             {
@@ -466,7 +479,6 @@ const FilterData = useMemo(() => {
                     additional_cost_label={item?.additional_cost_label}
                     onPress={() => {
                       if (ScanBTNAvailble || !isGpsTracking) {
-                        console.log("Navigation blocked");
                         return;
                       }
                       navigation.navigate("Details", { item, type: SlideType });

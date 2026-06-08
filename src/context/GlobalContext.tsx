@@ -35,6 +35,7 @@ export default function GlobalContext({ children }: any) {
   const [selectRegionData, setSelectRegionData] = useState<any>(null);
   const [selectDamageData, setselectDamageData] = useState<any>(null);
   const [CommentId, setCommentId] = useState<any>(null);
+  const [QRcodeSearch,setQRcodeSearch] = useState<string | number | null>(null);
   return (
     <GlobalContextData.Provider
       value={{
@@ -65,7 +66,8 @@ export default function GlobalContext({ children }: any) {
         selectRegionData, setSelectRegionData,
         selectDamageData, setselectDamageData,
         CommentId, setCommentId,
-        isGpsTracking, setIsGpsTracking
+        isGpsTracking, setIsGpsTracking,
+        QRcodeSearch,setQRcodeSearch
       }}
     >
       {children}

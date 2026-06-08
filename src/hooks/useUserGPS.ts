@@ -44,6 +44,33 @@ export async function requestLocationAccess(): Promise<boolean> {
   return false;
 }
 
+export async function areLocationServicesEnabled(): Promise<boolean> {
+  try {
+    return await Location.hasServicesEnabledAsync();
+  } catch {
+    return false;
+  }
+}
+
+export async function getSafeCurrentPosition(): Promise<Location.LocationObject | null> {
+  try {
+    const servicesEnabled = await areLocationServicesEnabled();
+    if (!servicesEnabled) {
+      return (await Location.getLastKnownPositionAsync()) ?? null;
+    }
+
+    try {
+      return await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+    } catch {
+      return (await Location.getLastKnownPositionAsync()) ?? null;
+    }
+  } catch {
+    return null;
+  }
+}
+
 type UserCoordinateProps = {
   latitude: number;
   longitude: number;
@@ -254,72 +281,89 @@ export default function useUserGPS() {
     let mounted = true;
 
     const startTracking = async () => {
-      const permission = await checkLocationPermission();
+      try {
+        const permission = await checkLocationPermission();
 
-      if (!permission.granted) {
+        if (!permission.granted) {
+          setPermissionDenied(true);
+          setIsGpsTracking(false);
+          return;
+        }
+
+        const servicesEnabled = await areLocationServicesEnabled();
+        if (!servicesEnabled) {
+          setPermissionDenied(true);
+          setIsGpsTracking(false);
+          return;
+        }
+
+        setPermissionDenied(false);
+
+        const initial = await getSafeCurrentPosition();
+        if (!initial?.coords || !mounted) {
+          setIsGpsTracking(false);
+          return;
+        }
+
+        const initialCoord: UserCoordinateProps = {
+          latitude: initial.coords.latitude,
+          longitude: initial.coords.longitude,
+          heading: initial.coords.heading,
+          speed: initial.coords.speed,
+          accuracy: initial.coords.accuracy,
+        };
+
+        setUserCoordinate(initialCoord);
+        sendLocationToBackend(initialCoord, 1);
+
+        subscriptionRef.current = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.Balanced,
+            timeInterval: TIME_INTERVAL,
+            distanceInterval: DISTANCE_INTERVAL,
+          },
+          location => {
+            if (!mounted) return;
+
+            const { latitude, longitude, heading, speed, accuracy } = location.coords;
+
+            const newCoord: UserCoordinateProps = {
+              latitude,
+              longitude,
+              heading,
+              speed,
+              accuracy,
+            };
+
+            setUserCoordinate(prev => {
+              if (prev.latitude === latitude && prev.longitude === longitude) return prev;
+              return newCoord;
+            });
+
+            const last = lastSentCoordRef.current;
+            const distanceMoved =
+              last !== null
+                ? haversineDistance(last.latitude, last.longitude, latitude, longitude)
+                : Infinity;
+
+            if (distanceMoved >= API_DISTANCE_THRESHOLD) {
+              sendLocationToBackend(newCoord, 1);
+            }
+          },
+        );
+      } catch {
         setPermissionDenied(true);
         setIsGpsTracking(false);
-        console.warn('[useUserGPS] Location permission denied');
-        return;
+        subscriptionRef.current?.remove();
+        subscriptionRef.current = null;
       }
-
-      setPermissionDenied(false);
-
-      const initial = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.BestForNavigation,
-      });
-
-      if (!mounted) return;
-
-      const initialCoord: UserCoordinateProps = {
-        latitude: initial.coords.latitude,
-        longitude: initial.coords.longitude,
-        heading: initial.coords.heading,
-        speed: initial.coords.speed,
-        accuracy: initial.coords.accuracy,
-      };
-
-      setUserCoordinate(initialCoord);
-      sendLocationToBackend(initialCoord, 1);
-
-      subscriptionRef.current = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.BestForNavigation,
-          timeInterval: TIME_INTERVAL,
-          distanceInterval: DISTANCE_INTERVAL,
-        },
-        location => {
-          if (!mounted) return;
-
-          const { latitude, longitude, heading, speed, accuracy } = location.coords;
-
-          const newCoord: UserCoordinateProps = {
-            latitude,
-            longitude,
-            heading,
-            speed,
-            accuracy,
-          };
-
-          setUserCoordinate(prev => {
-            if (prev.latitude === latitude && prev.longitude === longitude) return prev;
-            return newCoord;
-          });
-
-          const last = lastSentCoordRef.current;
-          const distanceMoved =
-            last !== null
-              ? haversineDistance(last.latitude, last.longitude, latitude, longitude)
-              : Infinity;
-
-          if (distanceMoved >= API_DISTANCE_THRESHOLD) {
-            sendLocationToBackend(newCoord, 1);
-          }
-        },
-      );
     };
 
-    startTracking();
+    startTracking().catch(() => {
+      setIsGpsTracking(false);
+      subscriptionRef.current?.remove();
+      subscriptionRef.current = null;
+    });
 
     return () => {
       mounted = false;

@@ -29,51 +29,48 @@ type Props = Omit<TextInputProps, 'value' | 'onChangeText'> & {
     suggestions: OrderItem[];
     onSelect?: (item: OrderItem) => void;
     containerStyle?: StyleProp<ViewStyle>;
+    setQRcodeSearch?: any;
 };
 
-export default function SearchInput({ value, setValue, suggestions, onSelect, containerStyle, ...rest }: Props) {
+export default function SearchInput({ value, setValue, suggestions, setQRcodeSearch, onSelect, containerStyle, ...rest }: Props) {
+    const [keyboardVisible, setKeyboardVisible] = useState(false);
     const [focused, setFocused] = useState(false);
-    const [showDrop, setShowDrop] = useState(false);
 
     useEffect(() => {
+        const showSub = Keyboard.addListener(
+            Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+            () => setKeyboardVisible(true)
+        );
         const hideSub = Keyboard.addListener(
             Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-            () => {
-                setShowDrop(false);
-                setFocused(false);
-            }
+            () => setKeyboardVisible(false)
         );
-        return () => hideSub.remove();
+        return () => {
+            showSub.remove();
+            hideSub.remove();
+        };
     }, []);
 
     const filtered = value.trim().length > 0
         ? suggestions.filter(s =>
             String(s.id).includes(value) ||
             s.display_name.toLowerCase().includes(value.toLowerCase())
-          )
+        )
         : suggestions;
-
-    const handleFocus = () => {
-        setFocused(true);
-        setShowDrop(true);
-    };
-
-    const handleBlur = () => {
-        setFocused(false);
-        setShowDrop(false);
-    };
 
     const handleSelect = (item: OrderItem) => {
         setValue(`#${item.id} ${item.display_name}`);
-        setShowDrop(false);
         setFocused(false);
+        Keyboard.dismiss();
         onSelect?.(item);
     };
 
     const handleClear = () => {
         setValue('');
-        setShowDrop(true);
+        setQRcodeSearch?.(null);
     };
+
+    const showDrop = keyboardVisible && focused && filtered.length > 0;
 
     return (
         <View style={[styles.wrapper, containerStyle]}>
@@ -85,18 +82,15 @@ export default function SearchInput({ value, setValue, suggestions, onSelect, co
                 />
                 <TextInput
                     value={value}
-                    onChangeText={(text) => {
-                        setValue(text);
-                        setShowDrop(true);
-                    }}
+                    onChangeText={(text) => setValue(text)}
                     style={styles.input}
                     placeholderTextColor={Colors.inActive}
                     returnKeyType="search"
                     autoCorrect={false}
                     autoCapitalize="none"
                     clearButtonMode="never"
-                    onFocus={handleFocus}
-                    onBlur={handleBlur}
+                    onFocus={() => setFocused(true)}
+                    onBlur={() => setFocused(false)}
                     {...rest}
                 />
                 {value.length > 0 && (
@@ -110,7 +104,7 @@ export default function SearchInput({ value, setValue, suggestions, onSelect, co
                 )}
             </View>
 
-            {showDrop && filtered.length > 0 && (
+            {showDrop && (
                 <View style={styles.dropdown}>
                     <ScrollView
                         style={styles.dropScroll}
@@ -163,6 +157,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         backgroundColor: Colors.white,
         gap: 8,
+        minHeight: 50,
     },
     containerFocused: {
         borderColor: Colors.primary,
@@ -175,7 +170,8 @@ const styles = StyleSheet.create({
         color: Colors.black,
         padding: 0,
         margin: 0,
-        paddingVertical: Platform.OS === 'android' ? 15 : 12,
+        height: 50,
+        textAlignVertical: 'center',
     },
     clearBtnPressed: {
         opacity: 0.5,

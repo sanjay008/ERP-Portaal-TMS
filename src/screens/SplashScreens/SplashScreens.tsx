@@ -4,12 +4,12 @@ import { GlobalContextData } from "@/src/context/GlobalContext";
 import { DropboxContext } from "@/src/context/UploadProider";
 import ApiService from "@/src/utils/Apiservice";
 import { getData } from "@/src/utils/storeData";
+import { bootstrapAppDateTime } from "@/src/utils/appDateTime";
 import * as Font from "expo-font";
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect } from "react";
 import { Image, StyleSheet, View } from "react-native";
 import i18n from "../Translation/i18n";
 export default function SplashScreens({ navigation }: any) {
-  const [fontsLoaded, setFontsLoaded] = useState(false);
   const {
     GOOGLE_API_KEY, setGOOGLE_API_KEY,
     CompanyLogo, setCompanyLogo,
@@ -17,7 +17,10 @@ export default function SplashScreens({ navigation }: any) {
     SelectLanguage, setSelectLanguage,
     CompanysData, setCompanysData,
     AllLanguage,
-    setAllLanguage
+    setAllLanguage,
+    SelectActiveDate,
+    setSelectActiveDate,
+    setTimeZone,
   } = useContext(GlobalContextData);
   const { setAccessToken,
     setRefreshToken,
@@ -33,12 +36,7 @@ export default function SplashScreens({ navigation }: any) {
       Medium: require("../../assets/fonts/Lexend-Medium.ttf"),
       Thin: require("../../assets/fonts/Lexend-Thin.ttf"),
     });
-    setFontsLoaded(true);
   };
-
-  useEffect(() => {
-    loadFonts();
-  }, []);
 
   const fetchLanguages = async () => {
     try {
@@ -48,7 +46,7 @@ export default function SplashScreens({ navigation }: any) {
         setAllLanguage(data?.data || []);
       }
     } catch (err) {
-      console.log("Error fetching languages:", err);
+      // language fetch failed — continue startup
     }
   };
 
@@ -78,6 +76,12 @@ export default function SplashScreens({ navigation }: any) {
           setRefreshToken(fullcompany?.default_company?.company_api_dropbox_refresh_token || "");
           setClientId(fullcompany?.default_company?.company_api_dropbox_client_id || "");
           setClientSecret(fullcompany?.default_company?.company_api_dropbox_secret_id || "");
+          bootstrapAppDateTime(
+            fullcompany?.default_company?.timezone,
+            setTimeZone,
+            setSelectActiveDate,
+            SelectActiveDate,
+          );
         }
       }
 
@@ -91,13 +95,11 @@ export default function SplashScreens({ navigation }: any) {
 
       if (!auth) {
         navigation.replace("OnBoarding");
-        console.log("Login required");
         return;
       }
 
       const client = company?.data?.user;
       if (!client) {
-        console.log("Client data missing");
         navigation.replace("OnBoarding");
         return;
       } else {
@@ -114,7 +116,6 @@ export default function SplashScreens({ navigation }: any) {
               },
             });
           } catch (apiError) {
-            console.log("API fetch error:", apiError);
             navigation.replace("BottomTabs");
             return;
           }
@@ -133,26 +134,17 @@ export default function SplashScreens({ navigation }: any) {
         }
       }
     } catch (error) {
-      console.log("Permission or Auth error:", error);
+      // auth bootstrap failed
     }
   };
 
   useEffect(() => {
-    setTimeout(() => {
-      fetchLanguages();
-      getAuthData();
-    }, 2000);
+    const bootstrap = async () => {
+      await loadFonts();
+      await Promise.all([fetchLanguages(), getAuthData()]);
+    };
+    bootstrap();
   }, []);
-
-  // useEffect(() => {
-  //   let timer: any;
-  //   if (fontsLoaded) {
-  //     timer = setTimeout(() => {
-  //       navigation.replace("BottomTabs");
-  //     }, 1500);
-  //   }
-  //   return () => clearTimeout(timer);
-  // }, [fontsLoaded]);
 
   return (
     <View style={styles.container}>

@@ -119,8 +119,6 @@ export default function DetailsScreens({ navigation, route }: any) {
     delivery_btn: null,
     onPress: undefined,
   });
-  const IsFocused = useIsFocused();
-  const [Count, setCount] = useState<number>(0)
   const [AlertModalOpen, setAlerModalOpen] = useState<any>({
     visible: false,
     title: "",
@@ -156,8 +154,7 @@ export default function DetailsScreens({ navigation, route }: any) {
     color: "",
   });
 
-  const GetLocationData = async () => {
-    setIsLoading(true);
+  const GetLocationData = async (showBlockingLoader = false) => {
     if (SelectActiveRegionData == null) {
       setToast({
         top: 45,
@@ -166,6 +163,10 @@ export default function DetailsScreens({ navigation, route }: any) {
         visible: true,
       });
       return;
+    }
+
+    if (showBlockingLoader) {
+      setIsLoading(true);
     }
 
     try {
@@ -188,11 +189,6 @@ export default function DetailsScreens({ navigation, route }: any) {
           ...orders,
           { ...baseLocation },
         ]);
-        console.log("res?.orders", [
-          { ...baseLocation },
-          ...orders,
-          { ...baseLocation },
-        ]);
       } else {
         setLocationDataMessage(res?.message || null);
       }
@@ -209,30 +205,33 @@ export default function DetailsScreens({ navigation, route }: any) {
         visible: true,
       });
     } finally {
-      setIsLoading(false);
+      if (showBlockingLoader) {
+        setIsLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    if (type) {
-      GetIdByOrderFun();
+    if (!Focused) return;
 
+    const refreshScreen = async () => {
+      await GetIdByOrderFun();
+      if (NoParcelDetailsScreenEvent) {
+        setNoParcelModalVisible(true);
+      }
+    };
 
+    refreshScreen();
+
+    if (SelectActiveDate && SelectActiveRegionData) {
+      const showLocationLoader = AllDestinationRegionData.length === 0;
+      GetLocationData(showLocationLoader);
     }
-  }, [type]);
-
-  useEffect(() => {
-    if (!IsFocused) return;
-    if (!SelectActiveDate) return;
-    if (!SelectActiveRegionData) return;
-
-    GetLocationData();
-  }, [IsFocused, SelectActiveDate, SelectActiveRegionData]);
+  }, [Focused, SelectActiveDate, SelectActiveRegionData, type]);
 
   useEffect(() => {
     setPickUpDataSave({
       setData: async (data: any[]) => {
-        console.log("Received pickup photo data:", data);
         if (data?.length > 0) {
           setAllSelectImage(data);
           setComment(true);
@@ -241,7 +240,6 @@ export default function DetailsScreens({ navigation, route }: any) {
     });
     setDeliveyDataSave({
       setData: async (data: any[]) => {
-        console.log("📦 Received delivery photo data:", data);
         if (data?.length > 0) {
           setAllSelectImage(data);
           setComment(true);
@@ -284,7 +282,6 @@ export default function DetailsScreens({ navigation, route }: any) {
         }
       }
     } catch (err) {
-      console.log("Camera open error:", err);
     }
   };
   const openScannerModal = () => {
@@ -357,8 +354,14 @@ export default function DetailsScreens({ navigation, route }: any) {
   };
 
   const GetIdByOrderFun = async () => {
+    const hasPreviewData = Boolean(
+      item?.id || ItemsData?.id || ItemsData?.order_data?.id,
+    );
 
-    setDataLoading(true);
+    if (!hasPreviewData) {
+      setDataLoading(true);
+    }
+
     try {
       let res = await ApiService(apiConstants.get_order_data_by_id, {
         customData: {
@@ -376,9 +379,7 @@ export default function DetailsScreens({ navigation, route }: any) {
       if (res?.status) {
         setItemsData(res?.data);
         setPermissionData(res?.permissions_data);
-        console.log("Success!", res?.data);
 
-        // ✅ Filter out items that are already marked as "No Parcel"
         const labelsForModal = res.data.items
           .filter(
             (item: any) =>
@@ -392,7 +393,6 @@ export default function DetailsScreens({ navigation, route }: any) {
         setNoParcelOptions(labelsForModal);
 
       } else {
-        console.log("Failed to fetch order details:", res?.message);
         setToast({
           top: 45,
           text: t(res?.message),
@@ -401,7 +401,6 @@ export default function DetailsScreens({ navigation, route }: any) {
         });
       }
     } catch (error) {
-      console.log("GetIdByOrderFun Error:-", error);
       setToast({
         top: 45,
         text: ErrorHandle(error).message,
@@ -438,7 +437,6 @@ export default function DetailsScreens({ navigation, route }: any) {
       );
 
       if (Boolean(res?.data.status)) {
-        console.log('✅ Comment stored successfully:', res?.data);
         const orderLogId = res?.data?.data?.order_log_id;
         const orderId =
           res?.data?.data?.order_id ??
@@ -476,7 +474,6 @@ export default function DetailsScreens({ navigation, route }: any) {
         });
       }
     } catch (error) {
-      console.log("AddImageOrCommentFun Error:-", error);
       setToast({
         top: 45,
         text: ErrorHandle(error).message,
@@ -490,7 +487,6 @@ export default function DetailsScreens({ navigation, route }: any) {
 
   const UploadImageStoreApiFun = async (orderId: string, OrderLogId: string) => {
     if (DropBoxUploadImageData?.length == 0) {
-      console.log("No images to upload, skipping UploadImageStoreApiFun.");
       return;
     }
     try {
@@ -566,10 +562,7 @@ export default function DetailsScreens({ navigation, route }: any) {
         );
       }
 
-      console.log(
-        "Final FormData:",
-        formData
-      );
+      
 
       const response: any = await axios.post(
         apiConstants.store_tms_comment_img_new,
@@ -584,10 +577,7 @@ export default function DetailsScreens({ navigation, route }: any) {
       const data: any =
         await response?.data;
 
-      console.log(
-        "UploadImageStoreApiFun Response:",
-        data
-      );
+      
 
       if (!(data?.status_code == 200)) {
 
@@ -606,10 +596,7 @@ export default function DetailsScreens({ navigation, route }: any) {
 
     } catch (error) {
 
-      console.log(
-        "UploadImageStoreApiFun Error:",
-        error
-      );
+      
 
       setToast({
         top: 45,
@@ -656,7 +643,7 @@ export default function DetailsScreens({ navigation, route }: any) {
           : img?.uri ?? "",
       }))
       .filter((img: any) => img.uri !== "");
-    // console.log("Images",[...backendImages, ...safeImages]);
+    // 
 
     return [...backendImages, ...safeImages];
   }
@@ -676,7 +663,6 @@ export default function DetailsScreens({ navigation, route }: any) {
 
       if (Boolean(res.status)) {
         const data = res?.data || [];
-        console.log("datadatadata", data);
 
         setAllSlideData(data);
         // navigation.navigate("FilterScreen", { Type: type || GloblyTypeSlide });
@@ -738,7 +724,6 @@ export default function DetailsScreens({ navigation, route }: any) {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
-      console.log("✅ Backorder response:", res.data);
 
       if (res?.data?.status) {
         await AddImageOrCommentFun(comment);
@@ -746,7 +731,6 @@ export default function DetailsScreens({ navigation, route }: any) {
           ...prev,
           ...selectedItems.map((item) => item.id),
         ]);
-        console.log("res?.remaining_item", res?.data.remaining_item);
 
         if (Number(res?.data.remaining_item) == 0) {
           const buttons: any[] = [];
@@ -837,7 +821,6 @@ export default function DetailsScreens({ navigation, route }: any) {
         });
       }
     } catch (error) {
-      console.log("BackOrderFun Error:", error);
       setToast({
         top: 45,
         text: ErrorHandle(error).message,
@@ -907,7 +890,6 @@ export default function DetailsScreens({ navigation, route }: any) {
         });
       }
     } catch (error) {
-      console.log("CustomerSignatureFun Error:-", error);
       setToast({
         top: 45,
         text: ErrorHandle(error).message,
@@ -925,25 +907,16 @@ export default function DetailsScreens({ navigation, route }: any) {
     return /\.(mp4|mov|avi|mkv|webm|3gp)(\?.*)?$/i.test(url);
   };
 
-  useEffect(() => {
-    let Funcation = async () => {
-      await GetIdByOrderFun();
-      if (NoParcelDetailsScreenEvent) {
-        setNoParcelModalVisible(true);
-        // setNoParcelOpenmodalType("")
-      }
-    }
-    Funcation()
-    if (Focused) {
-      setCount(pre => pre + 1)
-    }
-  }, [Focused]);
+  const hasOrderPreview = Boolean(
+    item?.id || ItemsData?.id || ItemsData?.order_data?.id,
+  );
+  const showInitialLoader = DataLoading && !hasOrderPreview;
 
   return (
-    <SafeAreaView key={Count} style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor="white" />
       <DetailsHeader title={t("Details")} Backbutton={BackButtonAvailble} />
-      {DataLoading ? (
+      {showInitialLoader ? (
         <View style={styles.LoaderContainer}>
           <Loader />
         </View>
@@ -1309,7 +1282,6 @@ export default function DetailsScreens({ navigation, route }: any) {
 
           setSelectedNoParcelItems(selectedItems);
           setNoParcelModalVisible(false);
-          console.log("ItemsData", ItemsData?.customer?.display_name);
           setNoParcelDetailsScreenEvent(false)
           setTimeout(() => {
             setScannerModalOpen({
@@ -1337,11 +1309,10 @@ export default function DetailsScreens({ navigation, route }: any) {
         defaultName={ItemsData?.display_name}
         onClose={() => setShowSig(false)}
         onSave={(base64, name) => {
-          console.log("Signature:", base64);
           CustomerSignatureFun(base64, name)
 
         }}
-        onClear={() => console.log("Cleared")}
+        onClear={() => {}}
       />
       <ScannerInfoModal
         InfoTitle={ScannerModalOpen.InfoTitle}

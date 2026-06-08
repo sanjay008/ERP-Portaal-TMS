@@ -1,10 +1,11 @@
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { Calendar, LocaleConfig } from "react-native-calendars";
 import Modal from "react-native-modal";
 import { Images } from "../assets/images";
 import { GlobalContextData } from "../context/GlobalContext";
+import { getDateByTimezone, resolveAppTimeZone } from "../utils/appDateTime";
 import { Colors } from "../utils/colors";
 import { FONTS } from "../utils/storeData";
 import { formatDate } from "./DateFormate";
@@ -66,39 +67,77 @@ LocaleConfig.locales["ar"] = {
   today: "اليوم",
 };
 
+const calendarTheme = {
+  backgroundColor: Colors.white,
+  calendarBackground: Colors.white,
+  textSectionTitleColor: Colors.darkText,
+  selectedDayBackgroundColor: Colors.primary,
+  selectedDayTextColor: Colors.white,
+  todayTextColor: Colors.primary,
+  dayTextColor: Colors.black,
+  monthTextColor: Colors.black,
+  textMonthFontSize: 18,
+  textMonthFontWeight: "600",
+  arrowColor: Colors.black,
+  textDayFontSize: 15,
+  textDayHeaderFontSize: 13,
+  textDayFontWeight: "400",
+  "stylesheet.calendar.header": {
+    header: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginHorizontal: 10,
+      marginTop: 10,
+      marginBottom: 10,
+    },
+    monthText: {
+      fontSize: 18,
+      fontWeight: "600",
+      color: Colors.black,
+    },
+  },
+} as any;
+
 export default function CalenderDate({ date, setDate }: Props) {
   const [IsVisible, setVisible] = useState<boolean>(false);
   const { t } = useTranslation();
   const {
     SelectLanguage,
     SelectActiveDate, setSelectActiveDate,
-    TimeZone, setTimeZone
+    TimeZone,
   } = useContext(GlobalContextData);
 
   const resolvedLocale = SUPPORTED_LOCALES.includes(SelectLanguage)
     ? SelectLanguage
     : DEFAULT_LOCALE;
 
-  LocaleConfig.defaultLocale = resolvedLocale;
-
-  const getDateByTimezone = (timeZone: string) => {
-    return new Intl.DateTimeFormat("en-CA", {
-      timeZone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(new Date());
-  };
+  const effectiveTimeZone = useMemo(
+    () => resolveAppTimeZone(TimeZone),
+    [TimeZone],
+  );
 
   useEffect(() => {
-    if (!date && setDate && TimeZone) {
-      const today = getDateByTimezone(TimeZone);
+    LocaleConfig.defaultLocale = resolvedLocale;
+  }, [resolvedLocale]);
+
+  useEffect(() => {
+    if (!date && setDate) {
+      const today = getDateByTimezone(effectiveTimeZone);
+      setDate(today);
+      if (!SelectActiveDate) {
+        setSelectActiveDate(today);
+      }
+    }
+  }, [date, effectiveTimeZone, setDate, SelectActiveDate, setSelectActiveDate]);
+
+  const applyTodayIfNeeded = () => {
+    if (!date && setDate) {
+      const today = getDateByTimezone(effectiveTimeZone);
       setDate(today);
       setSelectActiveDate(today);
     }
-  }, [TimeZone]);
-
-  const today = getDateByTimezone(TimeZone);
+  };
 
   return (
     <View style={styles.container}>
@@ -108,11 +147,7 @@ export default function CalenderDate({ date, setDate }: Props) {
           { borderColor: date ? Colors.primary : Colors.Boxgray },
         ]}
         onPress={() => {
-          if (!date && TimeZone && setDate) {
-            const today = getDateByTimezone(TimeZone);
-            setDate(today);
-            setSelectActiveDate(today);
-          }
+          applyTodayIfNeeded();
           requestAnimationFrame(() => setVisible(true));
         }}
       >
@@ -140,53 +175,23 @@ export default function CalenderDate({ date, setDate }: Props) {
         statusBarTranslucent
       >
         <View style={styles.CalenderView}>
-          <Calendar
-            onDayPress={(day) => {
-              setDate(day.dateString);
-              setSelectActiveDate(day.dateString);
-              setVisible(false);
-            }}
-            markedDates={
-              date
-                ? {
-                    [date]: { selected: true, selectedColor: Colors.primary },
-                  }
-                : {}
-            }
-            theme={
-              {
-                backgroundColor: Colors.white,
-                calendarBackground: Colors.white,
-                textSectionTitleColor: Colors.darkText,
-                selectedDayBackgroundColor: Colors.primary,
-                selectedDayTextColor: Colors.white,
-                todayTextColor: Colors.primary,
-                dayTextColor: Colors.black,
-                monthTextColor: Colors.black,
-                textMonthFontSize: 18,
-                textMonthFontWeight: "600",
-                arrowColor: Colors.black,
-                textDayFontSize: 15,
-                textDayHeaderFontSize: 13,
-                textDayFontWeight: "400",
-                "stylesheet.calendar.header": {
-                  header: {
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginHorizontal: 10,
-                    marginTop: 10,
-                    marginBottom: 10,
-                  },
-                  monthText: {
-                    fontSize: 18,
-                    fontWeight: "600",
-                    color: Colors.black,
-                  },
-                },
-              } as any
-            }
-          />
+          {IsVisible ? (
+            <Calendar
+              onDayPress={(day) => {
+                setDate(day.dateString);
+                setSelectActiveDate(day.dateString);
+                setVisible(false);
+              }}
+              markedDates={
+                date
+                  ? {
+                      [date]: { selected: true, selectedColor: Colors.primary },
+                    }
+                  : {}
+              }
+              theme={calendarTheme}
+            />
+          ) : null}
         </View>
       </Modal>
     </View>

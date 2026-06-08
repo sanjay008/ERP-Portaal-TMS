@@ -297,7 +297,6 @@ export default function ScannerScreens({ navigation, route }: any) {
           return;
         }
       } catch (error) {
-        console.log("resumePreview failed, remounting camera:", error);
       }
       setCameraKey((prev) => prev + 1);
     }, 400);
@@ -379,7 +378,6 @@ export default function ScannerScreens({ navigation, route }: any) {
         wasCameraPausedByOverlayRef.current = false;
         restartScannerPreview();
       } catch (error) {
-        console.log("Camera overlay sync:", error);
       }
     };
 
@@ -468,7 +466,6 @@ export default function ScannerScreens({ navigation, route }: any) {
   useEffect(() => {
     setPickUpDataSave({
       setData: async (data: any[]) => {
-        console.log("📸 Received pickup photo data:", data);
         if (data?.length > 0) {
           setAllSelectImage(data);
           setComment(true);
@@ -478,10 +475,8 @@ export default function ScannerScreens({ navigation, route }: any) {
 
     setDeliveyDataSave({
       setData: async (data: any[]) => {
-        console.log("📦 Received delivery photo data:", data);
         if (data?.length > 0) {
           setAllSelectImage(data);
-          console.log("SelectCurrentDeliveryLabel", SelectCurrentDeliveryLabel);
 
           if (!deliveryTypeRef.current) {
             setComment(true);
@@ -504,7 +499,6 @@ export default function ScannerScreens({ navigation, route }: any) {
 
   const onBarcodeScanned = useCallback(
     async ({ data, type }: { data: string; type: string }) => {
-      console.log("Scanned QR Raw Data:", data);
 
       if (!data || isScannerBlockedByModalRef.current || isVerifyingScanRef.current) return;
       if (data === lastDetectedBarcode) return;
@@ -518,7 +512,6 @@ export default function ScannerScreens({ navigation, route }: any) {
         try {
           parsedData = JSON.parse(data);
         } catch (err) {
-          console.log("❌ Invalid QR JSON:", err);
           setShowQRError(true);
           setToast({
             top: 45,
@@ -528,9 +521,7 @@ export default function ScannerScreens({ navigation, route }: any) {
           });
           return;
         }
-        console.log("✅ Parsed QR Data:", parsedData);
         if (!parsedData?.item_id || !parsedData?.order_id) {
-          console.log("Missing IDs in QR:", parsedData);
           setToast({
             top: 45,
             text: t("Invalid QR: Missing item or order ID"),
@@ -546,7 +537,6 @@ export default function ScannerScreens({ navigation, route }: any) {
         await QuestiongetApi(parsedData);
       } catch (error: any) {
         if (axios.isAxiosError(error)) {
-          console.log("⚠️ QR Processing Error:", error);
           setShowQRError(true);
           setToast({
             top: 45,
@@ -583,7 +573,6 @@ export default function ScannerScreens({ navigation, route }: any) {
   }, [Refreshcondition, Focused]);
 
   const QuestiongetApi = async (data: any) => {
-    console.log("Calling Verify Status API with:", data);
 
     try {
       const payload = {
@@ -598,7 +587,6 @@ export default function ScannerScreens({ navigation, route }: any) {
       };
 
       if (!payload.item_id || !payload.order_id) {
-        console.log("Missing item/order_id in payload:", payload);
         setToast({
           top: 45,
           text: t("Invalid QR: Missing item or order ID"),
@@ -607,13 +595,11 @@ export default function ScannerScreens({ navigation, route }: any) {
         });
         return;
       }
-      console.log("Verify Status", type ?? GloblyTypeSlide, type, GloblyTypeSlide);
 
       let res = await ApiService(apiConstants.Verify_status, {
         customData: payload,
       });
 
-      console.log("✅ Verify API Response:", res);
 
       if (Boolean(res?.status)) {
         if (AllDeliveyLabel?.length == 0) {
@@ -627,9 +613,6 @@ export default function ScannerScreens({ navigation, route }: any) {
           res?.data?.damaged_parcel?.find(el => el?.id == 34) || null
         );
 
-        console.log("is_scan", !is_scan &&
-          Number(res?.data?.order_data?.status) !== 1 &&
-          type === 'pickup_dropoff');
         if (
           !is_scan &&
           Number(res?.data?.order_data?.status) !== 1 &&
@@ -696,7 +679,6 @@ export default function ScannerScreens({ navigation, route }: any) {
           OrderData: res?.data,
           NewScanText: t("New scan"),
         };
-        console.log("responseeeee", JSON.stringify(res.data));
 
         if (res?.data?.isscaned) {
 
@@ -721,7 +703,6 @@ export default function ScannerScreens({ navigation, route }: any) {
             LButtonStyle: Colors.gray,
             LColor: Colors.black,
             onPress: () => {
-              console.log("Camera modal button pressed");
               deliveryTypeRef.current = false;
               setDeliveyDataSave({
                 Data: res?.data?.order_data,
@@ -764,7 +745,6 @@ export default function ScannerScreens({ navigation, route }: any) {
         });
       }
     } catch (error) {
-      console.log("❌ Error in QuestiongetApi:", error);
       setIsVerifyingScan(false);
       setToast({
         top: 45,
@@ -795,7 +775,6 @@ export default function ScannerScreens({ navigation, route }: any) {
       };
 
       if (!payload.item_id || !payload.order_id) {
-        console.log("❌ Missing item/order_id for update:", payload);
         setToast({
           top: 45,
           text: t("Missing order details. Please rescan."),
@@ -805,7 +784,6 @@ export default function ScannerScreens({ navigation, route }: any) {
         return;
       }
 
-      console.log("➡️ Calling Status Update API with:", payload);
       const res = await ApiService(apiConstants.status_update, {
         customData: payload,
       });
@@ -814,7 +792,6 @@ export default function ScannerScreens({ navigation, route }: any) {
         clearDeliveryLabelSelection();
         deliveryLabelModalPendingRef.current = false;
         setEvetyTimeShowDeliveryLabelList(false);
-        console.log("✅ Status Updated:", res);
         fun?.();
         setAllRecentScanData((prev) =>
           prev.includes(data?.order_id) ? prev : [...prev, data?.order_id]
@@ -837,7 +814,6 @@ export default function ScannerScreens({ navigation, route }: any) {
         });
       }
     } catch (error) {
-      console.log("❌ Status Update Error:", error);
       setToast({
         top: 45,
         text: ErrorHandle(error).message,
@@ -859,7 +835,6 @@ export default function ScannerScreens({ navigation, route }: any) {
     formData.append("relaties_id", UserData?.relaties?.id);
 
     data.forEach((id: any) => {
-      console.log("id", id);
 
       formData.append("order_ids[]", id);
     });
@@ -887,15 +862,9 @@ export default function ScannerScreens({ navigation, route }: any) {
         });
       }
     } catch (error: any) {
-      console.log("Get Scaned Data Error:-", error?.message);
       if (axios.isAxiosError(error)) {
-        console.log({
-          message: error.message,
-          status: error.response?.status,
-          response: error.response?.data,
-        });
+        
       } else {
-        console.log("Unexpected Error:", error);
       }
       setToast({
         top: 45,
@@ -923,7 +892,6 @@ export default function ScannerScreens({ navigation, route }: any) {
 
       if (Boolean(res.status)) {
         const data = res?.data || [];
-        console.log("datadatadata", data);
 
         setAllSlideData(data);
         if (GloblyTypeSlide == "outbound_scan") {
@@ -991,7 +959,6 @@ export default function ScannerScreens({ navigation, route }: any) {
       );
 
       if (Boolean(res?.data?.status)) {
-        console.log('✅ Comment/Image stored successfully:', res?.data);
         const orderLogId = res?.data?.data?.order_log_id;
         setCommentId(orderLogId);
         const orderId = SelectPlace?.order_id ?? ItemsData?.id ?? ItemsData?.order_data?.id;
@@ -1030,7 +997,6 @@ export default function ScannerScreens({ navigation, route }: any) {
     } catch (error) {
       setComment(true);
 
-      console.log('AddImageOrCommentFun Error:-', error);
 
       setToast({
         top: 45,
@@ -1072,7 +1038,6 @@ export default function ScannerScreens({ navigation, route }: any) {
       const res = await ApiService(apiConstants.store_customer_signature, {
         customData: payload,
       });
-      console.log(res);
 
       if (res?.status) {
         if (AllSelectImage?.length > 0 && CommentId != null) {
@@ -1123,7 +1088,6 @@ export default function ScannerScreens({ navigation, route }: any) {
         });
       }
     } catch (error) {
-      console.log("CustomerSignatureFun Error:-", error);
       setToast({
         top: 45,
         text: ErrorHandle(error).message,
@@ -1161,7 +1125,6 @@ export default function ScannerScreens({ navigation, route }: any) {
       }
 
       if (isNoParcelFlow) {
-        console.log("🟢 No Parcel flow detected → Calling BackOrderFun()");
         await BackOrderFun(ConformationModalOpen?.ProductItem || []);
         setIsNoParcelFlow(false);
         setComment(false);
@@ -1183,7 +1146,6 @@ export default function ScannerScreens({ navigation, route }: any) {
           delivered_lable_id: SelectCurrentDeliveryLabel?.id,
         }),
       };
-      console.log("Commentssss reeee", payload);
 
       const res = await ApiService(apiConstants.status_update, {
         customData: payload,
@@ -1193,11 +1155,9 @@ export default function ScannerScreens({ navigation, route }: any) {
         const savedDeliveryLabel = SelectCurrentDeliveryLabel;
         setComment(false);
         await AddImageOrCommentFun();
-        console.log("✅ Comment & Status updated successfully:", res);
 
         fun?.();
         setComment(false);
-        console.log("res?.tms_current_status", res?.tms_current_status);
 
         const actualRemaining =
           Number(res?.remaining_item) - NoParcelItemIds.length;
@@ -1253,12 +1213,7 @@ export default function ScannerScreens({ navigation, route }: any) {
                   onPress: async () => {
                     setSecondModal((p: any) => ({ ...p, visible: false }));
 
-                    console.log(
-                      "ItemsData?.id || item",
-                      ItemsData?.id || ItemsData?.order_data?.id,
-                      ItemsData,
-                      item
-                    );
+                    
 
                     goBackOrPopTo(navigation, "Details", {
                       type: "scanner_noparcel",
@@ -1314,7 +1269,6 @@ export default function ScannerScreens({ navigation, route }: any) {
         ]);
       }
     } catch (error) {
-      console.log("❌ CommentFun error:", error);
       setToast({
         top: 45,
         text: ErrorHandle(error).message,
@@ -1330,7 +1284,6 @@ export default function ScannerScreens({ navigation, route }: any) {
     const id = order_id || ItemsData?.id || ItemsData?.order_data?.id;
 
     if (!id) {
-      console.log("No order_id available for API call");
       return [];
     }
 
@@ -1349,7 +1302,6 @@ export default function ScannerScreens({ navigation, route }: any) {
       if (res?.status) {
         setItemsData(res?.data);
 
-        console.log("response-=-=-", res?.data);
         setLastDetectedBarcode("");
         setTimeout(() => setCameraKey((prev) => prev + 1), 400);
         // const labelsForModal = res.data.items
@@ -1369,17 +1321,14 @@ export default function ScannerScreens({ navigation, route }: any) {
             id: item.id,
             label: item.tms_product_name || `Item ${item.id}`,
           }));
-        console.log("labelsForModal", labelsForModal);
 
         setNoParcelOptions(labelsForModal);
 
         return labelsForModal;
       } else {
-        console.log("❌ API error:", res?.message);
         return [];
       }
     } catch (error) {
-      console.log("❌ GetIdByOrderFun Error:", error);
       return [];
     }
   };
@@ -1441,7 +1390,6 @@ export default function ScannerScreens({ navigation, route }: any) {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
-      console.log("✅ Backorder response:", res.data);
 
       if (res?.data?.status) {
         // ✅ Add selected items to NoParcelItemIds
@@ -1453,7 +1401,6 @@ export default function ScannerScreens({ navigation, route }: any) {
           ...selectedItems.map((item) => item.id),
         ]);
 
-        console.log("res?.remaining_item", res?.data.remaining_item);
 
         if (Number(res?.data.remaining_item) == 0) {
           const buttons: any[] = [];
@@ -1558,13 +1505,8 @@ export default function ScannerScreens({ navigation, route }: any) {
         });
       }
     } catch (error) {
-      console.log("BackOrderFun Error:", error);
       if (axios.isAxiosError(error)) {
-        console.log("📛 API Error Details:", {
-          status: error.response?.status,
-          data: error.response?.data,
-          message: error.message,
-        });
+        
       }
 
       setToast({
@@ -1690,11 +1632,10 @@ export default function ScannerScreens({ navigation, route }: any) {
           navigation.navigate("Camera");
         }}
         onSave={(base64, name) => {
-          console.log("Signature:", base64);
 
           CustomerSignatureFun(base64, name)
         }}
-        onClear={() => console.log("Cleared")}
+        onClear={() => {}}
       />
 
       <LoadingModal visible={IsLoading} message={t("Please wait…")} />
@@ -1751,10 +1692,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         type={1}
         onClose={() => setNoParcelModalVisible(false)}
         onSubmit={(selectedIds) => {
-          console.log(
-            "🧩 Selected IDs received from NoParcelModal:",
-            selectedIds
-          );
+          
           if (!selectedIds || selectedIds.length === 0) {
             setToast({
               top: 45,

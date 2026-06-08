@@ -1,5 +1,4 @@
 import apiConstants from "@/src/api/apiConstants";
-import { ApiFormatDate } from "@/src/components/ApiFormatDate";
 import DetailsHeader from "@/src/components/DetailsHeader";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
 import Loader from "@/src/components/loading";
@@ -20,6 +19,7 @@ import {
     ScrollView,
     StyleSheet,
     Text,
+    TouchableOpacity,
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -73,7 +73,7 @@ export default function OrderDetails({ navigation, route }: any) {
         if (type) {
             GetIdByOrderFun();
         }
-    }, [type]);
+    }, [type, order_id]);
 
     const GetIdByOrderFun = async () => {
         setDataLoading(true);
@@ -84,10 +84,8 @@ export default function OrderDetails({ navigation, route }: any) {
                     role: UserData?.user?.role,
                     relaties_id: UserData?.relaties?.id,
                     user_id: UserData?.user?.id,
-                    order_id: ItemsData?.id || ItemsData?.order_data?.id,
+                    order_id: order_id ?? ItemsData?.id ?? ItemsData?.order_data?.id,
                     type: type,
-                    region_id: selectRegionData?.id,
-                    date: ApiFormatDate(SelectActiveDate),
                 },
             });
             if (res?.status) {
@@ -110,6 +108,10 @@ export default function OrderDetails({ navigation, route }: any) {
         } finally {
             setDataLoading(false);
         }
+    };
+
+    const handleOk = () => {
+        navigation.goBack();
     };
 
     return (
@@ -219,6 +221,11 @@ export default function OrderDetails({ navigation, route }: any) {
                     )}
                 </ScrollView>
             )}
+
+            <TouchableOpacity activeOpacity={0.85} style={styles.OkButton} onPress={handleOk}>
+                <Text style={styles.OkButtonText}>{t("OK")}</Text>
+            </TouchableOpacity>
+
             <LoadingModal visible={IsLoading} message={t("Please wait…")} />
         </SafeAreaView>
     );
@@ -255,5 +262,18 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontFamily: FONTS.SemiBold,
         color: Colors.black,
+    },
+    OkButton: {
+        margin: 15,
+        backgroundColor: Colors.primary,
+        paddingVertical: 14,
+        borderRadius: 10,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    OkButtonText: {
+        fontSize: 16,
+        fontFamily: FONTS.SemiBold,
+        color: Colors.white,
     },
 });

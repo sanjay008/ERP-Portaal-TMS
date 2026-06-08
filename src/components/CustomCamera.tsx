@@ -373,7 +373,7 @@ export default function CustomCamera({ navigation, route }: any) {
         setPhotos((prev) => [...prev, photo.uri]);
       }
     } catch (e) {
-      console.log("takePictureAsync error:", e);
+      // capture failed
     } finally {
       isTakingPhotoRef.current = false;
     }
@@ -408,7 +408,7 @@ export default function CustomCamera({ navigation, route }: any) {
         setVideos((prev) => [...prev, video.uri]);
       }
     } catch (e) {
-      console.log("recordAsync error:", e);
+      // recording failed
     } finally {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -423,7 +423,7 @@ export default function CustomCamera({ navigation, route }: any) {
       try {
         cameraRef.current.stopRecording();
       } catch (e) {
-        console.log("stopRecording error:", e);
+        // stop failed
       }
     }
   }, []);
@@ -446,7 +446,6 @@ export default function CustomCamera({ navigation, route }: any) {
     if (isRecordingRef.current) stopRecording();
     const allMedia = [...photos, ...videos];
     if (route?.params?.from === "Pickup") {
-      console.log("enter in Pickup");
       PickUpDataSave?.setData?.(allMedia);
     } else {
       DeliveyDataSave?.setData?.(allMedia);
@@ -456,10 +455,7 @@ export default function CustomCamera({ navigation, route }: any) {
   }, [photos, videos, stopRecording, isDoneEnabled]);
 
   useEffect(() => {
-    (async () => {
-      await requestPermission();
-      await requestMicPermission();
-    })();
+    requestPermission();
   }, []);
 
   useEffect(() => {

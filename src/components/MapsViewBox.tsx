@@ -1,9 +1,13 @@
-import * as Location from "expo-location";
 import React, { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Image, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Images } from "../assets/images";
 import { GlobalContextData } from "../context/GlobalContext";
+import {
+  areLocationServicesEnabled,
+  checkLocationPermission,
+  getSafeCurrentPosition,
+} from "../hooks/useUserGPS";
 import { Colors } from "../utils/colors";
 import { FONTS, width } from "../utils/storeData";
 import { useErrorHandle } from "./ErrorHandle";
@@ -44,13 +48,34 @@ export default function MapsViewBox({ data, onPress ,msg = null}: MapsData) {
 
       if (!coordsArray.length) return;
 
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
+      const permission = await checkLocationPermission();
+      if (!permission.granted) {
         Alert.alert(t("Location permission denied"));
         return;
       }
 
-      let current = await Location.getCurrentPositionAsync({});
+      const servicesEnabled = await areLocationServicesEnabled();
+      if (!servicesEnabled) {
+        setToast({
+          top: 45,
+          text: t("Current location is unavailable. Make sure that location services are enabled"),
+          type: "error",
+          visible: true,
+        });
+        return;
+      }
+
+      const current = await getSafeCurrentPosition();
+      if (!current?.coords) {
+        setToast({
+          top: 45,
+          text: t("Current location is unavailable. Make sure that location services are enabled"),
+          type: "error",
+          visible: true,
+        });
+        return;
+      }
+
       let startLat = current.coords.latitude;
       let startLng = current.coords.longitude;
 
@@ -72,8 +97,6 @@ export default function MapsViewBox({ data, onPress ,msg = null}: MapsData) {
 
       await Linking.openURL(supported ? urlToOpen : googleUrl);
     } catch (error: any) {
-      console.log("Map Redirect Error: ", error);
-
       setToast({
         top: 45,
         text: ErrorHandle(error).message,

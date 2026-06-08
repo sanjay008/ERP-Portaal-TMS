@@ -31,7 +31,7 @@ export default function AllOrder({ route, navigation }: { route: any; navigation
     const [SelectDate, setSelectDate] = useState<string>("");
     const [IsLoading, setLoading] = useState<boolean>(false);
     const [AllFilterData, setAllFilterDataGet] = useState<object[]>([]);
-    const [QRcodeSearch,setQRcodeSearch] = useState<any>(null);
+    const [QRcodeSearch, setQRcodeSearch] = useState<any>(null);
     const [search, setSearch] = useState('');
     const [isCollapsed, setisCollapsed] = useState<boolean>(true);
     const { ErrorHandle } = useErrorHandle();
@@ -202,6 +202,8 @@ export default function AllOrder({ route, navigation }: { route: any; navigation
             const itemId = item?.id?.toString().toLowerCase() ?? '';
             const itemName = item?.display_name?.toLowerCase() ?? '';
             const itemExtId = item?.external_order_id?.toString().toLowerCase() ?? '';
+            const itemPickup = item?.pickup_location?.toString().toLowerCase() ?? '';
+            const itemDeliver = item?.deliver_location?.toString().toLowerCase() ?? '';
 
             if (namePart) {
                 return itemId.includes(idPart) && itemName.includes(namePart);
@@ -210,11 +212,12 @@ export default function AllOrder({ route, navigation }: { route: any; navigation
             return (
                 itemId.includes(cleaned) ||
                 itemName.includes(cleaned) ||
-                itemExtId.includes(cleaned)
+                itemExtId.includes(cleaned) ||
+                itemPickup.includes(cleaned) ||
+                itemDeliver.includes(cleaned)
             );
         });
     }, [search, RegionOrderData]);
-
 
     useEffect(() => {
         if (selectRegionData?.id) {
@@ -286,8 +289,8 @@ export default function AllOrder({ route, navigation }: { route: any; navigation
                             onlyIcon={true}
                             Icon={Images.Scan}
                             style={{ width: 46, height: 46 }}
-                            onPress={() => 
-                                navigation.navigate("ScanDetails",{setData:setQRcodeSearch})
+                            onPress={() =>
+                                navigation.navigate("ScanDetails", { setData: setQRcodeSearch })
                             }
                         />
                     </View>
@@ -295,7 +298,7 @@ export default function AllOrder({ route, navigation }: { route: any; navigation
                         value={search}
                         setValue={setSearch}
                         suggestions={RegionOrderData}
-                        placeholder={t("Search by ID or name") + "..."}
+                        placeholder={t("Search by Order No, EasyTrans No, Client Name or Address") + "..."}
                         onSelect={(item) => console.log(item)}
                     />
 

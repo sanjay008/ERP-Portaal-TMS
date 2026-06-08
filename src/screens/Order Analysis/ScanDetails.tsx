@@ -1,23 +1,30 @@
 import { Images } from '@/src/assets/images';
+import { GlobalContextData } from '@/src/context/GlobalContext';
 import { Colors } from '@/src/utils/colors';
 import { height, width } from '@/src/utils/storeData';
 import { Ionicons } from '@expo/vector-icons';
 import { useIsFocused, useNavigation } from "@react-navigation/native";
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Image } from 'expo-image';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function ScanDetails({ route }: any) {
-  const { setData } = route?.params || {};
-  const { goBack } = useNavigation();
+  const { goBack, navigate } = useNavigation<any>();
   const isFocused = useIsFocused();
   const { t } = useTranslation();
   const [permission, requestPermission] = useCameraPermissions();
   const [flashEnabled, setFlashEnabled] = useState<boolean>(false);
   const [cameraReady, setCameraReady] = useState<boolean>(false);
-
+  const {
+    UserData,
+    setUserData,
+    Toast,
+    setToast,
+    GloblyTypeSlide,
+    QRcodeSearch, setQRcodeSearch,
+  } = useContext(GlobalContextData);
   const lastScannedRef = useRef<string>("");
   const isProcessingRef = useRef<boolean>(false);
 
@@ -25,24 +32,39 @@ export default function ScanDetails({ route }: any) {
     if (!permission?.granted) {
       requestPermission();
     }
-  }, []);
+  }, [QRcodeSearch]);
+
+  useEffect(() => {
+    if (isFocused) {
+      lastScannedRef.current = "";
+      isProcessingRef.current = false;
+      setCameraReady(false);
+    }
+  }, [isFocused]);
 
   const onBarcodeScanned = useCallback(
-    ({ data }: { data: string; type: string }) => {
+    ({ data }: { data: any; type: string }) => {
       if (!data || isProcessingRef.current) return;
       if (data === lastScannedRef.current) return;
 
       isProcessingRef.current = true;
       lastScannedRef.current = data;
 
-      console.log("Scanned Value:", data);
-      setData?.(data);
+      try {
+        const parsed = JSON.parse(data);
+        console.log("Scanned Value:", parsed);
+        setQRcodeSearch?.(parsed?.order_id);
 
-      setTimeout(() => {
+        setTimeout(() => {
+          navigate("OrderDetails", { order_id: parsed?.order_id, type: GloblyTypeSlide });
+          isProcessingRef.current = false;
+        }, 1500);
+      } catch (err) {
+        console.log("Invalid QR format:", data);
         isProcessingRef.current = false;
-      }, 2000);
+      }
     },
-    [setData]
+    [setQRcodeSearch]
   );
 
   if (!permission) {
