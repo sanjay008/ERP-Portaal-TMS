@@ -69,7 +69,13 @@ import Modal from "react-native-modal";
 import ReAnimated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 export default function ScannerScreens({ navigation, route }: any) {
-  const { fun = () => { }, type, item, is_scan = true } = route?.params ?? {};
+  const {
+    fun = () => { },
+    type,
+    item,
+    is_scan = true,
+    restrictedOrderId = null,
+  } = route?.params ?? {};
   const [permission, requestPermission] = useCameraPermissions();
   const [ItemsData, setItemsData] = useState(item);
   const [isNoParcelFlow, setIsNoParcelFlow] = useState(false);
@@ -140,6 +146,7 @@ export default function ScannerScreens({ navigation, route }: any) {
   const pendingDeliveryLabelRef = useRef<any>(null);
   const deliveryLabelModalPendingRef = useRef(false);
   const [showQRError, setShowQRError] = useState(false);
+  const [qrErrorMessage, setQrErrorMessage] = useState<string | null>(null);
   const [CommentLoader, setCommentLoader] = useState<boolean>(false);
   const [Refreshcondition, setRefreshCondition] = useState(false);
   const animatedHeight = useRef(new Animated.Value(height)).current;
@@ -561,6 +568,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         try {
           parsedData = JSON.parse(data);
         } catch (err) {
+          setQrErrorMessage(null);
           setShowQRError(true);
           setToast({
             top: 45,
@@ -580,12 +588,25 @@ export default function ScannerScreens({ navigation, route }: any) {
           return;
         }
 
+        if (
+          restrictedOrderId != null &&
+          String(parsedData.order_id) !== String(restrictedOrderId)
+        ) {
+          setQrErrorMessage(
+            t("Please scan the QR code for the current order only."),
+          );
+          setShowQRError(true);
+          setLastDetectedBarcode("");
+          return;
+        }
+
         Vibration.vibrate(500);
         await playBeep();
 
         await QuestiongetApi(parsedData);
       } catch (error: any) {
         if (axios.isAxiosError(error)) {
+          setQrErrorMessage(null);
           setShowQRError(true);
           setToast({
             top: 45,
@@ -605,7 +626,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         }
       }
     },
-    [lastDetectedBarcode, playBeep, t]
+    [lastDetectedBarcode, playBeep, restrictedOrderId, t]
   );
 
   const refreshCamera = () => {
@@ -2149,11 +2170,15 @@ console.log(res);
 
       <InvalidQRModal
         visible={showQRError}
+        message={qrErrorMessage ?? undefined}
         onScanAgain={() => {
           setShowQRError(false);
+          setQrErrorMessage(null);
+          setLastDetectedBarcode("");
         }}
         onGoBack={() => {
           setShowQRError(false);
+          setQrErrorMessage(null);
           navigation.goBack();
         }}
       />

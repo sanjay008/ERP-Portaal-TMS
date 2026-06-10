@@ -30,11 +30,12 @@ const SPRING_CONFIG = {
 
 type Props = {
     visible: boolean;
+    message?: string;
     onScanAgain: () => void;
     onGoBack: () => void;
 };
 
-export default function InvalidQRModal({ visible, onScanAgain, onGoBack }: Props) {
+export default function InvalidQRModal({ visible, message, onScanAgain, onGoBack }: Props) {
     const { t } = useTranslation();
 
     const backdropOpacity = useSharedValue(0);
@@ -106,7 +107,8 @@ export default function InvalidQRModal({ visible, onScanAgain, onGoBack }: Props
 
                 <Text style={styles.title}>{t('Invalid QR Code')}</Text>
                 <Text style={styles.message}>
-                    {t('The QR code you scanned is not recognized or may be expired. Please try again with a valid code.')}
+                    {message ??
+                        t('The QR code you scanned is not recognized or may be expired. Please try again with a valid code.')}
                 </Text>
 
                 <View style={styles.actions}>

@@ -793,6 +793,8 @@ export default function DetailsScreens({ navigation, route }: any) {
 
                     navigation.navigate("Scanner", {
                       type: GloblyTypeSlide,
+                      restrictedOrderId:
+                        ItemsData?.id || ItemsData?.order_data?.id,
                     });
                   },
                 },
@@ -941,6 +943,8 @@ export default function DetailsScreens({ navigation, route }: any) {
                   navigation.navigate("Scanner", {
                     fun: GetIdByOrderFun,
                     type: type,
+                    restrictedOrderId:
+                      ItemsData?.id || ItemsData?.order_data?.id,
                   })
                 }
               />
@@ -1011,6 +1015,8 @@ export default function DetailsScreens({ navigation, route }: any) {
                   navigation.navigate("Scanner", {
                     fun: GetIdByOrderFun,
                     type: type,
+                    restrictedOrderId:
+                      ItemsData?.id || ItemsData?.order_data?.id,
                   })
                 }
                 IconStyle={{ width: 22, height: 22 }}
@@ -1046,6 +1052,8 @@ export default function DetailsScreens({ navigation, route }: any) {
                         navigation.navigate("Scanner", {
                           fun: GetIdByOrderFun,
                           type: type,
+                          restrictedOrderId:
+                            ItemsData?.id || ItemsData?.order_data?.id,
                         })
                         setSelectCurrentDeliveryLabel(item)
                       }
