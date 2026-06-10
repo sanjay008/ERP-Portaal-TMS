@@ -10,6 +10,7 @@ import Loader from "@/src/components/loading";
 import LoadingModal from "@/src/components/LoadingModal";
 import NoParcelModal from "@/src/components/NoParcelModal";
 import PickUpBox from "@/src/components/PickUpBox";
+import PickupPlannedSheet from "@/src/components/PickupPlannedSheet";
 import ScannerInfoModal from "@/src/components/ScannerInfoModal";
 import SignatureModal from "@/src/components/SignatureModal";
 import { GlobalContextData } from "@/src/context/GlobalContext";
@@ -17,6 +18,12 @@ import { DropboxContext } from "@/src/context/UploadProider";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors.js";
 import { appendToLocalUploadQueue } from "@/src/utils/localUploadQueue";
+import {
+  hasRemainingParcelsToDeliver,
+  isDeliveryItemAlreadyScanned,
+  itemNeedsDeliveryLabelSelection,
+  shouldOpenPickupPlannedModal,
+} from "@/src/utils/pickupPlanned";
 import { FONTS, height, width } from "@/src/utils/storeData";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import BottomSheet, {
@@ -123,6 +130,13 @@ export default function ScannerScreens({ navigation, route }: any) {
   const [UpdateStatusHandle, setUpdateStatusHandle] = useState<null | boolean>(
     null
   );
+  const [PickupPlannedSheetOpen, setPickupPlannedSheetOpen] = useState<{
+    visible: boolean;
+    orderData: any;
+    scanPayload: any;
+  }>({ visible: false, orderData: null, scanPayload: null });
+  const pendingPickupScanRef = useRef<any>(null);
+  const pickupPlannedModalPendingRef = useRef(false);
   const pendingDeliveryLabelRef = useRef<any>(null);
   const deliveryLabelModalPendingRef = useRef(false);
   const [showQRError, setShowQRError] = useState(false);
@@ -205,7 +219,17 @@ export default function ScannerScreens({ navigation, route }: any) {
   } = useContext(GlobalContextData);
 
   const selectCurrentDeliveryLabelRef = useRef<any>(null);
-  selectCurrentDeliveryLabelRef.current = SelectCurrentDeliveryLabel;
+
+  useEffect(() => {
+    selectCurrentDeliveryLabelRef.current = SelectCurrentDeliveryLabel;
+  }, [SelectCurrentDeliveryLabel]);
+
+  const getSessionDeliveryLabel = useCallback(
+    () =>
+      pendingDeliveryLabelRef.current ?? selectCurrentDeliveryLabelRef.current,
+    [],
+  );
+
   const { t } = useTranslation();
   const { ErrorHandle } = useErrorHandle();
   const [cameraKey, setCameraKey] = useState(1);
@@ -269,7 +293,8 @@ export default function ScannerScreens({ navigation, route }: any) {
     ScannerModalOpen?.visible ||
     NoParcelModalVisible ||
     AlertModalOpen?.visible ||
-    EvetyTimeShowDeliveryLabelList;
+    EvetyTimeShowDeliveryLabelList ||
+    PickupPlannedSheetOpen?.visible;
 
   const [isVerifyingScan, setIsVerifyingScan] = useState(false);
   const isVerifyingScanRef = useRef(false);
@@ -282,7 +307,9 @@ export default function ScannerScreens({ navigation, route }: any) {
 
   const isScannerBlockedByModalRef = useRef(false);
   isScannerBlockedByModalRef.current =
-    isScannerBlockedByModal || deliveryLabelModalPendingRef.current;
+    isScannerBlockedByModal ||
+    deliveryLabelModalPendingRef.current ||
+    pickupPlannedModalPendingRef.current;
 
   const shouldPauseCameraPreview = isAnyScannerModalOpen;
 
@@ -309,11 +336,30 @@ export default function ScannerScreens({ navigation, route }: any) {
     restartScannerPreview();
   }, [restartScannerPreview]);
 
+  const closePickupPlannedSheetAndUnlockScan = useCallback(() => {
+    pickupPlannedModalPendingRef.current = false;
+    setPickupPlannedSheetOpen({ visible: false, orderData: null, scanPayload: null });
+    pendingPickupScanRef.current = null;
+    setIsVerifyingScan(false);
+    isVerifyingScanRef.current = false;
+    setLastDetectedBarcode("");
+    restartScannerPreview();
+  }, [restartScannerPreview]);
+
+  const closePickupPlannedSheetAndGoBack = useCallback(() => {
+    pickupPlannedModalPendingRef.current = false;
+    setPickupPlannedSheetOpen({ visible: false, orderData: null, scanPayload: null });
+    pendingPickupScanRef.current = null;
+    setIsVerifyingScan(false);
+    isVerifyingScanRef.current = false;
+    goBack();
+  }, []);
+
   const clearDeliveryLabelSelection = useCallback(() => {
     pendingDeliveryLabelRef.current = null;
     selectCurrentDeliveryLabelRef.current = null;
     setSelectCurrentDeliveryLabel(null);
-  }, []);
+  }, [setSelectCurrentDeliveryLabel]);
 
   const closeDeliveryLabelModalAndUnlockScan = useCallback(() => {
     deliveryLabelModalPendingRef.current = false;
@@ -328,7 +374,9 @@ export default function ScannerScreens({ navigation, route }: any) {
     deliveryLabelModalPendingRef.current = false;
     setEvetyTimeShowDeliveryLabelList(false);
     const selectedLabel =
-      pendingDeliveryLabelRef.current ?? SelectCurrentDeliveryLabel;
+      pendingDeliveryLabelRef.current ??
+      selectCurrentDeliveryLabelRef.current ??
+      SelectCurrentDeliveryLabel;
     setAlerModalOpen({
       visible: true,
       title: t("Camera"),
@@ -435,6 +483,7 @@ export default function ScannerScreens({ navigation, route }: any) {
   }, [Focused]);
   const handleSelectDeliveryLabel = (labelItem: any) => {
     pendingDeliveryLabelRef.current = labelItem;
+    selectCurrentDeliveryLabelRef.current = labelItem;
     setSelectCurrentDeliveryLabel(labelItem);
   };
   useEffect(() => {
@@ -548,7 +597,8 @@ export default function ScannerScreens({ navigation, route }: any) {
       } finally {
         if (
           !isScannerBlockedByModalRef.current &&
-          !deliveryLabelModalPendingRef.current
+          !deliveryLabelModalPendingRef.current &&
+          !pickupPlannedModalPendingRef.current
         ) {
           isVerifyingScanRef.current = false;
           setIsVerifyingScan(false);
@@ -600,6 +650,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         customData: payload,
       });
 
+console.log(res);
 
       if (Boolean(res?.status)) {
         if (AllDeliveyLabel?.length == 0) {
@@ -647,25 +698,14 @@ export default function ScannerScreens({ navigation, route }: any) {
           order_id: data?.order_id,
         });
 
+        const slideType = type ?? GloblyTypeSlide;
         const isStatus4 =
           Number(res?.data?.order_data?.tmsstatus?.id) === 4;
-        const hasDeliveryLabel =
-          pendingDeliveryLabelRef.current != null ||
-          selectCurrentDeliveryLabelRef.current != null;
-
-        const shouldShowDeliveryLabelModal = isStatus4 && !hasDeliveryLabel && !res?.data?.error_key;
-
-        if (shouldShowDeliveryLabelModal) {
-          deliveryLabelModalPendingRef.current = true;
-          setEvetyTimeShowDeliveryLabelList(true);
-          return;
-        }
 
         const modalConfig: any = {
           visible: true,
           title: t(res?.data?.quetion),
           Icon: Images.OrderIconFull,
-          // LButtonText: t("Cancel"),
           LButtonText:
             res?.data?.delivery_btn == 1 ? t("No delivery") : t("Cancel"),
           RButtonText: t(res?.data?.btn_lable),
@@ -680,17 +720,102 @@ export default function ScannerScreens({ navigation, route }: any) {
           NewScanText: t("New scan"),
         };
 
-        if (res?.data?.isscaned) {
-
+        if (
+          res?.data?.isscaned ||
+          Number(res?.data?.is_scan) === 1
+        ) {
           modalConfig.onPress = async () => {
             await StatusUpdateFun(data, true);
           };
-
         }
-        if (SelectCurrentDeliveryLabel == null || res?.data?.error_key) {
-          setResponseOrderData(res?.data?.order_data)
-          setConformationModal(modalConfig);
-        } else {
+
+        if (isStatus4 && slideType === 'pickup_dropoff') {
+          const itemAlreadyScanned = isDeliveryItemAlreadyScanned(
+            res?.data,
+            data,
+          );
+
+          if (itemAlreadyScanned || Boolean(res?.data?.error_key)) {
+            setResponseOrderData(res?.data?.order_data);
+            setConformationModal(modalConfig);
+            return;
+          }
+
+          const sessionDeliveryLabel = getSessionDeliveryLabel();
+          const needsLabel = itemNeedsDeliveryLabelSelection(res?.data, data);
+
+          if (needsLabel) {
+            if (sessionDeliveryLabel == null) {
+              deliveryLabelModalPendingRef.current = true;
+              setEvetyTimeShowDeliveryLabelList(true);
+              return;
+            }
+
+            setAlerModalOpen({
+              visible: true,
+              title: t("Camera"),
+              Description: t("You have to take a picture for proof?"),
+              LButtonText: t("Cancel"),
+              RButtonText: t("Camera"),
+              Icon: Images.UploadPhoto,
+              RButtonStyle: Colors.primary,
+              RColor: Colors.white,
+              LButtonStyle: Colors.gray,
+              LColor: Colors.black,
+              onPress: () => {
+                deliveryTypeRef.current = false;
+                setDeliveyDataSave({
+                  Data: res?.data?.order_data,
+                  selectReason: sessionDeliveryLabel,
+                  setData: async (images: any[]) => {
+                    if (images?.length > 0) {
+                      setAllSelectImage(images);
+                      setComment(true);
+                    }
+                  },
+                  type: false,
+                });
+                navigation.navigate("Camera");
+                setAlerModalOpen((prev) => ({ ...prev, visible: false }));
+              },
+            });
+            return;
+          }
+        }
+
+        const isPickupPlannedFlow = shouldOpenPickupPlannedModal(
+          res?.data,
+          data,
+          type,
+          GloblyTypeSlide,
+        );
+
+        if (isPickupPlannedFlow) {
+          pickupPlannedModalPendingRef.current = true;
+          pendingPickupScanRef.current = data;
+          setPickupPlannedSheetOpen({
+            visible: true,
+            orderData: res?.data?.order_data,
+            scanPayload: data,
+          });
+          return;
+        }
+
+        const sessionLabelForCamera = getSessionDeliveryLabel();
+        const isDeliveryPendingItem =
+          isStatus4 &&
+          slideType === 'pickup_dropoff' &&
+          itemNeedsDeliveryLabelSelection(res?.data, data);
+
+        if (
+          sessionLabelForCamera == null ||
+          Boolean(res?.data?.error_key)
+        ) {
+          if (!isDeliveryPendingItem) {
+            setResponseOrderData(res?.data?.order_data);
+            setConformationModal(modalConfig);
+          }
+        } else if (!isDeliveryPendingItem) {
           setAlerModalOpen({
             visible: true,
             title: t("Camera"),
@@ -706,7 +831,7 @@ export default function ScannerScreens({ navigation, route }: any) {
               deliveryTypeRef.current = false;
               setDeliveyDataSave({
                 Data: res?.data?.order_data,
-                selectReason: item,
+                selectReason: sessionLabelForCamera,
                 setData: async (data: any[]) => {
                   if (data?.length > 0) {
                     setAllSelectImage(data);
@@ -824,6 +949,24 @@ export default function ScannerScreens({ navigation, route }: any) {
       setIsLoading(false);
     }
   };
+
+  const handlePickupWithPhoto = useCallback(() => {
+    pickupPlannedModalPendingRef.current = false;
+    setPickupPlannedSheetOpen((prev) => ({ ...prev, visible: false }));
+    pendingPickupScanRef.current = null;
+    navigation.navigate("Camera", { from: "Pickup" });
+  }, [navigation]);
+
+  const handlePickupNextScan = useCallback(async () => {
+    const scanData =
+      pendingPickupScanRef.current ?? PickupPlannedSheetOpen.scanPayload;
+    if (!scanData) return;
+
+    pickupPlannedModalPendingRef.current = false;
+    setPickupPlannedSheetOpen({ visible: false, orderData: null, scanPayload: null });
+    pendingPickupScanRef.current = null;
+    await StatusUpdateFun(scanData, true);
+  }, [PickupPlannedSheetOpen.scanPayload]);
 
   const GetScanedOrderDataLatestFun = async (data: any) => {
     setDataLoader(true);
@@ -1159,8 +1302,12 @@ export default function ScannerScreens({ navigation, route }: any) {
         fun?.();
         setComment(false);
 
-        const actualRemaining =
-          Number(res?.remaining_item) - NoParcelItemIds.length;
+        const parcelsStillRemaining = hasRemainingParcelsToDeliver(
+          ItemsData,
+          res,
+          NoParcelItemIds,
+          SelectPlace?.item_id,
+        );
         const isSignatureAllowed =
           Number(res?.tms_current_status) === 5 &&
           savedDeliveryLabel?.signature_required == 1;
@@ -1169,7 +1316,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         deliveryLabelModalPendingRef.current = false;
         setEvetyTimeShowDeliveryLabelList(false);
         if (!(GloblyTypeSlide == "outbound_scan")) {
-          if (Number(res?.remaining_item) === 0) {
+          if (!parcelsStillRemaining) {
             const buttons: any[] = [];
 
             if (isSignatureAllowed) {
@@ -1402,7 +1549,16 @@ export default function ScannerScreens({ navigation, route }: any) {
         ]);
 
 
-        if (Number(res?.data.remaining_item) == 0) {
+        const backorderParcelsRemaining = hasRemainingParcelsToDeliver(
+          ItemsData,
+          res?.data,
+          [
+            ...NoParcelItemIds,
+            ...selectedItems.map((item: any) => item.id),
+          ],
+        );
+
+        if (!backorderParcelsRemaining) {
           const buttons: any[] = [];
 
           const isSignatureAllowed = Number(res?.data?.tms_current_status) === 5 && SelectCurrentDeliveryLabel?.signature_required == 1;
@@ -1561,6 +1717,17 @@ export default function ScannerScreens({ navigation, route }: any) {
           <Image source={Images.Close} style={styles.Icons} />
         </TouchableOpacity>
       </View>
+
+      <PickupPlannedSheet
+        visible={PickupPlannedSheetOpen.visible}
+        orderData={PickupPlannedSheetOpen.orderData}
+        scanItemId={PickupPlannedSheetOpen.scanPayload?.item_id}
+        loading={IsLoading}
+        onPickupWithPhoto={handlePickupWithPhoto}
+        onCancelAndNewScan={closePickupPlannedSheetAndUnlockScan}
+        onCancelPickup={closePickupPlannedSheetAndGoBack}
+        onPickupNextScan={handlePickupNextScan}
+      />
 
       <ScannerInfoModal
         InfoTitle={ConformationModalOpen.title}

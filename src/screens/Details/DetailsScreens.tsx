@@ -963,6 +963,11 @@ export default function DetailsScreens({ navigation, route }: any) {
             external_platform_data={ItemsData?.display_name}
             external_order_id={ItemsData?.external_order_id}
             contact={true}
+            showScannerButton={
+              PermissionData?.can_scan_order &&
+              Number(ItemsData?.tmsstatus?.id) === 1
+            }
+            
           />
 
           {

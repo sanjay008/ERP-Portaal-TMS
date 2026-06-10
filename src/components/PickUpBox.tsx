@@ -42,6 +42,8 @@ function PickUpBox({
   additional_cost_label = null,
   ItemData,
   external_order_id = null,
+  showScannerButton = false,
+  onScannerPress,
 }: any) {
   const { t } = useTranslation();
   const [isCollapsed, setisCollapsed] = useState<boolean>(AllisCollapsed !== null ? AllisCollapsed : true);
@@ -193,6 +195,19 @@ function PickUpBox({
         <Text style={styles.OrderIdText}>{t("Total Parcel")}</Text>
         <View style={[SimpleFlex.Flex, { marginVertical: 5 }]}>
           <Text style={styles.Text}>{ProductItem?.length}</Text>
+          {showScannerButton && onScannerPress && (
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={onScannerPress}
+              style={styles.scannerBtn}
+            >
+              <Image
+                source={Images.Scan}
+                style={styles.scannerIcon}
+                tintColor={Colors.white}
+              />
+            </TouchableOpacity>
+          )}
           {(AllisCollapsed == null || downButton) && (
             <TouchableOpacity
               style={{
@@ -386,5 +401,18 @@ const styles = StyleSheet.create({
   Icon: {
     width: 28,
     height: 28,
+  },
+  scannerBtn: {
+    width: 40,
+    height: 40,
+    marginLeft: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scannerIcon: {
+    width: 22,
+    height: 22,
   },
 });
