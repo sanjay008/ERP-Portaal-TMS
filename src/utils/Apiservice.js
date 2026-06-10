@@ -1,7 +1,6 @@
 
 import axios from "axios";
 import { getData } from "../utils/storeData";
-import apiConstants from "../api/apiConstants";
 
 const ApiService = async (endpoint, options = {}) => {
   try {
@@ -24,6 +23,7 @@ const ApiService = async (endpoint, options = {}) => {
       });
     }
 
+console.log("requestData",requestData);
 
     const response = await axios({
       method: options.method || "POST", // Default to POST

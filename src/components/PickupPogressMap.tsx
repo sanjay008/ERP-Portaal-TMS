@@ -5,6 +5,7 @@ import DashedLine from "react-native-dashed-line";
 import { Images } from "../assets/images";
 import { Colors } from "../utils/colors";
 import { FONTS } from "../utils/storeData";
+
 type Props = {
   start: string;
   end: string;
@@ -12,46 +13,80 @@ type Props = {
   DeliveryLable: boolean;
 };
 
-export default function PickupPogressMap({ start = "", end = "", DeliveryLable = false, ItemData = null }: Props) {
+export default function PickupProgressMap({
+  start = "",
+  end = "",
+  DeliveryLable = false,
+  ItemData = null,
+}: Props) {
   const { t } = useTranslation();
+  const hasETA = !!ItemData?.route_stop?.eta_time_formatted;
+
   return (
     <View style={styles.container}>
-      <View style={styles.MiniHandle}>
-        <View style={styles.Location}>
-          <Image source={Images.StartPoint} style={{ width: 20, height: 20, marginBottom: 5 }} />
-
-          <DashedLine
-            dashLength={4}
-            dashThickness={2}
-            dashGap={4}
-            style={{ height: 80 }}
-            axis="vertical"
-            dashColor={Colors.black}
-          />
-
-          <Image source={Images.EndPoint} style={{ width: 20, height: 20, marginTop: 5 }} />
-        </View>
-        <View style={styles.locateName}>
-          <Text style={styles.DarkText}>{DeliveryLable ? t("Warehouse") : t("Pick Up")}</Text>
-
-          <Text style={styles.DarkText}>{DeliveryLable ? t("To Deliver") : t("Warehouse")}</Text>
-        </View>
+      <View style={styles.iconsCol}>
+        <Image source={Images.StartPoint} style={styles.icon} />
+        <DashedLine
+          dashLength={5}
+          dashThickness={2}
+          dashGap={4}
+          style={styles.dashed}
+          axis="vertical"
+          dashColor={Colors.black}
+        />
+        <Image source={Images.EndPoint} style={styles.icon} />
       </View>
-      <View style={styles.AddressContainer}>
-        <Text style={styles.Address}>{start}</Text>
-        {
-          !!ItemData?.route_stop?.eta_time_formatted && (
-            <Text style={styles.Address}>
-              {t("ETA")}:{" "}
-              {ItemData.route_stop.eta_time_formatted} /{" "}
-              {Number(
-                ItemData?.route_stop?.leg_distance_km
-              ).toFixed(2)}{" "}
+
+      <View style={styles.labelsCol}>
+        <View style={styles.labelChip}>
+          <Text style={styles.labelChipText} numberOfLines={1}>
+            {DeliveryLable ? t("Warehouse") : t("Pick Up")}
+          </Text>
+        </View>
+
+        {hasETA && (
+          <View style={styles.etaBox}>
+            <Text style={styles.etaLabel}>{t("ETA")}</Text>
+            <Text style={styles.etaTime}>
+              {ItemData.route_stop.eta_time_formatted}
+            </Text>
+            <View style={styles.etaDivider} />
+            <Text style={styles.etaKm}>
+              {Number(ItemData?.route_stop?.leg_distance_km).toFixed(2)}{" "}
               {t("KM")}
             </Text>
-          )
-        }
-        <Text style={styles.Address}>{end}</Text>
+          </View>
+        )}
+
+        <View style={styles.labelChip}>
+          <Text style={styles.labelChipText} numberOfLines={1}>
+            {DeliveryLable ? t("To Deliver") : t("Warehouse")}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.addressCol}>
+        <View style={styles.addressBlock}>
+          <Text style={styles.addressText}>{start}</Text>
+          {!!ItemData?.pickup_region_data?.name && (
+            <View style={[styles.regionPill, styles.pickupPill]}>
+              <Text style={[styles.regionText, styles.pickupText]} numberOfLines={2}>
+                {ItemData.pickup_region_data.name}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.addressBlock}>
+          <Text style={styles.addressText}>{end}</Text>
+          {!!ItemData?.delivery_region_data?.name && (
+            <View style={[styles.regionPill, styles.deliveryPill]}>
+              <Text style={[styles.regionText, styles.deliveryText]} numberOfLines={2}>
+                {ItemData.delivery_region_data.name}
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
     </View>
   );
@@ -61,38 +96,112 @@ const styles = StyleSheet.create({
   container: {
     width: "100%",
     flexDirection: "row",
+    alignItems: "stretch",
+    minHeight: 100,
+  },
+  iconsCol: {
+    width: 28,
+    alignItems: "center",
+    paddingVertical: 2,
+  },
+  icon: {
+    width: 22,
+    height: 22,
+  },
+  dashed: {
+    flex: 1,
+    minHeight: 36,
+  },
+  labelsCol: {
+    flex: 1.2,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
     justifyContent: "space-between",
   },
-  MiniHandle: {
-    maxWidth: "40%",
-    flexDirection: "row",
-    gap: 10,
-    justifyContent: 'center'
-  },
-  SimpleFlex: {
-    flexDirection: "row",
+  labelChip: {
+    backgroundColor: "#EEF2FF",
+    borderRadius: 7,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     alignItems: "center",
-    gap: 5,
   },
-  DarkText: {
-    color: Colors.darkText,
+  labelChipText: {
+    color: "#3730A3",
     fontFamily: FONTS.Medium,
-    fontSize: 14,
+    fontSize: 12,
+    textAlign: "center",
   },
-  Location: {
-    width: "10%",
+  etaBox: {
+    backgroundColor: "#F0FDF4",
+    borderWidth: 1,
+    borderColor: "#86EFAC",
+    borderRadius: 8,
+    paddingVertical: 7,
+    paddingHorizontal: 5,
     alignItems: "center",
+    marginVertical: 4,
   },
-  locateName: {
+  etaLabel: {
+    fontSize: 9,
+    fontFamily: FONTS.Medium,
+    color: "#15803D",
+    letterSpacing: 0.6,
+    marginBottom: 2,
+  },
+  etaTime: {
+    fontSize: 11,
+    fontFamily: FONTS.Medium,
+    color: Colors.darkText,
+    textAlign: "center",
+  },
+  etaDivider: {
+    width: "55%",
+    height: 1,
+    backgroundColor: "#86EFAC",
+    marginVertical: 3,
+  },
+  etaKm: {
+    fontSize: 10,
+    fontFamily: FONTS.Medium,
+    color: "#15803D",
+    textAlign: "center",
+  },
+  addressCol: {
+    flex: 2,
+    paddingLeft: 10,
+    paddingVertical: 2,
     justifyContent: "space-between",
   },
-  AddressContainer: {
-    width: "60%",
-    justifyContent: "space-between",
+  addressBlock: {
+    flexShrink: 1,
   },
-  Address: {
+  addressText: {
     fontSize: 13,
     fontFamily: FONTS.Medium,
     color: Colors.black,
+    lineHeight: 19,
+  },
+  regionPill: {
+    alignSelf: "flex-start",
+    borderRadius: 20,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    marginTop: 5,
+  },
+  pickupPill: {
+    backgroundColor: "#DCFCE7",
+  },
+  deliveryPill: {
+    backgroundColor: "#FEE2E2",
+  },
+  regionText: {
+    fontSize: 10,
+    fontFamily: FONTS.Medium,
+  },
+  pickupText: {
+    color: "#166534",
+  },
+  deliveryText: {
+    color: "#991B1B",
   },
 });

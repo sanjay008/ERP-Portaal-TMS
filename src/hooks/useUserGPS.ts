@@ -10,12 +10,78 @@ type LocationPermissionStatus = {
   canAskAgain: boolean;
 };
 
+export type LocationAccessStatus =
+  | 'granted'
+  | 'denied'
+  | 'blocked'
+  | 'services_disabled';
+
 export async function checkLocationPermission(): Promise<LocationPermissionStatus> {
   const { status, canAskAgain } = await Location.getForegroundPermissionsAsync();
   return {
     granted: status === Location.PermissionStatus.GRANTED,
     canAskAgain: canAskAgain !== false,
   };
+}
+
+export async function resolveLocationAccess(): Promise<LocationAccessStatus> {
+  const current = await checkLocationPermission();
+
+  if (current.granted) {
+    return 'granted';
+  }
+
+  if (!current.canAskAgain) {
+    return 'blocked';
+  }
+
+  const { status, canAskAgain } = await Location.requestForegroundPermissionsAsync();
+  if (status === Location.PermissionStatus.GRANTED) {
+    return 'granted';
+  }
+
+  if (canAskAgain === false) {
+    return 'blocked';
+  }
+
+  return 'denied';
+}
+
+export async function retryLocationPermission(): Promise<LocationAccessStatus> {
+  const current = await checkLocationPermission();
+
+  if (current.granted) {
+    return 'granted';
+  }
+
+  if (!current.canAskAgain) {
+    return 'blocked';
+  }
+
+  const { status, canAskAgain } = await Location.requestForegroundPermissionsAsync();
+  if (status === Location.PermissionStatus.GRANTED) {
+    return 'granted';
+  }
+
+  if (canAskAgain === false) {
+    return 'blocked';
+  }
+
+  return 'denied';
+}
+
+export async function openAppSettings(): Promise<void> {
+  await Linking.openSettings();
+}
+
+export async function recheckLocationAccess(): Promise<LocationAccessStatus> {
+  const current = await checkLocationPermission();
+
+  if (!current.granted) {
+    return current.canAskAgain ? 'denied' : 'blocked';
+  }
+
+  return 'granted';
 }
 
 export async function requestLocationAccess(): Promise<boolean> {
@@ -54,11 +120,6 @@ export async function areLocationServicesEnabled(): Promise<boolean> {
 
 export async function getSafeCurrentPosition(): Promise<Location.LocationObject | null> {
   try {
-    const servicesEnabled = await areLocationServicesEnabled();
-    if (!servicesEnabled) {
-      return (await Location.getLastKnownPositionAsync()) ?? null;
-    }
-
     try {
       return await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
@@ -290,31 +351,21 @@ export default function useUserGPS() {
           return;
         }
 
-        const servicesEnabled = await areLocationServicesEnabled();
-        if (!servicesEnabled) {
-          setPermissionDenied(true);
-          setIsGpsTracking(false);
-          return;
-        }
-
         setPermissionDenied(false);
 
         const initial = await getSafeCurrentPosition();
-        if (!initial?.coords || !mounted) {
-          setIsGpsTracking(false);
-          return;
+        if (initial?.coords && mounted) {
+          const initialCoord: UserCoordinateProps = {
+            latitude: initial.coords.latitude,
+            longitude: initial.coords.longitude,
+            heading: initial.coords.heading,
+            speed: initial.coords.speed,
+            accuracy: initial.coords.accuracy,
+          };
+
+          setUserCoordinate(initialCoord);
+          sendLocationToBackend(initialCoord, 1);
         }
-
-        const initialCoord: UserCoordinateProps = {
-          latitude: initial.coords.latitude,
-          longitude: initial.coords.longitude,
-          heading: initial.coords.heading,
-          speed: initial.coords.speed,
-          accuracy: initial.coords.accuracy,
-        };
-
-        setUserCoordinate(initialCoord);
-        sendLocationToBackend(initialCoord, 1);
 
         subscriptionRef.current = await Location.watchPositionAsync(
           {
@@ -381,5 +432,9 @@ export default function useUserGPS() {
     setIsGpsTracking,
     requestLocationAccess,
     checkLocationPermission,
+    resolveLocationAccess,
+    retryLocationPermission,
+    openAppSettings,
+    recheckLocationAccess,
   };
 }

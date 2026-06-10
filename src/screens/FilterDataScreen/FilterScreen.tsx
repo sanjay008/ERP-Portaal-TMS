@@ -1,5 +1,6 @@
 import apiConstants from "@/src/api/apiConstants";
 import { Images } from "@/src/assets/images";
+import GpsPermissionSheet from "@/src/components/GpsPermissionSheet";
 import AnimatedTooltip from "@/src/components/AnimatedTooltip";
 import CalenderDate from "@/src/components/CalenderDate";
 import CustomHeader from "@/src/components/CustomHeader";
@@ -10,13 +11,20 @@ import SearchInput from "@/src/components/SearchInput";
 import TwoTypeButton from "@/src/components/TwoTypeButton";
 import Loader from "@/src/components/loading";
 import { GlobalContextData } from "@/src/context/GlobalContext";
-import { areLocationServicesEnabled, requestLocationAccess } from "@/src/hooks/useUserGPS";
+import {
+  type LocationAccessStatus,
+  openAppSettings,
+  recheckLocationAccess,
+  resolveLocationAccess,
+  retryLocationPermission,
+} from "@/src/hooks/useUserGPS";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
 import { useIsFocused } from "@react-navigation/native";
 import React, { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  AppState,
   FlatList,
   Image,
   RefreshControl,
@@ -66,6 +74,28 @@ export default function FilterScreen({ navigation, route }: any) {
   const [TemopryryDataStore, setTemopryryDataStore] = useState([]);
   const [TotalCountParcel, setTotalCountParcel] = useState<{ pickup: number, dropoff: number }>({ pickup: 0, dropoff: 0 });
   const [isGpsPermissionLoading, setIsGpsPermissionLoading] = useState(false);
+  const [gpsPermissionSheet, setGpsPermissionSheet] = useState<{
+    visible: boolean;
+    reason: LocationAccessStatus | null;
+  }>({ visible: false, reason: null });
+
+  const enableGpsTracking = useCallback(() => {
+    setGpsPermissionSheet({ visible: false, reason: null });
+    setIsGpsTracking(true);
+  }, [setIsGpsTracking]);
+
+  const handleGpsPermissionResult = useCallback(
+    (status: LocationAccessStatus) => {
+      if (status === 'granted') {
+        enableGpsTracking();
+        return;
+      }
+
+      setIsGpsTracking(false);
+      setGpsPermissionSheet({ visible: true, reason: status });
+    },
+    [enableGpsTracking, setIsGpsTracking],
+  );
 
   const handleGpsTrackingPress = useCallback(async () => {
     if (!selectRegionData) {
@@ -75,35 +105,50 @@ export default function FilterScreen({ navigation, route }: any) {
 
     setIsGpsPermissionLoading(true);
     try {
-      const granted = await requestLocationAccess();
-      if (!granted) {
-        setIsGpsTracking(false);
-        setToast({
-          top: 45,
-          text: t("Location permission is required to enable GPS tracking."),
-          type: "error",
-          visible: true,
-        });
-        return;
-      }
-
-      const servicesEnabled = await areLocationServicesEnabled();
-      if (!servicesEnabled) {
-        setIsGpsTracking(false);
-        setToast({
-          top: 45,
-          text: t("Current location is unavailable. Make sure that location services are enabled"),
-          type: "error",
-          visible: true,
-        });
-        return;
-      }
-
-      setIsGpsTracking(true);
+      const status = await resolveLocationAccess();
+      handleGpsPermissionResult(status);
     } finally {
       setIsGpsPermissionLoading(false);
     }
-  }, [selectRegionData, setIsGpsTracking, setToast, t]);
+  }, [selectRegionData, handleGpsPermissionResult]);
+
+  const handleGpsSheetPrimaryAction = useCallback(async () => {
+    const reason = gpsPermissionSheet.reason;
+    if (!reason || reason === 'granted') return;
+
+    setIsGpsPermissionLoading(true);
+    try {
+      if (reason === 'denied') {
+        const status = await retryLocationPermission();
+        handleGpsPermissionResult(status);
+        return;
+      }
+
+      await openAppSettings();
+    } finally {
+      setIsGpsPermissionLoading(false);
+    }
+  }, [gpsPermissionSheet.reason, handleGpsPermissionResult]);
+
+  useEffect(() => {
+    if (!gpsPermissionSheet.visible) return;
+
+    const subscription = AppState.addEventListener('change', async (nextState) => {
+      if (nextState !== 'active') return;
+
+      const status = await recheckLocationAccess();
+      if (status === 'granted') {
+        enableGpsTracking();
+        return;
+      }
+
+      setGpsPermissionSheet((prev) =>
+        prev.visible ? { visible: true, reason: status } : prev,
+      );
+    });
+
+    return () => subscription.remove();
+  }, [gpsPermissionSheet.visible, enableGpsTracking]);
 
   useEffect(() => {
     if (SelectActiveDate && !SelectDate) {
@@ -508,8 +553,15 @@ const FilterData = useMemo(() => {
             </View>
           )}
         </ScrollView>
-
       </View>
+
+      <GpsPermissionSheet
+        visible={gpsPermissionSheet.visible}
+        reason={gpsPermissionSheet.reason}
+        loading={isGpsPermissionLoading}
+        onClose={() => setGpsPermissionSheet({ visible: false, reason: null })}
+        onPrimaryAction={handleGpsSheetPrimaryAction}
+      />
     </SafeAreaView>
   );
 }
