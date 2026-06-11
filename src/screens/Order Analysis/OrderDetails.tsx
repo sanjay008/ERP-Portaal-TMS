@@ -9,7 +9,7 @@ import { GlobalContextData } from "@/src/context/GlobalContext";
 import { DropboxContext } from "@/src/context/UploadProider";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
-import { FONTS } from "@/src/utils/storeData";
+import { FONTS, SimpleFlex } from "@/src/utils/storeData";
 import { StatusBar } from "expo-status-bar";
 import React, { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -112,6 +112,10 @@ export default function OrderDetails({ navigation, route }: any) {
 
     const handleOk = () => {
         navigation.goBack();
+    };
+
+    const handleMenu = () => {
+        navigation.pop(2);
     };
 
     return (
@@ -221,10 +225,14 @@ export default function OrderDetails({ navigation, route }: any) {
                     )}
                 </ScrollView>
             )}
-
-            <TouchableOpacity activeOpacity={0.85} style={styles.OkButton} onPress={handleOk}>
-                <Text style={styles.OkButtonText}>{t("OK")}</Text>
-            </TouchableOpacity>
+            <View style={[SimpleFlex.SpaceBetween,styles.LastButton]}>
+                <TouchableOpacity activeOpacity={0.85} style={styles.OkButton} onPress={handleMenu}>
+                    <Text style={styles.OkButtonText}>{t("Close")}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity activeOpacity={0.85} style={styles.OkButton} onPress={handleOk}>
+                    <Text style={styles.OkButtonText}>{t("New Scan")}</Text>
+                </TouchableOpacity>
+            </View>
 
             <LoadingModal visible={IsLoading} message={t("Please wait…")} />
         </SafeAreaView>
@@ -264,7 +272,7 @@ const styles = StyleSheet.create({
         color: Colors.black,
     },
     OkButton: {
-        margin: 15,
+        width:"48%",
         backgroundColor: Colors.primary,
         paddingVertical: 14,
         borderRadius: 10,
@@ -276,4 +284,7 @@ const styles = StyleSheet.create({
         fontFamily: FONTS.SemiBold,
         color: Colors.white,
     },
+    LastButton:{
+        padding:15
+    }
 });

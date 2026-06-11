@@ -103,7 +103,7 @@ export default function HomeScreens({ navigation, route }: any) {
                 if (item?.type == "outbound_scan") {
                   navigation.navigate("Scanner", { item: item })
                 } else if (item?.type == "AllOrder") {
-                  navigation.navigate("AllOrder", { Type: item?.type })
+                  navigation.navigate("ScanDetails", { Type: item?.type })
                 } else {
                   navigation.navigate("FilterScreen", { item: item })
                 }
@@ -123,24 +123,27 @@ export default function HomeScreens({ navigation, route }: any) {
           );
         }}
       />
-      <BottomButton
-        visible={isGpsTracking}
-        label={t("Close shift")}
-        onPress={() => {
-          setIsGpsTracking(false);
-          setToast({
-            top: 45,
-            text: t("Shift closed successfully"),
-            type: "success",
-            visible: true,
-          });
-          if (Platform.OS === "android") {
-            setTimeout(() => {
-              BackHandler.exitApp();
-            }, 2000)
-          }
-        }}
-      />
+      {
+        UserData?.user?.role === "chauffeur" &&
+        <BottomButton
+          visible={isGpsTracking}
+          label={t("Close shift")}
+          onPress={() => {
+            setIsGpsTracking(false);
+            setToast({
+              top: 45,
+              text: t("Shift closed successfully"),
+              type: "success",
+              visible: true,
+            });
+            if (Platform.OS === "android") {
+              setTimeout(() => {
+                BackHandler.exitApp();
+              }, 2000)
+            }
+          }}
+        />
+      }
     </View>
   );
 }

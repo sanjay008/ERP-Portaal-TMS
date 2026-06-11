@@ -132,6 +132,7 @@ export default function ScannerScreens({ navigation, route }: any) {
   const [SelectPlace, setSelectPlace] = useState<object | any>(null);
   const [comment, setComment] = useState<boolean | any>(false);
   const [AllSelectImage, setAllSelectImage] = useState<any[]>([]);
+  const [ProductDamageList, setProductDamageList] = useState<any[]>([]);
   const [AllSlideData, setAllSlideData] = useState([]);
   const [UpdateStatusHandle, setUpdateStatusHandle] = useState<null | boolean>(
     null
@@ -671,7 +672,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         customData: payload,
       });
 
-console.log(res);
+      console.log(res);
 
       if (Boolean(res?.status)) {
         if (AllDeliveyLabel?.length == 0) {
@@ -718,7 +719,9 @@ console.log(res);
           item_id: data?.item_id,
           order_id: data?.order_id,
         });
-
+        if (Number(res?.data?.total_remaining_item_to_scan) <= 1) {
+          setProductDamageList(res?.data?.item_data_list || [])
+        }
         const slideType = type ?? GloblyTypeSlide;
         const isStatus4 =
           Number(res?.data?.order_data?.tmsstatus?.id) === 4;
@@ -906,7 +909,7 @@ console.log(res);
     setIsLoading(true);
 
     try {
-      const payload = {
+      const payload:any = {
         token: UserData?.user?.verify_token,
         role: UserData?.user?.role,
         relaties_id: UserData?.relaties?.id,
@@ -914,11 +917,14 @@ console.log(res);
         item_id: data?.item_id,
         order_id: data?.order_id,
         type: type ?? GloblyTypeSlide,
-        is_damage: selectDamageData?.id,
         ...(SelectCurrentDeliveryLabel != null && {
           delivered_lable_id: SelectCurrentDeliveryLabel?.id,
         }),
       };
+
+      if(GloblyTypeSlide === "pickup_dropoff"){
+        payload.is_damage = selectDamageData?.id
+      }
 
       if (!payload.item_id || !payload.order_id) {
         setToast({
@@ -1027,7 +1033,7 @@ console.log(res);
       }
     } catch (error: any) {
       if (axios.isAxiosError(error)) {
-        
+
       } else {
       }
       setToast({
@@ -1174,7 +1180,7 @@ console.log(res);
   };
 
 
-  const CustomerSignatureFun = async (signature: string | null = null, name: string | null = null,) => {
+  const CustomerSignatureFun = async (signature: string | null = null, name: string | null = null, damageItems: any[] = []) => {
     if (signature == null) {
       setToast({
         top: 45,
@@ -1192,10 +1198,11 @@ console.log(res);
         role: UserData?.user?.role,
         relaties_id: UserData?.relaties?.id,
         user_id: UserData?.user?.id,
-        name: name,
+        name,
         signature,
         order_id: ItemsData?.id,
-        is_damage: selectDamageData?.id
+        is_damage: selectDamageData?.id,
+        damage_items: JSON.stringify(damageItems),
       };
 
 
@@ -1204,6 +1211,7 @@ console.log(res);
       });
 
       if (res?.status) {
+        setProductDamageList([]);
         if (AllSelectImage?.length > 0 && CommentId != null) {
           const orderId = SelectPlace?.order_id ?? ItemsData?.id ?? ItemsData?.order_data?.id;
           if (orderId != null) {
@@ -1297,7 +1305,7 @@ console.log(res);
 
 
 
-      const payload = {
+      const payload:any = {
         token: UserData?.user?.verify_token,
         role: UserData?.user?.role,
         relaties_id: UserData?.relaties?.id,
@@ -1305,11 +1313,14 @@ console.log(res);
         item_id: SelectPlace?.item_id,
         order_id: SelectPlace?.order_id,
         type: GloblyTypeSlide,
-        is_damage: selectDamageData?.id,
         ...(SelectCurrentDeliveryLabel !== null && {
           delivered_lable_id: SelectCurrentDeliveryLabel?.id,
         }),
       };
+
+      if(GloblyTypeSlide === "pickup_dropoff"){
+        payload.is_damage = selectDamageData?.id
+      }
 
       const res = await ApiService(apiConstants.status_update, {
         customData: payload,
@@ -1317,6 +1328,47 @@ console.log(res);
 
       if (res?.status) {
         const savedDeliveryLabel = SelectCurrentDeliveryLabel;
+        const savedDamageId = selectDamageData?.id;
+
+        if (savedDamageId != null && SelectPlace?.item_id != null) {
+          setProductDamageList((prev) => {
+            if (!prev?.length) return prev;
+
+            const itemId = Number(SelectPlace.item_id);
+            const orderItems =
+              ItemsData?.items ??
+              ItemsData?.order_data?.items ??
+              ConformationModalOpen?.ProductItem ??
+              [];
+            const matchedOrderItem = orderItems.find(
+              (el: any) => Number(el?.id) === itemId,
+            );
+            const existing = prev.find((el: any) => Number(el?.id) === itemId);
+
+            const updatedLastItem = {
+              ...(existing ?? { id: itemId }),
+              item_status_id:
+                existing?.item_status_id ?? matchedOrderItem?.item_status_id,
+              scan_qty: 1,
+              delivery_label:
+                existing?.delivery_label ?? matchedOrderItem?.delivery_label,
+              is_damaged_delivery: savedDamageId,
+              is_damaged_pickup: existing?.is_damaged_pickup ?? null,
+              tms_product_name:
+                existing?.tms_product_name ??
+                matchedOrderItem?.tms_product_name ??
+                "",
+            };
+
+            if (existing) {
+              return prev.map((el: any) =>
+                Number(el?.id) === itemId ? { ...el, ...updatedLastItem } : el,
+              );
+            }
+            return [...prev, updatedLastItem];
+          });
+        }
+
         setComment(false);
         await AddImageOrCommentFun();
 
@@ -1381,7 +1433,7 @@ console.log(res);
                   onPress: async () => {
                     setSecondModal((p: any) => ({ ...p, visible: false }));
 
-                    
+
 
                     goBackOrPopTo(navigation, "Details", {
                       type: "scanner_noparcel",
@@ -1683,7 +1735,7 @@ console.log(res);
       }
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        
+
       }
 
       setToast({
@@ -1805,6 +1857,7 @@ console.log(res);
         IsLoading={SignatureLoader}
         visible={showSig}
         defaultName={ItemsData?.display_name}
+        ProductDamageList={ProductDamageList}
         onClose={() => setShowSig(false)}
         onPress={() => {
           deliveryTypeRef.current = true;
@@ -1819,11 +1872,11 @@ console.log(res);
           });
           navigation.navigate("Camera");
         }}
-        onSave={(base64, name) => {
+        onSave={(base64, name, damageItems) => {
 
-          CustomerSignatureFun(base64, name)
+          CustomerSignatureFun(base64, name, damageItems)
         }}
-        onClear={() => {}}
+        onClear={() => { }}
       />
 
       <LoadingModal visible={IsLoading} message={t("Please wait…")} />
@@ -1880,7 +1933,7 @@ console.log(res);
         type={1}
         onClose={() => setNoParcelModalVisible(false)}
         onSubmit={(selectedIds) => {
-          
+
           if (!selectedIds || selectedIds.length === 0) {
             setToast({
               top: 45,
@@ -2074,7 +2127,7 @@ console.log(res);
         setselectDamageData={setselectDamageData}
         selectDamageData={selectDamageData}
         GloblyTypeSlide={GloblyTypeSlide}
-      ItemsData={ItemsData}
+        ItemsData={ItemsData}
       />
 
       {SecondModal?.visible && (
