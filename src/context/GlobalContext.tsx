@@ -1,4 +1,9 @@
-import React, { createContext, useState } from "react";
+import React, { createContext, useCallback, useState } from "react";
+import apiConstants from "../api/apiConstants";
+import ApiService from "../utils/Apiservice";
+import { mergeCountryLists, buildFallbackOnlyList, MergedCountry } from "../utils/countryListHelper";
+import type { ActiveShiftSession } from "../utils/shiftSession";
+import { getData, token as appToken } from "../utils/storeData";
 
 export const GlobalContextData = createContext<any>(null);
 
@@ -13,6 +18,7 @@ export default function GlobalContext({ children }: any) {
   const [PickUpDataSave, setPickUpDataSave] = useState<any>(null);
   const [NoParcelDetailsScreenEvent, setNoParcelDetailsScreenEvent] = useState(false)
   const [isGpsTracking, setIsGpsTracking] = useState(false)
+  const [activeShift, setActiveShift] = useState<ActiveShiftSession | null>(null);
   const [NoParcelItemIds, setNoParcelItemIds] = useState<number[]>([]);
   const [AllLanguage,setAllLanguage] = useState<any>([]);
   const [SelectDeliveryReason, setSelectDeliveryReson] = useState(null);
@@ -36,6 +42,42 @@ export default function GlobalContext({ children }: any) {
   const [selectDamageData, setselectDamageData] = useState<any>(null);
   const [CommentId, setCommentId] = useState<any>(null);
   const [QRcodeSearch,setQRcodeSearch] = useState<string | number | null>(null);
+  const [AllCountries, setAllCountries] = useState<MergedCountry[]>([]);
+  const [countriesLoading, setCountriesLoading] = useState(false);
+
+  const fetchCountries = useCallback(async (force = false) => {
+    if (!force && AllCountries.length > 0) {
+      return AllCountries;
+    }
+
+    setCountriesLoading(true);
+    try {
+      const userData = await getData("USERDATA");
+      const authToken =
+        userData?.data?.user?.verify_token ??
+        userData?.user?.verify_token ??
+        appToken;
+
+      const res = await ApiService(apiConstants.countryList, {
+        customData: { token: authToken },
+      });
+
+      if (res?.success && Array.isArray(res?.data) && res.data.length > 0) {
+        const merged = mergeCountryLists(res.data);
+        setAllCountries(merged);
+        return merged;
+      }
+    } catch {
+      // use fallback below
+    } finally {
+      setCountriesLoading(false);
+    }
+
+    const fallback = buildFallbackOnlyList();
+    setAllCountries(fallback);
+    return fallback;
+  }, [AllCountries.length]);
+  
   return (
     <GlobalContextData.Provider
       value={{
@@ -67,7 +109,11 @@ export default function GlobalContext({ children }: any) {
         selectDamageData, setselectDamageData,
         CommentId, setCommentId,
         isGpsTracking, setIsGpsTracking,
-        QRcodeSearch,setQRcodeSearch
+        activeShift, setActiveShift,
+        QRcodeSearch,setQRcodeSearch,
+        AllCountries, setAllCountries,
+        countriesLoading,
+        fetchCountries,
       }}
     >
       {children}

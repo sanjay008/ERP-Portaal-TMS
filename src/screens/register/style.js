@@ -74,16 +74,17 @@ export const styles = StyleSheet.create({
   },
 
   country: {
-    height: RFValue(48),
+    minHeight: RFValue(48),
     width: "100%",
-    alignItems: "center",
-    flexDirection: "row",
+    flexDirection: "column",
     marginTop: 24,
     backgroundColor: Colors.white,
     borderRadius: 10,
     borderColor: Colors.litegray,
     borderWidth: 1.3,
-    paddingHorizontal: 10,
+    paddingHorizontal: 0,
+    overflow: "visible",
+    zIndex: 10,
   },
 
   pickerStyle: {

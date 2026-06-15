@@ -1,6 +1,7 @@
 import apiConstants from "@/src/api/apiConstants";
 import { Images } from "@/src/assets/images";
 import GpsPermissionSheet from "@/src/components/GpsPermissionSheet";
+import GpsTrackingStartPopup from "@/src/components/GpsTrackingStartPopup";
 import AnimatedTooltip from "@/src/components/AnimatedTooltip";
 import CalenderDate from "@/src/components/CalenderDate";
 import CustomHeader from "@/src/components/CustomHeader";
@@ -18,6 +19,12 @@ import {
   resolveLocationAccess,
   retryLocationPermission,
 } from "@/src/hooks/useUserGPS";
+import {
+  buildDateTime,
+  getCurrentTimeString,
+  tripOn,
+} from "@/src/utils/regionTripApi";
+import { saveActiveShift } from "@/src/utils/shiftSession";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
 import { useIsFocused } from "@react-navigation/native";
@@ -57,6 +64,7 @@ export default function FilterScreen({ navigation, route }: any) {
     AllDamageListReason, setAllDamageListReason,
     selectRegionData, setSelectRegionData,
     isGpsTracking, setIsGpsTracking,
+    activeShift, setActiveShift,
     SelectActiveDate, setSelectActiveDate,
 
   } = useContext(GlobalContextData);
@@ -78,6 +86,10 @@ export default function FilterScreen({ navigation, route }: any) {
     visible: boolean;
     reason: LocationAccessStatus | null;
   }>({ visible: false, reason: null });
+  const [gpsStartPopupVisible, setGpsStartPopupVisible] = useState(false);
+  const [gpsTrackingStartDate, setGpsTrackingStartDate] = useState("");
+  const [gpsTrackingStartTime, setGpsTrackingStartTime] = useState("");
+  const [isTripSubmitting, setIsTripSubmitting] = useState(false);
 
   const enableGpsTracking = useCallback(() => {
     setGpsPermissionSheet({ visible: false, reason: null });
@@ -91,10 +103,12 @@ export default function FilterScreen({ navigation, route }: any) {
         return;
       }
 
-      setIsGpsTracking(false);
+      if (!activeShift?.shiftActive) {
+        setIsGpsTracking(false);
+      }
       setGpsPermissionSheet({ visible: true, reason: status });
     },
-    [enableGpsTracking, setIsGpsTracking],
+    [enableGpsTracking, setIsGpsTracking, activeShift?.shiftActive],
   );
 
   const handleGpsTrackingPress = useCallback(async () => {
@@ -111,6 +125,85 @@ export default function FilterScreen({ navigation, route }: any) {
       setIsGpsPermissionLoading(false);
     }
   }, [selectRegionData, handleGpsPermissionResult]);
+
+  const handleGpsTrackButtonPress = useCallback(() => {
+    if (!selectRegionData) {
+      setTooltipVisible(true);
+      return;
+    }
+
+    setGpsTrackingStartDate(SelectDate || "");
+    setGpsTrackingStartTime(getCurrentTimeString());
+    setGpsStartPopupVisible(true);
+  }, [SelectDate, selectRegionData]);
+
+  const handleGpsStartConfirm = useCallback(
+    async (date: string, time: string) => {
+      if (!selectRegionData) {
+        setTooltipVisible(true);
+        return;
+      }
+
+      setGpsTrackingStartDate(date);
+      setGpsTrackingStartTime(time);
+      setIsTripSubmitting(true);
+
+      try {
+        const started_at = buildDateTime(date, time);
+        const response = await tripOn({
+          UserData,
+          selectRegionData,
+          planning_date: date,
+          started_at,
+        });
+
+        if (!response?.status) {
+          setToast({
+            top: 45,
+            text: t(response?.message) || t("Failed to start trip"),
+            type: "error",
+            visible: true,
+          });
+          return;
+        }
+
+        const session = {
+          shiftActive: true,
+          region_id: selectRegionData.id,
+          region_name: selectRegionData?.name || "",
+          planning_date: date,
+          started_at,
+          user_id: UserData?.user?.id,
+        };
+        await saveActiveShift(session);
+        setActiveShift(session);
+        setSelectCurrentDate(date);
+        console.log('[Shift] ON', session);
+
+        setGpsStartPopupVisible(false);
+        await handleGpsTrackingPress();
+      } catch (error: any) {
+        setToast({
+          top: 45,
+          text: ErrorHandle(error)?.message || t("Failed to start trip"),
+          type: "error",
+          visible: true,
+        });
+      } finally {
+        setIsTripSubmitting(false);
+      }
+    },
+    [
+      UserData,
+      selectRegionData,
+      handleGpsTrackingPress,
+      setActiveShift,
+      setSelectCurrentDate,
+      setToast,
+      t,
+      ErrorHandle,
+    ],
+  );
 
   const handleGpsSheetPrimaryAction = useCallback(async () => {
     const reason = gpsPermissionSheet.reason;
@@ -357,10 +450,10 @@ const FilterData = useMemo(() => {
     } else {
       setTotalCountParcel({ pickup: 0, dropoff: 0 });
     }
-    if (selectRegionData == null) {
+    if (selectRegionData == null && !activeShift?.shiftActive) {
       setIsGpsTracking(false);
     }
-  }, [selectRegionData, RegionOrderData]);
+  }, [selectRegionData, RegionOrderData, activeShift?.shiftActive, setIsGpsTracking]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -443,10 +536,10 @@ const FilterData = useMemo(() => {
               suggestions={RegionOrderData}
               placeholder={t("Search by ID or name") + "..."}
               onSelect={() => {}}
-              containerStyle={{ flex: SlideType == "pickup_dropoff" && UserData?.user?.role === "chauffeur" && !isGpsTracking ? 1 / 1.05 : 1 }}
+              containerStyle={{ flex: SlideType == "pickup_dropoff" && UserData?.user?.role === "chauffeur" && !activeShift?.shiftActive ? 1 / 1.05 : 1 }}
             />
             {
-              SlideType == "pickup_dropoff" && UserData?.user?.role === "chauffeur" && !isGpsTracking &&
+              SlideType == "pickup_dropoff" && UserData?.user?.role === "chauffeur" && !activeShift?.shiftActive &&
               <TouchableOpacity
                 style={[
                   styles.button,
@@ -455,7 +548,7 @@ const FilterData = useMemo(() => {
                     opacity: isGpsPermissionLoading ? 0.6 : 1,
                   },
                 ]}
-                onPress={handleGpsTrackingPress}
+                onPress={handleGpsTrackButtonPress}
                 activeOpacity={0.8}
                 disabled={isGpsPermissionLoading}
               >
@@ -554,6 +647,17 @@ const FilterData = useMemo(() => {
           )}
         </ScrollView>
       </View>
+
+      <GpsTrackingStartPopup
+        visible={gpsStartPopupVisible}
+        mode="start"
+        initialDate={gpsTrackingStartDate || SelectDate}
+        initialTime={gpsTrackingStartTime || getCurrentTimeString()}
+        regionName={selectRegionData?.name || ""}
+        loading={isTripSubmitting || isGpsPermissionLoading}
+        onClose={() => setGpsStartPopupVisible(false)}
+        onConfirm={handleGpsStartConfirm}
+      />
 
       <GpsPermissionSheet
         visible={gpsPermissionSheet.visible}

@@ -155,7 +155,7 @@ export default function Profile({ navigation }: any) {
     },
   ];
 
-  useEffect(() => {
+useEffect(() => {
     retrieveAppVersion();
   }, []);
 

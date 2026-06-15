@@ -191,8 +191,8 @@ type PayloadValidationResult =
 function buildAndValidatePayload(
   coord: UserCoordinateProps,
   UserData: any,
-  SelectCurrentDate: string | null | undefined,
-  selectRegionData: any,
+  planning_date: string | null | undefined,
+  region_id: number | string | null | undefined,
   isActive: number,
 ): PayloadValidationResult {
   if (!UserData?.user) {
@@ -219,24 +219,22 @@ function buildAndValidatePayload(
     return { valid: false, reason: 'relaties_id is missing' };
   }
 
-  if (!selectRegionData?.id) {
-    return { valid: false, reason: 'selectRegionData or region id is null/missing' };
+  if (!region_id) {
+    return { valid: false, reason: 'region_id is null/missing' };
   }
-
-  const region_id = selectRegionData.id;
 
   if (!coord.latitude || !coord.longitude) {
     return { valid: false, reason: `Invalid coordinates — lat: ${coord.latitude}, lon: ${coord.longitude}` };
   }
 
-  const planning_date = SelectCurrentDate ?? getTodayDate();
+  const resolvedPlanningDate = planning_date ?? getTodayDate();
 
   return {
     valid: true,
     payload: {
       token: String(token),
       role: String(role),
-      planning_date: String(planning_date),
+      planning_date: String(resolvedPlanningDate),
       relaties_id: String(relaties_id),
       user_id: String(user_id),
       region_id: String(region_id),
@@ -251,8 +249,14 @@ function buildAndValidatePayload(
 }
 
 export default function useUserGPS() {
-  const { UserData, SelectCurrentDate, selectRegionData, isGpsTracking, setIsGpsTracking } =
-    useContext(GlobalContextData);
+  const {
+    UserData,
+    SelectCurrentDate,
+    selectRegionData,
+    isGpsTracking,
+    setIsGpsTracking,
+    activeShift,
+  } = useContext(GlobalContextData);
 
   const [userCoordinate, setUserCoordinate] = useState<UserCoordinateProps>({
     latitude: 0,
@@ -269,20 +273,45 @@ export default function useUserGPS() {
   const isSendingRef = useRef(false);
   const deactivateCalledRef = useRef(false);
 
-  const contextRef = useRef({ UserData, SelectCurrentDate, selectRegionData });
+  const contextRef = useRef({ UserData, SelectCurrentDate, selectRegionData, activeShift });
   useEffect(() => {
-    contextRef.current = { UserData, SelectCurrentDate, selectRegionData };
-  }, [UserData, SelectCurrentDate, selectRegionData]);
+    contextRef.current = { UserData, SelectCurrentDate, selectRegionData, activeShift };
+  }, [UserData, SelectCurrentDate, selectRegionData, activeShift]);
 
   const isChauffeur = UserData?.user?.role === REQUIRED_ROLE;
-  const canTrack = isGpsTracking && isChauffeur;
+  const shiftActive = Boolean(activeShift?.shiftActive);
+  const canTrack = isGpsTracking && isChauffeur && shiftActive;
+
+  const getTrackingContext = useCallback(() => {
+    const { activeShift: shift, SelectCurrentDate: currentDate, selectRegionData: region } =
+      contextRef.current;
+
+    if (shift?.shiftActive) {
+      return {
+        region_id: shift.region_id,
+        planning_date: shift.planning_date,
+      };
+    }
+
+    return {
+      region_id: region?.id,
+      planning_date: currentDate ?? getTodayDate(),
+    };
+  }, []);
 
   const sendLocationToBackend = useCallback(async (coord: UserCoordinateProps, isActive: number) => {
     if (isSendingRef.current) return;
 
-    const { UserData, SelectCurrentDate, selectRegionData } = contextRef.current;
+    const { UserData } = contextRef.current;
+    const { region_id, planning_date } = getTrackingContext();
 
-    const result: any = buildAndValidatePayload(coord, UserData, SelectCurrentDate, selectRegionData, isActive);
+    const result: any = buildAndValidatePayload(
+      coord,
+      UserData,
+      planning_date,
+      region_id,
+      isActive,
+    );
 
     if (!result.valid) {
       console.warn(`[useUserGPS] API call skipped — ${result.reason}`);
@@ -300,6 +329,12 @@ export default function useUserGPS() {
 
       if (res?.status) {
         if (isActive === 1) {
+          console.log('[useUserGPS] tracking on', {
+            lat: coord.latitude,
+            lon: coord.longitude,
+            region_id: result.payload.region_id,
+            planning_date: result.payload.planning_date,
+          });
           lastSentCoordRef.current = {
             latitude: coord.latitude,
             longitude: coord.longitude,
@@ -314,7 +349,7 @@ export default function useUserGPS() {
       isSendingRef.current = false;
       setIsSending(false);
     }
-  }, []);
+  }, [getTrackingContext]);
 
   useEffect(() => {
     if (!canTrack) {
@@ -339,6 +374,7 @@ export default function useUserGPS() {
     }
 
     deactivateCalledRef.current = false;
+    console.log('[Shift] ON - GPS tracking active');
     let mounted = true;
 
     const startTracking = async () => {
@@ -347,7 +383,9 @@ export default function useUserGPS() {
 
         if (!permission.granted) {
           setPermissionDenied(true);
-          setIsGpsTracking(false);
+          if (!contextRef.current.activeShift?.shiftActive) {
+            setIsGpsTracking(false);
+          }
           return;
         }
 
@@ -404,14 +442,18 @@ export default function useUserGPS() {
         );
       } catch {
         setPermissionDenied(true);
-        setIsGpsTracking(false);
+        if (!contextRef.current.activeShift?.shiftActive) {
+          setIsGpsTracking(false);
+        }
         subscriptionRef.current?.remove();
         subscriptionRef.current = null;
       }
     };
 
     startTracking().catch(() => {
-      setIsGpsTracking(false);
+      if (!contextRef.current.activeShift?.shiftActive) {
+        setIsGpsTracking(false);
+      }
       subscriptionRef.current?.remove();
       subscriptionRef.current = null;
     });
@@ -421,7 +463,7 @@ export default function useUserGPS() {
       subscriptionRef.current?.remove();
       subscriptionRef.current = null;
     };
-  }, [canTrack, sendLocationToBackend]);
+  }, [canTrack, sendLocationToBackend, isGpsTracking, isChauffeur, shiftActive, setIsGpsTracking]);
 
   return {
     userCoordinate,

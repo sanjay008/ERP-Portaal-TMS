@@ -2,8 +2,10 @@ import { useNavigation } from "@react-navigation/native";
 import React, { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  Dimensions,
   FlatList,
   Image,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -38,6 +40,8 @@ type Props = {
   OrderData?: null | any;
   NewScanText?: string;
   onNewScanPress?: () => void;
+  UnloadingText?: string;
+  onUnloadingPress?: () => void;
 };
 
 type AlertModalType = {
@@ -75,6 +79,8 @@ export default function ScannerInfoModal({
   OrderData = null,
   NewScanText,
   onNewScanPress,
+  UnloadingText,
+  onUnloadingPress,
 }: Props) {
   const { t } = useTranslation();
   const navigation = useNavigation<any>();
@@ -200,6 +206,12 @@ export default function ScannerInfoModal({
 
         <View style={[styles.container, style, bgColor && { backgroundColor: bgColor }]}>
           <View style={[styles.ContentView]}>
+            <ScrollView
+              bounces={false}
+              showsVerticalScrollIndicator={false}
+              style={styles.modalScroll}
+              contentContainerStyle={styles.modalScrollContent}
+            >
             <View style={styles.InfoContainer}>
               <Text style={[styles.Text, { fontSize: 18, color: OrderData?.region_data?.tmsstatus?.color || Colors.primary, textAlign: 'center' }]}>
                 {getTitle()}
@@ -443,13 +455,15 @@ export default function ScannerInfoModal({
 
             {/* --- Footer Buttons --- */}
             {!showReasonList && !showDeliveredAtList && (() => {
-              const showLeft = delivery_btn == 0 || (delivery_btn == 1 && !!onClose);
-              const showRight = delivery_btn == 0 && !!RText;
+              const showCancel =
+                delivery_btn == 0 || (delivery_btn == 1 && !!onClose);
+              const showApiButton = delivery_btn == 0 && !!RText;
               const showNewScan = !!onNewScanPress;
+              const showUnloading = !!onUnloadingPress;
 
-              const leftLabel =
+              const cancelLabel =
                 delivery_btn == 1 ? t("Cancel") : LText ? t(LText) : t("Cancel");
-              const leftOnPress =
+              const onCancelPress =
                 delivery_btn == 1
                   ? onClose
                   : () => {
@@ -457,123 +471,143 @@ export default function ScannerInfoModal({
                       else onClose?.();
                     };
 
-              const rowButtons: {
+              const topButtons: {
                 key: string;
                 label: string;
                 onPress?: () => void;
-                style?: object;
-                textColor?: string;
               }[] = [];
 
-              if (showLeft) {
-                rowButtons.push({
-                  key: "left",
-                  label: leftLabel,
-                  onPress: leftOnPress,
-                  style: LButtonStyle,
+              if (showApiButton) {
+                topButtons.push({
+                  key: "api",
+                  label: t(RText!),
+                  onPress: () => onPress?.(),
                 });
               }
-              if (showNewScan) {
-                rowButtons.push({
-                  key: "newScan",
-                  label: NewScanText || t("New scan"),
-                  onPress: onNewScanPress,
-                  style: { backgroundColor: Colors.primary },
-                  textColor: Colors.white,
+              if (showUnloading) {
+                topButtons.push({
+                  key: "unloading",
+                  label: UnloadingText || t("Unloading"),
+                  onPress: onUnloadingPress,
                 });
               }
 
-              const threeButtonLayout = showRight && showLeft && showNewScan;
+              const hasBottomRow = showCancel || showNewScan;
+              const bottomButtonCount =
+                (showCancel ? 1 : 0) + (showNewScan ? 1 : 0);
+              const totalButtons = topButtons.length + bottomButtonCount;
 
-              if (threeButtonLayout) {
+              if (totalButtons === 0) return null;
+
+              const renderPrimaryButton = (
+                btn: (typeof topButtons)[number],
+                centered = false,
+              ) => (
+                <TouchableOpacity
+                  key={btn.key}
+                  style={[
+                    styles.ButtonBase,
+                    centered ? styles.ButtonSingle : styles.ButtonFullWidth,
+                    styles.ButtonPrimary,
+                  ]}
+                  onPress={btn.onPress}
+                >
+                  <Text style={[styles.Text, styles.PrimaryButtonText]}>
+                    {btn.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+
+              if (totalButtons === 1) {
+                if (topButtons.length === 1) {
+                  return (
+                    <View style={styles.LastButtonContainer}>
+                      <View style={styles.FooterCenter}>
+                        {renderPrimaryButton(topButtons[0], true)}
+                      </View>
+                    </View>
+                  );
+                }
+
                 return (
                   <View style={styles.LastButtonContainer}>
-                    <TouchableOpacity
-                      style={[styles.Button, styles.ButtonFullWidth, RButtonStyle]}
-                      onPress={() => onPress?.()}
-                    >
-                      <Text style={styles.Text}>{t(RText!)}</Text>
-                    </TouchableOpacity>
-                    <View style={styles.Flex}>
-                      {rowButtons.map((btn) => (
+                    <View style={styles.FooterCenter}>
+                      {showCancel ? (
                         <TouchableOpacity
-                          key={btn.key}
-                          style={[styles.Button, btn.style]}
-                          onPress={btn.onPress}
+                          style={[
+                            styles.ButtonBase,
+                            styles.ButtonSingle,
+                            LButtonStyle,
+                          ]}
+                          onPress={onCancelPress}
                         >
-                          <Text
-                            style={[
-                              styles.Text,
-                              btn.textColor ? { color: btn.textColor } : null,
-                            ]}
-                          >
-                            {btn.label}
+                          <Text style={styles.Text}>{cancelLabel}</Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <TouchableOpacity
+                          style={[
+                            styles.ButtonBase,
+                            styles.ButtonSingle,
+                            LButtonStyle,
+                          ]}
+                          onPress={onNewScanPress}
+                        >
+                          <Text style={styles.Text}>
+                            {NewScanText || t("New scan")}
                           </Text>
                         </TouchableOpacity>
-                      ))}
+                      )}
                     </View>
                   </View>
                 );
               }
 
-              const allRowButtons = [...rowButtons];
-              if (showRight) {
-                allRowButtons.push({
-                  key: "right",
-                  label: t(RText!),
-                  onPress: () => onPress?.(),
-                  style: RButtonStyle,
-                });
-              }
-
-              if (allRowButtons.length === 0) return null;
-
-              if (allRowButtons.length === 1) {
-                const btn = allRowButtons[0];
-                return (
-                  <View style={[styles.LastButtonContainer, styles.FooterCenter]}>
-                    <TouchableOpacity
-                      style={[styles.Button, styles.ButtonSingle, btn.style]}
-                      onPress={btn.onPress}
-                    >
-                      <Text
-                        style={[
-                          styles.Text,
-                          btn.textColor ? { color: btn.textColor } : null,
-                        ]}
-                      >
-                        {btn.label}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                );
-              }
-
               return (
-                <View style={[styles.Flex, styles.LastButtonContainer]}>
-                  {allRowButtons.map((btn) => (
-                    <TouchableOpacity
-                      key={btn.key}
-                      style={[styles.Button, btn.style]}
-                      onPress={btn.onPress}
-                    >
-                      <Text
-                        style={[
-                          styles.Text,
-                          btn.textColor ? { color: btn.textColor } : null,
-                        ]}
-                      >
-                        {btn.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                <View style={styles.LastButtonContainer}>
+                  {topButtons.map((btn) => renderPrimaryButton(btn))}
+
+                  {hasBottomRow ? (
+                    <View style={styles.FooterRow}>
+                      {showCancel ? (
+                        <TouchableOpacity
+                          style={[
+                            styles.ButtonBase,
+                            styles.ButtonHalf,
+                            LButtonStyle,
+                          ]}
+                          onPress={onCancelPress}
+                        >
+                          <Text style={styles.Text}>{cancelLabel}</Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <View style={styles.ButtonHalfSpacer} />
+                      )}
+
+                      {showNewScan ? (
+                        <TouchableOpacity
+                          style={[
+                            styles.ButtonBase,
+                            styles.ButtonHalf,
+                            LButtonStyle,
+                          ]}
+                          onPress={onNewScanPress}
+                        >
+                          <Text style={styles.Text}>
+                            {NewScanText || t("New scan")}
+                          </Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <View style={styles.ButtonHalfSpacer} />
+                      )}
+                    </View>
+                  ) : null}
                 </View>
               );
             })()}
+            </ScrollView>
           </View>
         </View>
       </View>
-
 
       <ConformationModal
         IsVisible={AlertModalOpen.visible}
@@ -640,7 +674,9 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.4)",
   },
   container: { flexGrow: 1, justifyContent: "center", alignItems: "center", margin: 0, padding: 15 },
-  ContentView: { width: width * 0.9, backgroundColor: Colors.white, borderRadius: 7 },
+  ContentView: { width: width * 0.9, maxHeight: Dimensions.get('window').height * 0.82, backgroundColor: Colors.white, borderRadius: 7 },
+  modalScroll: { flexGrow: 0 },
+  modalScrollContent: { flexGrow: 1 },
   InfoContainer: { padding: 15 },
   Text: { fontSize: 15, fontFamily: FONTS.SemiBold, color: Colors.black },
   TopContainer: { flexDirection: "row", gap: 15, alignItems: "center" },
@@ -653,10 +689,38 @@ const styles = StyleSheet.create({
   DarkText: { fontSize: 13, color: Colors.darkText, fontFamily: FONTS.Medium },
   DasheLine: { marginVertical: 15 },
   LastButtonContainer: { padding: 15, gap: 10 },
-  FooterCenter: { alignItems: "center" },
-  Button: { width: "48%", height: 45, backgroundColor: Colors.background, borderRadius: 4, justifyContent: "center", alignItems: "center" },
+  FooterCenter: { alignItems: "center", width: "100%" },
+  FooterRow: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  ButtonBase: {
+    height: 45,
+    backgroundColor: Colors.background,
+    borderRadius: 4,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  ButtonHalf: {
+    flex: 1,
+    minWidth: 0,
+  },
+  ButtonHalfSpacer: {
+    flex: 1,
+    minWidth: 0,
+  },
   ButtonSingle: { width: "60%" },
-  ButtonFullWidth: { width: "100%", marginBottom: 0 },
+  ButtonFullWidth: { width: "100%" },
+  ButtonPrimary: {
+    backgroundColor: Colors.primary,
+  },
+  PrimaryButtonText: {
+    color: Colors.white,
+  },
+  Button: { width: "48%", height: 45, backgroundColor: Colors.background, borderRadius: 4, justifyContent: "center", alignItems: "center" },
   optionContainer: { padding: 20, alignItems: "center" },
   ReasonButton: { backgroundColor: "#4169E1", borderRadius: 6, paddingVertical: 12, marginVertical: 6, width: "80%", alignItems: "center" },
   ReasonText: { fontSize: 15, fontFamily: FONTS.SemiBold, color: "#fff" },

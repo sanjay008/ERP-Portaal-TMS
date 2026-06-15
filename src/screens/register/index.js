@@ -14,7 +14,7 @@ import {
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { RFValue } from "react-native-responsive-fontsize";
 import { SafeAreaView } from "react-native-safe-area-context";
-import CountryPicker from "rn-country-picker";
+import MyCountryPiker from "../../components/CountryPicker";
 import apiConstants from "../../api/apiConstants";
 import { Images } from "../../assets/images";
 import ButtonComponent from "../../components/buttonComponent.tsx";
@@ -44,6 +44,7 @@ const Register = ({ navigation, route }) => {
   const [emailError, setEmailError] = useState("");
   const [showEmail, setShowEmail] = useState(false);
   const [showWhatsApp, setShowWhatsapp] = useState(true);
+  const [countryPickerOpen, setCountryPickerOpen] = useState(false);
   const {
     setUserData,
     GOOGLE_API_KEY, setGOOGLE_API_KEY,
@@ -64,8 +65,8 @@ const Register = ({ navigation, route }) => {
     await storeData("SELECT", true);
   };
 
-  const selectedValue = (value) => {
-    setCountryCode(value?.callingCode);
+  const selectedValue = (country) => {
+    setCountryCode(country?.countrycode);
   };
 
   const handleTextChange = (txt) => {
@@ -232,6 +233,8 @@ const Register = ({ navigation, route }) => {
       <KeyboardAwareScrollView
         bounces={false}
         enableOnAndroid
+        nestedScrollEnabled
+        scrollEnabled={!countryPickerOpen}
         extraScrollHeight={100}
         keyboardShouldPersistTaps="handled"
         style={styles.subContainer}
@@ -257,34 +260,14 @@ const Register = ({ navigation, route }) => {
             <>
               <Text style={[styles.title, { alignSelf: "flex-start" }]}>{t("WhatsApp nummer")}</Text>
               <View style={styles.country}>
-                <View style={{ width: '35%' }}>
-                  <CountryPicker
-                    countryFlagStyle={{ height: 22, width: 32, marginRight: 8, borderRadius: 4 }}
-                    disable={false}
-                    animationType="slide"
-                    language="en"
-                    pickerContainerStyle={styles.pickerStyle}
-                    pickerTitleStyle={styles.pickerTitleStyle}
-                    dropDownIcon={Images.down}
-                    selectedCountryTextStyle={styles.selectedCountryTextStyle}
-                    dropDownIconStyle={{ tintColor: Colors.black }}
-                    countryNameTextStyle={styles.countryNameTextStyle}
-                    searchBarPlaceHolder={t("Selecteer land")}
-                    hideCountryFlag={false}
-                    hideCountryCode={false}
-                    searchBarContainerStyle={styles.searchBarStyle}
-                    searchInputStyle={{ color: Colors.black }}
-                    countryCode={countryCode}
-                    selectedValue={selectedValue}
-                  />
-                </View>
-                <TextInput
+                <MyCountryPiker
                   value={number}
-                  onChangeText={handleTextChange}
-                  placeholderTextColor={Colors.textgray}
-                  keyboardType="number-pad"
-                  style={styles.input}
+                  setValue={handleTextChange}
+                  countryCode={countryCode}
+                  onSelect={selectedValue}
+                  onOpenChange={setCountryPickerOpen}
                   placeholder={t("Enter phone number")}
+                  ContainerStyle={{ flex: 1, width: '100%' }}
                 />
               </View>
               <Text style={styles.error}>{numbererror}</Text>
@@ -309,33 +292,14 @@ const Register = ({ navigation, route }) => {
                   <>
                     <Text style={[styles.title, { alignSelf: "flex-start" }]}>{t("WhatsApp nummer")}</Text>
                     <View style={styles.country}>
-                      <View style={{ width: '35%' }}>
-                        <CountryPicker
-                          countryFlagStyle={{ height: 20, width: 28, marginRight: 2 }}
-                          disable={false}
-                          animationType={"slide"}
-                          language="en"
-                          pickerContainerStyle={[styles.pickerStyle]}
-                          pickerTitleStyle={styles.pickerTitleStyle}
-                          dropDownIcon={Images.down}
-                          selectedCountryTextStyle={styles.selectedCountryTextStyle}
-                          dropDownIconStyle={{ tintColor: Colors.black }}
-                          countryNameTextStyle={styles.countryNameTextStyle}
-                          searchBarPlaceHolder={t("Selecteer land")}
-                          hideCountryFlag={false}
-                          hideCountryCode={false}
-                          searchBarContainerStyle={styles.searchBarStyle}
-                          searchInputStyle={{ color: Colors.black }}
-                          countryCode={countryCode}
-                          selectedValue={selectedValue}
-                        />
-                      </View>
-                      <TextInput
+                      <MyCountryPiker
                         value={number}
-                        onChangeText={handleTextChange}
-                        placeholderTextColor={Colors.textgray}
-                        keyboardType="number-pad"
-                        style={styles.input}
+                        setValue={handleTextChange}
+                        countryCode={countryCode}
+                        onSelect={selectedValue}
+                        onOpenChange={setCountryPickerOpen}
+                        placeholder={t("Enter phone number")}
+                        ContainerStyle={{ flex: 1, width: '100%' }}
                       />
                     </View>
                     <Text style={[styles.error, { textAlign: 'center' }]}>{numbererror}</Text>

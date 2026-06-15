@@ -2,13 +2,20 @@ import apiConstants from "@/src/api/apiConstants";
 import { Images } from "@/src/assets/images";
 import BottomButton from "@/src/components/BottomButton";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
+import GpsTrackingStartPopup from "@/src/components/GpsTrackingStartPopup";
 import Loader from "@/src/components/loading";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import ApiService from "@/src/utils/Apiservice";
 import { bootstrapAppDateTime } from "@/src/utils/appDateTime";
+import {
+  buildDateTime,
+  getCurrentTimeString,
+  tripOff,
+} from "@/src/utils/regionTripApi";
+import { clearActiveShift } from "@/src/utils/shiftSession";
 import { Colors } from "@/src/utils/colors";
 import { getData } from "@/src/utils/storeData";
-import React, { useContext, useEffect, useState } from "react";
+import React, { useCallback, useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BackHandler, FlatList, Image, Platform, Pressable, Text, View } from "react-native";
 import { styles } from "./styles";
@@ -17,9 +24,26 @@ export default function HomeScreens({ navigation, route }: any) {
   const { refresh } = route?.params || {};
   const [AllSlideData, setAllSlideData] = useState([]);
   const [IsLoading, setIsLoading] = useState(false);
+  const [tripEndPopupVisible, setTripEndPopupVisible] = useState(false);
+  const [tripEndDate, setTripEndDate] = useState("");
+  const [tripEndTime, setTripEndTime] = useState("");
+  const [isTripEnding, setIsTripEnding] = useState(false);
   const { t } = useTranslation();
-  const { UserData, isGpsTracking, setIsGpsTracking, setUserData, Toast, setToast, AllRegion, setAllRegion, GloblyTypeSlide, setGloblyTypeSlide, TimeZone, setTimeZone, SelectActiveDate, setSelectActiveDate } =
-    useContext(GlobalContextData);
+  const {
+    UserData,
+    isGpsTracking,
+    setIsGpsTracking,
+    activeShift,
+    setActiveShift,
+    setToast,
+    setGloblyTypeSlide,
+    TimeZone,
+    setTimeZone,
+    SelectActiveDate,
+    setSelectActiveDate,
+    SelectCurrentDate,
+    selectRegionData,
+  } = useContext(GlobalContextData);
   const { ErrorHandle } = useErrorHandle();
   const getSliderDataFun = async () => {
     setIsLoading(true);
@@ -70,6 +94,83 @@ export default function HomeScreens({ navigation, route }: any) {
       getSliderDataFun();
     }
   }, [UserData, refresh]);
+
+  const handleCloseShiftPress = useCallback(() => {
+    setTripEndDate(activeShift?.planning_date || SelectCurrentDate || SelectActiveDate || "");
+    setTripEndTime(getCurrentTimeString());
+    setTripEndPopupVisible(true);
+  }, [activeShift?.planning_date, SelectCurrentDate, SelectActiveDate]);
+
+  const handleTripEndConfirm = useCallback(
+    async (date: string, time: string) => {
+      setTripEndDate(date);
+      setTripEndTime(time);
+      setIsTripEnding(true);
+
+      try {
+        const planning_date =
+          activeShift?.planning_date || date;
+        const ended_at = buildDateTime(planning_date, time);
+        const response = await tripOff({
+          UserData,
+          region_id: activeShift?.region_id,
+          selectRegionData,
+          planning_date,
+          ended_at,
+        });
+
+        if (!response?.status) {
+          setToast({
+            top: 45,
+            text: t(response?.message) || t("Failed to close shift"),
+            type: "error",
+            visible: true,
+          });
+          return;
+        }
+
+        setTripEndPopupVisible(false);
+        setIsGpsTracking(false);
+
+        await new Promise((resolve) => setTimeout(resolve, 150));
+
+        await clearActiveShift();
+        setActiveShift(null);
+        console.log('[Shift] OFF');
+        setToast({
+          top: 45,
+          text: t("Shift closed successfully"),
+          type: "success",
+          visible: true,
+        });
+
+        if (Platform.OS === "android") {
+          setTimeout(() => {
+            BackHandler.exitApp();
+          }, 2000);
+        }
+      } catch (error: any) {
+        setToast({
+          top: 45,
+          text: ErrorHandle(error)?.message || t("Failed to close shift"),
+          type: "error",
+          visible: true,
+        });
+      } finally {
+        setIsTripEnding(false);
+      }
+    },
+    [
+      UserData,
+      activeShift,
+      selectRegionData,
+      setActiveShift,
+      setIsGpsTracking,
+      setToast,
+      t,
+      ErrorHandle,
+    ],
+  );
 
   return (
     <View style={styles.container}>
@@ -126,24 +227,21 @@ export default function HomeScreens({ navigation, route }: any) {
       {
         UserData?.user?.role === "chauffeur" &&
         <BottomButton
-          visible={isGpsTracking}
+          visible={Boolean(activeShift?.shiftActive)}
           label={t("Close shift")}
-          onPress={() => {
-            setIsGpsTracking(false);
-            setToast({
-              top: 45,
-              text: t("Shift closed successfully"),
-              type: "success",
-              visible: true,
-            });
-            if (Platform.OS === "android") {
-              setTimeout(() => {
-                BackHandler.exitApp();
-              }, 2000)
-            }
-          }}
+          onPress={handleCloseShiftPress}
         />
       }
+      <GpsTrackingStartPopup
+        visible={tripEndPopupVisible}
+        mode="end"
+        initialDate={tripEndDate || activeShift?.planning_date || SelectCurrentDate || SelectActiveDate}
+        initialTime={tripEndTime || getCurrentTimeString()}
+        regionName={activeShift?.region_name || ""}
+        loading={isTripEnding}
+        onClose={() => setTripEndPopupVisible(false)}
+        onConfirm={handleTripEndConfirm}
+      />
     </View>
   );
 }

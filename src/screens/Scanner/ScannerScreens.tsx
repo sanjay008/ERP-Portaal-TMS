@@ -734,23 +734,35 @@ export default function ScannerScreens({ navigation, route }: any) {
             res?.data?.delivery_btn == 1 ? t("No delivery") : t("Cancel"),
           RButtonText: t(res?.data?.btn_lable),
           RButtonStyle: Colors.primary,
-          RColor: Colors.white,
+          RColor: Colors.black,
           personData: res?.data?.order_data || [],
           ProductItem: res?.data?.order_data?.items || [],
           order_id: data?.order_id,
           type: res?.data?.order_data?.tmsstatus?.id == 2 ? 2 : 1,
           delivery_btn: res?.data?.delivery_btn,
           OrderData: res?.data,
-          NewScanText: t("New scan"),
         };
 
         if (
           res?.data?.isscaned ||
           Number(res?.data?.is_scan) === 1
         ) {
+          modalConfig.NewScanText = t("New scan");
           modalConfig.onPress = async () => {
             await StatusUpdateFun(data, true);
           };
+        }
+
+        if (
+          slideType === 'driver_loading' &&
+          res?.data?.error_key &&
+          !res?.data?.isscaned
+        ) {
+          modalConfig.UnloadingText = t('Unloading');
+          modalConfig.onUnloadingPress = async () => {
+            await StatusUpdateFun(data, true, true);
+          };
+          modalConfig.NewScanText = t('New scan');
         }
 
         if (isStatus4 && slideType === 'pickup_dropoff') {
@@ -904,7 +916,11 @@ export default function ScannerScreens({ navigation, route }: any) {
     }
   };
 
-  const StatusUpdateFun = async (data: any, scan = false) => {
+  const StatusUpdateFun = async (
+    data: any,
+    scan = false,
+    is_driver_unloading = false,
+  ) => {
     if (!scan) return;
     setIsLoading(true);
 
@@ -921,6 +937,10 @@ export default function ScannerScreens({ navigation, route }: any) {
           delivered_lable_id: SelectCurrentDeliveryLabel?.id,
         }),
       };
+
+      if (is_driver_unloading) {
+        payload.is_driver_unloading = 1;
+      }
 
       if(GloblyTypeSlide === "pickup_dropoff"){
         payload.is_damage = selectDamageData?.id
@@ -1834,6 +1854,8 @@ export default function ScannerScreens({ navigation, route }: any) {
             ? closeConformationModalAndUnlockScan
             : undefined
         }
+        UnloadingText={ConformationModalOpen?.UnloadingText}
+        onUnloadingPress={ConformationModalOpen?.onUnloadingPress}
       />
       <ScannerInfoModal
         InfoTitle={ScannerModalOpen.InfoTitle}

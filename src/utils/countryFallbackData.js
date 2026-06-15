@@ -1,85 +1,19 @@
+export const SORTCODE_TO_CCA2 = {
+  IND: "IN", NLD: "NL", AFG: "AF", ALB: "AL", DZA: "DZ", AND: "AD",
+  ARG: "AR", ARM: "AM", AUS: "AU", AUT: "AT", AZE: "AZ", BGD: "BD",
+  BEL: "BE", BRA: "BR", CAN: "CA", CHE: "CH", CHN: "CN", DEU: "DE",
+  EGY: "EG", ESP: "ES", FRA: "FR", GBR: "GB", GHA: "GH", GRC: "GR",
+  HKG: "HK", IDN: "ID", IRN: "IR", IRQ: "IQ", IRL: "IE", ISR: "IL",
+  ITA: "IT", JPN: "JP", KEN: "KE", KOR: "KR", LKA: "LK", MAR: "MA",
+  MEX: "MX", MYS: "MY", NGA: "NG", NOR: "NO", NPL: "NP", PAK: "PK",
+  PHL: "PH", POL: "PL", PRT: "PT", RUS: "RU", SAU: "SA", SGP: "SG",
+  SRB: "RS", SVK: "SK", SVN: "SI", SWE: "SE", THA: "TH", TUR: "TR",
+  TZA: "TZ", UGA: "UG", UKR: "UA", USA: "US", VEN: "VE", VNM: "VN",
+  ZAF: "ZA", ZMB: "ZM", ZWE: "ZW",
+};
 
-
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
-import {
-  Animated,
-  Dimensions,
-  Easing,
-  FlatList,
-  Modal,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
-
-const SCREEN_HEIGHT = Dimensions.get("window").height;
-
-// Helper: convert 'IN' => 🇮🇳
-const countryCodeToFlag = (cc) =>
-  cc
-    ? cc
-        .toUpperCase()
-        .split("")
-        .map((c) => String.fromCodePoint(127397 + c.charCodeAt()))
-        .join("")
-    : "";
-
-
-
-const defaultStyles = StyleSheet.create({
-  container: { marginVertical: 10,width: "100%", },
-  inputContainer: {
-    flexDirection: "row",
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    overflow: "hidden",
-    height: 50,
-    alignItems: "center",
-  },
-  pickerButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    borderRightWidth: 1,
-    borderColor: "#ddd",
-    justifyContent: "center",
-    height: "100%",
-  },
-  flagText: { fontSize: 20 },
-  callingCodeText: { marginLeft: 4, fontSize: 16 },
-  phoneInput: {
-    flex: 1,
-    paddingHorizontal: 10,
-    fontSize: 16,
-    height: "100%",
-  },
-  validationText: { marginTop: 4, fontSize: 14 },
-  modalHeader: { padding: 12, borderBottomWidth: 1, borderColor: "#eee" },
-  searchInput: { padding: 8, borderRadius: 8, borderWidth: 1, borderColor: "#ddd" },
-  itemRow: { flexDirection: "row", alignItems: "center", padding: 12, borderBottomWidth: 1, borderColor: "#fafafa", gap:5},
-});
-
-export default function MyCountryPiker({
-  defaultCountry = "IN",
-  favorites = [],
-  onSelect = () => {},
-  showFlag = true,
-  showCallingCode = true,
-  showPhoneInput = true,
-  test = true,
-  modalHeight = SCREEN_HEIGHT * 0.7,
-  searchPlaceholder = "Search country or code",
-  ContainerStyle = {},
-  setValue,
-  value,
-  disbled=false,
-  
-}) {
-    const countriesData =  [
+export const FALLBACK_COUNTRIES = 
+[
   {
     "countryname": "Afghanistan",
     "countrycode": "93",
@@ -1728,143 +1662,4 @@ export default function MyCountryPiker({
     "slug": "kosovo",
     "flag": "🇽🇰"
   }
-
-
-]
-  const [selected, setSelected] = useState(
-    countriesData?.find((c) => c.cca2 === defaultCountry) || countriesData[0]
-  );
-  const [visible, setVisible] = useState(false);
-  const [search, setSearch] = useState("");
-  const [phone, setPhone] = useState("");
-  const { t } = useTranslation();
-  const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
-
-  const openModal = () => {
-    setVisible(true);
-    Animated.timing(slideAnim, {
-      toValue: SCREEN_HEIGHT - modalHeight,
-      duration: 300,
-      easing: Easing.out(Easing.ease),
-      useNativeDriver: false,
-    }).start();
-  };
-
-
-
-  const closeModal = () => {
-    Animated.timing(slideAnim, {
-      toValue: SCREEN_HEIGHT,
-      duration: 300,
-      easing: Easing.in(Easing.ease),
-      useNativeDriver: false,
-    }).start(() => setVisible(false));
-  };
-
-  const onPick = (c) => {
-    setSelected(c);
-    setPhone("");
-    closeModal();
-    onSelect(c);
-  };
-  
-  useEffect(()=>{
-
-  },[])
-
-  const list = useMemo(() => {
-    const favSet = new Set(favorites);
-    const favs = countriesData.filter((c) => favSet.has(c.cca2));
-    const rest = countriesData.filter((c) => !favSet.has(c.cca2));
-    let merged = [...favs, ...rest];
-    if (search) {
-      const q = search.toLowerCase();
-      merged = merged.filter(
-        (c) =>
-          c.countryname.toLowerCase().includes(q) ||
-          c.countrycode.includes(q) ||
-          c.cca2.toLowerCase().includes(q) ||
-          c.slug.toLowerCase().includes(q)
-      );
-    }
-    return merged;
-  }, [search, favorites]);
-
-  const renderItem = ({ item }) => (
-    <TouchableOpacity style={defaultStyles.itemRow} onPress={() => onPick(item)}>
-      {showFlag && <Text style={defaultStyles.flagText}>{item.flag}</Text>}
-        {showCallingCode && <Text style={{ color: "#555" }}>+{item.countrycode}</Text>}
-      <View style={{ marginLeft: 8 }}>
-        <Text>{item.countryname}</Text>
-      </View>
-    </TouchableOpacity>
-  );
-
-  const getValidationMessage = () => {
-    if (!test || !showPhoneInput) return null;
-    if (!value) return null;
-    if (value?.length === selected?.phoneLength) {
-      return <Text style={[defaultStyles.validationText, { color: "green" }]}>✔ {t("Number length is valid")}</Text>;
-    } else {
-      return <Text style={[defaultStyles.validationText, { color: "red" }]}>✖ {t("Number should be")} {selected.phoneLength} {t("digits")}</Text>;
-    }
-  };
-
-  return (
-    <View style={[defaultStyles.container,]}>
-      <View style={[defaultStyles.inputContainer,ContainerStyle]}>
-        <TouchableOpacity disabled={disbled} style={defaultStyles.pickerButton} onPress={openModal}>
-          {showFlag && <Text style={defaultStyles.flagText}>{selected.flag}</Text>}
-          {showCallingCode && <Text style={defaultStyles.callingCodeText}>+{selected.countrycode}</Text>}
-        </TouchableOpacity>
-        {showPhoneInput && (
-          <TextInput
-          key={defaultCountry}
-            style={defaultStyles.phoneInput}
-            placeholder="Phone number"
-            keyboardType="numeric"
-            editable={!disbled}
-            value={value}
-            maxLength={selected.phoneLength}
-            onChangeText={setValue}
-          />
-        )}
-      </View>
-      {getValidationMessage()}
-
-      <Modal transparent visible={visible} animationType="none">
-        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={closeModal}>
-          <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", }} />
-        </TouchableOpacity>
-        <Animated.View
-          style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            bottom:0,
-            height: modalHeight,
-            backgroundColor: "#fff",
-            borderTopLeftRadius: 12,
-            borderTopRightRadius: 12,
-          }}
-        >
-          <View style={defaultStyles.modalHeader}>
-            <TextInput
-              placeholder={searchPlaceholder}
-              value={search}
-              onChangeText={setSearch}
-              style={defaultStyles.searchInput}
-              autoFocus
-            />
-          </View>
-          <FlatList
-            data={list}
-            keyExtractor={(item) => item.cca2 + "-" + item.countrycode}
-            renderItem={renderItem}
-            keyboardShouldPersistTaps="handled"
-          />
-        </Animated.View>
-      </Modal>
-    </View>
-  );
-}
+];
