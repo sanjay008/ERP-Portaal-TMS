@@ -672,7 +672,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         customData: payload,
       });
 
-      console.log(res);
+      console.log("Verify_status", res);
 
       if (Boolean(res?.status)) {
         if (AllDeliveyLabel?.length == 0) {
@@ -755,12 +755,11 @@ export default function ScannerScreens({ navigation, route }: any) {
 
         if (
           slideType === 'driver_loading' &&
-          res?.data?.error_key &&
-          !res?.data?.isscaned
+          res?.data?.order_data?.items[0]?.tmsstatus?.id === 11
         ) {
           modalConfig.UnloadingText = t('Unloading');
           modalConfig.onUnloadingPress = async () => {
-            await StatusUpdateFun(data, true, true);
+            await ReversParcelFun(data?.order_id, data?.item_id);
           };
           modalConfig.NewScanText = t('New scan');
         }
@@ -916,6 +915,58 @@ export default function ScannerScreens({ navigation, route }: any) {
     }
   };
 
+  const ReversParcelFun = async (order_id = null, item_id = null) => {
+    try {
+      setIsLoading(true);
+      const payload: any = {
+        token: UserData?.user?.verify_token,
+        role: UserData?.user?.role,
+        relaties_id: UserData?.relaties?.id,
+        user_id: UserData?.user?.id,
+        item_id: item_id,
+        order_id: order_id,
+        type: type ?? GloblyTypeSlide,
+      };
+      const res = await ApiService(apiConstants.revert_order_item_status, {
+        customData: payload,
+      });
+      console.log("ReversParcelFun", res);
+
+      if (res?.status) {
+        setToast({
+          top: 45,
+          text: t(res?.message) || t("Success to update status"),
+          type: "success",
+          visible: true,
+        });
+        setConformationModal((prev: any) => ({ ...prev, visible: false }));
+
+        await GetScanedOrderDataLatestFun([
+          ...AllRecentScanData,
+          order_id,
+        ]);
+      } else {
+        setToast({
+          top: 45,
+          text: t(res?.message) || t("Failed to update status"),
+          type: "error",
+          visible: true,
+        });
+      }
+    } catch (error) {
+      setToast({
+        top: 45,
+        text: ErrorHandle(error).message,
+        type: "error",
+        visible: true,
+      });
+    }
+    finally {
+      setIsLoading(false);
+
+    }
+  }
+
   const StatusUpdateFun = async (
     data: any,
     scan = false,
@@ -925,7 +976,7 @@ export default function ScannerScreens({ navigation, route }: any) {
     setIsLoading(true);
 
     try {
-      const payload:any = {
+      const payload: any = {
         token: UserData?.user?.verify_token,
         role: UserData?.user?.role,
         relaties_id: UserData?.relaties?.id,
@@ -942,7 +993,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         payload.is_driver_unloading = 1;
       }
 
-      if(GloblyTypeSlide === "pickup_dropoff"){
+      if (GloblyTypeSlide === "pickup_dropoff") {
         payload.is_damage = selectDamageData?.id
       }
 
@@ -1325,7 +1376,7 @@ export default function ScannerScreens({ navigation, route }: any) {
 
 
 
-      const payload:any = {
+      const payload: any = {
         token: UserData?.user?.verify_token,
         role: UserData?.user?.role,
         relaties_id: UserData?.relaties?.id,
@@ -1338,7 +1389,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         }),
       };
 
-      if(GloblyTypeSlide === "pickup_dropoff"){
+      if (GloblyTypeSlide === "pickup_dropoff") {
         payload.is_damage = selectDamageData?.id
       }
 

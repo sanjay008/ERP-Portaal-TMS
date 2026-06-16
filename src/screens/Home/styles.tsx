@@ -36,7 +36,7 @@ export const styles = StyleSheet.create({
     },
     Text:{
         fontSize:14,
-        color:Colors.black,
+        color:Colors.white,
         fontFamily:FONTS.Medium,
       
     }

@@ -42,6 +42,7 @@ module.exports = {
     update_driver_live_location:`${baseUrlnew}tms-driver/update-driver-live-location`,
     start_region_trip:`${baseUrlnew}tms-driver/start-region-trip`,
     end_region_trip:`${baseUrlnew}tms-driver/end-region-trip`,
+    revert_order_item_status:`${baseUrlnew}tms-driver/revert-order-item-status`,
 
 
 };
