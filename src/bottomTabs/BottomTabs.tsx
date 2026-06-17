@@ -7,6 +7,7 @@ import apiConstants from "../api/apiConstants";
 import { Images } from "../assets/images";
 import CustomHeader from "../components/CustomHeader";
 import Loader from "../components/loading";
+import ShiftExitGuard from "../components/ShiftExitGuard";
 import { GlobalContextData } from "../context/GlobalContext";
 import HomeScreens from "../screens/Home/HomeScreens";
 import LoadedScreens from "../screens/Loaded/LoadedScreens";
@@ -16,7 +17,7 @@ import ApiService from "../utils/Apiservice";
 import { Colors } from "../utils/colors";
 import { FONTS, getData, height } from "../utils/storeData";
 
-export default function BottomTabs() {
+export default function BottomTabs({ navigation }: any) {
   const Tab = createBottomTabNavigator();
   const { t } = useTranslation();
   const {top,bottom} = useSafeAreaInsets();
@@ -89,6 +90,7 @@ export default function BottomTabs() {
           <Loader />
         </View>
       ) : (
+        <>
         <Tab.Navigator
           id="BottomTabs"
           initialRouteName={"Home"}
@@ -207,6 +209,8 @@ export default function BottomTabs() {
             }}
           />
         </Tab.Navigator>
+        <ShiftExitGuard navigation={navigation} />
+        </>
       )}
     </View>
   );

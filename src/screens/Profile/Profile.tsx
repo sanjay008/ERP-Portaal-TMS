@@ -1,13 +1,24 @@
 import { Images } from "@/src/assets/images";
 import ConformationModal from "@/src/components/ConformationModal";
+import LogoutShiftSheet from "@/src/components/LogoutShiftSheet";
 import ProfileImageViewer from "@/src/components/ProfileImageViewer";
 import ProfileItem from "@/src/components/ProfileItem";
+import { useErrorHandle } from "@/src/components/ErrorHandle";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import { Colors } from "@/src/utils/colors";
-import { storeData } from "@/src/utils/storeData";
+import { clearUserSessionStorage } from "@/src/utils/logoutSession";
+import {
+  buildDateTime,
+  getCurrentTimeString,
+  tripOff,
+} from "@/src/utils/regionTripApi";
+import {
+  clearActiveShift,
+  doesShiftBelongToUser,
+} from "@/src/utils/shiftSession";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
-import React, { useContext, useEffect, useState } from "react";
+import React, { useCallback, useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FlatList, Text, View } from "react-native";
 import { styles } from "./styles";
@@ -23,14 +34,16 @@ export default function Profile({ navigation }: any) {
   const {
     UserData,
     setUserData,
-    Toast,
     setToast,
     CompanysData,
     setPermission,
-    SelectLanguage,
-    setSelectLanguage,
+    activeShift,
+    setActiveShift,
+    setIsGpsTracking,
   } = useContext(GlobalContextData);
   const [CurrentVersion, setCurrentVersion] = useState<string>("1");
+  const [logoutShiftSheetVisible, setLogoutShiftSheetVisible] = useState(false);
+  const [isLogoutLoading, setIsLogoutLoading] = useState(false);
   const [AlertModalOpen, setAlerModalOpen] = useState<any>({
     visible: false,
     title: "",
@@ -48,18 +61,81 @@ export default function Profile({ navigation }: any) {
     HeaderBgColor: "",
   });
   const { t } = useTranslation();
-  const retrieveAppVersion = async () => {
+  const { ErrorHandle } = useErrorHandle();
 
+  const retrieveAppVersion = async () => {
     try {
-      const version =
-        Constants.expoConfig?.version || "Beta";
+      const version = Constants.expoConfig?.version || "Beta";
       setCurrentVersion(version);
     } catch (error) {
       console.error("Error retrieving app version:", error);
     }
   };
 
-  const OnLogOutFun = async () => {
+  const finishLogout = useCallback(async () => {
+    setActiveShift(null);
+    setIsGpsTracking(false);
+    setUserData(null);
+    setPermission([]);
+    await clearUserSessionStorage();
+    navigation?.replace("OnBoarding");
+  }, [
+    navigation,
+    setActiveShift,
+    setIsGpsTracking,
+    setPermission,
+    setUserData,
+  ]);
+
+  const performLogout = useCallback(
+    async (closeShiftFirst: boolean) => {
+      setIsLogoutLoading(true);
+      try {
+        if (closeShiftFirst && doesShiftBelongToUser(activeShift, UserData)) {
+          const planning_date = activeShift!.planning_date;
+          const ended_at = buildDateTime(planning_date, getCurrentTimeString());
+          const response = await tripOff({
+            UserData,
+            region_id: activeShift!.region_id,
+            planning_date,
+            ended_at,
+          });
+
+          if (!response?.status) {
+            setToast({
+              top: 45,
+              text: t(response?.message) || t("Failed to close shift"),
+              type: "error",
+              visible: true,
+            });
+            return;
+          }
+
+          await clearActiveShift();
+        }
+
+        setLogoutShiftSheetVisible(false);
+        await finishLogout();
+      } catch (error: any) {
+        setToast({
+          top: 45,
+          text: ErrorHandle(error)?.message || t("Failed to log out"),
+          type: "error",
+          visible: true,
+        });
+      } finally {
+        setIsLogoutLoading(false);
+      }
+    },
+    [UserData, activeShift, finishLogout, setToast, t, ErrorHandle],
+  );
+
+  const OnLogOutFun = useCallback(() => {
+    if (doesShiftBelongToUser(activeShift, UserData)) {
+      setLogoutShiftSheetVisible(true);
+      return;
+    }
+
     setAlerModalOpen({
       visible: true,
       title: t("Log Out"),
@@ -71,16 +147,11 @@ export default function Profile({ navigation }: any) {
       HeaderBgColor: Colors.white,
       RColor: Colors.white,
       onPress: async () => {
-
-        await AsyncStorage.clear();
-        console.log("UserData", UserData);
-        setUserData(null);
-        setPermission([]);
-        await storeData("userLanguage", SelectLanguage);
-        navigation?.replace("OnBoarding");
+        setAlerModalOpen((prev: any) => ({ ...prev, visible: false }));
+        await performLogout(false);
       },
     });
-  };
+  }, [UserData, activeShift, performLogout, t]);
 
   const DeleteAccountFun = async () => {
     setAlerModalOpen({
@@ -155,14 +226,14 @@ export default function Profile({ navigation }: any) {
     },
   ];
 
-useEffect(() => {
+  useEffect(() => {
     retrieveAppVersion();
   }, []);
 
   return (
     <View style={styles.container}>
       <View style={styles.SimpleFlex}>
-     <ProfileImageViewer imageUri={UserData?.user?.profile_image} />
+        <ProfileImageViewer imageUri={UserData?.user?.profile_image} />
         <View style={{ gap: 5 }}>
           <Text style={styles.Text}>
             {UserData?.user?.username?.length > 0
@@ -192,6 +263,19 @@ useEffect(() => {
             onPress={item?.onPress}
           />
         )}
+      />
+
+      <LogoutShiftSheet
+        visible={logoutShiftSheetVisible}
+        loading={isLogoutLoading}
+        regionName={activeShift?.region_name || ""}
+        planningDate={activeShift?.planning_date || ""}
+        onCancel={() => {
+          if (!isLogoutLoading) {
+            setLogoutShiftSheetVisible(false);
+          }
+        }}
+        onConfirm={() => performLogout(true)}
       />
 
       <ConformationModal

@@ -27,7 +27,23 @@ const clearAllData = async () => {
   }
 };
 
-export { clearAllData, getData, storeData };
+const removeData = async key => {
+  try {
+    await AsyncStorage.removeItem(key);
+  } catch (e) {
+    console.log(e);
+  }
+};
+
+const removeMultipleData = async keys => {
+  try {
+    await AsyncStorage.multiRemove(keys);
+  } catch (e) {
+    console.log(e);
+  }
+};
+
+export { clearAllData, getData, removeData, removeMultipleData, storeData };
 
 export const token = "lbws07ifTs076zQH4Jo3ktN8tWgaS9ASh";
 

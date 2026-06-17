@@ -195,11 +195,13 @@ export default function ScannerInfoModal({
 
   if (!visible) return null;
 
+  const isUnloadingMode = !!onUnloadingPress;
+
   return (
     <>
       <View style={styles.AbsoluteWrapper}>
         <TouchableOpacity
-          style={styles.Backdrop}
+          style={[styles.Backdrop, isUnloadingMode && styles.UnloadingBackdrop]}
           activeOpacity={1}
           onPress={onClose}
         />
@@ -508,7 +510,7 @@ export default function ScannerInfoModal({
                   style={[
                     styles.ButtonBase,
                     centered ? styles.ButtonSingle : styles.ButtonFullWidth,
-                    styles.ButtonPrimary,
+                    btn.key === 'unloading' ? styles.UnloadingButton : styles.ButtonPrimary,
                   ]}
                   onPress={btn.onPress}
                 >
@@ -672,6 +674,12 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: "rgba(0,0,0,0.4)",
+  },
+  UnloadingBackdrop: {
+    backgroundColor: Colors.red,
+  },
+  UnloadingButton: {
+    backgroundColor: Colors.red,
   },
   container: { flexGrow: 1, justifyContent: "center", alignItems: "center", margin: 0, padding: 15 },
   ContentView: { width: width * 0.9, maxHeight: Dimensions.get('window').height * 0.82, backgroundColor: Colors.white, borderRadius: 7 },

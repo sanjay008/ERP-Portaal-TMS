@@ -7,7 +7,7 @@ import useUserGPS, {
   retryLocationPermission,
 } from '../hooks/useUserGPS';
 import { GlobalContextData } from '../context/GlobalContext';
-import { isShiftActive, loadActiveShift } from '../utils/shiftSession';
+import { doesShiftBelongToUser, loadActiveShift } from '../utils/shiftSession';
 import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
@@ -50,14 +50,7 @@ export default function DriverGPSTraking() {
 
     (async () => {
       const session = await loadActiveShift();
-      if (cancelled || !isShiftActive(session)) return;
-
-      if (
-        session?.user_id &&
-        String(session.user_id) !== String(userId)
-      ) {
-        return;
-      }
+      if (cancelled || !doesShiftBelongToUser(session, UserData)) return;
 
       restoredRef.current = true;
       console.log('[Shift] ON (restored)', session);

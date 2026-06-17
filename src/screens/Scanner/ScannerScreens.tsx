@@ -232,6 +232,9 @@ export default function ScannerScreens({ navigation, route }: any) {
     selectCurrentDeliveryLabelRef.current = SelectCurrentDeliveryLabel;
   }, [SelectCurrentDeliveryLabel]);
 
+  const isCommentOptional =
+    SelectCurrentDeliveryLabel?.id === 21 && selectDamageData?.id === 34;
+
   const getSessionDeliveryLabel = useCallback(
     () =>
       pendingDeliveryLabelRef.current ?? selectCurrentDeliveryLabelRef.current,
@@ -404,7 +407,11 @@ export default function ScannerScreens({ navigation, route }: any) {
           setData: async (data: any[]) => {
             if (data?.length > 0) {
               setAllSelectImage(data);
-              setComment(true);
+              if (SelectCurrentDeliveryLabel?.id == 21 && selectDamageData?.id == 28) {
+                setComment(false);
+              } else {
+                setComment(true);
+              }
             }
           },
           type: false,
@@ -536,7 +543,13 @@ export default function ScannerScreens({ navigation, route }: any) {
           setAllSelectImage(data);
 
           if (!deliveryTypeRef.current) {
-            setComment(true);
+            if (SelectCurrentDeliveryLabel?.id == 21 && selectDamageData?.id == 28) {
+              setComment(false);
+
+            } else {
+              setComment(true);
+
+            }
             setShowSig(false);
           } else {
             reopenSignatureAfterCamera(data);
@@ -805,7 +818,12 @@ export default function ScannerScreens({ navigation, route }: any) {
                   setData: async (images: any[]) => {
                     if (images?.length > 0) {
                       setAllSelectImage(images);
-                      setComment(true);
+                      if (SelectCurrentDeliveryLabel?.id == 21 && selectDamageData?.id == 28) {
+                        setComment(false);
+                      } else {
+                        setComment(true);
+
+                      }
                     }
                   },
                   type: false,
@@ -870,7 +888,11 @@ export default function ScannerScreens({ navigation, route }: any) {
                 setData: async (data: any[]) => {
                   if (data?.length > 0) {
                     setAllSelectImage(data);
-                    setComment(true);
+                    if (SelectCurrentDeliveryLabel?.id == 21 && selectDamageData?.id == 28) {
+                      setComment(false);
+                    } else {
+                      setComment(true);
+                    }
                   }
                 },
                 type: false,
@@ -984,16 +1006,17 @@ export default function ScannerScreens({ navigation, route }: any) {
         item_id: data?.item_id,
         order_id: data?.order_id,
         type: type ?? GloblyTypeSlide,
-        ...(SelectCurrentDeliveryLabel != null && {
+        ...(SelectCurrentDeliveryLabel != null && GloblyTypeSlide == "pickup_dropoff" && {
           delivered_lable_id: SelectCurrentDeliveryLabel?.id,
         }),
       };
+      console.log("StatusUpdateFun", payload);
 
       if (is_driver_unloading) {
         payload.is_driver_unloading = 1;
       }
 
-      if (GloblyTypeSlide === "pickup_dropoff") {
+      if (GloblyTypeSlide === "pickup_dropoff" && selectDamageData) {
         payload.is_damage = selectDamageData?.id
       }
 
@@ -1344,7 +1367,7 @@ export default function ScannerScreens({ navigation, route }: any) {
   }
 
 
-  const CommentFun = async () => {
+  const CommentFun = async () => {  
     if (SelectCurrentDeliveryLabel && SelectCurrentDeliveryLabel?.damaged_required == 1 && selectDamageData == null) {
       setCommentError(t("Choose  Damaged"));
 
@@ -1352,7 +1375,7 @@ export default function ScannerScreens({ navigation, route }: any) {
     }
     setCommentLoader(true);
     try {
-      if (!Description.trim()) {
+      if (!isCommentOptional && !Description.trim()) {
         setCommentError(t("Please enter a comment"));
         return;
       }
@@ -1384,12 +1407,12 @@ export default function ScannerScreens({ navigation, route }: any) {
         item_id: SelectPlace?.item_id,
         order_id: SelectPlace?.order_id,
         type: GloblyTypeSlide,
-        ...(SelectCurrentDeliveryLabel !== null && {
+        ...(SelectCurrentDeliveryLabel !== null && GloblyTypeSlide == "pickup_dropoff" && {
           delivered_lable_id: SelectCurrentDeliveryLabel?.id,
         }),
       };
 
-      if (GloblyTypeSlide === "pickup_dropoff") {
+      if (GloblyTypeSlide === "pickup_dropoff" && selectDamageData) {
         payload.is_damage = selectDamageData?.id
       }
 
@@ -1441,7 +1464,16 @@ export default function ScannerScreens({ navigation, route }: any) {
         }
 
         setComment(false);
-        await AddImageOrCommentFun();
+        if (Description.trim()) {
+          await AddImageOrCommentFun();
+        } else if (isCommentOptional) {
+          setAllSelectImage([]);
+          setPickUpDataSave([]);
+          setDeliveyDataSave([]);
+          setDescrition('');
+          setCommentError('');
+          refreshCamera();
+        }
 
         fun?.();
         setComment(false);
@@ -2101,7 +2133,10 @@ export default function ScannerScreens({ navigation, route }: any) {
                   keyExtractor={(item) => item.id.toString()}
                   renderItem={({ item }) => (
                     <Pressable
-                      onPress={() => setselectDamageData(item)}
+                      onPress={() => {
+                        setselectDamageData(item);
+                        setCommentError('');
+                      }}
                       style={{
                         flexDirection: 'row',
                         gap: 20,
@@ -2118,6 +2153,7 @@ export default function ScannerScreens({ navigation, route }: any) {
                       <CheckBox
                         onValueChange={() => {
                           setselectDamageData(item);
+                          setCommentError('');
                         }}
                         value={selectDamageData?.id === item?.id}
                         tintColors={{ true: Colors.white, false: Colors.white }}
@@ -2143,7 +2179,10 @@ export default function ScannerScreens({ navigation, route }: any) {
               }
 
               <View style={{ marginTop: 5 }}>
-                <Text style={styles.Text}>{t("Description")}</Text>
+                <Text style={styles.Text}>
+                  {t("Description")}
+                  {isCommentOptional ? ` (${t("optional")})` : ''}
+                </Text>
                 <TextInput
                   style={styles.TextArea}
                   value={Description}

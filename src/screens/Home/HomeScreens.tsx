@@ -7,13 +7,13 @@ import Loader from "@/src/components/loading";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import ApiService from "@/src/utils/Apiservice";
 import { bootstrapAppDateTime } from "@/src/utils/appDateTime";
+import { Colors } from "@/src/utils/colors";
 import {
   buildDateTime,
   getCurrentTimeString,
   tripOff,
 } from "@/src/utils/regionTripApi";
-import { clearActiveShift } from "@/src/utils/shiftSession";
-import { Colors } from "@/src/utils/colors";
+import { clearActiveShift, doesShiftBelongToUser } from "@/src/utils/shiftSession";
 import { getData } from "@/src/utils/storeData";
 import React, { useCallback, useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -65,6 +65,14 @@ export default function HomeScreens({ navigation, route }: any) {
           user_id: UserData?.user?.id,
         },
       });
+
+      console.log("apiConstants.get_AllSlideDataApi",apiConstants.get_AllSlideDataApi,{
+          token: UserData?.user?.verify_token,
+          role: UserData?.user?.role,
+          relaties_id: UserData?.relaties?.id,
+          user_id: UserData?.user?.id,
+        });
+      
 
       if (Boolean(res.status)) {
         setAllSlideData(res?.data || []);
@@ -226,8 +234,9 @@ export default function HomeScreens({ navigation, route }: any) {
       />
       {
         UserData?.user?.role === "chauffeur" &&
+        doesShiftBelongToUser(activeShift, UserData) &&
         <BottomButton
-          visible={Boolean(activeShift?.shiftActive)}
+          visible={true}
           label={t("Close shift")}
           onPress={handleCloseShiftPress}
         />

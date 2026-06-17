@@ -174,6 +174,8 @@ export default function FilterScreen({ navigation, route }: any) {
           planning_date: date,
           started_at,
           user_id: UserData?.user?.id,
+          relaties_id: UserData?.relaties?.id,
+          role: UserData?.user?.role,
         };
         await saveActiveShift(session);
         setActiveShift(session);

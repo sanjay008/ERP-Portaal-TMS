@@ -9,12 +9,48 @@ export type ActiveShiftSession = {
   planning_date: string;
   started_at: string;
   user_id?: number | string;
+  relaties_id?: number | string;
+  role?: string;
 };
 
 export function isShiftActive(
   session: ActiveShiftSession | null | undefined,
 ): boolean {
   return Boolean(session?.shiftActive && session?.region_id && session?.planning_date);
+}
+
+export function doesShiftBelongToUser(
+  session: ActiveShiftSession | null | undefined,
+  userData: any,
+): boolean {
+  if (!isShiftActive(session) || !userData?.user?.id) {
+    return false;
+  }
+
+  if (
+    session!.user_id != null &&
+    String(session!.user_id) !== String(userData.user.id)
+  ) {
+    return false;
+  }
+
+  if (
+    session!.relaties_id != null &&
+    userData?.relaties?.id != null &&
+    String(session!.relaties_id) !== String(userData.relaties.id)
+  ) {
+    return false;
+  }
+
+  if (
+    session!.role != null &&
+    userData?.user?.role != null &&
+    String(session!.role) !== String(userData.user.role)
+  ) {
+    return false;
+  }
+
+  return true;
 }
 
 export async function saveActiveShift(
