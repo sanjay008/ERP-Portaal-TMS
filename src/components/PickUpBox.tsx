@@ -190,7 +190,29 @@ function PickUpBox({
           </Text>
         </View>
       </View>
+    
+        <View style={styles.matarialTab}>
+          {
+            ItemData?.tms_order_type == "pickup" &&
+            <View style={[styles.Exchange,{backgroundColor:"#00b43c"}]}>
+              <Image source={Images.UpSideArrow} style={[styles.ExChangeIcon,]} tintColor={Colors.white} />
+            </View>
 
+          }
+          {
+            ItemData?.tms_order_type == "delivery" &&
+            <View style={[styles.Exchange,{backgroundColor:"#007bff"}]}>
+              <Image source={Images.deliveryILabelcon} style={[styles.ExChangeIcon,]} tintColor={Colors.white} />
+            </View>
+          }
+          {
+            ItemData?.is_exchange == 1 &&
+            <View style={styles.Exchange}>
+              <Image source={Images.ExchangeIcon} style={styles.ExChangeIcon} tintColor={Colors.white} />
+            </View>
+          }
+        </View>
+  
       <View style={[styles.Flex, { marginTop: 0 }]}>
         <Text style={styles.OrderIdText}>{t("Total Parcel")}</Text>
         <View style={[SimpleFlex.Flex, { marginVertical: 5 }]}>
@@ -319,6 +341,22 @@ const styles = StyleSheet.create({
     borderRadius: 7,
     borderWidth: 1,
     borderColor: Colors.Boxgray,
+  },
+  matarialTab: {
+    marginTop: 5,
+    flexDirection:"row",
+    gap:5,
+    alignSelf:"flex-end"
+  },
+  Exchange: {
+    padding: 5,
+    borderRadius: 4,
+    backgroundColor: Colors.exchnage,
+    alignSelf: "flex-end",
+  },
+  ExChangeIcon: {
+    width: 20,
+    height: 20,
   },
   DriverBG: {
     backgroundColor: "#595959",

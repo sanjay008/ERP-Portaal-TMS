@@ -1,12 +1,12 @@
 import apiConstants from "@/src/api/apiConstants";
 import { Images } from "@/src/assets/images";
-import GpsPermissionSheet from "@/src/components/GpsPermissionSheet";
-import GpsTrackingStartPopup from "@/src/components/GpsTrackingStartPopup";
 import AnimatedTooltip from "@/src/components/AnimatedTooltip";
 import CalenderDate from "@/src/components/CalenderDate";
 import CustomHeader from "@/src/components/CustomHeader";
 import DropDownBox from "@/src/components/DropDownBox";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
+import GpsPermissionSheet from "@/src/components/GpsPermissionSheet";
+import GpsTrackingStartPopup from "@/src/components/GpsTrackingStartPopup";
 import PickUpBox from "@/src/components/PickUpBox";
 import SearchInput from "@/src/components/SearchInput";
 import TwoTypeButton from "@/src/components/TwoTypeButton";
@@ -19,14 +19,14 @@ import {
   resolveLocationAccess,
   retryLocationPermission,
 } from "@/src/hooks/useUserGPS";
+import ApiService from "@/src/utils/Apiservice";
+import { Colors } from "@/src/utils/colors";
 import {
   buildDateTime,
   getCurrentTimeString,
   tripOn,
 } from "@/src/utils/regionTripApi";
 import { saveActiveShift } from "@/src/utils/shiftSession";
-import ApiService from "@/src/utils/Apiservice";
-import { Colors } from "@/src/utils/colors";
 import { useIsFocused } from "@react-navigation/native";
 import React, { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -169,7 +169,7 @@ export default function FilterScreen({ navigation, route }: any) {
 
         const session = {
           shiftActive: true,
-          region_id: selectRegionData.id,
+          region_id: selectRegionData?.id,
           region_name: selectRegionData?.name || "",
           planning_date: date,
           started_at,

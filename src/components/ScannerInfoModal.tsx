@@ -214,318 +214,296 @@ export default function ScannerInfoModal({
               style={styles.modalScroll}
               contentContainerStyle={styles.modalScrollContent}
             >
-            <View style={styles.InfoContainer}>
-              <Text style={[styles.Text, { fontSize: 18, color: OrderData?.region_data?.tmsstatus?.color || Colors.primary, textAlign: 'center' }]}>
-                {getTitle()}
-              </Text>
-            </View>
-
-
-            {!showReasonList && !showDeliveredAtList && (
-              <View style={styles.OrderView}>
-                <View style={[styles.Flex]}>
-                  <View style={styles.TopContainer}>
-                    <View
-                      style={[
-                        styles.NumberBox,
-                        (type === 1 || type === 2) && { backgroundColor: Colors.green },
-                      ]}
-                    >
-                      {type === 0 ? (
-                        <Text style={styles.Text}>1</Text>
-                      ) : (
-                        <Image
-                          source={Images.user}
-                          style={{ width: 20, height: 20 }}
-                          tintColor={Colors.white}
-                        />
-                      )}
-                    </View>
-
-                    <View>
-                      <Text style={[styles.Text, { fontSize: 15 }]}>
-                        {
-                          personData?.display_name || ""
-                        }
-                      </Text>
-                      <Text style={[styles.OrderIdText, { color: Colors.orderdark }]}>
-                        {`#${OrderId}`}
-                      </Text>
-                    </View>
-                  </View>
-
-
-
-                  {type === 0 && (
-                    <View style={[SimpleFlex.Flex, { gap: 0 }]}>
-                      <Text style={styles.Text}>{OrderData?.order_data?.items?.length}</Text>
-                      <TouchableOpacity
-                        style={{ transform: [{ rotate: isCollapsed ? "0deg" : "180deg" }], paddingHorizontal: 5 }}
-                        onPress={() => setisCollapsed((pre) => !pre)}
-                      >
-                        <Image source={Images.down} style={{ width: 18, height: 18 }} />
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </View>
-
-                {(type === 0 ||
-                  type === 2) && (
-
-                    <>
-                      {type === 0 && (
-                        <Collapsible collapsed={isCollapsed}>
-                          <View style={styles.TotalProductConatiner}>
-                            <FlatList
-                              data={ProductItem}
-                              style={{ width: "100%", gap: 10 }}
-                              contentContainerStyle={styles.ContentContainerStyle}
-                              scrollEnabled={false}
-                              keyExtractor={(item, index) => `${index}`}
-                              renderItem={({ item, index }) => (
-                                <ParcelBox
-                                  qty={item?.qty}
-                                  index={index}
-                                  data={item}
-                                  title={item?.tms_product_name}
-                                  Icon={getDirectDropboxLink(item?.tmsstatus?.shared_link)}
-                                />
-                              )}
-                            />
-                          </View>
-                        </Collapsible>
-                      )}
-                      <>
-
-                        <View style={[styles.Flex, { marginTop: 15 }]}>
-                          <Text style={styles.DarkText}>{t("Delivery Date")}</Text>
-                          <Text style={styles.Text}>{personData?.deliver_date}</Text>
-                        </View>
-
-                        <DashedLine
-                          dashLength={4}
-                          dashThickness={1}
-                          dashGap={2}
-                          dashColor={Colors.orderdark}
-                          style={styles.DasheLine}
-                        />
-
-                        <View style={styles.Flex}>
-                          <Text style={styles.DarkText}>{t("Region")}</Text>
-                          <Text style={styles.Text}>
-                            {personData?.delivery_region_data?.name || ""} {personData?.deliver_postcode || ""}
-
-                          </Text>
-                        </View>
-                      </>
-
-                    </>
-                  )}
-
-              </View>
-            )}
-            {
-              [1, 2, 3].includes(OrderData?.order_data?.tmsstatus?.id) &&
-              <View style={{ paddingHorizontal: 15, paddingVertical: 5, gap: 5 }}>
-                <FlatList
-                  data={OrderData?.order_data?.items || []}
-                  style={{ width: "100%", gap: 10 }}
-                  contentContainerStyle={styles.ContentContainerStyle}
-                  scrollEnabled={false}
-                  keyExtractor={(item, index) => `${index}`}
-                  renderItem={({ item, index }) => (
-                    <ParcelBox
-                      qty={item?.qty}
-                      index={index}
-                      data={item}
-                      title={item?.tms_product_name}
-                      Icon={getDirectDropboxLink(item?.tmsstatus?.shared_link)}
-                    />
-                  )}
-                />
-                <View>
-                  <Text style={styles.Text}>{t("Date")}: {OrderData?.order_data?.tmsstatus?.id >= 3 ? OrderData?.order_data?.deliver_date : OrderData?.order_data?.pickup_date}</Text>
-                </View>
-                <View>
-                  <Text style={[styles.Text,]}>{t("Region")}: {OrderData?.order_data?.region_data?.name}</Text>
-                </View>
+              <View style={styles.InfoContainer}>
+                <Text style={[styles.Text, { fontSize: 18, color: OrderData?.region_data?.tmsstatus?.color || Colors.primary, textAlign: 'center' }]}>
+                  {getTitle()}
+                </Text>
               </View>
 
 
-              // pickup_date
-            }
-            {
-              delivery_btn == 1 &&
-              <FlatList
-                data={AllDeliveyLabel}
-                scrollEnabled={false}
-                contentContainerStyle={styles.WhiteBox}
-                renderItem={({ item }: any) => {
-                  const bgColor = item?.color || Colors.Boxgray;
-                  const textColor = getTextColor(bgColor);
-                  if(item?.id == 15) return
-                  return (
-                    <TouchableOpacity
-                      onPress={() => {
-                        handleOptionSelect(item)
-
-                      }}
-                      activeOpacity={0.85}
-                      style={[
-                        styles.LabelBtn,
-                        {
-                          backgroundColor: bgColor,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[styles.Text, {
-                          color: textColor,
-                        },]}
-                      >
-                        {t(item?.title)}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                }}
-              />
-            }
-            {/* --- Reason Options --- */}
-            {showReasonList && (
-              <View style={styles.optionContainer}>
-                {OrderDeliveryMapingLableOption?.not_delivery?.map((item: any) => (
-                  <TouchableOpacity key={item.id} style={styles.ReasonButton} onPress={() => handleOptionSelect(item)}>
-                    <Text style={styles.ReasonText}>{t(item.title)}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-
-            {/* --- Delivered at Options --- */}
-            {/* {showDeliveredAtList && (
-              <View style={styles.optionContainer}>
-                {OrderDeliveryMapingLableOption?.delivery?.map((item: any) => (
-                  <TouchableOpacity key={item.id} style={styles.ReasonButton} onPress={() => handleOptionSelect(item)}>
-                    <Text style={styles.ReasonText}>{t(item.title)}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )} */}
-
-            {/* {!showReasonList &&
-              !showDeliveredAtList &&
-              SelectCurrentDeliveryLabel?.damaged_required == 1 &&
-              AllDamageListReason?.length > 0 && (
-                <View style={styles.DamageListContainer}>
-                  <FlatList
-                    data={AllDamageListReason}
-                    scrollEnabled={false}
-                    keyExtractor={(item) => item.id.toString()}
-                    renderItem={({ item }) => (
-                      <Pressable
-                        onPress={() => setselectDamageData(item)}
+              {!showReasonList && !showDeliveredAtList && (
+                <View style={styles.OrderView}>
+                  <View style={[styles.Flex]}>
+                    <View style={styles.TopContainer}>
+                      <View
                         style={[
-                          styles.DamageRow,
-                          { backgroundColor: item?.color || Colors.Boxgray },
+                          styles.NumberBox,
+                          (type === 1 || type === 2) && { backgroundColor: Colors.green },
                         ]}
                       >
-                        <CheckBox
-                          onValueChange={() => setselectDamageData(item)}
-                          value={selectDamageData?.id === item?.id}
-                          tintColors={{ true: Colors.white, false: Colors.white }}
-                          tintColor={Colors.white}
-                          onTintColor={Colors.white}
-                          onCheckColor={Colors.white}
-                          onFillColor={item?.color || Colors.Boxgray}
-                        />
+                        {type === 0 ? (
+                          <Text style={styles.Text}>1</Text>
+                        ) : (
+                          <Image
+                            source={Images.user}
+                            style={{ width: 20, height: 20 }}
+                            tintColor={Colors.white}
+                          />
+                        )}
+                      </View>
+
+                      <View>
+                        <Text style={[styles.Text, { fontSize: 15 }]}>
+                          {
+                            personData?.display_name || ""
+                          }
+                        </Text>
+                        <Text style={[styles.OrderIdText, { color: Colors.orderdark }]}>
+                          {`#${OrderId}`}
+                        </Text>
+                      </View>
+                    </View>
+
+
+
+                    {type === 0 && (
+                      <View style={[SimpleFlex.Flex, { gap: 0 }]}>
+                        <Text style={styles.Text}>{OrderData?.order_data?.items?.length}</Text>
+                        <TouchableOpacity
+                          style={{ transform: [{ rotate: isCollapsed ? "0deg" : "180deg" }], paddingHorizontal: 5 }}
+                          onPress={() => setisCollapsed((pre) => !pre)}
+                        >
+                          <Image source={Images.down} style={{ width: 18, height: 18 }} />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+
+                  {(type === 0 ||
+                    type === 2) && (
+
+                      <>
+                        {type === 0 && (
+                          <Collapsible collapsed={isCollapsed}>
+                            <View style={styles.TotalProductConatiner}>
+                              <FlatList
+                                data={ProductItem}
+                                style={{ width: "100%", gap: 10 }}
+                                contentContainerStyle={styles.ContentContainerStyle}
+                                scrollEnabled={false}
+                                keyExtractor={(item, index) => `${index}`}
+                                renderItem={({ item, index }) => (
+                                  <ParcelBox
+                                    qty={item?.qty}
+                                    index={index}
+                                    data={item}
+                                    title={item?.tms_product_name}
+                                    Icon={getDirectDropboxLink(item?.tmsstatus?.shared_link)}
+                                  />
+                                )}
+                              />
+                            </View>
+                          </Collapsible>
+                        )}
+                        <>
+
+                          <View style={[styles.Flex, { marginTop: 15 }]}>
+                            <Text style={styles.DarkText}>{t("Delivery Date")}</Text>
+                            <Text style={styles.Text}>{personData?.deliver_date}</Text>
+                          </View>
+
+                          <DashedLine
+                            dashLength={4}
+                            dashThickness={1}
+                            dashGap={2}
+                            dashColor={Colors.orderdark}
+                            style={styles.DasheLine}
+                          />
+
+                          <View style={styles.Flex}>
+                            <Text style={styles.DarkText}>{t("Region")}</Text>
+                            <Text style={styles.Text}>
+                              {personData?.delivery_region_data?.name || ""} {personData?.deliver_postcode || ""}
+
+                            </Text>
+                          </View>
+                        </>
+
+                      </>
+                    )}
+
+                </View> 
+              )}
+              {
+                [1, 2, 3].includes(OrderData?.order_data?.tmsstatus?.id) &&
+                <View style={{ paddingHorizontal: 15, paddingVertical: 5, gap: 5 }}>
+                  <FlatList
+                    data={OrderData?.order_data?.items || []}
+                    style={{ width: "100%", gap: 10 }}
+                    contentContainerStyle={styles.ContentContainerStyle}
+                    scrollEnabled={false}
+                    keyExtractor={(item, index) => `${index}`}
+                    renderItem={({ item, index }) => (
+                      <ParcelBox
+                        qty={item?.qty}
+                        index={index}
+                        data={item}
+                        title={item?.tms_product_name}
+                        Icon={getDirectDropboxLink(item?.tmsstatus?.shared_link)}
+                      />
+                    )}
+                  />
+                  <View>
+                    <Text style={styles.Text}>{t("Date")}: {OrderData?.order_data?.tmsstatus?.id >= 3 ? OrderData?.order_data?.deliver_date : OrderData?.order_data?.pickup_date}</Text>
+                  </View>
+                  <View>
+                    <Text style={[styles.Text,]}>{t("Region")}: {OrderData?.order_data?.region_data?.name}</Text>
+                  </View>
+                </View>
+              }
+              {
+                delivery_btn == 1 &&
+                <FlatList
+                  data={AllDeliveyLabel}
+                  scrollEnabled={false}
+                  contentContainerStyle={styles.WhiteBox}
+                  renderItem={({ item }: any) => {
+                    const bgColor = item?.color || Colors.Boxgray;
+                    const textColor = getTextColor(bgColor);
+                    if (item?.id == 15) return
+                    return (
+                      <TouchableOpacity
+                        onPress={() => {
+                          handleOptionSelect(item)
+
+                        }}
+                        activeOpacity={0.85}
+                        style={[
+                          styles.LabelBtn,
+                          {
+                            backgroundColor: bgColor,
+                          },
+                        ]}
+                      >
                         <Text
-                          style={[
-                            styles.Text,
-                            {
-                              color: getTextColor(item?.color || Colors.Boxgray),
-                              flex: 1,
-                            },
-                          ]}
+                          style={[styles.Text, {
+                            color: textColor,
+                          },]}
                         >
                           {t(item?.title)}
                         </Text>
-                      </Pressable>
-                    )}
-                  />
+                      </TouchableOpacity>
+                    );
+                  }}
+                />
+              }
+
+              {showReasonList && (
+                <View style={styles.optionContainer}>
+                  {OrderDeliveryMapingLableOption?.not_delivery?.map((item: any) => (
+                    <TouchableOpacity key={item.id} style={styles.ReasonButton} onPress={() => handleOptionSelect(item)}>
+                      <Text style={styles.ReasonText}>{t(item.title)}</Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
-              )} */}
+              )}
 
-            {/* --- Footer Buttons --- */}
-            {!showReasonList && !showDeliveredAtList && (() => {
-              const showCancel =
-                delivery_btn == 0 || (delivery_btn == 1 && !!onClose);
-              const showApiButton = delivery_btn == 0 && !!RText;
-              const showNewScan = !!onNewScanPress;
-              const showUnloading = !!onUnloadingPress;
 
-              const cancelLabel =
-                delivery_btn == 1 ? t("Cancel") : LText ? t(LText) : t("Cancel");
-              const onCancelPress =
-                delivery_btn == 1
-                  ? onClose
-                  : () => {
+              {!showReasonList && !showDeliveredAtList && (() => {
+                const showCancel =
+                  delivery_btn == 0 || (delivery_btn == 1 && !!onClose);
+                const showApiButton = delivery_btn == 0 && !!RText;
+                const showNewScan = !!onNewScanPress;
+                const showUnloading = !!onUnloadingPress;
+
+                const cancelLabel =
+                  delivery_btn == 1 ? t("Cancel") : LText ? t(LText) : t("Cancel");
+                const onCancelPress =
+                  delivery_btn == 1
+                    ? onClose
+                    : () => {
                       if (LText === t("No delivery")) setShowReasonList(true);
                       else onClose?.();
                     };
 
-              const topButtons: {
-                key: string;
-                label: string;
-                onPress?: () => void;
-              }[] = [];
+                const topButtons: {
+                  key: string;
+                  label: string;
+                  onPress?: () => void;
+                }[] = [];
 
-              if (showApiButton) {
-                topButtons.push({
-                  key: "api",
-                  label: t(RText!),
-                  onPress: () => onPress?.(),
-                });
-              }
-              if (showUnloading) {
-                topButtons.push({
-                  key: "unloading",
-                  label: UnloadingText || t("Unloading"),
-                  onPress: onUnloadingPress,
-                });
-              }
+                if (showApiButton) {
+                  topButtons.push({
+                    key: "api",
+                    label: t(RText!),
+                    onPress: () => onPress?.(),
+                  });
+                }
+                if (showUnloading) {
+                  topButtons.push({
+                    key: "unloading",
+                    label: UnloadingText || t("Unloading"),
+                    onPress: onUnloadingPress,
+                  });
+                }
 
-              const hasBottomRow = showCancel || showNewScan;
-              const bottomButtonCount =
-                (showCancel ? 1 : 0) + (showNewScan ? 1 : 0);
-              const totalButtons = topButtons.length + bottomButtonCount;
+                const hasBottomRow = showCancel || showNewScan;
+                const bottomButtonCount =
+                  (showCancel ? 1 : 0) + (showNewScan ? 1 : 0);
+                const totalButtons = topButtons.length + bottomButtonCount;
 
-              if (totalButtons === 0) return null;
+                if (totalButtons === 0) return null;
 
-              const renderPrimaryButton = (
-                btn: (typeof topButtons)[number],
-                centered = false,
-              ) => (
-                <TouchableOpacity
-                  key={btn.key}
-                  style={[
-                    styles.ButtonBase,
-                    centered ? styles.ButtonSingle : styles.ButtonFullWidth,
-                    btn.key === 'unloading' ? styles.UnloadingButton : styles.ButtonPrimary,
-                  ]}
-                  onPress={btn.onPress}
-                >
-                  <Text style={[styles.Text, styles.PrimaryButtonText]}>
-                    {btn.label}
-                  </Text>
-                </TouchableOpacity>
-              );
+                const renderPrimaryButton = (
+                  btn: (typeof topButtons)[number],
+                  centered = false,
+                ) => (
+                  <TouchableOpacity
+                    key={btn.key}
+                    style={[
+                      styles.ButtonBase,
+                      centered ? styles.ButtonSingle : styles.ButtonFullWidth,
+                      btn.key === 'unloading' ? styles.UnloadingButton : styles.ButtonPrimary,
+                    ]}
+                    onPress={btn.onPress}
+                  >
+                    <Text style={[styles.Text, styles.PrimaryButtonText]}>
+                      {btn.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
 
-              if (totalButtons === 1) {
-                if (topButtons.length === 1) {
+                if (totalButtons === 1) {
+                  if (topButtons.length === 1) {
+                    return (
+                      <View style={styles.LastButtonContainer}>
+                        <View style={styles.FooterCenter}>
+                          {renderPrimaryButton(topButtons[0], true)}
+                        </View>
+                      </View>
+                    );
+                  }
+                  if (!NewScanText && !showCancel) {
+                    return null
+                  }
                   return (
                     <View style={styles.LastButtonContainer}>
                       <View style={styles.FooterCenter}>
-                        {renderPrimaryButton(topButtons[0], true)}
+                        {showCancel ? (
+                          <TouchableOpacity
+                            style={[
+                              styles.ButtonBase,
+                              styles.ButtonSingle,
+                              LButtonStyle,
+                            ]}
+                            onPress={onCancelPress}
+                          >
+                            <Text style={styles.Text}>{cancelLabel}</Text>
+                          </TouchableOpacity>
+                        ) : (
+                          <TouchableOpacity
+                            style={[
+                              styles.ButtonBase,
+                              styles.ButtonSingle,
+                              LButtonStyle,
+                            ]}
+                            onPress={onNewScanPress}
+                          >
+                            <Text style={styles.Text}>
+                              {NewScanText || t("New scan")}
+                            </Text>
+                          </TouchableOpacity>
+                        )}
                       </View>
                     </View>
                   );
@@ -533,79 +511,46 @@ export default function ScannerInfoModal({
 
                 return (
                   <View style={styles.LastButtonContainer}>
-                    <View style={styles.FooterCenter}>
-                      {showCancel ? (
-                        <TouchableOpacity
-                          style={[
-                            styles.ButtonBase,
-                            styles.ButtonSingle,
-                            LButtonStyle,
-                          ]}
-                          onPress={onCancelPress}
-                        >
-                          <Text style={styles.Text}>{cancelLabel}</Text>
-                        </TouchableOpacity>
-                      ) : (
-                        <TouchableOpacity
-                          style={[
-                            styles.ButtonBase,
-                            styles.ButtonSingle,
-                            LButtonStyle,
-                          ]}
-                          onPress={onNewScanPress}
-                        >
-                          <Text style={styles.Text}>
-                            {NewScanText || t("New scan")}
-                          </Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
+                    {topButtons.map((btn) => renderPrimaryButton(btn))}
+
+                    {hasBottomRow ? (
+                      <View style={styles.FooterRow}>
+                        {showCancel ? (
+                          <TouchableOpacity
+                            style={[
+                              styles.ButtonBase,
+                              styles.ButtonHalf,
+                              LButtonStyle,
+                            ]}
+                            onPress={onCancelPress}
+                          >
+                            <Text style={styles.Text}>{cancelLabel}</Text>
+                          </TouchableOpacity>
+                        ) : (
+                          <View style={styles.ButtonHalfSpacer} />
+                        )}
+
+                        {showNewScan ? (
+                          <TouchableOpacity
+                            style={[
+                              styles.ButtonBase,
+                              styles.ButtonHalf,
+                              LButtonStyle,
+                            ]}
+                            onPress={onNewScanPress}
+                          >
+                            <Text style={styles.Text}>
+                              {NewScanText || t("New scan")}
+                            </Text>
+                          </TouchableOpacity>
+                        ) : (
+                          <View style={styles.ButtonHalfSpacer} />
+                        )}
+                      </View>
+                    ) : null}
                   </View>
                 );
-              }
-
-              return (
-                <View style={styles.LastButtonContainer}>
-                  {topButtons.map((btn) => renderPrimaryButton(btn))}
-
-                  {hasBottomRow ? (
-                    <View style={styles.FooterRow}>
-                      {showCancel ? (
-                        <TouchableOpacity
-                          style={[
-                            styles.ButtonBase,
-                            styles.ButtonHalf,
-                            LButtonStyle,
-                          ]}
-                          onPress={onCancelPress}
-                        >
-                          <Text style={styles.Text}>{cancelLabel}</Text>
-                        </TouchableOpacity>
-                      ) : (
-                        <View style={styles.ButtonHalfSpacer} />
-                      )}
-
-                      {showNewScan ? (
-                        <TouchableOpacity
-                          style={[
-                            styles.ButtonBase,
-                            styles.ButtonHalf,
-                            LButtonStyle,
-                          ]}
-                          onPress={onNewScanPress}
-                        >
-                          <Text style={styles.Text}>
-                            {NewScanText || t("New scan")}
-                          </Text>
-                        </TouchableOpacity>
-                      ) : (
-                        <View style={styles.ButtonHalfSpacer} />
-                      )}
-                    </View>
-                  ) : null}
-                </View>
-              );
-            })()}
+              })()}
             </ScrollView>
           </View>
         </View>

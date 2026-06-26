@@ -89,6 +89,9 @@ export const Images = {
   LocationIcon: require("./image/location.png"),
   TrackOn: require("./image/TrackOn.png"),
   TrackOff: require("./image/TrackOff.png"),
+  ExchangeIcon: require("./image/ExchangeIcon.png"),
+  UpSideArrow: require("./image/UpSideArrow.png"),
+  deliveryILabelcon: require("./image/deliveryILabelcon.png"),
 
   
 

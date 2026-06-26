@@ -522,7 +522,7 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
     async (item: LocalUploadItem): Promise<boolean> => {
       if (!setDropBoxUploadImageDataQues || !setLocalImagesUploadbeforeData) return false;
 
-      if (!item.commentId) {
+      if (!item.order_id || !item.image_data?.length) {
         return true;
       }
 

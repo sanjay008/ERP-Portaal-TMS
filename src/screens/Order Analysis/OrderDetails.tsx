@@ -159,7 +159,10 @@ export default function OrderDetails({ navigation, route }: any) {
                     )}
 
                     <MapsViewBox
-                        data={AllDestinationRegionData}
+                        orderStatusId={ItemsData?.tmsstatus?.id ?? ItemsData?.status}
+                        pickupRegionData={ItemsData?.pickup_region_data}
+                        deliveryRegionData={ItemsData?.delivery_region_data}
+                        orderData={ItemsData}
                         msg={LocationDataMessage}
                     />
 

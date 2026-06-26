@@ -21,7 +21,7 @@ export const appendToLocalUploadQueue = (
   const commentId = item.commentId != null ? item.commentId : null;
   const order_id = item.order_id != null ? item.order_id : null;
 
-  if (image_data.length === 0 || commentId == null || order_id == null) {
+  if (image_data.length === 0 || order_id == null) {
     return false;
   }
 

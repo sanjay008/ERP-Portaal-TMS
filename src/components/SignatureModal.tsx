@@ -25,6 +25,7 @@ import SignatureCanvas, {
   SignatureViewRef,
 } from "react-native-signature-canvas";
 import { GlobalContextData } from "../context/GlobalContext";
+import { isBlankSignatureData } from "../utils/signatureValidation";
 import { Colors } from "../utils/colors";
 import { FONTS } from "../utils/storeData";
 
@@ -36,6 +37,8 @@ const MODAL_W = Math.min(SCREEN_W * 0.92, 480);
 const MODAL_H = IS_SMALL
   ? Math.min(SCREEN_H * 0.46, 340)
   : Math.min(SCREEN_H * 0.52, 460);
+
+const CANVAS_MIN_H = IS_SMALL ? 168 : 210;
 
 const DURATION = 260;
 
@@ -84,9 +87,14 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
 }) => {
   const { t } = useTranslation();
   const signatureRef = useRef<SignatureViewRef>(null);
+  const hasDrawnRef = useRef(false);
+  const isReadingSignatureRef = useRef(false);
   const [rendered, setRendered] = useState(visible);
+  const [mountCanvas, setMountCanvas] = useState(false);
   const [name, setName] = useState(defaultName ?? "");
   const [nameError, setNameError] = useState(false);
+  const [signatureError, setSignatureError] = useState(false);
+  const [canvasReady, setCanvasReady] = useState(false);
   const pendingNameRef = useRef<string>("");
   const [canvasKey, setCanvasKey] = useState(0);
   const opacity = useSharedValue(0);
@@ -101,9 +109,17 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
   const damageTypes = AllDamageListReason ?? [];
 
   const backdropStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
-  const cardStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-  }));
+
+  const resetStrokeState = useCallback(() => {
+    hasDrawnRef.current = false;
+    isReadingSignatureRef.current = false;
+  }, []);
+
+  const handleCanvasLoadEnd = useCallback(() => {
+    signatureRef.current?.clearSignature();
+    resetStrokeState();
+    setCanvasReady(true);
+  }, [resetStrokeState]);
 
   const getTextColor = (bgColor: string) => {
     if (!bgColor) return "#000";
@@ -146,20 +162,38 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
       setCanvasKey((k) => k + 1);
       setName(defaultName ?? "");
       setNameError(false);
+      setSignatureError(false);
+      setCanvasReady(false);
+      setMountCanvas(false);
+      resetStrokeState();
       pendingNameRef.current = "";
       opacity.value = withTiming(1, { duration: DURATION, easing: Easing.out(Easing.cubic) });
     } else {
+      setMountCanvas(false);
+      setCanvasReady(false);
+      resetStrokeState();
       opacity.value = withTiming(0, { duration: DURATION, easing: Easing.in(Easing.cubic) }, (done) => {
         if (done) runOnJS(handleUnmount)();
       });
     }
-  }, [visible]);
+  }, [visible, resetStrokeState]);
 
   useEffect(() => {
     if (visible) {
       initLocalItems();
     }
   }, [visible, initLocalItems]);
+
+  useEffect(() => {
+    if (!visible || !rendered) {
+      setMountCanvas(false);
+      return;
+    }
+
+    setMountCanvas(false);
+    const timer = setTimeout(() => setMountCanvas(true), DURATION + 40);
+    return () => clearTimeout(timer);
+  }, [visible, rendered, canvasKey]);
 
   const countByType = useMemo(() => {
     const counts: Record<number, number> = {};
@@ -201,20 +235,54 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
     signatureRef.current?.clearSignature();
     setName(defaultName ?? "");
     setNameError(false);
+    setSignatureError(false);
+    resetStrokeState();
     pendingNameRef.current = "";
     onClear?.();
   };
 
+  const handleStrokeStart = () => {
+    hasDrawnRef.current = true;
+    setSignatureError(false);
+  };
+
+  const handleStrokeEnd = () => {
+    hasDrawnRef.current = true;
+  };
+
   const handleSave = () => {
+    if (IsLoading || isReadingSignatureRef.current) return;
+
     if (showNameField && name.trim() === "") {
       setNameError(true);
       return;
     }
+
+    if (!canvasReady || !mountCanvas) {
+      setSignatureError(true);
+      return;
+    }
+
+    if (!hasDrawnRef.current) {
+      setSignatureError(true);
+      return;
+    }
+
     pendingNameRef.current = name.trim();
+    isReadingSignatureRef.current = true;
     signatureRef.current?.readSignature();
   };
 
   const handleSignatureOK = (base64: string) => {
+    isReadingSignatureRef.current = false;
+
+    if (!hasDrawnRef.current || isBlankSignatureData(base64)) {
+      resetStrokeState();
+      setSignatureError(true);
+      signatureRef.current?.clearSignature();
+      return;
+    }
+
     const damageItems =
       hasParcelDamageList && localItems.length > 0
         ? buildDamagePayload()
@@ -224,6 +292,13 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
       showNameField ? pendingNameRef.current : undefined,
       damageItems,
     );
+  };
+
+  const handleSignatureEmpty = () => {
+    isReadingSignatureRef.current = false;
+    resetStrokeState();
+    setSignatureError(true);
+    signatureRef.current?.clearSignature();
   };
 
   const toggleExpand = (typeId: number) => {
@@ -266,20 +341,32 @@ const confirmChange = () => {
     damageTypes.find((type: any) => Number(type.id) === Number(typeId));
 
   const webStyle = `
-    * { box-sizing: border-box; }
+    * { box-sizing: border-box; touch-action: none; -webkit-user-select: none; user-select: none; }
     body, html {
       background-color: ${backgroundColor};
       margin: 0; padding: 0;
       overflow: hidden;
+      width: 100%; height: 100%;
+      touch-action: none;
     }
     .m-signature-pad {
       box-shadow: none; border: none;
       margin: 0; width: 100%; height: 100%;
       background-color: ${backgroundColor};
+      touch-action: none;
     }
     .m-signature-pad--body {
       border: none; margin: 0;
       background-color: ${backgroundColor};
+      position: absolute;
+      left: 0; top: 0;
+      width: 100%; height: 100%;
+      touch-action: none;
+    }
+    .m-signature-pad--body canvas {
+      width: 100% !important;
+      height: 100% !important;
+      touch-action: none;
     }
     .m-signature-pad--footer { display: none !important; }
   `;
@@ -288,7 +375,7 @@ const confirmChange = () => {
     <View style={[StyleSheet.absoluteFill, styles.root]} pointerEvents="box-none">
       <Animated.View
         style={[StyleSheet.absoluteFill, styles.backdrop, backdropStyle]}
-        pointerEvents={visible ? "auto" : "none"}
+        pointerEvents="none"
       />
 
       <View style={styles.centerContainer} pointerEvents="box-none">
@@ -410,8 +497,7 @@ const confirmChange = () => {
           </Pressable>
         )}
 
-        <Animated.View style={cardStyle}>
-          <View style={styles.card}>
+        <View style={styles.card}>
           <View style={styles.header}>
             <TouchableOpacity
               style={styles.closeBtn}
@@ -467,25 +553,38 @@ const confirmChange = () => {
 
           <View style={styles.canvasWrapper} collapsable={false}>
             <View style={styles.canvasBorder} collapsable={false}>
-              <SignatureCanvas
-                key={canvasKey}
-                ref={signatureRef}
-                onOK={handleSignatureOK}
-                onEmpty={() => {}}
-                descriptionText=""
-                clearText=""
-                confirmText=""
-                webStyle={webStyle}
-                autoClear={false}
-                penColor={penColor}
-                style={styles.canvas}
-                scrollable={false}
-                androidHardwareAccelerationDisabled={Platform.OS === "android"}
-              />
+              {mountCanvas ? (
+                <SignatureCanvas
+                  key={canvasKey}
+                  ref={signatureRef}
+                  onOK={handleSignatureOK}
+                  onEmpty={handleSignatureEmpty}
+                  onBegin={handleStrokeStart}
+                  onEnd={handleStrokeEnd}
+                  onLoadEnd={handleCanvasLoadEnd}
+                  descriptionText=""
+                  clearText=""
+                  confirmText=""
+                  webStyle={webStyle}
+                  autoClear={false}
+                  imageType="image/png"
+                  penColor={penColor}
+                  backgroundColor={backgroundColor}
+                  style={styles.canvas}
+                  scrollable={false}
+                />
+              ) : null}
+              {(!canvasReady || !mountCanvas) && (
+                <View style={styles.canvasLoading} pointerEvents="none">
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                </View>
+              )}
             </View>
+            {signatureError && (
+              <Text style={styles.nameErrorText}>{t("Signature is required")}</Text>
+            )}
           </View>
           </View>
-        </Animated.View>
 
         <TouchableOpacity
           style={styles.saveBtn}
@@ -903,6 +1002,7 @@ const styles = StyleSheet.create({
   },
   canvasBorder: {
     flex: 1,
+    minHeight: CANVAS_MIN_H,
     borderWidth: 1.5,
     borderColor: Colors.primary,
     borderRadius: 12,
@@ -912,7 +1012,13 @@ const styles = StyleSheet.create({
   canvas: {
     flex: 1,
     width: "100%",
-    height: "100%",
+    minHeight: CANVAS_MIN_H,
+  },
+  canvasLoading: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.white,
   },
   hintRow: {
     flexDirection: "row",

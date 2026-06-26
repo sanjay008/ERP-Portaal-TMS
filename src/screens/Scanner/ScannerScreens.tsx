@@ -1,6 +1,7 @@
 import apiConstants from "@/src/api/apiConstants";
 import { Images } from "@/src/assets/images";
 import AnimatedModal from "@/src/components/AnimatedModal";
+import CameraPermissionSheet from "@/src/components/CameraPermissionSheet";
 import { ApiFormatDate } from "@/src/components/ApiFormatDate";
 import ConformationModal from "@/src/components/ConformationModal";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
@@ -15,6 +16,13 @@ import ScannerInfoModal from "@/src/components/ScannerInfoModal";
 import SignatureModal from "@/src/components/SignatureModal";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import { DropboxContext } from "@/src/context/UploadProider";
+import {
+  openAppSettings,
+  recheckCameraAccess,
+  resolveCameraAccess,
+  retryCameraPermission,
+  type CameraAccessStatus,
+} from "@/src/hooks/useCameraPermission";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors.js";
 import { appendToLocalUploadQueue } from "@/src/utils/localUploadQueue";
@@ -24,6 +32,7 @@ import {
   itemNeedsDeliveryLabelSelection,
   shouldOpenPickupPlannedModal,
 } from "@/src/utils/pickupPlanned";
+import { isBlankSignatureData } from "@/src/utils/signatureValidation";
 import { FONTS, height, width } from "@/src/utils/storeData";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import BottomSheet, {
@@ -34,10 +43,8 @@ import { useIsFocused } from "@react-navigation/native";
 import axios from "axios";
 import { Audio } from "expo-av";
 import {
-  Camera,
-  CameraType,
   CameraView,
-  useCameraPermissions,
+  CameraType,
 } from "expo-camera";
 import { goBack } from "expo-router/build/global-state/routing";
 import React, {
@@ -51,6 +58,7 @@ import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Animated,
+  AppState,
   FlatList,
   Image,
   Keyboard,
@@ -76,7 +84,6 @@ export default function ScannerScreens({ navigation, route }: any) {
     is_scan = true,
     restrictedOrderId = null,
   } = route?.params ?? {};
-  const [permission, requestPermission] = useCameraPermissions();
   const [ItemsData, setItemsData] = useState(item);
   const [isNoParcelFlow, setIsNoParcelFlow] = useState(false);
   const [showSig, setShowSig] = useState<boolean>(false);
@@ -121,7 +128,12 @@ export default function ScannerScreens({ navigation, route }: any) {
     color: "",
   });
   const [refreshKey, setRefreshKey] = useState(0);
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const [cameraGranted, setCameraGranted] = useState(false);
+  const [cameraPermissionSheet, setCameraPermissionSheet] = useState<{
+    visible: boolean;
+    reason: CameraAccessStatus | null;
+  }>({ visible: false, reason: null });
+  const [isCameraPermissionLoading, setIsCameraPermissionLoading] = useState(false);
   const [lastDetectedBarcode, setLastDetectedBarcode] = useState<string>("");
   const [flashEnabled, setFlashEnabled] = useState<boolean>(false);
   const [AllRecentScanData, setAllRecentScanData] = useState<number[]>([]);
@@ -340,12 +352,17 @@ export default function ScannerScreens({ navigation, route }: any) {
     }, 400);
   }, []);
 
-  const closeConformationModalAndUnlockScan = useCallback(() => {
-    setConformationModal((prev: any) => ({ ...prev, visible: false }));
+  const unlockScanner = useCallback(() => {
+    isVerifyingScanRef.current = false;
     setIsVerifyingScan(false);
     setLastDetectedBarcode("");
+  }, []);
+
+  const closeConformationModalAndUnlockScan = useCallback(() => {
+    setConformationModal((prev: any) => ({ ...prev, visible: false }));
+    unlockScanner();
     restartScannerPreview();
-  }, [restartScannerPreview]);
+  }, [restartScannerPreview, unlockScanner]);
 
   const closePickupPlannedSheetAndUnlockScan = useCallback(() => {
     pickupPlannedModalPendingRef.current = false;
@@ -462,40 +479,75 @@ export default function ScannerScreens({ navigation, route }: any) {
     }
   }, [isScannerBlockedByModal]);
 
-  useEffect(() => {
-
-
-    const recheckPermission = async () => {
-      try {
-        const { status } = await Camera.requestCameraPermissionsAsync();
-        setHasPermission(status === "granted");
-      } catch (err) {
-        console.error("Camera permission error:", err);
-      }
-    };
-
-    if (Focused) {
-
-
-      // Close modal if open
-      if (ConformationModalOpen?.visible) {
-        setConformationModal((prev: any) => ({
-          ...prev,
-          visible: false,
-        }));
-      }
-
-      // Ensure permission
-      if (!permission || permission?.granted === false) {
-        requestPermission();
-      } else {
-        recheckPermission();
-      }
-      setTimeout(() => {
-        setHasPermission(true);
-      }, 200);
+  const handleCameraPermissionResult = useCallback((status: CameraAccessStatus) => {
+    if (status === 'granted') {
+      setCameraGranted(true);
+      setCameraPermissionSheet({ visible: false, reason: null });
+      return;
     }
-  }, [Focused]);
+
+    setCameraGranted(false);
+    setCameraPermissionSheet({ visible: true, reason: status });
+  }, []);
+
+  const handleCameraPermissionPrimary = useCallback(async () => {
+    setIsCameraPermissionLoading(true);
+    try {
+      if (cameraPermissionSheet.reason === 'blocked') {
+        await openAppSettings();
+        return;
+      }
+
+      const status = await retryCameraPermission();
+      handleCameraPermissionResult(status);
+    } finally {
+      setIsCameraPermissionLoading(false);
+    }
+  }, [cameraPermissionSheet.reason, handleCameraPermissionResult]);
+
+  const handleCameraPermissionSettings = useCallback(async () => {
+    setIsCameraPermissionLoading(true);
+    try {
+      await openAppSettings();
+    } finally {
+      setIsCameraPermissionLoading(false);
+    }
+  }, []);
+
+  const handleCameraPermissionCancel = useCallback(() => {
+    setCameraPermissionSheet({ visible: false, reason: null });
+    goBack();
+  }, []);
+
+  useEffect(() => {
+    if (!Focused) return;
+
+    let cancelled = false;
+    (async () => {
+      const status = await resolveCameraAccess();
+      if (!cancelled) {
+        handleCameraPermissionResult(status);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [Focused, handleCameraPermissionResult]);
+
+  useEffect(() => {
+    if (!cameraPermissionSheet.visible) return;
+
+    const subscription = AppState.addEventListener('change', async (nextState) => {
+      if (nextState !== 'active') return;
+
+      const status = await recheckCameraAccess();
+      handleCameraPermissionResult(status);
+    });
+
+    return () => subscription.remove();
+  }, [cameraPermissionSheet.visible, handleCameraPermissionResult]);
+
   const handleSelectDeliveryLabel = (labelItem: any) => {
     pendingDeliveryLabelRef.current = labelItem;
     selectCurrentDeliveryLabelRef.current = labelItem;
@@ -635,12 +687,11 @@ export default function ScannerScreens({ navigation, route }: any) {
           !deliveryLabelModalPendingRef.current &&
           !pickupPlannedModalPendingRef.current
         ) {
-          isVerifyingScanRef.current = false;
-          setIsVerifyingScan(false);
+          unlockScanner();
         }
       }
     },
-    [lastDetectedBarcode, playBeep, restrictedOrderId, t]
+    [lastDetectedBarcode, playBeep, restrictedOrderId, t, unlockScanner]
   );
 
   const refreshCamera = () => {
@@ -739,9 +790,11 @@ export default function ScannerScreens({ navigation, route }: any) {
         const isStatus4 =
           Number(res?.data?.order_data?.tmsstatus?.id) === 4;
 
+        const questionText =
+          res?.data?.quetion ?? res?.data?.question ?? "";
         const modalConfig: any = {
           visible: true,
-          title: t(res?.data?.quetion),
+          title: questionText ? t(questionText) : t("Order Delivery Info"),
           Icon: Images.OrderIconFull,
           LButtonText:
             res?.data?.delivery_btn == 1 ? t("No delivery") : t("Cancel"),
@@ -860,6 +913,8 @@ export default function ScannerScreens({ navigation, route }: any) {
           slideType === 'pickup_dropoff' &&
           itemNeedsDeliveryLabelSelection(res?.data, data);
 
+        let scanOverlayShown = false;
+
         if (
           sessionLabelForCamera == null ||
           Boolean(res?.data?.error_key)
@@ -867,6 +922,7 @@ export default function ScannerScreens({ navigation, route }: any) {
           if (!isDeliveryPendingItem) {
             setResponseOrderData(res?.data?.order_data);
             setConformationModal(modalConfig);
+            scanOverlayShown = true;
           }
         } else if (!isDeliveryPendingItem) {
           setAlerModalOpen({
@@ -903,6 +959,12 @@ export default function ScannerScreens({ navigation, route }: any) {
 
             },
           });
+          scanOverlayShown = true;
+        }
+
+        if (!scanOverlayShown) {
+          setResponseOrderData(res?.data?.order_data);
+          setConformationModal(modalConfig);
         }
         // setGetConformationQuestion(res?.data || "");
       } else {
@@ -927,7 +989,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         });
       }
     } catch (error) {
-      setIsVerifyingScan(false);
+      unlockScanner();
       setToast({
         top: 45,
         text: ErrorHandle(error).message,
@@ -1187,6 +1249,21 @@ export default function ScannerScreens({ navigation, route }: any) {
     }
   };
 
+  const queueProofImagesOnly = () => {
+    const orderId =
+      SelectPlace?.order_id ?? ItemsData?.id ?? ItemsData?.order_data?.id;
+    if (!AllSelectImage?.length || orderId == null) {
+      return false;
+    }
+
+    return appendToLocalUploadQueue(setLocalImagesUploadbeforeData, {
+      order_id: orderId,
+      image_data: [...AllSelectImage],
+      item_id: SelectPlace?.item_id || null,
+      commentId: null,
+    });
+  };
+
   const AddImageOrCommentFun = async (
     comment: string = '',
     data: any[] = [],
@@ -1275,10 +1352,10 @@ export default function ScannerScreens({ navigation, route }: any) {
 
 
   const CustomerSignatureFun = async (signature: string | null = null, name: string | null = null, damageItems: any[] = []) => {
-    if (signature == null) {
+    if (isBlankSignatureData(signature)) {
       setToast({
         top: 45,
-        text: t("Please Signature."),
+        text: t("Signature is required"),
         type: "error",
         visible: true,
       });
@@ -1466,6 +1543,14 @@ export default function ScannerScreens({ navigation, route }: any) {
         setComment(false);
         if (Description.trim()) {
           await AddImageOrCommentFun();
+        } else if (AllSelectImage?.length > 0) {
+          queueProofImagesOnly();
+          setAllSelectImage([]);
+          setPickUpDataSave([]);
+          setDeliveyDataSave([]);
+          setDescrition('');
+          setCommentError('');
+          refreshCamera();
         } else if (isCommentOptional) {
           setAllSelectImage([]);
           setPickUpDataSave([]);
@@ -1860,7 +1945,7 @@ export default function ScannerScreens({ navigation, route }: any) {
   return (
     <GestureHandlerRootView key={refreshKey} style={styles.container}>
       {
-        Focused && !showSig && !comment && !showQRError && (
+        Focused && cameraGranted && !showSig && !comment && !showQRError && (
           <CameraView
             ref={cameraRef}
             key={cameraKey}
@@ -1893,6 +1978,15 @@ export default function ScannerScreens({ navigation, route }: any) {
           <Image source={Images.Close} style={styles.Icons} />
         </TouchableOpacity>
       </View>
+
+      <CameraPermissionSheet
+        visible={cameraPermissionSheet.visible}
+        reason={cameraPermissionSheet.reason}
+        loading={isCameraPermissionLoading}
+        onClose={handleCameraPermissionCancel}
+        onPrimaryAction={handleCameraPermissionPrimary}
+        onSettingsPress={handleCameraPermissionSettings}
+      />
 
       <PickupPlannedSheet
         visible={PickupPlannedSheetOpen.visible}

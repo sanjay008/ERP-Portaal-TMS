@@ -21,6 +21,7 @@ import { DropboxContext } from "@/src/context/UploadProider";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
 import { appendToLocalUploadQueue } from "@/src/utils/localUploadQueue";
+import { isBlankSignatureData } from "@/src/utils/signatureValidation";
 import { FONTS } from "@/src/utils/storeData";
 import { useIsFocused } from "@react-navigation/native";
 import axios from "axios";
@@ -90,7 +91,7 @@ export default function DetailsScreens({ navigation, route }: any) {
   const [SelectedNoParcelItems, setSelectedNoParcelItems] = useState<any[]>([]);
   const [showSig, setShowSig] = useState<boolean>(false);
   const [SignatureLoader, setSignatureLoader] = useState<boolean>(false);
-  const [LocationDataMessage, setLocationDataMessage] = useState(null);
+  const [LocationDataMessage, setLocationDataMessage] = useState<string | null>(null);
 
 
   const [AllDestinationRegionData, setAllDestinationRegionData] = useState<
@@ -210,7 +211,6 @@ export default function DetailsScreens({ navigation, route }: any) {
       }
     }
   };
-
   useEffect(() => {
     if (!Focused) return;
 
@@ -562,7 +562,7 @@ export default function DetailsScreens({ navigation, route }: any) {
         );
       }
 
-      
+
 
       const response: any = await axios.post(
         apiConstants.store_tms_comment_img_new,
@@ -577,7 +577,7 @@ export default function DetailsScreens({ navigation, route }: any) {
       const data: any =
         await response?.data;
 
-      
+
 
       if (!(data?.status_code == 200)) {
 
@@ -596,7 +596,7 @@ export default function DetailsScreens({ navigation, route }: any) {
 
     } catch (error) {
 
-      
+
 
       setToast({
         top: 45,
@@ -688,6 +688,7 @@ export default function DetailsScreens({ navigation, route }: any) {
       setIsLoading(false);
     }
   };
+// console.log(ItemsData);
 
   const BackOrderFun = async (
     lable = "",
@@ -848,10 +849,10 @@ export default function DetailsScreens({ navigation, route }: any) {
     return brightness > 128 ? "#000" : "#FFF";
   };
   const CustomerSignatureFun = async (signature: string | null = null, name: string | null = null,) => {
-    if (signature == null) {
+    if (isBlankSignatureData(signature)) {
       setToast({
         top: 45,
-        text: t("Please Signature."),
+        text: t("Signature is required"),
         type: "error",
         visible: true,
       });
@@ -971,7 +972,7 @@ export default function DetailsScreens({ navigation, route }: any) {
               PermissionData?.can_scan_order &&
               Number(ItemsData?.tmsstatus?.id) === 1
             }
-            
+
           />
 
           {
@@ -982,8 +983,11 @@ export default function DetailsScreens({ navigation, route }: any) {
           }
 
           <MapsViewBox
-            data={AllDestinationRegionData}
-            msg={LocationDataMessage}
+            orderStatusId={ItemsData?.tmsstatus?.id ?? ItemsData?.status}
+            pickupRegionData={ItemsData?.pickup_region_data}
+            deliveryRegionData={ItemsData?.delivery_region_data}
+            orderData={ItemsData}
+            msg={LocationDataMessage ?? t("Destination location is unavailable")}
           />
 
           {PermissionData?.can_scan_order && !(ItemsData?.tmsstatus?.id == 4) ? (
@@ -1325,7 +1329,7 @@ export default function DetailsScreens({ navigation, route }: any) {
           CustomerSignatureFun(base64, name)
 
         }}
-        onClear={() => {}}
+        onClear={() => { }}
       />
       <ScannerInfoModal
         InfoTitle={ScannerModalOpen.InfoTitle}

@@ -1,6 +1,6 @@
-import React, { useContext, useState } from "react";
+import React, { useContext, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Image, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Images } from "../assets/images";
 import { GlobalContextData } from "../context/GlobalContext";
 import {
@@ -9,33 +9,67 @@ import {
   getSafeCurrentPosition,
 } from "../hooks/useUserGPS";
 import { Colors } from "../utils/colors";
+import { resolveOrderNavigationDestination } from "../utils/regionCoordinates";
 import { FONTS, width } from "../utils/storeData";
 import { useErrorHandle } from "./ErrorHandle";
 import LoadingModal from "./LoadingModal";
+
 type MapsData = {
-  data?: string[] | any,
-  onPress?: () => void,
-  msg?:any | string,
-}
+  data?: string[] | any;
+  onPress?: () => void;
+  msg?: any | string;
+  orderStatusId?: number | string | null;
+  pickupRegionData?: unknown;
+  deliveryRegionData?: unknown;
+  orderData?: Record<string, unknown> | null;
+};
 
-export default function MapsViewBox({ data, onPress ,msg = null}: MapsData) {
+export default function MapsViewBox({
+  onPress,
+  msg = null,
+  orderStatusId = null,
+  pickupRegionData = null,
+  deliveryRegionData = null,
+  orderData = null,
+}: MapsData) {
   const { t } = useTranslation();
-  const {
-    UserData,
-    setUserData,
-    Toast,
-    setToast,
-    setPickUpDataSave,
-    setDeliveyDataSave,
-
-  } = useContext(GlobalContextData);
+  const { setToast } = useContext(GlobalContextData);
   const { ErrorHandle } = useErrorHandle();
-  const [IsLoading,setIsLoading] = useState(false)
+  const [IsLoading, setIsLoading] = useState(false);
+
+  const destination = useMemo(
+    () =>
+      resolveOrderNavigationDestination({
+        orderStatusId,
+        pickupRegionData,
+        deliveryRegionData,
+        orderData,
+      }),
+    [orderStatusId, pickupRegionData, deliveryRegionData, orderData],
+  );
+
   const MapAppRedirectFun = async () => {
-    if (data?.length === 0) {
+    if (onPress) {
+      onPress();
+      return;
+    }
+
+    console.log("[MapsViewBox] Start pressed", {
+      orderStatusId,
+      pickupRegionData,
+      deliveryRegionData,
+      resolvedDestination: destination,
+    });
+
+    if (!destination) {
+      console.log("[MapsViewBox] Destination unavailable", {
+        orderStatusId,
+        pickupRegionData,
+        deliveryRegionData,
+      });
       setToast({
         top: 45,
-        text: t(msg),
+        text: t(msg ?? "Destination location is unavailable"),
         type: "error",
         visible: true,
       });
@@ -43,18 +77,23 @@ export default function MapsViewBox({ data, onPress ,msg = null}: MapsData) {
     }
 
     try {
-      setIsLoading(true)
-      let coordsArray = [...data];
+      setIsLoading(true);
 
-      if (!coordsArray.length) return;
+      const [permission, servicesEnabled] = await Promise.all([
+        checkLocationPermission(),
+        areLocationServicesEnabled(),
+      ]);
 
-      const permission = await checkLocationPermission();
       if (!permission.granted) {
-        Alert.alert(t("Location permission denied"));
+        setToast({
+          top: 45,
+          text: t("Location permission denied"),
+          type: "error",
+          visible: true,
+        });
         return;
       }
 
-      const servicesEnabled = await areLocationServicesEnabled();
       if (!servicesEnabled) {
         setToast({
           top: 45,
@@ -76,26 +115,26 @@ export default function MapsViewBox({ data, onPress ,msg = null}: MapsData) {
         return;
       }
 
-      let startLat = current.coords.latitude;
-      let startLng = current.coords.longitude;
+      const { latitude: startLat, longitude: startLng } = current.coords;
+      const { latitude: destLat, longitude: destLng } = destination;
 
-      let googleWaypoints = coordsArray
-        .map((c: any) => `${c.lat},${c.long}`)
-        .join("/");
+      console.log("[MapsViewBox] Navigation route", {
+        currentLocation: { latitude: startLat, longitude: startLng },
+        destination: { latitude: destLat, longitude: destLng },
+        pickupRegionData,
+        deliveryRegionData,
+        orderStatusId,
+      });
 
-      let googleUrl = `https://www.google.com/maps/dir/${startLat},${startLng}/${googleWaypoints}`;
+      const googleUrl = `https://www.google.com/maps/dir/?api=1&origin=${startLat},${startLng}&destination=${destLat},${destLng}&travelmode=driving`;
+      const appleUrl = `http://maps.apple.com/?saddr=${startLat},${startLng}&daddr=${destLat},${destLng}`;
+      const urlToOpen = Platform.OS === "ios" ? appleUrl : googleUrl;
 
-      let appleWaypoints = coordsArray
-        .map((c: any) => `${c.lat},${c.long}`)
-        .join("+to:");
-
-      let appleUrl = `http://maps.apple.com/?saddr=${startLat},${startLng}&daddr=${appleWaypoints}`;
-
-      let urlToOpen = Platform.OS === "ios" ? appleUrl : googleUrl;
-
-      const supported = await Linking.canOpenURL(urlToOpen);
-
-      await Linking.openURL(supported ? urlToOpen : googleUrl);
+      try {
+        await Linking.openURL(urlToOpen);
+      } catch {
+        await Linking.openURL(googleUrl);
+      }
     } catch (error: any) {
       setToast({
         top: 45,
@@ -103,21 +142,18 @@ export default function MapsViewBox({ data, onPress ,msg = null}: MapsData) {
         type: "error",
         visible: true,
       });
-    }
-    finally{
-      setIsLoading(false)
+    } finally {
+      setIsLoading(false);
     }
   };
+
   return (
     <View style={styles.container}>
       <Image source={Images.MapsImage} style={styles.MapStyle} />
-      <TouchableOpacity style={styles.Button} onPress={()=>MapAppRedirectFun()}>
+      <TouchableOpacity style={styles.Button} onPress={MapAppRedirectFun}>
         <Text style={styles.Text}>{t("Start")}</Text>
       </TouchableOpacity>
-         <LoadingModal
-        visible={IsLoading}
-        message={t("Please wait…")}
-      />
+      <LoadingModal visible={IsLoading} message={t("Please wait…")} />
     </View>
   );
 }
@@ -127,7 +163,7 @@ const styles = StyleSheet.create({
     width: "100%",
     borderRadius: 4,
     backgroundColor: Colors.white,
-    padding: 15
+    padding: 15,
   },
   MapStyle: {
     width: "100%",
@@ -138,13 +174,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     backgroundColor: Colors.primary,
     borderRadius: 5,
-    position: 'absolute',
+    position: "absolute",
     right: 25,
-    bottom: 25
+    bottom: 25,
   },
   Text: {
     fontSize: 14,
     color: Colors.white,
-    fontFamily: FONTS.Medium
-  }
+    fontFamily: FONTS.Medium,
+  },
 });

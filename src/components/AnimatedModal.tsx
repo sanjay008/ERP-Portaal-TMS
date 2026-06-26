@@ -218,7 +218,7 @@ export default function AnimatedModal({
                                                 activeOpacity={0.82}
                                                 style={[styles.labelBtn, { backgroundColor: bgColor }]}
                                             >
-                                                <Text style={[styles.labelText, { color: textColor }]}>
+                                                <Text style={[styles.labelText, { color: Colors.white }]}>
                                                     {t(item?.title)}
                                                 </Text>
                                             </TouchableOpacity>
