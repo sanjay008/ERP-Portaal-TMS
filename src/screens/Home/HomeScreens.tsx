@@ -66,13 +66,13 @@ export default function HomeScreens({ navigation, route }: any) {
         },
       });
 
-      console.log("apiConstants.get_AllSlideDataApi",apiConstants.get_AllSlideDataApi,{
-          token: UserData?.user?.verify_token,
-          role: UserData?.user?.role,
-          relaties_id: UserData?.relaties?.id,
-          user_id: UserData?.user?.id,
-        });
-      
+      console.log("apiConstants.get_AllSlideDataApi", apiConstants.get_AllSlideDataApi, {
+        token: UserData?.user?.verify_token,
+        role: UserData?.user?.role,
+        relaties_id: UserData?.relaties?.id,
+        user_id: UserData?.user?.id,
+      });
+
 
       if (Boolean(res.status)) {
         setAllSlideData(res?.data || []);
@@ -213,6 +213,8 @@ export default function HomeScreens({ navigation, route }: any) {
                   navigation.navigate("Scanner", { item: item })
                 } else if (item?.type == "AllOrder") {
                   navigation.navigate("ScanDetails", { Type: item?.type })
+                } else if (item?.type == "warehouse_change") {
+                  navigation.navigate("ScanManager", { item: item })
                 } else {
                   navigation.navigate("FilterScreen", { item: item })
                 }

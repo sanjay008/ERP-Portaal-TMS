@@ -16,6 +16,8 @@ import NoInternet from "@/src/screens/NoInternet/NoInternet";
 import AllOrder from "@/src/screens/Order Analysis/AllOrder";
 import OrderDetails from "@/src/screens/Order Analysis/OrderDetails";
 import ScanDetails from "@/src/screens/Order Analysis/ScanDetails";
+import ScanManager from "@/src/screens/Order Analysis/ScanManager";
+import WarehouseOrderEdit from "@/src/screens/Order Analysis/WarehouseOrderEdit";
 import Parcel from "@/src/screens/Parcel/Parcel";
 import Profile from "@/src/screens/Profile/Profile";
 import ScannerScreens from "@/src/screens/Scanner/ScannerScreens";
@@ -122,6 +124,14 @@ export default function index() {
                 <Stack.Screen
                   name="Loading"
                   component={withLayoutHeader(LoadedScreens)}
+                />
+                <Stack.Screen
+                  name="ScanManager"
+                  component={withLayoutHeader(ScanManager)}
+                />
+                <Stack.Screen
+                  name="WarehouseOrderEdit"
+                  component={withLayoutHeader(WarehouseOrderEdit)}
                 />
                 <Stack.Screen
                   name="Parcel"

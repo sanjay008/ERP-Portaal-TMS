@@ -43,6 +43,7 @@ module.exports = {
     start_region_trip:`${baseUrlnew}tms-driver/start-region-trip`,
     end_region_trip:`${baseUrlnew}tms-driver/end-region-trip`,
     revert_order_item_status:`${baseUrlnew}tms-driver/revert-order-item-status`,
+    update_order_data:`${baseUrlnew}tms-driver/update-order-data`,
 
 
 };

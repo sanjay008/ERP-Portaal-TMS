@@ -38,6 +38,7 @@ type Props = {
   delivery_btn?: number;
   bgColor?: string;
   OrderData?: null | any;
+  stopData?: number | string | null;
   NewScanText?: string;
   onNewScanPress?: () => void;
   UnloadingText?: string;
@@ -77,6 +78,7 @@ export default function ScannerInfoModal({
   delivery_btn = 0,
   bgColor,
   OrderData = null,
+  stopData = null,
   NewScanText,
   onNewScanPress,
   UnloadingText,
@@ -196,6 +198,11 @@ export default function ScannerInfoModal({
   if (!visible) return null;
 
   const isUnloadingMode = !!onUnloadingPress;
+  const showStopData =
+    GloblyTypeSlide === "driver_loading" &&
+    stopData !== null &&
+    stopData !== undefined &&
+    stopData !== "";
 
   return (
     <>
@@ -223,6 +230,9 @@ export default function ScannerInfoModal({
 
               {!showReasonList && !showDeliveredAtList && (
                 <View style={styles.OrderView}>
+                  {showStopData && (
+                    <Text style={styles.StopOrderText}>{stopData}</Text>
+                  )}
                   <View style={[styles.Flex]}>
                     <View style={styles.TopContainer}>
                       <View
@@ -632,6 +642,13 @@ const styles = StyleSheet.create({
   modalScrollContent: { flexGrow: 1 },
   InfoContainer: { padding: 15 },
   Text: { fontSize: 15, fontFamily: FONTS.SemiBold, color: Colors.black },
+  StopOrderText: {
+    fontSize: 28,
+    fontFamily: FONTS.SemiBold,
+    color: Colors.black,
+    textAlign: "center",
+    marginBottom: 8,
+  },
   TopContainer: { flexDirection: "row", gap: 15, alignItems: "center" },
   NumberBox: { width: 40, height: 40, backgroundColor: Colors.Boxgray, borderRadius: 4, justifyContent: "center", alignItems: "center" },
   OrderIdText: { fontSize: 13, color: Colors.orderdark, fontFamily: FONTS.Medium },

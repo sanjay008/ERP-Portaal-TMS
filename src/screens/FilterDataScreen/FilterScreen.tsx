@@ -1,5 +1,6 @@
 import apiConstants from "@/src/api/apiConstants";
 import { Images } from "@/src/assets/images";
+import AdditionalStopBox from "@/src/components/AdditionalStopBox";
 import AnimatedTooltip from "@/src/components/AnimatedTooltip";
 import CalenderDate from "@/src/components/CalenderDate";
 import CustomHeader from "@/src/components/CustomHeader";
@@ -90,6 +91,7 @@ export default function FilterScreen({ navigation, route }: any) {
   const [gpsTrackingStartDate, setGpsTrackingStartDate] = useState("");
   const [gpsTrackingStartTime, setGpsTrackingStartTime] = useState("");
   const [isTripSubmitting, setIsTripSubmitting] = useState(false);
+  const [Loading, setIsLoading] = useState(false);
 
   const enableGpsTracking = useCallback(() => {
     setGpsPermissionSheet({ visible: false, reason: null });
@@ -111,21 +113,6 @@ export default function FilterScreen({ navigation, route }: any) {
     [enableGpsTracking, setIsGpsTracking, activeShift?.shiftActive],
   );
 
-  const handleGpsTrackingPress = useCallback(async () => {
-    if (!selectRegionData) {
-      setTooltipVisible(true);
-      return;
-    }
-
-    setIsGpsPermissionLoading(true);
-    try {
-      const status = await resolveLocationAccess();
-      handleGpsPermissionResult(status);
-    } finally {
-      setIsGpsPermissionLoading(false);
-    }
-  }, [selectRegionData, handleGpsPermissionResult]);
-
   const handleGpsTrackButtonPress = useCallback(() => {
     if (!selectRegionData) {
       setTooltipVisible(true);
@@ -141,6 +128,19 @@ export default function FilterScreen({ navigation, route }: any) {
     async (date: string, time: string) => {
       if (!selectRegionData) {
         setTooltipVisible(true);
+        return;
+      }
+
+      setIsGpsPermissionLoading(true);
+      let access: LocationAccessStatus;
+      try {
+        access = await resolveLocationAccess();
+      } finally {
+        setIsGpsPermissionLoading(false);
+      }
+      if (access !== "granted") {
+        setGpsStartPopupVisible(false);
+        handleGpsPermissionResult(access);
         return;
       }
 
@@ -183,7 +183,7 @@ export default function FilterScreen({ navigation, route }: any) {
         console.log('[Shift] ON', session);
 
         setGpsStartPopupVisible(false);
-        await handleGpsTrackingPress();
+        enableGpsTracking();
       } catch (error: any) {
         setToast({
           top: 45,
@@ -198,7 +198,8 @@ export default function FilterScreen({ navigation, route }: any) {
     [
       UserData,
       selectRegionData,
-      handleGpsTrackingPress,
+      handleGpsPermissionResult,
+      enableGpsTracking,
       setActiveShift,
       setSelectCurrentDate,
       setToast,
@@ -213,7 +214,7 @@ export default function FilterScreen({ navigation, route }: any) {
 
     setIsGpsPermissionLoading(true);
     try {
-      if (reason === 'denied') {
+      if (reason === 'denied' || reason === 'services_disabled') {
         const status = await retryLocationPermission();
         handleGpsPermissionResult(status);
         return;
@@ -427,9 +428,18 @@ const FilterData = useMemo(() => {
   const namePart = parts.slice(1).join(' ').trim();
 
   return (RegionOrderData ?? []).filter((item: any) => {
+    const isAdditionalStop = item?.row_type === 'additional_address';
     const itemId = item?.id?.toString().toLowerCase() ?? '';
-    const itemName = item?.display_name?.toLowerCase() ?? '';
+    const itemName = isAdditionalStop
+      ? (item?.name?.toLowerCase() ?? '')
+      : (item?.display_name?.toLowerCase() ?? '');
     const itemExtId = item?.external_order_id?.toString().toLowerCase() ?? '';
+    const itemAddress = isAdditionalStop
+      ? (item?.address?.toLowerCase() ?? '')
+      : '';
+    const itemRoute = isAdditionalStop
+      ? (item?.route_name?.toLowerCase() ?? '')
+      : '';
 
     if (namePart) {
       return itemId.includes(idPart) && itemName.includes(namePart);
@@ -438,10 +448,61 @@ const FilterData = useMemo(() => {
     return (
       itemId.includes(cleaned) ||
       itemName.includes(cleaned) ||
-      itemExtId.includes(cleaned)
+      itemExtId.includes(cleaned) ||
+      itemAddress.includes(cleaned) ||
+      itemRoute.includes(cleaned)
     );
   });
 }, [search, RegionOrderData]);
+
+  const ReversParcelFun = async (order_id = null, item_id = null) => {
+    try {
+      setIsLoading(true);
+      const payload: any = {
+        token: UserData?.user?.verify_token,
+        role: UserData?.user?.role,
+        relaties_id: UserData?.relaties?.id,
+        user_id: UserData?.user?.id,
+        item_id: item_id,
+        order_id: order_id,
+        type:  GloblyTypeSlide,
+      };
+      const res = await ApiService(apiConstants.revert_order_item_status, {
+        customData: payload,
+      });
+      console.log("ReversParcelFun", res);
+
+      if (res?.status) {
+        setToast({
+          top: 45,
+          text: t(res?.message) || t("Success to update status"),
+          type: "success",
+          visible: true,
+        });
+        
+
+      
+      } else {
+        setToast({
+          top: 45,
+          text: t(res?.message) || t("Failed to update status"),
+          type: "error",
+          visible: true,
+        });
+      }
+    } catch (error) {
+      setToast({
+        top: 45,
+        text: ErrorHandle(error).message,
+        type: "error",
+        visible: true,
+      });
+    }
+    finally {
+      setIsLoading(false);
+
+    }
+  }
 
   useEffect(() => {
     if (selectRegionData?.id) {
@@ -503,7 +564,6 @@ const FilterData = useMemo(() => {
               labelFieldKey="name"
               fun={(item) => RegionDetailsDataFun(item)}
               valueFieldKey="id"
-
               ContainerStyle={{ flex: 1 / 1.05 }}
             />
 
@@ -511,10 +571,22 @@ const FilterData = useMemo(() => {
               onlyIcon={true}
               Icon={Images.Scan}
               style={{ width: 46, height: 46 }}
-              onPress={() => {
-                if (!isGpsTracking && SlideType == "pickup_dropoff") {
-                  setScanerbtnDisableTiptool(true);
-                  return;
+              onPress={async () => {
+                if (SlideType == "pickup_dropoff") {
+                  setIsGpsPermissionLoading(true);
+                  let status: LocationAccessStatus;
+                  try {
+                    status = await resolveLocationAccess();
+                  } finally {
+                    setIsGpsPermissionLoading(false);
+                  }
+                  if (status !== "granted") {
+                    handleGpsPermissionResult(status);
+                    return;
+                  }
+                  if (!isGpsTracking) {
+                    setIsGpsTracking(true);
+                  }
                 }
                 navigation.navigate("Scanner", {
                   fun: getFilterDataFun,
@@ -599,14 +671,17 @@ const FilterData = useMemo(() => {
               windowSize={5}
               removeClippedSubviews={true}
               updateCellsBatchingPeriod={30}
-              getItemLayout={(data, index) => ({
-                length: 70,
-                offset: 70 * index,
-                index,
-              })}
               contentContainerStyle={{ gap: 15 }}
-              keyExtractor={(item, index) => `${index}`}
+              keyExtractor={(item: any, index) =>
+                item?.row_type === 'additional_address'
+                  ? `aa-${item?.route_stop_id ?? item?.assignment_id ?? item?.id ?? index}`
+                  : `order-${item?.id ?? index}`
+              }
               renderItem={({ item, index }) => {
+                if (item?.row_type === 'additional_address') {
+                  return <AdditionalStopBox item={item} index={index} />;
+                }
+
                 return (
                   <PickUpBox
                     AllisCollapsed={isCollapsed}

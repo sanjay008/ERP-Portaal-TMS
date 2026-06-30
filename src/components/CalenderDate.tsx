@@ -8,7 +8,7 @@ import { GlobalContextData } from "../context/GlobalContext";
 import { getDateByTimezone, resolveAppTimeZone } from "../utils/appDateTime";
 import { Colors } from "../utils/colors";
 import { FONTS } from "../utils/storeData";
-import { formatDate } from "./DateFormate";
+import { formatDate, toApiDateString } from "./DateFormate";
 
 type Props = {
   date: string | any;
@@ -139,6 +139,8 @@ export default function CalenderDate({ date, setDate }: Props) {
     }
   };
 
+  const markedDateKey = toApiDateString(date);
+
   return (
     <View style={styles.container}>
       <Pressable
@@ -183,9 +185,9 @@ export default function CalenderDate({ date, setDate }: Props) {
                 setVisible(false);
               }}
               markedDates={
-                date
+                markedDateKey
                   ? {
-                      [date]: { selected: true, selectedColor: Colors.primary },
+                      [markedDateKey]: { selected: true, selectedColor: Colors.primary },
                     }
                   : {}
               }

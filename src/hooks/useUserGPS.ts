@@ -1,6 +1,6 @@
 import * as Location from 'expo-location';
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { Linking } from 'react-native';
+import { Linking, Platform } from 'react-native';
 import apiConstants from '../api/apiConstants';
 import { GlobalContextData } from '../context/GlobalContext';
 import ApiService from '../utils/Apiservice';
@@ -28,7 +28,7 @@ export async function resolveLocationAccess(): Promise<LocationAccessStatus> {
   const current = await checkLocationPermission();
 
   if (current.granted) {
-    return 'granted';
+    return (await ensureLocationServicesEnabled()) ? 'granted' : 'services_disabled';
   }
 
   if (!current.canAskAgain) {
@@ -37,7 +37,7 @@ export async function resolveLocationAccess(): Promise<LocationAccessStatus> {
 
   const { status, canAskAgain } = await Location.requestForegroundPermissionsAsync();
   if (status === Location.PermissionStatus.GRANTED) {
-    return 'granted';
+    return (await ensureLocationServicesEnabled()) ? 'granted' : 'services_disabled';
   }
 
   if (canAskAgain === false) {
@@ -51,7 +51,7 @@ export async function retryLocationPermission(): Promise<LocationAccessStatus> {
   const current = await checkLocationPermission();
 
   if (current.granted) {
-    return 'granted';
+    return (await ensureLocationServicesEnabled()) ? 'granted' : 'services_disabled';
   }
 
   if (!current.canAskAgain) {
@@ -60,7 +60,7 @@ export async function retryLocationPermission(): Promise<LocationAccessStatus> {
 
   const { status, canAskAgain } = await Location.requestForegroundPermissionsAsync();
   if (status === Location.PermissionStatus.GRANTED) {
-    return 'granted';
+    return (await ensureLocationServicesEnabled()) ? 'granted' : 'services_disabled';
   }
 
   if (canAskAgain === false) {
@@ -81,7 +81,7 @@ export async function recheckLocationAccess(): Promise<LocationAccessStatus> {
     return current.canAskAgain ? 'denied' : 'blocked';
   }
 
-  return 'granted';
+  return (await areLocationServicesEnabled()) ? 'granted' : 'services_disabled';
 }
 
 export async function requestLocationAccess(): Promise<boolean> {
@@ -116,6 +116,29 @@ export async function areLocationServicesEnabled(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * Ensures device location services (the GPS toggle) are ON.
+ * On Android this shows the native "Turn on location" system dialog
+ * (Location Accuracy resolver) so the user can enable it in-app, without
+ * leaving the app. Returns true when location services end up enabled.
+ */
+export async function ensureLocationServicesEnabled(): Promise<boolean> {
+  if (await areLocationServicesEnabled()) {
+    return true;
+  }
+
+  if (Platform.OS === 'android') {
+    try {
+      await Location.enableNetworkProviderAsync();
+    } catch {
+      // user declined the system dialog or it is unavailable
+    }
+    return await areLocationServicesEnabled();
+  }
+
+  return false;
 }
 
 export async function getSafeCurrentPosition(): Promise<Location.LocationObject | null> {

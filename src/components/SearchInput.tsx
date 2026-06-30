@@ -52,10 +52,14 @@ export default function SearchInput({ value, setValue, suggestions, setQRcodeSea
     }, []);
 
     const filtered = value.trim().length > 0
-        ? suggestions.filter(s =>
-            String(s.id).includes(value) ||
-            s.display_name.toLowerCase().includes(value.toLowerCase())
-        )
+        ? suggestions.filter(s => {
+            const query = value.toLowerCase();
+            const idMatch = String(s?.id ?? '').includes(value);
+            const nameMatch = String(s?.display_name ?? '')
+                .toLowerCase()
+                .includes(query);
+            return idMatch || nameMatch;
+        })
         : suggestions;
 
     const handleSelect = (item: OrderItem) => {

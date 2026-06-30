@@ -1,9 +1,9 @@
 import apiConstants from "@/src/api/apiConstants";
+import CommentViewBox from "@/src/components/CommentViewBox";
 import DetailsHeader from "@/src/components/DetailsHeader";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
 import Loader from "@/src/components/loading";
 import LoadingModal from "@/src/components/LoadingModal";
-import MapsViewBox from "@/src/components/MapsViewBox";
 import PickUpBox from "@/src/components/PickUpBox";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import { DropboxContext } from "@/src/context/UploadProider";
@@ -11,11 +11,12 @@ import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
 import { FONTS, SimpleFlex } from "@/src/utils/storeData";
 import { StatusBar } from "expo-status-bar";
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
     FlatList,
     Image,
+    Linking,
     ScrollView,
     StyleSheet,
     Text,
@@ -23,6 +24,37 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+const PRIVATE_TMS_COMMENT_TYPE = "Private_TMSorder";
+const NORMAL_TMS_COMMENT_TYPE = "TMSorder";
+
+const stripHtmlTags = (value: unknown): string => {
+    if (value == null) return "";
+    return String(value).replace(/<[^>]*>/g, "").trim();
+};
+
+const stripTimeFromDate = (value: unknown): string => {
+    if (value == null) return "";
+    return String(value).replace(/\s+\d{1,2}:\d{2}(?::\d{2})?\s*$/, "").trim();
+};
+
+const mapTmsCommentForView = (comment: any, isPrivate = false) => ({
+    id: comment?.id,
+    log_type: "item_comment",
+    created_at: comment?.created_at,
+    isPrivate,
+    ...(isPrivate ? { display_date: stripTimeFromDate(comment?.created_at) } : {}),
+    comment_text: stripHtmlTags(comment?.comment),
+    user: comment?.user,
+    tmsdriverdata: {
+        display_name:
+            comment?.user?.username ||
+            comment?.user?.display_name ||
+            comment?.relaties?.display_name ||
+            comment?.created_by_name ||
+            "",
+    },
+});
 
 export default function OrderDetails({ navigation, route }: any) {
     const { item, order_id, type } = route?.params || {};
@@ -41,7 +73,7 @@ export default function OrderDetails({ navigation, route }: any) {
     const [AllDestinationRegionData, setAllDestinationRegionData] = useState<any[]>([]);
     const [LocationDataMessage, setLocationDataMessage] = useState(null);
     const { t } = useTranslation();
-
+    const [EasyTransLink, setEasyTransLink] = useState<null | string>(null);
     const getDirectDropboxLink = (sharedLink: string) => {
         if (!sharedLink) return "";
         let url = sharedLink
@@ -77,6 +109,15 @@ export default function OrderDetails({ navigation, route }: any) {
 
     const GetIdByOrderFun = async () => {
         setDataLoading(true);
+        console.log("REQDATA",{
+                    token: UserData?.user?.verify_token,
+                    role: UserData?.user?.role,
+                    relaties_id: UserData?.relaties?.id,
+                    user_id: UserData?.user?.id,
+                    order_id: order_id ?? ItemsData?.id ?? ItemsData?.order_data?.id,
+                    type: type,
+                },);
+        
         try {
             let res = await ApiService(apiConstants.get_order_data_by_id, {
                 customData: {
@@ -89,6 +130,8 @@ export default function OrderDetails({ navigation, route }: any) {
                 },
             });
             if (res?.status) {
+                setEasyTransLink(res?.easytrans_link || null)
+                console.log("res?.statusres?.status", res);
                 setItemsData(res?.data);
             } else {
                 setToast({
@@ -118,6 +161,52 @@ export default function OrderDetails({ navigation, route }: any) {
         navigation.pop(2);
     };
 
+    const tmsComments = useMemo(() => {
+        const list = ItemsData?.tmscomment;
+        if (!Array.isArray(list)) return [];
+
+        return list
+            .filter(
+                (comment: any) =>
+                    (comment?.comment_type === NORMAL_TMS_COMMENT_TYPE ||
+                        comment?.comment_type === PRIVATE_TMS_COMMENT_TYPE) &&
+                    comment?.is_deleted !== 1 &&
+                    !!stripHtmlTags(comment?.comment),
+            )
+            .map((comment: any) =>
+                mapTmsCommentForView(
+                    comment,
+                    comment?.comment_type === PRIVATE_TMS_COMMENT_TYPE,
+                ),
+            );
+    }, [ItemsData?.tmscomment]);
+
+    const handleOpenEasyTransOrder = async () => {
+        const url = EasyTransLink;
+
+
+        if (!url) {
+            setToast({
+                top: 45,
+                text: t("something_went_wrong"),
+                type: "error",
+                visible: true,
+            });
+            return;
+        }
+
+        try {
+            await Linking.openURL(url);
+        } catch (error) {
+            setToast({
+                top: 45,
+                text: ErrorHandle(error).message,
+                type: "error",
+                visible: true,
+            });
+        }
+    };
+    
     return (
         <SafeAreaView style={styles.container}>
             <StatusBar backgroundColor="white" />
@@ -148,7 +237,7 @@ export default function OrderDetails({ navigation, route }: any) {
                         additional_cost_label={ItemsData?.additional_cost_label}
                         customerData={ItemsData?.customer}
                         external_platform_data={ItemsData?.display_name}
-                        external_order_id={ItemsData?.external_order_id}
+                        external_order_id={null}
                         contact={true}
                     />
 
@@ -158,13 +247,36 @@ export default function OrderDetails({ navigation, route }: any) {
                         </View>
                     )}
 
-                    <MapsViewBox
-                        orderStatusId={ItemsData?.tmsstatus?.id ?? ItemsData?.status}
-                        pickupRegionData={ItemsData?.pickup_region_data}
-                        deliveryRegionData={ItemsData?.delivery_region_data}
-                        orderData={ItemsData}
-                        msg={LocationDataMessage}
-                    />
+                    <View style={styles.metaCard}>
+                        {!!ItemsData?.created_info?.label && (
+                            <Text style={styles.metaLine}>
+                                <Text style={styles.metaLabel}>{t("Creation date / time")} : </Text>
+                                <Text style={styles.createdInfoLabel}>
+                                    {ItemsData.created_info.label}
+                                </Text>
+                            </Text>
+                        )}
+
+                        {!!ItemsData?.external_order_id && (
+                            <Text style={styles.metaLine}>
+                                <Text style={styles.metaLabel}>{t("EasyTrans ordernr")} : </Text>
+                                <TouchableOpacity
+                                    activeOpacity={0.7}
+                                    onPress={handleOpenEasyTransOrder}
+                                >
+                                    <Text style={styles.metaLink}>
+                                        {ItemsData.external_order_id}
+                                    </Text>
+                                </TouchableOpacity>
+                            </Text>
+                        )}
+                    </View>
+
+                    {tmsComments.length > 0 && (
+                        <View style={styles.commentsMainBox}>
+                            <CommentViewBox data={tmsComments} />
+                        </View>
+                    )}
 
                     {getMergedImages(ItemsData)?.length > 0 && (
                         <FlatList
@@ -228,7 +340,7 @@ export default function OrderDetails({ navigation, route }: any) {
                     )}
                 </ScrollView>
             )}
-            <View style={[SimpleFlex.SpaceBetween,styles.LastButton]}>
+            <View style={[SimpleFlex.SpaceBetween, styles.LastButton]}>
                 <TouchableOpacity activeOpacity={0.85} style={styles.OkButton} onPress={handleMenu}>
                     <Text style={styles.OkButtonText}>{t("Close")}</Text>
                 </TouchableOpacity>
@@ -274,8 +386,51 @@ const styles = StyleSheet.create({
         fontFamily: FONTS.SemiBold,
         color: Colors.black,
     },
+    metaCard: {
+        width: "100%",
+        backgroundColor: Colors.white,
+        borderRadius: 7,
+        borderWidth: 1,
+        borderColor: Colors.Boxgray,
+        padding: 15,
+        gap: 10,
+    },
+    metaLine: {
+        fontSize: 14,
+        lineHeight: 21,
+    },
+    metaLabel: {
+        fontSize: 14,
+        fontFamily: FONTS.SemiBold,
+        color: Colors.black,
+    },
+    metaValue: {
+        fontSize: 14,
+        fontFamily: FONTS.Regular,
+        color: Colors.darkText,
+    },
+    createdInfoLabel: {
+        fontSize: 14,
+        fontFamily: FONTS.Regular,
+        color: Colors.black,
+        lineHeight: 21,
+    },
+    metaLink: {
+        fontSize: 14,
+        fontFamily: FONTS.Medium,
+        color: Colors.primary,
+        textDecorationLine: "underline",
+    },
+    commentsMainBox: {
+        width: "100%",
+        backgroundColor: Colors.white,
+        borderRadius: 7,
+        borderWidth: 1,
+        borderColor: Colors.Boxgray,
+        padding: 15,
+    },
     OkButton: {
-        width:"48%",
+        width: "48%",
         backgroundColor: Colors.primary,
         paddingVertical: 14,
         borderRadius: 10,
@@ -287,7 +442,7 @@ const styles = StyleSheet.create({
         fontFamily: FONTS.SemiBold,
         color: Colors.white,
     },
-    LastButton:{
-        padding:15
+    LastButton: {
+        padding: 15
     }
 });

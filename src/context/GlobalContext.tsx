@@ -44,6 +44,11 @@ export default function GlobalContext({ children }: any) {
   const [QRcodeSearch,setQRcodeSearch] = useState<string | number | null>(null);
   const [AllCountries, setAllCountries] = useState<MergedCountry[]>([]);
   const [countriesLoading, setCountriesLoading] = useState(false);
+  const [AllTmsStatusList, setAllTmsStatusList] = useState<any[]>([]);
+  const [warehouseScanResume, setWarehouseScanResume] = useState<{
+    orderId: number | string;
+    sheetMode?: 'scan' | 'saved';
+  } | null>(null);
 
   const fetchCountries = useCallback(async (force = false) => {
     if (!force && AllCountries.length > 0) {
@@ -77,6 +82,37 @@ export default function GlobalContext({ children }: any) {
     setAllCountries(fallback);
     return fallback;
   }, [AllCountries.length]);
+
+  const fetchTmsStatusList = useCallback(async (force = false) => {
+    if (!force && AllTmsStatusList.length > 0) {
+      return AllTmsStatusList;
+    }
+
+    if (!UserData?.user?.verify_token) {
+      return [];
+    }
+
+    try {
+      const res = await ApiService(apiConstants.status_list, {
+        customData: {
+          token: UserData.user.verify_token,
+          role: UserData.user.role,
+          relaties_id: UserData.relaties?.id,
+          user_id: UserData.user.id,
+        },
+      });
+
+      if (Boolean(res?.status)) {
+        const list = Array.isArray(res?.data) ? res.data : [];
+        setAllTmsStatusList(list);
+        return list;
+      }
+    } catch {
+      return AllTmsStatusList;
+    }
+
+    return [];
+  }, [AllTmsStatusList, UserData]);
   
   return (
     <GlobalContextData.Provider
@@ -114,6 +150,9 @@ export default function GlobalContext({ children }: any) {
         AllCountries, setAllCountries,
         countriesLoading,
         fetchCountries,
+        AllTmsStatusList, setAllTmsStatusList,
+        fetchTmsStatusList,
+        warehouseScanResume, setWarehouseScanResume,
       }}
     >
       {children}

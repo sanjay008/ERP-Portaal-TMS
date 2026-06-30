@@ -1,8 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios from "axios";
 import * as BackgroundTask from "expo-background-task";
 import * as FileSystem from "expo-file-system/legacy";
 import * as TaskManager from "expo-task-manager";
-import axios from "axios";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import apiConstants from "../api/apiConstants";
 import { GlobalContextData } from "../context/GlobalContext";
@@ -70,6 +70,152 @@ export interface DropboxQueueItem {
 const createBatchId = (): string =>
   `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
+const sanitizeFileUri = (uri: string): string => {
+  if (!uri) return "unknown";
+  const parts = uri.split("/");
+  return parts[parts.length - 1]?.replace(/\+/g, "_") || "unknown";
+};
+
+const parseDropboxUploadError = (
+  body: string | null | undefined,
+  status: number,
+): string => {
+  if (!body) {
+    return `Dropbox upload failed (HTTP ${status})`;
+  }
+
+  try {
+    const parsed = JSON.parse(body);
+    const summary = parsed?.error_summary || parsed?.error?.error_summary;
+    const tag = parsed?.error?.[".tag"];
+    if (summary) return `${summary} (HTTP ${status})`;
+    if (typeof tag === "string") return `${tag} (HTTP ${status})`;
+    if (parsed?.message) return `${parsed.message} (HTTP ${status})`;
+  } catch {
+    // body is not JSON
+  }
+
+  const trimmed = body.trim().slice(0, 200);
+  return trimmed
+    ? `${trimmed} (HTTP ${status})`
+    : `Dropbox upload failed (HTTP ${status})`;
+};
+
+const parseDropboxErrorBody = (body: string | null | undefined): unknown => {
+  if (!body) return null;
+  try {
+    return JSON.parse(body);
+  } catch {
+    return body.slice(0, 500);
+  }
+};
+
+const logDropboxUploadError = (
+  context: string,
+  details: Record<string, unknown>,
+): void => {
+  console.error(`[DropboxUpload] ${context}`, details);
+};
+
+type TranslateFn = (key: string) => string;
+
+const UPLOAD_TOAST = {
+  storageFull:
+    "Photo could not be uploaded. Company storage is full. Please contact your administrator.",
+  tokenExpired:
+    "Photo upload failed. Storage connection expired. Please try again.",
+  noPermission:
+    "Photo upload failed. App does not have permission to upload. Contact support.",
+  tooManyRequests:
+    "Too many upload requests. Please wait a moment and try again.",
+  fileConflict:
+    "A file with the same name already exists. Please try again.",
+  unsupportedFile: "This file type is not supported for upload.",
+  serviceUnavailable:
+    "Photo upload failed. Storage service is temporarily unavailable. Please try again later.",
+  networkError:
+    "Photo upload failed. Please check your internet connection and try again.",
+  tokenRefreshFailed:
+    "Photo upload failed. Storage connection could not be refreshed. Please try again.",
+  generic: "Photo upload failed. Please try again.",
+} as const;
+
+const extractDropboxErrorSummary = (
+  body: string | null | undefined,
+): string => {
+  try {
+    const parsed = JSON.parse(body || "{}");
+    return String(
+      parsed?.error_summary || parsed?.error?.error_summary || "",
+    ).toLowerCase();
+  } catch {
+    return "";
+  }
+};
+
+const getUserFriendlyUploadError = (
+  body: string | null | undefined,
+  status: number,
+  t: TranslateFn,
+): string => {
+  const summary = extractDropboxErrorSummary(body);
+
+  if (summary.includes("insufficient_space")) {
+    return t(UPLOAD_TOAST.storageFull);
+  }
+  if (
+    summary.includes("invalid_access_token") ||
+    summary.includes("expired_access_token") ||
+    summary.includes("invalid_grant")
+  ) {
+    return t(UPLOAD_TOAST.tokenExpired);
+  }
+  if (summary.includes("insufficient_scope")) {
+    return t(UPLOAD_TOAST.noPermission);
+  }
+  if (
+    summary.includes("too_many_requests") ||
+    summary.includes("too_many_write_operations")
+  ) {
+    return t(UPLOAD_TOAST.tooManyRequests);
+  }
+  if (summary.includes("path/conflict")) {
+    return t(UPLOAD_TOAST.fileConflict);
+  }
+  if (status === 401 || status === 403) {
+    return t(UPLOAD_TOAST.tokenExpired);
+  }
+  if (status >= 500) {
+    return t(UPLOAD_TOAST.serviceUnavailable);
+  }
+  if (!body || status === 0) {
+    return t(UPLOAD_TOAST.networkError);
+  }
+
+  return t(UPLOAD_TOAST.generic);
+};
+
+const getUserFriendlyExceptionError = (e: any, t: TranslateFn): string => {
+  const message = String(e?.message || "").toLowerCase();
+  const code = String(e?.code || "").toLowerCase();
+
+  if (
+    message.includes("network") ||
+    message.includes("timeout") ||
+    message.includes("internet") ||
+    message.includes("failed to fetch") ||
+    code.includes("network") ||
+    code === "econnaborted"
+  ) {
+    return t(UPLOAD_TOAST.networkError);
+  }
+  if (message.includes("refresh token")) {
+    return t(UPLOAD_TOAST.tokenRefreshFailed);
+  }
+
+  return t(UPLOAD_TOAST.generic);
+};
+
 interface UseDropboxUploadReturn {
   loading: boolean;
   refreshAccessToken: () => Promise<string>;
@@ -130,7 +276,6 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
   useEffect(() => {
     latestApiQueueRef.current = DropBoxUploadImageDataQues || [];
   }, [DropBoxUploadImageDataQues]);
-
   const refreshAccessToken = useCallback(async (): Promise<string> => {
     try {
       const response = await fetch("https://api.dropbox.com/oauth2/token", {
@@ -147,6 +292,12 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
       const data = await response.json();
 
       if (!response.ok || !data?.access_token) {
+        console.error("Dropbox Token Refresh Failed", {
+          status: response.status,
+          statusText: response.statusText,
+          response: data,
+        });
+
         throw new Error("Refresh token failed");
       }
 
@@ -154,9 +305,14 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
       setAccessToken(data.access_token);
 
       return data.access_token;
-
     } catch (e: any) {
-      showToast(e?.message || t("dropbox_token_refresh_failed"));
+      console.error("Image Upload Failed - Refresh Access Token Error", {
+        message: e?.message,
+        stack: e?.stack,
+        error: e,
+      });
+
+      showToast(t(UPLOAD_TOAST.tokenRefreshFailed));
       throw e;
     }
   }, [RefreshToken, ClientId, ClientSecret, setAccessToken, showToast, t]);
@@ -172,6 +328,15 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         const mimeType = EXTENSION_TO_MIME[extension] || "";
 
         if (!ALLOWED_MIME_TYPES.has(mimeType)) {
+          logDropboxUploadError("uploadSingleFile rejected", {
+            step: "mime_validation",
+            retry,
+            fileName: originalFileName,
+            extension: extension || "unknown",
+            mimeType: mimeType || "unknown",
+            uri: sanitizeFileUri(uri),
+          });
+          showToast(t(UPLOAD_TOAST.unsupportedFile));
           return null;
         }
 
@@ -198,6 +363,15 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         );
 
         if (uploadRes.status === 401) {
+          logDropboxUploadError("uploadSingleFile token expired", {
+            step: "dropbox_files_upload",
+            retry,
+            httpStatus: uploadRes.status,
+            fileName: originalFileName,
+            dropboxPath,
+            dropboxError: parseDropboxErrorBody(uploadRes.body),
+          });
+
           token = await refreshAccessToken();
 
           uploadRes = await FileSystem.uploadAsync(
@@ -221,12 +395,36 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         }
 
         if (uploadRes.status !== 200) {
+          const errorMessage = parseDropboxUploadError(
+            uploadRes.body,
+            uploadRes.status,
+          );
+          const userMessage = getUserFriendlyUploadError(
+            uploadRes.body,
+            uploadRes.status,
+            t,
+          );
+
+          logDropboxUploadError("uploadSingleFile failed", {
+            step: "dropbox_files_upload",
+            retry,
+            httpStatus: uploadRes.status,
+            fileName: originalFileName,
+            dropboxPath,
+            mimeType,
+            uri: sanitizeFileUri(uri),
+            hasAccessToken: Boolean(token?.trim()),
+            errorMessage,
+            userMessage,
+            dropboxError: parseDropboxErrorBody(uploadRes.body),
+          });
+
           if (retry < 3) {
             await new Promise<void>((resolve) => setTimeout(resolve, 2000));
             return uploadSingleFile(uri, folder, retry + 1);
           }
 
-          showToast(t("upload_failed"));
+          showToast(userMessage);
           return null;
         }
 
@@ -267,12 +465,27 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         return fileJson;
 
       } catch (e: any) {
+        const errorMessage =
+          e?.message || e?.response?.data?.message || "Unknown upload error";
+        const userMessage = getUserFriendlyExceptionError(e, t);
+
+        logDropboxUploadError("uploadSingleFile exception", {
+          step: "dropbox_files_upload",
+          retry,
+          uri: sanitizeFileUri(uri),
+          folder,
+          message: errorMessage,
+          userMessage,
+          code: e?.code ?? null,
+          name: e?.name ?? null,
+        });
+
         if (retry < 3) {
           await new Promise<void>((resolve) => setTimeout(resolve, 2000));
           return uploadSingleFile(uri, folder, retry + 1);
         }
 
-        showToast(e?.message || t("upload_failed"));
+        showToast(userMessage);
         return null;
       }
     },
@@ -548,6 +761,14 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         const uploaded = results.filter((r): r is FileUploadResult => r !== null);
 
         if (uploaded.length === 0) {
+          logDropboxUploadError("processQueueItem all files failed", {
+            step: "process_queue_item",
+            orderId: batchItem?.order_id ?? null,
+            itemId: batchItem?.item_id ?? null,
+            commentId: batchItem?.commentId ?? null,
+            attemptedCount: uris.length,
+            folder,
+          });
           processingLocalKeysRef.current.delete(itemKey);
           syncLocalQueue([...latestQueueRef.current, batchItem]);
           return false;
@@ -575,9 +796,25 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         return true;
 
       } catch (e: any) {
+        const errorMessage =
+          e?.message || e?.response?.data?.message || "Unknown queue upload error";
+        const userMessage = getUserFriendlyExceptionError(e, t);
+
+        logDropboxUploadError("processQueueItem exception", {
+          step: "process_queue_item",
+          orderId: item?.order_id ?? null,
+          itemId: item?.item_id ?? null,
+          commentId: item?.commentId ?? null,
+          imageCount: item?.image_data?.length ?? 0,
+          message: errorMessage,
+          userMessage,
+          code: e?.code ?? null,
+          name: e?.name ?? null,
+        });
+
         processingLocalKeysRef.current.delete(itemKey);
         syncLocalQueue([...latestQueueRef.current, batchItem]);
-        showToast(e?.message || t("upload_failed"));
+        showToast(userMessage);
         return false;
       }
     },

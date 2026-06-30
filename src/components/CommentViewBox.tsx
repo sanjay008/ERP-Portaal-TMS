@@ -15,7 +15,6 @@ export default function CommentViewBox({ data=[] }: { data: object[] }) {
       </Text>
 
       <FlatList
-        // data={data}
         data={data}
         style={styles.Container}
         contentContainerStyle={styles.ContentStyle}
@@ -23,13 +22,22 @@ export default function CommentViewBox({ data=[] }: { data: object[] }) {
         renderItem={({ item, index }: any) => {
            if (item.log_type !== 'item_comment') return null;
           return (
-            <View style={styles.CommentBox}>
+            <View
+              style={[
+                styles.CommentBox,
+                item?.isPrivate ? styles.privateCommentItem : styles.normalCommentItem,
+              ]}
+            >
               <View style={SimpleFlex.Flex}>
                 <Image source={Images.userblanck} style={styles.ImageProfile} />
 
                 <View>
-                  <Text style={styles.Text}>{item?.tmsdriverdata?.display_name}</Text>
-                  <Text style={styles.DarkText}>{formatDate(item?.created_at)}</Text>
+                  <Text style={styles.Text}>
+                    {item?.user?.username || item?.tmsdriverdata?.display_name}
+                  </Text>
+                  <Text style={styles.DarkText}>
+                    {item?.display_date ?? formatDate(item?.created_at)}
+                  </Text>
                 </View>
               </View>
 
@@ -64,6 +72,20 @@ const styles = StyleSheet.create({
   },
   CommentBox: {
     width: "100%",
+  },
+  normalCommentItem: {
+    backgroundColor: Colors.commentBg,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: Colors.Boxgray,
+    padding: 12,
+  },
+  privateCommentItem: {
+    backgroundColor: Colors.RemoveBg,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: Colors.FullRed,
+    padding: 12,
   },
   ImageProfile: {
     width: 40,

@@ -14,6 +14,7 @@ type Props = {
   statusData?: any;
   backOrder?: boolean;
   onPress?: () => void;
+
 };
 
 export default function ParcelBox({
@@ -25,6 +26,7 @@ export default function ParcelBox({
   statusData = null,
   backOrder = false,
   onPress,
+
 }: Props) {
   const { t } = useTranslation();
 
@@ -47,7 +49,7 @@ export default function ParcelBox({
     title.length > 70 ? title.slice(0, 67).trim() + "..." : title;
 
   return (
-    <Pressable style={styles.container} onPress={onPress}>
+    <Pressable style={styles.container} >
       <View style={styles.LeftSection}>
         <View style={styles.NumberBox}>
           <Text style={styles.Text}>{index + 1}</Text>
@@ -79,13 +81,21 @@ export default function ParcelBox({
             />
           </View>
         )}
-
-        <View
+  <>
+  {/* <Pressable onPress={onPress}>
+    <Text>
+      {
+        item?.
+      }
+    </Text>
+  </Pressable> */}
+        <Pressable
+        onPress={onPress}
           style={[
             styles.Status,
             { backgroundColor: data?.tmsstatus?.color || Colors.background },
           ]}
-        >
+          >
           <Image
             source={{
               uri: Icon || getDirectDropboxLink(data?.tmsstatus?.shared_link),
@@ -94,9 +104,10 @@ export default function ParcelBox({
             resizeMode="contain"
             tintColor={Colors.black}
             cachePolicy="memory-disk"
-  transition={200}
-          />
-        </View>
+            transition={200}
+            />
+        </Pressable>
+            </>
       </View>
     </Pressable>
   );

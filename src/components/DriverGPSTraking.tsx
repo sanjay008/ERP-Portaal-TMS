@@ -81,7 +81,7 @@ export default function DriverGPSTraking() {
 
     setIsGpsPermissionLoading(true);
     try {
-      if (reason === 'denied') {
+      if (reason === 'denied' || reason === 'services_disabled') {
         const status = await retryLocationPermission();
         handleGpsPermissionResult(status);
         return;

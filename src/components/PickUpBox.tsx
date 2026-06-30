@@ -18,6 +18,11 @@ import CustomCollapsible from "./CustomCollapsible";
 import ParcelBox from "./ParcelBox";
 import PickupPogressMap from "./PickupPogressMap";
 
+const stripHtmlTags = (value: unknown): string => {
+  if (value == null) return "";
+  return String(value).replace(/<[^>]*>/g, "").trim();
+};
+
 function PickUpBox({
   index = 0,
   onPress,
@@ -50,6 +55,7 @@ function PickUpBox({
   const pickup: boolean = false;
   const collapsibleRef = useRef<any>(null);
   const { setToast } = useContext(GlobalContextData);
+  const cleanedDriverNote = stripHtmlTags(driver_note);
 
   const getDirectDropboxLink = (sharedLink: string) => {
     if (!sharedLink) return "";
@@ -133,6 +139,22 @@ function PickUpBox({
       style={[styles.container, pickup && styles.BorderOrBg]}
       onPress={onPress}
     >
+      <View style={[styles.Flex,{marginTop:0,marginBottom:10}]}>
+        <Text
+          style={[styles.OrderIdTextBig, pickup && { color: Colors.black }]}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+        >
+          {`#${OrderId}`}
+        </Text>
+        <Text
+          style={[styles.OrderId, pickup && { color: Colors.black }]}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+        >
+          {ItemData?.stop_data?.sort_order}
+        </Text>
+      </View>
       <View style={[styles.Flex, { marginTop: 0 }]}>
         <View style={styles.TopContainer}>
           <View style={styles.NumberBox}>
@@ -190,29 +212,29 @@ function PickUpBox({
           </Text>
         </View>
       </View>
-    
-        <View style={styles.matarialTab}>
-          {
-            ItemData?.tms_order_type == "pickup" &&
-            <View style={[styles.Exchange,{backgroundColor:"#00b43c"}]}>
-              <Image source={Images.UpSideArrow} style={[styles.ExChangeIcon,]} tintColor={Colors.white} />
-            </View>
 
-          }
-          {
-            ItemData?.tms_order_type == "delivery" &&
-            <View style={[styles.Exchange,{backgroundColor:"#007bff"}]}>
-              <Image source={Images.deliveryILabelcon} style={[styles.ExChangeIcon,]} tintColor={Colors.white} />
-            </View>
-          }
-          {
-            ItemData?.is_exchange == 1 &&
-            <View style={styles.Exchange}>
-              <Image source={Images.ExchangeIcon} style={styles.ExChangeIcon} tintColor={Colors.white} />
-            </View>
-          }
-        </View>
-  
+      <View style={styles.matarialTab}>
+        {
+          ItemData?.tms_order_type == "pickup" &&
+          <View style={[styles.Exchange, { backgroundColor: "#00b43c" }]}>
+            <Image source={Images.UpSideArrow} style={[styles.ExChangeIcon,]} tintColor={Colors.white} />
+          </View>
+
+        }
+        {
+          ItemData?.tms_order_type == "delivery" &&
+          <View style={[styles.Exchange, { backgroundColor: "#007bff" }]}>
+            <Image source={Images.deliveryILabelcon} style={[styles.ExChangeIcon,]} tintColor={Colors.white} />
+          </View>
+        }
+        {
+          ItemData?.is_exchange == 1 &&
+          <View style={styles.Exchange}>
+            <Image source={Images.ExchangeIcon} style={styles.ExChangeIcon} tintColor={Colors.white} />
+          </View>
+        }
+      </View>
+
       <View style={[styles.Flex, { marginTop: 0 }]}>
         <Text style={styles.OrderIdText}>{t("Total Parcel")}</Text>
         <View style={[SimpleFlex.Flex, { marginVertical: 5 }]}>
@@ -278,9 +300,9 @@ function PickUpBox({
         </View>
       </CustomCollapsible>
 
-      {driver_note && (
+      {!!cleanedDriverNote && (
         <View style={styles.DriverBG}>
-          <Text style={[styles.Text, { color: "#FFEA00" }]}>{driver_note || ""}</Text>
+          <Text style={[styles.Text, { color: "#FFEA00" }]}>{cleanedDriverNote}</Text>
         </View>
       )}
 
@@ -322,6 +344,7 @@ function PickUpBox({
           <Text style={styles.labelText}>{additional_cost_label}</Text>
         </View>
       )}
+
     </Pressable>
   );
 }
@@ -342,11 +365,27 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.Boxgray,
   },
+  OrderId: {
+    fontSize: 18,
+    fontFamily: FONTS.Medium,
+    color: Colors.black,
+  },
+  OrderIdTextBig: {
+    fontSize: 20,
+    fontFamily: FONTS.Medium,
+    color: Colors.black,
+    // textAlign:"center",
+    // marginBottom:10,
+    // borderBottomWidth: 1,
+    borderColor: Colors.border,
+    paddingBottom: 10,
+    // marginBottom: 5
+  },
   matarialTab: {
     marginTop: 5,
-    flexDirection:"row",
-    gap:5,
-    alignSelf:"flex-end"
+    flexDirection: "row",
+    gap: 5,
+    alignSelf: "flex-end"
   },
   Exchange: {
     padding: 5,

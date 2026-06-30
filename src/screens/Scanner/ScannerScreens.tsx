@@ -1,8 +1,8 @@
 import apiConstants from "@/src/api/apiConstants";
 import { Images } from "@/src/assets/images";
 import AnimatedModal from "@/src/components/AnimatedModal";
-import CameraPermissionSheet from "@/src/components/CameraPermissionSheet";
 import { ApiFormatDate } from "@/src/components/ApiFormatDate";
+import CameraPermissionSheet from "@/src/components/CameraPermissionSheet";
 import ConformationModal from "@/src/components/ConformationModal";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
 import { goBackOrPopTo } from "@/src/components/goBackOrPopTo";
@@ -43,8 +43,8 @@ import { useIsFocused } from "@react-navigation/native";
 import axios from "axios";
 import { Audio } from "expo-av";
 import {
-  CameraView,
   CameraType,
+  CameraView,
 } from "expo-camera";
 import { goBack } from "expo-router/build/global-state/routing";
 import React, {
@@ -108,7 +108,8 @@ export default function ScannerScreens({ navigation, route }: any) {
     type: 1,
     ProductItem: [],
     bgColor: "",
-    OrderData: null
+    OrderData: null,
+    stopData: null
   });
   const [SecondModal, setSecondModal] = useState<{
     visible: boolean;
@@ -807,6 +808,7 @@ export default function ScannerScreens({ navigation, route }: any) {
           type: res?.data?.order_data?.tmsstatus?.id == 2 ? 2 : 1,
           delivery_btn: res?.data?.delivery_btn,
           OrderData: res?.data,
+          stopData: res?.data?.order_data?.stop_data?.sort_order || null
         };
 
         if (
@@ -2025,6 +2027,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         onClose={closeConformationModalAndUnlockScan}
         OrderData={ConformationModalOpen?.OrderData}
         delivery_btn={ConformationModalOpen?.delivery_btn}
+        stopData={ConformationModalOpen?.stopData}
         NewScanText={ConformationModalOpen?.NewScanText}
         onNewScanPress={
           ConformationModalOpen?.NewScanText
