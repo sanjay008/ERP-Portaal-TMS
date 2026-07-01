@@ -40,9 +40,6 @@ export default function MapsViewBox({
   const destination = useMemo(
     () =>
       resolveOrderNavigationDestination({
-        orderStatusId,
-        pickupRegionData,
-        deliveryRegionData,
         orderData,
       }),
     [orderStatusId, pickupRegionData, deliveryRegionData, orderData],
