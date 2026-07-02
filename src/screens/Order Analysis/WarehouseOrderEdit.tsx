@@ -283,7 +283,7 @@ const {top,bottom} = useSafeAreaInsets();
         },
       });
 
-      if (res?.status) {
+      if (res?.status_code == 200) {
         setOrderData(res?.data);
         applyOrderToForm(res?.data);
         await syncRegionsAndRoutes(

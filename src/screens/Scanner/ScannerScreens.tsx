@@ -28,10 +28,8 @@ import { Colors } from "@/src/utils/colors.js";
 import { appendToLocalUploadQueue } from "@/src/utils/localUploadQueue";
 import {
   hasRemainingParcelsToDeliver,
-  isDeliveryItemAlreadyScanned,
-  itemNeedsDeliveryLabelSelection,
-  shouldOpenPickupPlannedModal,
 } from "@/src/utils/pickupPlanned";
+import { runParcelVerifyFlow } from "@/src/utils/runParcelVerifyFlow";
 import { isBlankSignatureData } from "@/src/utils/signatureValidation";
 import { FONTS, height, width } from "@/src/utils/storeData";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -246,7 +244,9 @@ export default function ScannerScreens({ navigation, route }: any) {
   }, [SelectCurrentDeliveryLabel]);
 
   const isCommentOptional =
-    SelectCurrentDeliveryLabel?.id === 21 && selectDamageData?.id === 34;
+    Number(ItemsData?.tmsstatus?.id ?? ItemsData?.status) === 4 &&
+    SelectCurrentDeliveryLabel?.id === 21 &&
+    selectDamageData?.id === 34;
 
   const getSessionDeliveryLabel = useCallback(
     () =>
@@ -710,295 +710,47 @@ export default function ScannerScreens({ navigation, route }: any) {
   }, [Refreshcondition, Focused]);
 
   const QuestiongetApi = async (data: any) => {
-
-    try {
-      const payload = {
-        token: UserData?.user?.verify_token,
-        role: UserData?.user?.role,
-        relaties_id: UserData?.relaties?.id,
-        user_id: UserData?.user?.id,
-        item_id: data?.item_id,
-        order_id: data?.order_id,
-        date: GloblyTypeSlide == "outbound_scan" ? ApiFormatDate(new Date()) : ApiFormatDate(SelectCurrentDate),
-        type: type ?? GloblyTypeSlide
-      };
-
-      if (!payload.item_id || !payload.order_id) {
-        setToast({
-          top: 45,
-          text: t("Invalid QR: Missing item or order ID"),
-          type: "error",
-          visible: true,
-        });
-        return;
-      }
-
-      let res = await ApiService(apiConstants.Verify_status, {
-        customData: payload,
-      });
-
-      console.log("Verify_status", res);
-
-      if (Boolean(res?.status)) {
-        if (AllDeliveyLabel?.length == 0) {
-          setAllDeliveyLabel(res?.data?.delivery_label_title_map || [])
-        }
-
-        if (AllDamageListReason?.length == 0) {
-          setAllDamageListReason(res?.data?.damaged_parcel || [])
-        }
-        setselectDamageData(
-          res?.data?.damaged_parcel?.find(el => el?.id == 34) || null
-        );
-
-        if (
-          !is_scan &&
-          Number(res?.data?.order_data?.status) !== 1 &&
-          type === 'pickup_dropoff'
-        ) {
-          const modalConfig: any = {
-            visible: true,
-            title: t("This parcel cannot be scanned. Only pickup parcels are allowed for scanning."),
-            Icon: Images.OrderIconFull,
-            LButtonText: t("Cancel"),
-            RButtonText: "",
-            RButtonStyle: Colors.primary,
-            RColor: Colors.white,
-            personData: res?.data?.order_data || [],
-            ProductItem: res?.data?.order_data?.items || [],
-            order_id: data?.order_id,
-            type: res?.data?.order_data?.tmsstatus?.id == 2 ? 2 : 1,
-            delivery_btn: 0,
-            OrderData: res?.data,
-          };
-
-          setConformationModal(modalConfig);
-
-          return
-        }
-        setOrderDeliveryMapingLableOption(res?.data?.order_label_mapping || []);
-        setItemsData(res?.data?.order_data);
-        setShowDeliveryLabelList(res?.data?.delivery_btn || 0);
-
-        setSelectPlace({
-          item_id: data?.item_id,
-          order_id: data?.order_id,
-        });
-        if (Number(res?.data?.total_remaining_item_to_scan) <= 1) {
-          setProductDamageList(res?.data?.item_data_list || [])
-        }
-        const slideType = type ?? GloblyTypeSlide;
-        const isStatus4 =
-          Number(res?.data?.order_data?.tmsstatus?.id) === 4;
-
-        const questionText =
-          res?.data?.quetion ?? res?.data?.question ?? "";
-        const modalConfig: any = {
-          visible: true,
-          title: questionText ? t(questionText) : t("Order Delivery Info"),
-          Icon: Images.OrderIconFull,
-          LButtonText:
-            res?.data?.delivery_btn == 1 ? t("No delivery") : t("Cancel"),
-          RButtonText: t(res?.data?.btn_lable),
-          RButtonStyle: Colors.primary,
-          RColor: Colors.black,
-          personData: res?.data?.order_data || [],
-          ProductItem: res?.data?.order_data?.items || [],
-          order_id: data?.order_id,
-          type: res?.data?.order_data?.tmsstatus?.id == 2 ? 2 : 1,
-          delivery_btn: res?.data?.delivery_btn,
-          OrderData: res?.data,
-          stopData: res?.data?.order_data?.stop_data?.sort_order || null
-        };
-
-        if (
-          res?.data?.isscaned ||
-          Number(res?.data?.is_scan) === 1
-        ) {
-          modalConfig.NewScanText = t("New scan");
-          modalConfig.onPress = async () => {
-            await StatusUpdateFun(data, true);
-          };
-        }
-
-        if (
-          slideType === 'driver_loading' &&
-          res?.data?.order_data?.items[0]?.tmsstatus?.id === 11
-        ) {
-          modalConfig.UnloadingText = t('Unloading');
-          modalConfig.onUnloadingPress = async () => {
-            await ReversParcelFun(data?.order_id, data?.item_id);
-          };
-          modalConfig.NewScanText = t('New scan');
-        }
-
-        if (isStatus4 && slideType === 'pickup_dropoff') {
-          const itemAlreadyScanned = isDeliveryItemAlreadyScanned(
-            res?.data,
-            data,
-          );
-
-          if (itemAlreadyScanned || Boolean(res?.data?.error_key)) {
-            setResponseOrderData(res?.data?.order_data);
-            setConformationModal(modalConfig);
-            return;
-          }
-
-          const sessionDeliveryLabel = getSessionDeliveryLabel();
-          const needsLabel = itemNeedsDeliveryLabelSelection(res?.data, data);
-
-          if (needsLabel) {
-            if (sessionDeliveryLabel == null) {
-              deliveryLabelModalPendingRef.current = true;
-              setEvetyTimeShowDeliveryLabelList(true);
-              return;
-            }
-
-            setAlerModalOpen({
-              visible: true,
-              title: t("Camera"),
-              Description: t("You have to take a picture for proof?"),
-              LButtonText: t("Cancel"),
-              RButtonText: t("Camera"),
-              Icon: Images.UploadPhoto,
-              RButtonStyle: Colors.primary,
-              RColor: Colors.white,
-              LButtonStyle: Colors.gray,
-              LColor: Colors.black,
-              onPress: () => {
-                deliveryTypeRef.current = false;
-                setDeliveyDataSave({
-                  Data: res?.data?.order_data,
-                  selectReason: sessionDeliveryLabel,
-                  setData: async (images: any[]) => {
-                    if (images?.length > 0) {
-                      setAllSelectImage(images);
-                      if (SelectCurrentDeliveryLabel?.id == 21 && selectDamageData?.id == 28) {
-                        setComment(false);
-                      } else {
-                        setComment(true);
-
-                      }
-                    }
-                  },
-                  type: false,
-                });
-                navigation.navigate("Camera");
-                setAlerModalOpen((prev) => ({ ...prev, visible: false }));
-              },
-            });
-            return;
-          }
-        }
-
-        const isPickupPlannedFlow = shouldOpenPickupPlannedModal(
-          res?.data,
-          data,
-          type,
-          GloblyTypeSlide,
-        );
-
-        if (isPickupPlannedFlow) {
-          pickupPlannedModalPendingRef.current = true;
-          pendingPickupScanRef.current = data;
-          setPickupPlannedSheetOpen({
-            visible: true,
-            orderData: res?.data?.order_data,
-            scanPayload: data,
-          });
-          return;
-        }
-
-        const sessionLabelForCamera = getSessionDeliveryLabel();
-        const isDeliveryPendingItem =
-          isStatus4 &&
-          slideType === 'pickup_dropoff' &&
-          itemNeedsDeliveryLabelSelection(res?.data, data);
-
-        let scanOverlayShown = false;
-
-        if (
-          sessionLabelForCamera == null ||
-          Boolean(res?.data?.error_key)
-        ) {
-          if (!isDeliveryPendingItem) {
-            setResponseOrderData(res?.data?.order_data);
-            setConformationModal(modalConfig);
-            scanOverlayShown = true;
-          }
-        } else if (!isDeliveryPendingItem) {
-          setAlerModalOpen({
-            visible: true,
-            title: t("Camera"),
-            Description: t("You have to take a picture for proof?"),
-            LButtonText: t("Cancel"),
-            RButtonText: t("Camera"),
-            Icon: Images.UploadPhoto,
-            RButtonStyle: Colors.primary,
-            RColor: Colors.white,
-            LButtonStyle: Colors.gray,
-            LColor: Colors.black,
-            onPress: () => {
-              deliveryTypeRef.current = false;
-              setDeliveyDataSave({
-                Data: res?.data?.order_data,
-                selectReason: sessionLabelForCamera,
-                setData: async (data: any[]) => {
-                  if (data?.length > 0) {
-                    setAllSelectImage(data);
-                    if (SelectCurrentDeliveryLabel?.id == 21 && selectDamageData?.id == 28) {
-                      setComment(false);
-                    } else {
-                      setComment(true);
-                    }
-                  }
-                },
-                type: false,
-              });
-              navigation.navigate("Camera");
-              setAlerModalOpen((prev) => ({ ...prev, visible: false }));
-              // ✅ close parent AFTER navigating
-
-            },
-          });
-          scanOverlayShown = true;
-        }
-
-        if (!scanOverlayShown) {
-          setResponseOrderData(res?.data?.order_data);
-          setConformationModal(modalConfig);
-        }
-        // setGetConformationQuestion(res?.data || "");
-      } else {
-
-        setConformationModal({
-          visible: true,
-          Icon: Images.InValidScanner,
-          title: t(res?.message) || t("Invalid QR code. Please try again."),
-          LButtonText: t("Cancel"),
-          RColor: Colors.white,
-          bgColor: Colors.red,
-          personData: res?.data?.order_data || [],
-          ProductItem: res?.data?.order_data?.items || [],
-          order_id: data?.order_id,
-          OrderData: res?.data
-        });
-        setToast({
-          top: 45,
-          text: t(res?.message) || t("Something went wrong"),
-          type: "error",
-          visible: true,
-        });
-      }
-    } catch (error) {
-      unlockScanner();
-      setToast({
-        top: 45,
-        text: ErrorHandle(error).message,
-        type: "error",
-        visible: true,
-      });
-    }
+    await runParcelVerifyFlow(data, {
+      userData: UserData,
+      slideType: type ?? GloblyTypeSlide,
+      routeSlideType: type,
+      selectCurrentDate: SelectCurrentDate,
+      isScanRoute: is_scan,
+      source: 'scanner',
+      t,
+      errorHandle: ErrorHandle,
+      navigation,
+      globlyTypeSlide: GloblyTypeSlide,
+      allDeliveyLabel: AllDeliveyLabel,
+      allDamageListReason: AllDamageListReason,
+      selectCurrentDeliveryLabel: SelectCurrentDeliveryLabel,
+      selectDamageData: selectDamageData,
+      setAllDeliveyLabel,
+      setAllDamageListReason,
+      setselectDamageData,
+      setOrderDeliveryMapingLableOption,
+      setItemsData,
+      setShowDeliveryLabelList,
+      setSelectPlace,
+      setProductDamageList,
+      setResponseOrderData,
+      setConformationModal,
+      setToast,
+      setEvetyTimeShowDeliveryLabelList,
+      setAlerModalOpen,
+      setDeliveyDataSave,
+      setAllSelectImage,
+      setComment,
+      setPickupPlannedSheetOpen,
+      deliveryLabelModalPendingRef,
+      pickupPlannedModalPendingRef,
+      pendingPickupScanRef,
+      deliveryTypeRef,
+      statusUpdateFun: StatusUpdateFun,
+      reversParcelFun: ReversParcelFun,
+      getSessionDeliveryLabel,
+      unlockScanner,
+    });
   };
 
   const ReversParcelFun = async (order_id = null, item_id = null) => {
@@ -1447,7 +1199,12 @@ export default function ScannerScreens({ navigation, route }: any) {
 
 
   const CommentFun = async () => {  
-    if (SelectCurrentDeliveryLabel && SelectCurrentDeliveryLabel?.damaged_required == 1 && selectDamageData == null) {
+    if (
+      Number(ItemsData?.tmsstatus?.id ?? ItemsData?.status) === 4 &&
+      SelectCurrentDeliveryLabel &&
+      SelectCurrentDeliveryLabel?.damaged_required == 1 &&
+      selectDamageData == null
+    ) {
       setCommentError(t("Choose  Damaged"));
 
       return
@@ -2219,11 +1976,7 @@ export default function ScannerScreens({ navigation, route }: any) {
                 </View>
               </View>
               {
-                (
-                  (SelectCurrentDeliveryLabel != null &&
-                    SelectCurrentDeliveryLabel?.damaged_required === 1) ||
-                  Number(ItemsData?.status) === 1
-                ) &&
+                Number(ItemsData?.tmsstatus?.id ?? ItemsData?.status) === 4 &&
                 <FlatList
                   data={AllDamageListReason}
                   style={styles.CardWhite}

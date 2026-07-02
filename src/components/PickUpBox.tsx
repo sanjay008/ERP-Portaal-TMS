@@ -13,6 +13,7 @@ import {
 import { Images } from "../assets/images";
 import { GlobalContextData } from "../context/GlobalContext";
 import { Colors } from "../utils/colors";
+import { isDeliveryPhaseOrder } from "../utils/orderStatus";
 import { FONTS, SimpleFlex } from "../utils/storeData";
 import CustomCollapsible from "./CustomCollapsible";
 import ParcelBox from "./ParcelBox";
@@ -49,6 +50,7 @@ function PickUpBox({
   external_order_id = null,
   showScannerButton = false,
   onScannerPress,
+  onParcelManualVerify,
 }: any) {
   const { t } = useTranslation();
   const [isCollapsed, setisCollapsed] = useState<boolean>(AllisCollapsed !== null ? AllisCollapsed : true);
@@ -284,6 +286,10 @@ function PickUpBox({
             scrollEnabled={false}
             keyExtractor={(item, index) => String(item?.id ?? index)}
             renderItem={({ item, index }) => {
+              const canManualVerify =
+                Number(item?.allow_direct_scan) === 1 &&
+                typeof onParcelManualVerify === 'function';
+
               return (
                 <ParcelBox
                   qty={item?.qty}
@@ -293,6 +299,17 @@ function PickUpBox({
                   statusData={statusData}
                   Icon={getDirectDropboxLink(item?.tmsstatus?.shared_link)}
                   backOrder={backOrder ? item?.item_label !== null : false}
+                  showManualVerify={canManualVerify}
+                  onManualVerify={() =>
+               
+                    
+                    onParcelManualVerify({
+                      order_id: item?.tms_order_id,
+                      item_id: item?.id,
+                      item,
+                    })}
+                  
+                  
                 />
               );
             }}
@@ -312,7 +329,7 @@ function PickUpBox({
             start={start}
             end={end}
             ItemData={ItemData}
-            DeliveryLable={["4", "5"]?.includes(ItemData?.status)}
+            DeliveryLable={isDeliveryPhaseOrder(ItemData)}
           />
         </View>
       )}

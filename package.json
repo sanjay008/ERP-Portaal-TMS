@@ -36,6 +36,7 @@
     "expo-background-task": "~1.0.10",
     "expo-build-properties": "~1.0.10",
     "expo-camera": "~17.0.10",
+    "expo-clipboard": "~8.0.8",
     "expo-constants": "~18.0.13",
     "expo-device": "^55.0.17",
     "expo-file-system": "~19.0.22",

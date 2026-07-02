@@ -12,7 +12,9 @@ import PickUpBox from "@/src/components/PickUpBox";
 import SearchInput from "@/src/components/SearchInput";
 import TwoTypeButton from "@/src/components/TwoTypeButton";
 import Loader from "@/src/components/loading";
+import ParcelVerifyOverlays from "@/src/components/ParcelVerifyOverlays";
 import { GlobalContextData } from "@/src/context/GlobalContext";
+import { useParcelVerifyFlow } from "@/src/hooks/useParcelVerifyFlow";
 import {
   type LocationAccessStatus,
   openAppSettings,
@@ -48,6 +50,7 @@ export default function FilterScreen({ navigation, route }: any) {
   const { item, Type } = route?.params || {};
   const [SlideType, setSlideType] = useState(item?.type || Type);
   const [tooltipVisible, setTooltipVisible] = useState(false);
+  const [tooltipMessage, setTooltipMessage] = useState('');
   const Focused = useIsFocused();
   const [ScanerbtnDisableTiptool, setScanerbtnDisableTiptool] = useState(false);
   const {
@@ -115,6 +118,9 @@ export default function FilterScreen({ navigation, route }: any) {
 
   const handleGpsTrackButtonPress = useCallback(() => {
     if (!selectRegionData) {
+      setTooltipMessage(
+        t('Please select a region first. GPS tracking can be enabled afterward.'),
+      );
       setTooltipVisible(true);
       return;
     }
@@ -127,6 +133,9 @@ export default function FilterScreen({ navigation, route }: any) {
   const handleGpsStartConfirm = useCallback(
     async (date: string, time: string) => {
       if (!selectRegionData) {
+        setTooltipMessage(
+          t('Please select a region first. GPS tracking can be enabled afterward.'),
+        );
         setTooltipVisible(true);
         return;
       }
@@ -332,6 +341,36 @@ export default function FilterScreen({ navigation, route }: any) {
     selectRegionData?.id,
   ]);
 
+  const parcelVerifyFlow = useParcelVerifyFlow({
+    slideType: SlideType ?? GloblyTypeSlide ?? item?.type ?? Type,
+    selectCurrentDate: SelectDate || SelectCurrentDate,
+    source: 'filter',
+    isScanRoute: false,
+    isManualDirectVerify: true,
+    onSuccess: getFilterDataFun,
+    onGoToListPage: getFilterDataFun,
+  });
+
+  const handleParcelManualVerify = useCallback(
+    ({ order_id, item_id }: { order_id: number | string; item_id: number | string }) => {
+      if (
+        UserData?.user?.role === 'chauffeur' &&
+        SlideType === 'pickup_dropoff' &&
+        !isGpsTracking
+      ) {
+        setTooltipMessage(
+          t(
+            'Please start your shift to verify parcels. This feature will be available once GPS tracking is enabled.',
+          ),
+        );
+        setTooltipVisible(true);
+        return;
+      }
+      if (UserData?.user?.role === 'chauffeur' && !isGpsTracking) return;
+      parcelVerifyFlow.startVerify({ order_id, item_id });
+    },
+    [UserData?.user?.role, SlideType, isGpsTracking, parcelVerifyFlow, t],
+  );
 
   useEffect(() => {
 
@@ -572,29 +611,40 @@ const FilterData = useMemo(() => {
               Icon={Images.Scan}
               style={{ width: 46, height: 46 }}
               onPress={async () => {
-                if (SlideType == "pickup_dropoff") {
-                  setIsGpsPermissionLoading(true);
-                  let status: LocationAccessStatus;
-                  try {
-                    status = await resolveLocationAccess();
-                  } finally {
-                    setIsGpsPermissionLoading(false);
-                  }
-                  if (status !== "granted") {
-                    handleGpsPermissionResult(status);
+                if (SlideType === 'pickup_dropoff') {
+                  if (
+                    UserData?.user?.role === 'chauffeur' &&
+                    !activeShift?.shiftActive
+                  ) {
+                    setTooltipMessage(
+                      t(
+                        'Please start your shift before scanning. This feature will be available once GPS tracking is enabled.',
+                      ),
+                    );
+                    setTooltipVisible(true);
                     return;
                   }
-                  if (!isGpsTracking) {
-                    setIsGpsTracking(true);
+
+                  if (UserData?.user?.role === 'chauffeur') {
+                    setIsGpsPermissionLoading(true);
+                    let status: LocationAccessStatus;
+                    try {
+                      status = await resolveLocationAccess();
+                    } finally {
+                      setIsGpsPermissionLoading(false);
+                    }
+                    if (status !== 'granted') {
+                      handleGpsPermissionResult(status);
+                      return;
+                    }
                   }
                 }
-                navigation.navigate("Scanner", {
+                navigation.navigate('Scanner', {
                   fun: getFilterDataFun,
                   type: SlideType,
-                  is_scan: false
-                })
-              }
-              }
+                  is_scan: false,
+                });
+              }}
             />
             <AnimatedTooltip
               visible={ScanerbtnDisableTiptool}
@@ -626,11 +676,6 @@ const FilterData = useMemo(() => {
                 activeOpacity={0.8}
                 disabled={isGpsPermissionLoading}
               >
-                <AnimatedTooltip
-                  visible={tooltipVisible}
-                  message={t("Please select a region first. GPS tracking can be enabled afterward.")}
-                  onClose={() => setTooltipVisible(false)}
-                />
                 <Image
                   source={isGpsTracking ? Images.TrackOn : Images.TrackOff}
                   style={{ width: 20, height: 20 }}
@@ -686,6 +731,7 @@ const FilterData = useMemo(() => {
                   <PickUpBox
                     AllisCollapsed={isCollapsed}
                     index={index}
+                    onParcelManualVerify={handleParcelManualVerify}
                     LableStatus={item?.tmsstatus?.status_name}
                     OrderId={item?.id}
                     ProductItem={item?.items}
@@ -725,6 +771,12 @@ const FilterData = useMemo(() => {
         </ScrollView>
       </View>
 
+      <AnimatedTooltip
+        visible={tooltipVisible}
+        message={tooltipMessage}
+        onClose={() => setTooltipVisible(false)}
+      />
+
       <GpsTrackingStartPopup
         visible={gpsStartPopupVisible}
         mode="start"
@@ -743,6 +795,8 @@ const FilterData = useMemo(() => {
         onClose={() => setGpsPermissionSheet({ visible: false, reason: null })}
         onPrimaryAction={handleGpsSheetPrimaryAction}
       />
+
+      <ParcelVerifyOverlays flow={parcelVerifyFlow} navigation={navigation} />
     </SafeAreaView>
   );
 }

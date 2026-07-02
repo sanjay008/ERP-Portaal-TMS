@@ -1,6 +1,7 @@
-import React, { useContext } from "react";
+import * as Clipboard from 'expo-clipboard';
+import React, { useCallback, useContext } from "react";
 import { useTranslation } from "react-i18next";
-import { Image, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import DashedLine from "react-native-dashed-line";
 import { Images } from "../assets/images";
 import { GlobalContextData } from "../context/GlobalContext";
@@ -20,34 +21,98 @@ export { formatDateWithWeekday };
 export default function PickupProgressMap({
   start = "",
   end = "",
-  DeliveryLable = false,
   ItemData = null,
 }: Props) {
   const { t } = useTranslation();
-  const hasETA = !!ItemData?.route_stop?.eta_time_formatted;
+  const { SelectLanguage, GloblyTypeSlide, setToast } = useContext(GlobalContextData);
+
+  const routeStop = ItemData?.route_stop;
+  const hasETA = !!routeStop?.eta_time_formatted;
+  const hasEtaKm = routeStop?.leg_distance_km != null;
+
   const PicukUpDate = ItemData?.pickup_date || "";
   const DeliveryDate = ItemData?.deliver_date || "";
-  const { SelectLanguage,GloblyTypeSlide } = useContext(GlobalContextData);
   const pickupFormatted = formatDateWithWeekday(PicukUpDate, SelectLanguage || "en");
   const deliveryFormatted = formatDateWithWeekday(DeliveryDate, SelectLanguage || "en");
 
-  const isPickupDropoff = GloblyTypeSlide === "pickup_dropoff" || GloblyTypeSlide === "driver_loading";
-  const statusNum = Number(ItemData?.status ?? ItemData?.tmsstatus?.id);
+  const isPickupDropoff =
+    GloblyTypeSlide === "pickup_dropoff" || GloblyTypeSlide === "driver_loading";
   const onlyPickup = isPickupDropoff && ItemData?.stop_data?.stop_type == "pickup";
   const onlyDelivery =
     isPickupDropoff && ItemData?.stop_data?.stop_type == "deliver";
   const showPickup = !onlyDelivery;
   const showDelivery = !onlyPickup;
-  const showConnector = showPickup && showDelivery;
+  const showBothStops = showPickup && showDelivery;
 
-  return (
-    <View style={styles.container}>
-      {/* Pickup row */}
-      {showPickup && (
-      <View style={[styles.row, styles.pickupRow]}>
-        <View style={styles.iconCell}>
-          <Image source={Images.StartPoint} style={styles.icon} />
-          {showConnector && (
+  const copyAddress = useCallback(
+    async (address: string) => {
+      const value = address?.trim();
+      if (!value) return;
+      await Clipboard.setStringAsync(value)
+    },
+    [setToast, t],
+  );
+
+  const renderEtaBox = () => (
+    <View style={styles.etaBox}>
+      <Text style={styles.etaLabel}>{t("ETA")}</Text>
+      <Text style={styles.etaTime}>{routeStop?.eta_time_formatted}</Text>
+      {hasEtaKm && (
+        <>
+          <View style={styles.etaDivider} />
+          <Text style={styles.etaKm}>
+            {Number(routeStop?.leg_distance_km).toFixed(2)} {t("KM")}
+          </Text>
+        </>
+      )}
+    </View>
+  );
+
+  const renderEtaConnectorRow = () => (
+    <View style={styles.row}>
+      <View style={styles.iconCell}>
+        <View style={styles.lineFull} pointerEvents="none">
+          <DashedLine
+            dashLength={5}
+            dashThickness={2}
+            dashGap={4}
+            style={styles.dashed}
+            axis="vertical"
+            dashColor={Colors.black}
+          />
+        </View>
+      </View>
+      <View style={styles.etaWrap}>{renderEtaBox()}</View>
+    </View>
+  );
+
+  const renderStopRow = ({
+    icon,
+    weekday,
+    date,
+    dateFallback,
+    address,
+    regionName,
+    regionStyle,
+    regionTextStyle,
+    showLineBelow,
+    isSingleStop,
+  }: {
+    icon: any;
+    weekday: string;
+    date: string;
+    dateFallback: string;
+    address: string;
+    regionName?: string;
+    regionStyle: object;
+    regionTextStyle: object;
+    showLineBelow: boolean;
+    isSingleStop: boolean;
+  }) => (
+    <View style={[styles.row, isSingleStop ? styles.singleStopRow : styles.pickupRow]}>
+      <View style={styles.iconCell}>
+        <Image source={icon} style={styles.icon} />
+        {showLineBelow && (
           <View style={styles.lineBelow} pointerEvents="none">
             <DashedLine
               dashLength={5}
@@ -58,89 +123,71 @@ export default function PickupProgressMap({
               dashColor={Colors.black}
             />
           </View>
-          )}
-        </View>
-
-        <View style={styles.labelCol}>
-          <Text style={styles.labelWeekday} numberOfLines={1}>
-            {pickupFormatted.weekday}
-          </Text>
-          <Text style={styles.labelDate} numberOfLines={1}>
-            {pickupFormatted.date || formatDate(PicukUpDate, SelectLanguage || "en")}
-          </Text>
-        </View>
-
-        <View style={styles.addressCol}>
-          <Text style={styles.addressText}>{start}</Text>
-          {!!ItemData?.pickup_region_data?.name && (
-            <View style={[styles.regionPill, styles.pickupPill]}>
-              <Text style={[styles.regionText, styles.pickupText]} numberOfLines={1}>
-                {ItemData.pickup_region_data.name}
-              </Text>
-            </View>
-          )}
-        </View>
+        )}
       </View>
-      )}
 
-      {hasETA && showConnector && (
-        <View style={styles.row}>
-          <View style={styles.iconCell}>
-            <View style={styles.lineFull} pointerEvents="none">
-              <DashedLine
-                dashLength={5}
-                dashThickness={2}
-                dashGap={4}
-                style={styles.dashed}
-                axis="vertical"
-                dashColor={Colors.black}
-              />
-            </View>
-          </View>
-          <View style={styles.etaWrap}>
-            <View style={styles.etaBox}>
-              <Text style={styles.etaLabel}>{t("ETA")}</Text>
-              <Text style={styles.etaTime}>
-                {ItemData.route_stop.eta_time_formatted}
-              </Text>
-              <View style={styles.etaDivider} />
-              <Text style={styles.etaKm}>
-                {Number(ItemData?.route_stop?.leg_distance_km).toFixed(2)}{" "}
-                {t("KM")}
-              </Text>
-            </View>
-          </View>
-        </View>
-      )}
-
-      {/* Delivery row */}
-      {showDelivery && (
-      <View style={styles.row}>
-        <View style={styles.iconCell}>
-          <Image source={Images.EndPoint} style={styles.icon} />
-        </View>
-
-        <View style={styles.labelCol}>
-          <Text style={styles.labelWeekday} numberOfLines={1}>
-            {deliveryFormatted.weekday}
-          </Text>
-          <Text style={styles.labelDate} numberOfLines={1}>
-            {deliveryFormatted.date || formatDate(DeliveryDate, SelectLanguage || "en")}
-          </Text>
-        </View>
-
-        <View style={styles.addressCol}>
-          <Text style={styles.addressText}>{end}</Text>
-          {!!ItemData?.delivery_region_data?.name && (
-            <View style={[styles.regionPill, styles.deliveryPill]}>
-              <Text style={[styles.regionText, styles.deliveryText]} numberOfLines={1}>
-                {ItemData.delivery_region_data.name}
-              </Text>
-            </View>
-          )}
-        </View>
+      <View style={styles.labelCol}>
+        <Text style={styles.labelWeekday} numberOfLines={1}>
+          {weekday}
+        </Text>
+        <Text style={styles.labelDate} numberOfLines={1}>
+          {date || dateFallback}
+        </Text>
       </View>
-      )}
+
+      <View style={[styles.addressCol, isSingleStop && styles.singleAddressCol]}>
+        <Pressable
+          onPress={() => copyAddress(address)}
+          disabled={!address?.trim()}
+          style={({ pressed }) => [pressed && styles.addressPressed]}
+        >
+          <Text style={styles.addressText}>{address}</Text>
+        </Pressable>
+        {!!regionName && (
+          <View style={[styles.regionPill, regionStyle]}>
+            <Text style={[styles.regionText, regionTextStyle]} numberOfLines={1}>
+              {regionName}
+            </Text>
+          </View>
+        )}
+        {isSingleStop && hasETA && (
+          <View style={styles.singleStopEta}>{renderEtaBox()}</View>
+        )}
+      </View>
+    </View>
+  );
+
+  return (
+    <View style={styles.container}>
+      {showPickup &&
+        renderStopRow({
+          icon: Images.StartPoint,
+          weekday: pickupFormatted.weekday,
+          date: pickupFormatted.date,
+          dateFallback: formatDate(PicukUpDate, SelectLanguage || "en"),
+          address: start,
+          regionName: ItemData?.pickup_region_data?.name,
+          regionStyle: styles.pickupPill,
+          regionTextStyle: styles.pickupText,
+          showLineBelow: showBothStops && (hasETA || showDelivery),
+          isSingleStop: !showBothStops,
+        })}
+
+      {hasETA && showBothStops && renderEtaConnectorRow()}
+
+      {showDelivery &&
+        renderStopRow({
+          icon: Images.EndPoint,
+          weekday: deliveryFormatted.weekday,
+          date: deliveryFormatted.date,
+          dateFallback: formatDate(DeliveryDate, SelectLanguage || "en"),
+          address: end,
+          regionName: ItemData?.delivery_region_data?.name,
+          regionStyle: styles.deliveryPill,
+          regionTextStyle: styles.deliveryText,
+          showLineBelow: false,
+          isSingleStop: !showBothStops,
+        })}
     </View>
   );
 }
@@ -156,6 +203,9 @@ const styles = StyleSheet.create({
   pickupRow: {
     minHeight: 52,
   },
+  singleStopRow: {
+    minHeight: 48,
+  },
   iconCell: {
     width: 28,
     alignSelf: "stretch",
@@ -167,7 +217,6 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
   },
-  // Dashed line is absolutely positioned so it NEVER affects layout height
   lineBelow: {
     position: "absolute",
     top: 22,
@@ -218,6 +267,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginVertical: 4,
   },
+  singleStopEta: {
+    marginTop: 10,
+    alignSelf: "flex-start",
+  },
   etaLabel: {
     fontSize: 9,
     fontFamily: FONTS.Medium,
@@ -248,11 +301,17 @@ const styles = StyleSheet.create({
     paddingLeft: 10,
     paddingBottom: 6,
   },
+  singleAddressCol: {
+    paddingBottom: 2,
+  },
   addressText: {
     fontSize: 13,
     fontFamily: FONTS.Medium,
     color: Colors.black,
     lineHeight: 19,
+  },
+  addressPressed: {
+    opacity: 0.65,
   },
   regionPill: {
     alignSelf: "flex-start",

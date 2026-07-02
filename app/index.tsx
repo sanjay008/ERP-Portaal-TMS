@@ -12,6 +12,7 @@ import HomeScreens from "@/src/screens/Home/HomeScreens";
 import LanguageScreens from "@/src/screens/Language/LanguageScreens";
 import LoadedScreens from "@/src/screens/Loaded/LoadedScreens";
 import MapsScreens from "@/src/screens/Maps/MapsScreens";
+import MasterDriver from "@/src/screens/MasterDriver/MasterDriver";
 import NoInternet from "@/src/screens/NoInternet/NoInternet";
 import AllOrder from "@/src/screens/Order Analysis/AllOrder";
 import OrderDetails from "@/src/screens/Order Analysis/OrderDetails";
@@ -120,6 +121,10 @@ export default function index() {
                 <Stack.Screen
                   name="Select"
                   component={withLayoutHeader(SelectLanguage)}
+                />
+                <Stack.Screen
+                  name="MasterDriver"
+                  component={withLayoutHeader(MasterDriver)}
                 />
                 <Stack.Screen
                   name="Loading"

@@ -12,15 +12,18 @@ import LoadingModal from "@/src/components/LoadingModal";
 import MapsViewBox from "@/src/components/MapsViewBox";
 import NoParcelModal from "@/src/components/NoParcelModal";
 import PickUpBox from "@/src/components/PickUpBox";
+import ParcelVerifyOverlays from "@/src/components/ParcelVerifyOverlays";
 import ScannerInfoModal from "@/src/components/ScannerInfoModal";
 import SecondCustomModal from "@/src/components/SecondCustomModal";
 import SignatureModal from "@/src/components/SignatureModal";
 import TwoTypeButton from "@/src/components/TwoTypeButton";
 import { GlobalContextData } from "@/src/context/GlobalContext";
+import { useParcelVerifyFlow } from "@/src/hooks/useParcelVerifyFlow";
 import { DropboxContext } from "@/src/context/UploadProider";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
 import { appendToLocalUploadQueue } from "@/src/utils/localUploadQueue";
+import { isDeliveryOrder, isPickupOrder } from "@/src/utils/orderStatus";
 import { isBlankSignatureData } from "@/src/utils/signatureValidation";
 import { FONTS } from "@/src/utils/storeData";
 import { useIsFocused } from "@react-navigation/native";
@@ -28,7 +31,7 @@ import axios from "axios";
 import * as ImagePicker from "expo-image-picker";
 import * as IntentLauncher from "expo-intent-launcher";
 import { StatusBar } from "expo-status-bar";
-import React, { useContext, useEffect, useState } from "react";
+import React, { useCallback, useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Alert,
@@ -229,7 +232,7 @@ export default function DetailsScreens({ navigation, route }: any) {
     }
   }, [Focused, SelectActiveDate, SelectActiveRegionData, type]);
 
-  useEffect(() => {
+  const openNoParcelPickupCamera = useCallback(() => {
     setPickUpDataSave({
       setData: async (data: any[]) => {
         if (data?.length > 0) {
@@ -238,21 +241,8 @@ export default function DetailsScreens({ navigation, route }: any) {
         }
       },
     });
-    setDeliveyDataSave({
-      setData: async (data: any[]) => {
-        if (data?.length > 0) {
-          setAllSelectImage(data);
-          setComment(true);
-        }
-      },
-    });
-
-    return () => {
-      setPickUpDataSave(null);
-      setDeliveyDataSave(null);
-    };
-
-  }, [Focused]);
+    navigation.navigate('Camera', { from: 'Pickup' });
+  }, [navigation, setPickUpDataSave]);
 
   const openCamera = async () => {
     try {
@@ -296,10 +286,7 @@ export default function DetailsScreens({ navigation, route }: any) {
       OrderId: ItemsData?.id,
       onPress: () => {
         setScannerModalOpen((prev) => ({ ...prev, visible: false }));
-        navigation.navigate("Camera", { from: "Pickup" });
-
-        // goBackOrPopTo(navigation,"Camera", { from: "Pickup" })
-
+        openNoParcelPickupCamera();
       },
     });
   };
@@ -411,6 +398,23 @@ export default function DetailsScreens({ navigation, route }: any) {
       setDataLoading(false);
     }
   };
+
+  const parcelVerifyFlow = useParcelVerifyFlow({
+    slideType: type ?? GloblyTypeSlide,
+    selectCurrentDate: SelectActiveDate || SelectCurrentDate,
+    source: 'filter',
+    isScanRoute: false,
+    isManualDirectVerify: true,
+    onSuccess: GetIdByOrderFun,
+    onGoToListPage: GetIdByOrderFun,
+  });
+
+  const handleParcelManualVerify = useCallback(
+    ({ order_id, item_id }: { order_id: number | string; item_id: number | string }) => {
+      parcelVerifyFlow.startVerify({ order_id, item_id });
+    },
+    [parcelVerifyFlow],
+  );
 
   const AddImageOrCommentFun = async (comment: string = "", data = []) => {
     setIsLoading(true);
@@ -969,10 +973,9 @@ export default function DetailsScreens({ navigation, route }: any) {
             external_order_id={ItemsData?.external_order_id}
             contact={true}
             showScannerButton={
-              PermissionData?.can_scan_order &&
-              Number(ItemsData?.tmsstatus?.id) === 1
+              PermissionData?.can_scan_order && isPickupOrder(ItemsData)
             }
-
+            onParcelManualVerify={handleParcelManualVerify}
           />
 
           {
@@ -990,7 +993,7 @@ export default function DetailsScreens({ navigation, route }: any) {
             msg={LocationDataMessage ?? t("Destination location is unavailable")}
           />
 
-          {PermissionData?.can_scan_order && !(ItemsData?.tmsstatus?.id == 4) ? (
+          {PermissionData?.can_scan_order && !isDeliveryOrder(ItemsData) ? (
             <View style={styles.Flex}>
               <TwoTypeButton
                 title={t("No Parcel")}
@@ -1027,7 +1030,7 @@ export default function DetailsScreens({ navigation, route }: any) {
               />
             </View>
           )
-            : ItemsData?.tmsstatus?.id == 4 &&
+            : isDeliveryOrder(ItemsData) &&
             <FlatList
               data={AllDeliveyLabel}
               scrollEnabled={false}
@@ -1312,8 +1315,7 @@ export default function DetailsScreens({ navigation, route }: any) {
               OrderId: ItemsData?.id,
               onPress: () => {
                 setScannerModalOpen((prev) => ({ ...prev, visible: false }));
-                navigation.navigate("Camera", { from: "Pickup" });
-                // goBackOrPopTo(navigation,"Camera", { from: "Pickup" })
+                openNoParcelPickupCamera();
               },
             });
           }, 500)
@@ -1347,6 +1349,7 @@ export default function DetailsScreens({ navigation, route }: any) {
         delivery_btn={ScannerModalOpen.delivery_btn}
       />{" "}
       <SecondCustomModal SecondModal={SecondModal} />
+      <ParcelVerifyOverlays flow={parcelVerifyFlow} navigation={navigation} />
       <LoadingModal
         visible={IsLoading || LableLoading}
         message={t("Please wait…")}

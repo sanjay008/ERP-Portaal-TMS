@@ -92,6 +92,7 @@ export const Images = {
   ExchangeIcon: require("./image/ExchangeIcon.png"),
   UpSideArrow: require("./image/UpSideArrow.png"),
   deliveryILabelcon: require("./image/deliveryILabelcon.png"),
+  CheckSlotIcon: require("./image/CheckSlotIcon.png"),
 
   
 
