@@ -366,7 +366,6 @@ export default function FilterScreen({ navigation, route }: any) {
         setTooltipVisible(true);
         return;
       }
-      if (UserData?.user?.role === 'chauffeur' && !isGpsTracking) return;
       parcelVerifyFlow.startVerify({ order_id, item_id });
     },
     [UserData?.user?.role, SlideType, isGpsTracking, parcelVerifyFlow, t],

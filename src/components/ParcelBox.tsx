@@ -96,12 +96,8 @@ export default function ParcelBox({
       return;
     }
 
-    if (UserData?.user?.role === 'chauffeur' && !isGpsTracking) {
-      return;
-    }
-
     onManualVerify?.();
-  }, [isShiftBlocked, UserData?.user?.role, isGpsTracking, onManualVerify]);
+  }, [isShiftBlocked, onManualVerify]);
 
   return (
     <>
