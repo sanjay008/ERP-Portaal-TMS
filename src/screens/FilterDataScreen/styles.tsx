@@ -28,7 +28,7 @@ export const styles = StyleSheet.create({
   },
   CountContainer:{
     marginBottom: 15,
-    backgroundColor: Colors.red,
+    backgroundColor: Colors.black,
     padding: 10,
     borderRadius: 6,
   },

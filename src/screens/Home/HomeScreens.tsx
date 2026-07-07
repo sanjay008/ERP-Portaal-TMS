@@ -2,9 +2,17 @@ import apiConstants from "@/src/api/apiConstants";
 import { Images } from "@/src/assets/images";
 import BottomButton from "@/src/components/BottomButton";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
+import GpsPermissionSheet from "@/src/components/GpsPermissionSheet";
 import GpsTrackingStartPopup from "@/src/components/GpsTrackingStartPopup";
 import Loader from "@/src/components/loading";
 import { GlobalContextData } from "@/src/context/GlobalContext";
+import {
+  type LocationAccessStatus,
+  openAppSettings,
+  recheckLocationAccess,
+  resolveLocationAccess,
+  retryLocationPermission,
+} from "@/src/hooks/useUserGPS";
 import ApiService from "@/src/utils/Apiservice";
 import { bootstrapAppDateTime } from "@/src/utils/appDateTime";
 import { Colors } from "@/src/utils/colors";
@@ -15,9 +23,9 @@ import {
 } from "@/src/utils/regionTripApi";
 import { clearActiveShift, doesShiftBelongToUser } from "@/src/utils/shiftSession";
 import { getData } from "@/src/utils/storeData";
-import React, { useCallback, useContext, useEffect, useState } from "react";
+import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { BackHandler, FlatList, Image, Platform, Pressable, Text, View } from "react-native";
+import { AppState, BackHandler, FlatList, Image, Platform, Pressable, Text, View } from "react-native";
 import { styles } from "./styles";
 
 export default function HomeScreens({ navigation, route }: any) {
@@ -28,6 +36,12 @@ export default function HomeScreens({ navigation, route }: any) {
   const [tripEndDate, setTripEndDate] = useState("");
   const [tripEndTime, setTripEndTime] = useState("");
   const [isTripEnding, setIsTripEnding] = useState(false);
+  const [isGpsPermissionLoading, setIsGpsPermissionLoading] = useState(false);
+  const [gpsPermissionSheet, setGpsPermissionSheet] = useState<{
+    visible: boolean;
+    reason: LocationAccessStatus | null;
+  }>({ visible: false, reason: null });
+  const pendingFilterItemRef = useRef<any>(null);
   const { t } = useTranslation();
   const {
     UserData,
@@ -102,6 +116,97 @@ export default function HomeScreens({ navigation, route }: any) {
       getSliderDataFun();
     }
   }, [UserData, refresh]);
+
+  const navigateToFilterScreen = useCallback(
+    (slideItem: any) => {
+      setGloblyTypeSlide(slideItem?.type);
+      navigation.navigate("FilterScreen", { item: slideItem });
+    },
+    [navigation, setGloblyTypeSlide],
+  );
+
+  const handleGpsPermissionResult = useCallback(
+    (status: LocationAccessStatus) => {
+      if (status === "granted") {
+        setGpsPermissionSheet({ visible: false, reason: null });
+        const pendingItem = pendingFilterItemRef.current;
+        pendingFilterItemRef.current = null;
+        if (pendingItem) {
+          navigateToFilterScreen(pendingItem);
+        }
+        return;
+      }
+
+      setGpsPermissionSheet({ visible: true, reason: status });
+    },
+    [navigateToFilterScreen],
+  );
+
+  const handlePickupDropoffPress = useCallback(
+    async (slideItem: any) => {
+      pendingFilterItemRef.current = slideItem;
+      setIsGpsPermissionLoading(true);
+      try {
+        const status = await resolveLocationAccess();
+        handleGpsPermissionResult(status);
+      } finally {
+        setIsGpsPermissionLoading(false);
+      }
+    },
+    [handleGpsPermissionResult],
+  );
+
+  const handleGpsSheetPrimaryAction = useCallback(async () => {
+    const reason = gpsPermissionSheet.reason;
+    if (!reason || reason === "granted") return;
+
+    setIsGpsPermissionLoading(true);
+    try {
+      if (reason === "denied" || reason === "services_disabled") {
+        const status = await retryLocationPermission();
+        handleGpsPermissionResult(status);
+        return;
+      }
+
+      await openAppSettings();
+    } finally {
+      setIsGpsPermissionLoading(false);
+    }
+  }, [gpsPermissionSheet.reason, handleGpsPermissionResult]);
+
+  useEffect(() => {
+    if (!gpsPermissionSheet.visible) return;
+
+    const subscription = AppState.addEventListener("change", async (nextState) => {
+      if (nextState !== "active") return;
+
+      const status = await recheckLocationAccess();
+      handleGpsPermissionResult(status);
+    });
+
+    return () => subscription.remove();
+  }, [gpsPermissionSheet.visible, handleGpsPermissionResult]);
+
+  const handleSlidePress = useCallback(
+    (slideItem: any) => {
+      if (slideItem?.type === "pickup_dropoff") {
+        handlePickupDropoffPress(slideItem);
+        return;
+      }
+
+      setGloblyTypeSlide(slideItem?.type);
+      if (slideItem?.type == "outbound_scan") {
+        navigation.navigate("Scanner", { item: slideItem });
+      } else if (slideItem?.type == "AllOrder") {
+        navigation.navigate("ScanDetails", { Type: slideItem?.type });
+      } else if (slideItem?.type == "warehouse_change") {
+        navigation.navigate("ScanManager", { item: slideItem });
+      } else {
+        navigation.navigate("FilterScreen", { item: slideItem });
+      }
+    },
+    [handlePickupDropoffPress, navigation, setGloblyTypeSlide],
+  );
 
   const handleCloseShiftPress = useCallback(() => {
     setTripEndDate(activeShift?.planning_date || SelectCurrentDate || SelectActiveDate || "");
@@ -207,19 +312,7 @@ export default function HomeScreens({ navigation, route }: any) {
                 styles.SlideContainer,
                 { backgroundColor: item?.color_code || Colors.Boxgray },
               ]}
-              onPress={() => {
-                setGloblyTypeSlide(item?.type)
-                if (item?.type == "outbound_scan") {
-                  navigation.navigate("Scanner", { item: item })
-                } else if (item?.type == "AllOrder") {
-                  navigation.navigate("ScanDetails", { Type: item?.type })
-                } else if (item?.type == "warehouse_change") {
-                  navigation.navigate("ScanManager", { item: item })
-                } else {
-                  navigation.navigate("FilterScreen", { item: item })
-                }
-              }
-              }
+              onPress={() => handleSlidePress(item)}
             >
               <Image
                 source={
@@ -243,6 +336,17 @@ export default function HomeScreens({ navigation, route }: any) {
           onPress={handleCloseShiftPress}
         />
       }
+      <GpsPermissionSheet
+        visible={gpsPermissionSheet.visible}
+        reason={gpsPermissionSheet.reason}
+        loading={isGpsPermissionLoading}
+        onClose={() => {
+          pendingFilterItemRef.current = null;
+          setGpsPermissionSheet({ visible: false, reason: null });
+        }}
+        onPrimaryAction={handleGpsSheetPrimaryAction}
+      />
+
       <GpsTrackingStartPopup
         visible={tripEndPopupVisible}
         mode="end"

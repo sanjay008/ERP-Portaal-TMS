@@ -1,3 +1,4 @@
+import { ImageSource } from "expo-image";
 import React from "react";
 import { Image, StyleSheet, Text, TouchableOpacity } from "react-native";
 import { Colors } from "../utils/colors";
@@ -9,8 +10,9 @@ type Props = {
   onPress?: () => void;
   style?: object;
   TitleStyle?: object;
-  IconStyle?: object;
+  IconStyle?: ImageSource;
   onlyIcon?: boolean;
+  tintColor?: string;
 };
 
 export default function TwoTypeButton({
@@ -21,10 +23,11 @@ export default function TwoTypeButton({
   TitleStyle,
   IconStyle,
   onlyIcon = false,
+  tintColor=Colors.white,
 }: Props) {
   return (
     <TouchableOpacity style={[styles.container, style]} onPress={onPress}>
-      <Image source={Icon} style={[styles.Icon, IconStyle]} />
+      <Image source={Icon} style={[styles.Icon, IconStyle, { tintColor: tintColor }]} />
       {!onlyIcon && <Text style={[styles.Title, TitleStyle]}>{title}</Text>}
     </TouchableOpacity>
   );

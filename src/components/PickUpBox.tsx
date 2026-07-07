@@ -74,7 +74,7 @@ function PickUpBox({
   };
 
   const getPhoneNumber = () => {
-    const mobile = ItemData?.wa_whatsapp_number;
+    const mobile = ItemData?.wa_whatsapp_number || "";
     if (!mobile) return null;
     return mobile;
   };

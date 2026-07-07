@@ -1,27 +1,27 @@
 import apiConstants from '@/src/api/apiConstants';
+import { Images } from '@/src/assets/images';
 import { useErrorHandle } from '@/src/components/ErrorHandle';
-import { DropboxContext } from '@/src/context/UploadProider';
 import { GlobalContextData } from '@/src/context/GlobalContext';
+import { DropboxContext } from '@/src/context/UploadProider';
 import ApiService from '@/src/utils/Apiservice';
+import { Colors } from '@/src/utils/colors';
 import { appendToLocalUploadQueue } from '@/src/utils/localUploadQueue';
-import { hasRemainingParcelsToDeliver } from '@/src/utils/pickupPlanned';
 import { isDeliveryOrder } from '@/src/utils/orderStatus';
 import {
   isDescriptionOptional,
   isSignatureRequiredAfterStatusUpdate,
   shouldSkipCommentAfterCamera,
 } from '@/src/utils/parcelCommentRules';
-import { isBlankSignatureData } from '@/src/utils/signatureValidation';
+import { hasRemainingParcelsToDeliver } from '@/src/utils/pickupPlanned';
 import {
   type ParcelVerifyScanPayload,
   runParcelVerifyFlow,
 } from '@/src/utils/runParcelVerifyFlow';
+import { isBlankSignatureData } from '@/src/utils/signatureValidation';
 import { useNavigation } from '@react-navigation/native';
 import axios from 'axios';
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Images } from '@/src/assets/images';
-import { Colors } from '@/src/utils/colors';
 
 type UseParcelVerifyFlowOptions = {
   slideType: string;
@@ -234,7 +234,7 @@ export function useParcelVerifyFlow({
           payload.is_driver_unloading = 1;
         }
 
-        if (GloblyTypeSlide === 'pickup_dropoff' && selectDamageData) {
+        if (GloblyTypeSlide === 'pickup_dropoff' || GloblyTypeSlide === 'additional_address') {
           payload.is_damage = selectDamageData?.id;
         }
 

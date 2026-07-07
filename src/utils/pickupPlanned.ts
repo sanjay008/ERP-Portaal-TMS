@@ -1,24 +1,31 @@
 /** Pickup scheduled / planned — tmsstatus.id must be exactly 1 */
-export const PICKUP_PLANNED_STATUS_ID = 1;
+export const PICKUP_PLANNED_STATUS_ID = [1,8];
 
 export const DELIVERY_STATUS_ID = 4;
 
 export function getOrderTmsStatusId(order: any): number {
   if (!order) return NaN;
-  const raw = order?.tmsstatus?.id ?? order?.tms_status_id;
+
+  
+  const raw = order?.items[0]?.tmsstatus?.id ?? order?.tmsstatus?.id ?? order?.tms_status_id;
   const parsed = Number(raw);
   return Number.isFinite(parsed) ? parsed : NaN;
 }
 
 export function isPickupPlannedOrder(order: any): boolean {
-  return getOrderTmsStatusId(order) === PICKUP_PLANNED_STATUS_ID;
+  return  PICKUP_PLANNED_STATUS_ID?.includes(getOrderTmsStatusId(order));
 }
 
 export function isPickupDropoffSlide(
   slideType?: string | null,
   globalSlideType?: string | null,
 ): boolean {
-  return slideType === 'pickup_dropoff' || globalSlideType === 'pickup_dropoff';
+  return (
+    slideType === 'pickup_dropoff' ||
+    slideType === 'additional_address' ||
+    globalSlideType === 'pickup_dropoff' ||
+    globalSlideType === 'additional_address'
+  );
 }
 
 function itemMatchesScanPayload(

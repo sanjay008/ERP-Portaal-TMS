@@ -1,4 +1,5 @@
 import { getOrderStatusId, isDeliveryOrder } from '@/src/utils/orderStatus';
+import { isPickupPlannedOrder } from '@/src/utils/pickupPlanned';
 
 const toFlag = (value: unknown): boolean | null => {
   if (value == null || value === '') return null;
@@ -8,12 +9,11 @@ const toFlag = (value: unknown): boolean | null => {
   return null;
 };
 
-/** Damaged / undamaged — only when order delivery status id is 4. */
 export function shouldShowDamageInCommentModal(
   _deliveryLabel: any,
   order: any,
 ): boolean {
-  return isDeliveryOrder(order);
+  return isDeliveryOrder(order) || isPickupPlannedOrder(order);
 }
 
 /** Signature step after last parcel — same rules as ScannerScreens CommentFun. */

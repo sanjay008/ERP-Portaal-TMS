@@ -1,15 +1,15 @@
-import { ApiFormatDate } from '@/src/components/ApiFormatDate';
 import apiConstants from '@/src/api/apiConstants';
 import { Images } from '@/src/assets/images';
+import { ApiFormatDate } from '@/src/components/ApiFormatDate';
 import ApiService from '@/src/utils/Apiservice';
 import { Colors } from '@/src/utils/colors';
+import { isDeliveryOrder, isPickupOrder } from '@/src/utils/orderStatus';
+import { shouldSkipCommentAfterCamera } from '@/src/utils/parcelCommentRules';
 import {
   isDeliveryItemAlreadyScanned,
   itemNeedsDeliveryLabelSelection,
   shouldOpenPickupPlannedModal,
 } from '@/src/utils/pickupPlanned';
-import { isDeliveryOrder, isPickupOrder } from '@/src/utils/orderStatus';
-import { shouldSkipCommentAfterCamera } from '@/src/utils/parcelCommentRules';
 
 export type ParcelVerifyScanPayload = {
   order_id: number | string;
@@ -209,10 +209,10 @@ export async function runParcelVerifyFlow(
       slideType === 'driver_loading' &&
       res?.data?.order_data?.items[0]?.tmsstatus?.id === 11
     ) {
-      modalConfig.UnloadingText = deps.t('Unloading');
-      modalConfig.onUnloadingPress = async () => {
-        await deps.reversParcelFun(data?.order_id, data?.item_id);
-      };
+      // modalConfig.UnloadingText = deps.t('Unloading');
+      // modalConfig.onUnloadingPress = async () => {
+      //   await deps.reversParcelFun(data?.order_id, data?.item_id);
+      // };
       modalConfig.NewScanText =
         deps.source === 'scanner' ? deps.t('New scan') : undefined;
     }

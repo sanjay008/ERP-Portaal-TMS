@@ -8,11 +8,11 @@ import DropDownBox from "@/src/components/DropDownBox";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
 import GpsPermissionSheet from "@/src/components/GpsPermissionSheet";
 import GpsTrackingStartPopup from "@/src/components/GpsTrackingStartPopup";
+import Loader from "@/src/components/loading";
+import ParcelVerifyOverlays from "@/src/components/ParcelVerifyOverlays";
 import PickUpBox from "@/src/components/PickUpBox";
 import SearchInput from "@/src/components/SearchInput";
 import TwoTypeButton from "@/src/components/TwoTypeButton";
-import Loader from "@/src/components/loading";
-import ParcelVerifyOverlays from "@/src/components/ParcelVerifyOverlays";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import { useParcelVerifyFlow } from "@/src/hooks/useParcelVerifyFlow";
 import {
@@ -30,6 +30,7 @@ import {
   tripOn,
 } from "@/src/utils/regionTripApi";
 import { saveActiveShift } from "@/src/utils/shiftSession";
+import { Ionicons } from "@expo/vector-icons";
 import { useIsFocused } from "@react-navigation/native";
 import React, { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -95,28 +96,59 @@ export default function FilterScreen({ navigation, route }: any) {
   const [gpsTrackingStartTime, setGpsTrackingStartTime] = useState("");
   const [isTripSubmitting, setIsTripSubmitting] = useState(false);
   const [Loading, setIsLoading] = useState(false);
+  const [deviceLocationStatus, setDeviceLocationStatus] =
+    useState<LocationAccessStatus>('denied');
 
-  const enableGpsTracking = useCallback(() => {
-    setGpsPermissionSheet({ visible: false, reason: null });
-    setIsGpsTracking(true);
-  }, [setIsGpsTracking]);
+  const isPickupDropoffChauffeur = useMemo(
+    () =>
+      (GloblyTypeSlide === 'pickup_dropoff' || SlideType === 'pickup_dropoff') &&
+      UserData?.user?.role === 'chauffeur',
+    [GloblyTypeSlide, SlideType, UserData?.user?.role],
+  );
+
+  const isDeviceLocationReady = deviceLocationStatus === 'granted';
+
+  const isRouteReady =
+    isDeviceLocationReady && Boolean(activeShift?.shiftActive);
+
+  const syncTrackingFlag = useCallback(
+    (locationStatus: LocationAccessStatus, shiftActive: boolean) => {
+      setDeviceLocationStatus(locationStatus);
+      setIsGpsTracking(locationStatus === 'granted' && shiftActive);
+    },
+    [setIsGpsTracking],
+  );
 
   const handleGpsPermissionResult = useCallback(
     (status: LocationAccessStatus) => {
       if (status === 'granted') {
-        enableGpsTracking();
+        setGpsPermissionSheet({ visible: false, reason: null });
+        syncTrackingFlag('granted', Boolean(activeShift?.shiftActive));
         return;
       }
 
-      if (!activeShift?.shiftActive) {
-        setIsGpsTracking(false);
-      }
+      syncTrackingFlag(status, Boolean(activeShift?.shiftActive));
       setGpsPermissionSheet({ visible: true, reason: status });
     },
-    [enableGpsTracking, setIsGpsTracking, activeShift?.shiftActive],
+    [activeShift?.shiftActive, syncTrackingFlag],
   );
 
-  const handleGpsTrackButtonPress = useCallback(() => {
+  const handleLocationIconPress = useCallback(async () => {
+    setIsGpsPermissionLoading(true);
+    try {
+      const status = await resolveLocationAccess();
+      handleGpsPermissionResult(status);
+    } finally {
+      setIsGpsPermissionLoading(false);
+    }
+  }, [handleGpsPermissionResult]);
+
+  const handleShiftIconPress = useCallback(async () => {
+    if (!isDeviceLocationReady) {
+      await handleLocationIconPress();
+      return;
+    }
+
     if (!selectRegionData) {
       setTooltipMessage(
         t('Please select a region first. GPS tracking can be enabled afterward.'),
@@ -125,10 +157,16 @@ export default function FilterScreen({ navigation, route }: any) {
       return;
     }
 
-    setGpsTrackingStartDate(SelectDate || "");
+    setGpsTrackingStartDate(SelectDate || '');
     setGpsTrackingStartTime(getCurrentTimeString());
     setGpsStartPopupVisible(true);
-  }, [SelectDate, selectRegionData]);
+  }, [
+    SelectDate,
+    handleLocationIconPress,
+    isDeviceLocationReady,
+    selectRegionData,
+    t,
+  ]);
 
   const handleGpsStartConfirm = useCallback(
     async (date: string, time: string) => {
@@ -192,7 +230,7 @@ export default function FilterScreen({ navigation, route }: any) {
         console.log('[Shift] ON', session);
 
         setGpsStartPopupVisible(false);
-        enableGpsTracking();
+        syncTrackingFlag('granted', true);
       } catch (error: any) {
         setToast({
           top: 45,
@@ -208,7 +246,7 @@ export default function FilterScreen({ navigation, route }: any) {
       UserData,
       selectRegionData,
       handleGpsPermissionResult,
-      enableGpsTracking,
+      syncTrackingFlag,
       setActiveShift,
       setSelectCurrentDate,
       setToast,
@@ -243,17 +281,60 @@ export default function FilterScreen({ navigation, route }: any) {
 
       const status = await recheckLocationAccess();
       if (status === 'granted') {
-        enableGpsTracking();
+        setGpsPermissionSheet({ visible: false, reason: null });
+        syncTrackingFlag('granted', Boolean(activeShift?.shiftActive));
         return;
       }
 
+      syncTrackingFlag(status, Boolean(activeShift?.shiftActive));
       setGpsPermissionSheet((prev) =>
         prev.visible ? { visible: true, reason: status } : prev,
       );
     });
 
     return () => subscription.remove();
-  }, [gpsPermissionSheet.visible, enableGpsTracking]);
+  }, [gpsPermissionSheet.visible, activeShift?.shiftActive, syncTrackingFlag]);
+
+  const shouldMonitorDeviceGps =
+    Focused && isPickupDropoffChauffeur;
+
+  useEffect(() => {
+    if (!shouldMonitorDeviceGps) return;
+
+    let cancelled = false;
+
+    const syncDeviceGpsStatus = async () => {
+      if (cancelled) return;
+
+      const status = await recheckLocationAccess();
+      if (cancelled) return;
+
+      if (status === 'granted') {
+        setGpsPermissionSheet((prev) =>
+          prev.visible ? { visible: false, reason: null } : prev,
+        );
+        syncTrackingFlag('granted', Boolean(activeShift?.shiftActive));
+        return;
+      }
+
+      syncTrackingFlag(status, Boolean(activeShift?.shiftActive));
+      setGpsPermissionSheet({ visible: true, reason: status });
+    };
+
+    syncDeviceGpsStatus();
+    const intervalId = setInterval(syncDeviceGpsStatus, 4000);
+    const appStateSub = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        syncDeviceGpsStatus();
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+      appStateSub.remove();
+    };
+  }, [shouldMonitorDeviceGps, activeShift?.shiftActive, syncTrackingFlag]);
 
   useEffect(() => {
     if (SelectActiveDate && !SelectDate) {
@@ -353,11 +434,11 @@ export default function FilterScreen({ navigation, route }: any) {
 
   const handleParcelManualVerify = useCallback(
     ({ order_id, item_id }: { order_id: number | string; item_id: number | string }) => {
-      if (
-        UserData?.user?.role === 'chauffeur' &&
-        SlideType === 'pickup_dropoff' &&
-        !isGpsTracking
-      ) {
+      if (isPickupDropoffChauffeur && !isRouteReady) {
+        if (!isDeviceLocationReady) {
+          handleLocationIconPress();
+          return;
+        }
         setTooltipMessage(
           t(
             'Please start your shift to verify parcels. This feature will be available once GPS tracking is enabled.',
@@ -368,7 +449,14 @@ export default function FilterScreen({ navigation, route }: any) {
       }
       parcelVerifyFlow.startVerify({ order_id, item_id });
     },
-    [UserData?.user?.role, SlideType, isGpsTracking, parcelVerifyFlow, t],
+    [
+      isPickupDropoffChauffeur,
+      isRouteReady,
+      isDeviceLocationReady,
+      handleLocationIconPress,
+      parcelVerifyFlow,
+      t,
+    ],
   );
 
   useEffect(() => {
@@ -551,10 +639,16 @@ const FilterData = useMemo(() => {
     } else {
       setTotalCountParcel({ pickup: 0, dropoff: 0 });
     }
-    if (selectRegionData == null && !activeShift?.shiftActive) {
-      setIsGpsTracking(false);
+    if (!activeShift?.shiftActive) {
+      syncTrackingFlag(deviceLocationStatus, false);
     }
-  }, [selectRegionData, RegionOrderData, activeShift?.shiftActive, setIsGpsTracking]);
+  }, [
+    selectRegionData,
+    RegionOrderData,
+    activeShift?.shiftActive,
+    deviceLocationStatus,
+    syncTrackingFlag,
+  ]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -608,35 +702,21 @@ const FilterData = useMemo(() => {
             <TwoTypeButton
               onlyIcon={true}
               Icon={Images.Scan}
-              style={{ width: 46, height: 46 }}
+              tintColor={Colors.black}
+              style={{ width: 46, height: 46,backgroundColor:Colors.yellow }}
               onPress={async () => {
-                if (SlideType === 'pickup_dropoff') {
-                  if (
-                    UserData?.user?.role === 'chauffeur' &&
-                    !activeShift?.shiftActive
-                  ) {
-                    setTooltipMessage(
-                      t(
-                        'Please start your shift before scanning. This feature will be available once GPS tracking is enabled.',
-                      ),
-                    );
-                    setTooltipVisible(true);
+                if (isPickupDropoffChauffeur && !isRouteReady) {
+                  if (!isDeviceLocationReady) {
+                    await handleLocationIconPress();
                     return;
                   }
-
-                  if (UserData?.user?.role === 'chauffeur') {
-                    setIsGpsPermissionLoading(true);
-                    let status: LocationAccessStatus;
-                    try {
-                      status = await resolveLocationAccess();
-                    } finally {
-                      setIsGpsPermissionLoading(false);
-                    }
-                    if (status !== 'granted') {
-                      handleGpsPermissionResult(status);
-                      return;
-                    }
-                  }
+                  setTooltipMessage(
+                    t(
+                      'Please start your shift before scanning. This feature will be available once GPS tracking is enabled.',
+                    ),
+                  );
+                  setTooltipVisible(true);
+                  return;
                 }
                 navigation.navigate('Scanner', {
                   fun: getFilterDataFun,
@@ -659,30 +739,37 @@ const FilterData = useMemo(() => {
               suggestions={RegionOrderData}
               placeholder={t("Search by ID or name") + "..."}
               onSelect={() => {}}
-              containerStyle={{ flex: SlideType == "pickup_dropoff" && UserData?.user?.role === "chauffeur" && !activeShift?.shiftActive ? 1 / 1.05 : 1 }}
+              containerStyle={{
+                flex:
+                  isPickupDropoffChauffeur && !activeShift?.shiftActive
+                    ? 1 / 1.05
+                    : 1,
+              }}
             />
-            {
-              SlideType == "pickup_dropoff" && UserData?.user?.role === "chauffeur" && !activeShift?.shiftActive &&
+            {isPickupDropoffChauffeur && !activeShift?.shiftActive && (
               <TouchableOpacity
                 style={[
                   styles.button,
                   {
-                    backgroundColor: isGpsTracking ? Colors.green : Colors.red,
+                    backgroundColor: Colors.red,
                     opacity: isGpsPermissionLoading ? 0.6 : 1,
                   },
                 ]}
-                onPress={handleGpsTrackButtonPress}
+                onPress={
+                  isDeviceLocationReady
+                    ? handleShiftIconPress
+                    : handleLocationIconPress
+                }
                 activeOpacity={0.8}
                 disabled={isGpsPermissionLoading}
               >
-                <Image
-                  source={isGpsTracking ? Images.TrackOn : Images.TrackOff}
-                  style={{ width: 20, height: 20 }}
-                  tintColor={Colors.white}
+                <Ionicons
+                  name={isDeviceLocationReady ? 'car-sport' : 'location'}
+                  size={22}
+                  color={Colors.white}
                 />
-
               </TouchableOpacity>
-            }
+            )}
           </View>
             <View style={styles.CountContainer}>
               <Text style={styles.CountContainerText}>
@@ -738,7 +825,10 @@ const FilterData = useMemo(() => {
                     LableBackground={item?.tmsstatus?.color}
                     additional_cost_label={item?.additional_cost_label}
                     onPress={() => {
-                      if (ScanBTNAvailble || !isGpsTracking) {
+                      if (
+                        ScanBTNAvailble ||
+                        (isPickupDropoffChauffeur && !isRouteReady)
+                      ) {
                         return;
                       }
                       navigation.navigate("Details", { item, type: SlideType });

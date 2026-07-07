@@ -1,7 +1,6 @@
 import apiConstants from "@/src/api/apiConstants";
 import { Images } from "@/src/assets/images";
 import AnimatedModal from "@/src/components/AnimatedModal";
-import { ApiFormatDate } from "@/src/components/ApiFormatDate";
 import CameraPermissionSheet from "@/src/components/CameraPermissionSheet";
 import ConformationModal from "@/src/components/ConformationModal";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
@@ -26,6 +25,7 @@ import {
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors.js";
 import { appendToLocalUploadQueue } from "@/src/utils/localUploadQueue";
+import { shouldShowDamageInCommentModal } from "@/src/utils/parcelCommentRules";
 import {
   hasRemainingParcelsToDeliver,
 } from "@/src/utils/pickupPlanned";
@@ -832,7 +832,9 @@ export default function ScannerScreens({ navigation, route }: any) {
         payload.is_driver_unloading = 1;
       }
 
-      if (GloblyTypeSlide === "pickup_dropoff" && selectDamageData) {
+      if (GloblyTypeSlide === "pickup_dropoff" || GloblyTypeSlide === "additional_address" && selectDamageData) {
+        console.log("selectDamageData", selectDamageData,GloblyTypeSlide);
+        
         payload.is_damage = selectDamageData?.id
       }
 
@@ -1198,7 +1200,7 @@ export default function ScannerScreens({ navigation, route }: any) {
   }
 
 
-  const CommentFun = async () => {  
+  const CommentFun = async () => {
     if (
       Number(ItemsData?.tmsstatus?.id ?? ItemsData?.status) === 4 &&
       SelectCurrentDeliveryLabel &&
@@ -1248,7 +1250,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         }),
       };
 
-      if (GloblyTypeSlide === "pickup_dropoff" && selectDamageData) {
+      if (GloblyTypeSlide === "pickup_dropoff" || GloblyTypeSlide === "additional_address" && selectDamageData) {
         payload.is_damage = selectDamageData?.id
       }
 
@@ -1976,7 +1978,7 @@ export default function ScannerScreens({ navigation, route }: any) {
                 </View>
               </View>
               {
-                Number(ItemsData?.tmsstatus?.id ?? ItemsData?.status) === 4 &&
+                shouldShowDamageInCommentModal(SelectCurrentDeliveryLabel, ItemsData) &&
                 <FlatList
                   data={AllDamageListReason}
                   style={styles.CardWhite}
