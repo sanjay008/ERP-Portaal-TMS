@@ -1,13 +1,28 @@
 import * as Location from 'expo-location';
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { Linking, Platform } from 'react-native';
-import apiConstants from '../api/apiConstants';
+import { AppState, Linking, Platform } from 'react-native';
 import { GlobalContextData } from '../context/GlobalContext';
-import ApiService from '../utils/Apiservice';
+import {
+  buildAndValidateDriverPayload,
+  REQUIRED_CHAUFFEUR_ROLE,
+  resolveTrackingContext,
+  sendDriverLocationUpdate,
+  type DriverCoordinate,
+} from '../utils/driverLocationApi';
+import {
+  isDriverLocationTaskRunning,
+  startDriverBackgroundLocation,
+  stopDriverBackgroundLocation,
+} from '../tasks/driverLocationTask';
+import {
+  ensureBackgroundPermission,
+  getBackgroundPermissionStatus,
+} from '../utils/backgroundLocationPermissions';
 
 type LocationPermissionStatus = {
   granted: boolean;
   canAskAgain: boolean;
+  backgroundGranted: boolean;
 };
 
 export type LocationAccessStatus =
@@ -18,17 +33,51 @@ export type LocationAccessStatus =
 
 export async function checkLocationPermission(): Promise<LocationPermissionStatus> {
   const { status, canAskAgain } = await Location.getForegroundPermissionsAsync();
+  const backgroundStatus = await getBackgroundPermissionStatus();
+
   return {
     granted: status === Location.PermissionStatus.GRANTED,
     canAskAgain: canAskAgain !== false,
+    backgroundGranted: backgroundStatus === Location.PermissionStatus.GRANTED,
   };
+}
+
+export async function areLocationServicesEnabled(): Promise<boolean> {
+  try {
+    return await Location.hasServicesEnabledAsync();
+  } catch {
+    return false;
+  }
+}
+
+export async function ensureLocationServicesEnabled(): Promise<boolean> {
+  if (await areLocationServicesEnabled()) {
+    return true;
+  }
+
+  if (Platform.OS === 'android') {
+    try {
+      await Location.enableNetworkProviderAsync();
+    } catch {
+      // user declined the system dialog or it is unavailable
+    }
+    return await areLocationServicesEnabled();
+  }
+
+  return false;
 }
 
 export async function resolveLocationAccess(): Promise<LocationAccessStatus> {
   const current = await checkLocationPermission();
 
   if (current.granted) {
-    return (await ensureLocationServicesEnabled()) ? 'granted' : 'services_disabled';
+    const servicesEnabled = await ensureLocationServicesEnabled();
+    if (!servicesEnabled) {
+      return 'services_disabled';
+    }
+
+    await ensureBackgroundPermission();
+    return 'granted';
   }
 
   if (!current.canAskAgain) {
@@ -37,7 +86,13 @@ export async function resolveLocationAccess(): Promise<LocationAccessStatus> {
 
   const { status, canAskAgain } = await Location.requestForegroundPermissionsAsync();
   if (status === Location.PermissionStatus.GRANTED) {
-    return (await ensureLocationServicesEnabled()) ? 'granted' : 'services_disabled';
+    const servicesEnabled = await ensureLocationServicesEnabled();
+    if (!servicesEnabled) {
+      return 'services_disabled';
+    }
+
+    await ensureBackgroundPermission();
+    return 'granted';
   }
 
   if (canAskAgain === false) {
@@ -51,7 +106,13 @@ export async function retryLocationPermission(): Promise<LocationAccessStatus> {
   const current = await checkLocationPermission();
 
   if (current.granted) {
-    return (await ensureLocationServicesEnabled()) ? 'granted' : 'services_disabled';
+    const servicesEnabled = await ensureLocationServicesEnabled();
+    if (!servicesEnabled) {
+      return 'services_disabled';
+    }
+
+    await ensureBackgroundPermission();
+    return 'granted';
   }
 
   if (!current.canAskAgain) {
@@ -60,7 +121,13 @@ export async function retryLocationPermission(): Promise<LocationAccessStatus> {
 
   const { status, canAskAgain } = await Location.requestForegroundPermissionsAsync();
   if (status === Location.PermissionStatus.GRANTED) {
-    return (await ensureLocationServicesEnabled()) ? 'granted' : 'services_disabled';
+    const servicesEnabled = await ensureLocationServicesEnabled();
+    if (!servicesEnabled) {
+      return 'services_disabled';
+    }
+
+    await ensureBackgroundPermission();
+    return 'granted';
   }
 
   if (canAskAgain === false) {
@@ -81,64 +148,17 @@ export async function recheckLocationAccess(): Promise<LocationAccessStatus> {
     return current.canAskAgain ? 'denied' : 'blocked';
   }
 
-  return (await areLocationServicesEnabled()) ? 'granted' : 'services_disabled';
+  const servicesEnabled = await areLocationServicesEnabled();
+  if (!servicesEnabled) {
+    return 'services_disabled';
+  }
+
+  return 'granted';
 }
 
 export async function requestLocationAccess(): Promise<boolean> {
-  const current = await checkLocationPermission();
-  if (current.granted) {
-    return true;
-  }
-
-  if (!current.canAskAgain) {
-    await Linking.openSettings();
-    const afterSettings = await checkLocationPermission();
-    return afterSettings.granted;
-  }
-
-  const { status, canAskAgain } = await Location.requestForegroundPermissionsAsync();
-  if (status === Location.PermissionStatus.GRANTED) {
-    return true;
-  }
-
-  if (canAskAgain === false) {
-    await Linking.openSettings();
-    const afterSettings = await checkLocationPermission();
-    return afterSettings.granted;
-  }
-
-  return false;
-}
-
-export async function areLocationServicesEnabled(): Promise<boolean> {
-  try {
-    return await Location.hasServicesEnabledAsync();
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Ensures device location services (the GPS toggle) are ON.
- * On Android this shows the native "Turn on location" system dialog
- * (Location Accuracy resolver) so the user can enable it in-app, without
- * leaving the app. Returns true when location services end up enabled.
- */
-export async function ensureLocationServicesEnabled(): Promise<boolean> {
-  if (await areLocationServicesEnabled()) {
-    return true;
-  }
-
-  if (Platform.OS === 'android') {
-    try {
-      await Location.enableNetworkProviderAsync();
-    } catch {
-      // user declined the system dialog or it is unavailable
-    }
-    return await areLocationServicesEnabled();
-  }
-
-  return false;
+  const status = await resolveLocationAccess();
+  return status === 'granted';
 }
 
 export async function getSafeCurrentPosition(): Promise<Location.LocationObject | null> {
@@ -155,18 +175,7 @@ export async function getSafeCurrentPosition(): Promise<Location.LocationObject 
   }
 }
 
-type UserCoordinateProps = {
-  latitude: number;
-  longitude: number;
-  heading: number | null;
-  speed: number | null;
-  accuracy: number | null;
-};
-
-const TIME_INTERVAL = 3000;
-const DISTANCE_INTERVAL = 50;
 const API_DISTANCE_THRESHOLD = 50;
-const REQUIRED_ROLE = 'chauffeur';
 
 function haversineDistance(
   lat1: number,
@@ -184,93 +193,6 @@ function haversineDistance(
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function getTodayDate(): string {
-  const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-type ValidatedPayload = {
-  token: string;
-  role: string;
-  planning_date: string;
-  relaties_id: string;
-  user_id: string;
-  region_id: string;
-  latitude: string;
-  longitude: string;
-  heading: string;
-  accuracy: string;
-  speed: string;
-  is_active: number;
-};
-
-type PayloadValidationResult =
-  | { valid: true; payload: ValidatedPayload }
-  | { valid: false; reason: string };
-
-function buildAndValidatePayload(
-  coord: UserCoordinateProps,
-  UserData: any,
-  planning_date: string | null | undefined,
-  region_id: number | string | null | undefined,
-  isActive: number,
-): PayloadValidationResult {
-  if (!UserData?.user) {
-    return { valid: false, reason: 'UserData or user is null — user not logged in' };
-  }
-
-  const role = UserData?.user?.role;
-  if (role !== REQUIRED_ROLE) {
-    return { valid: false, reason: `Role is "${role}" — only "${REQUIRED_ROLE}" is allowed` };
-  }
-
-  const token = UserData?.user?.verify_token;
-  if (!token) {
-    return { valid: false, reason: 'verify_token is missing' };
-  }
-
-  const user_id = UserData?.user?.id;
-  if (!user_id) {
-    return { valid: false, reason: 'user_id is missing' };
-  }
-
-  const relaties_id = UserData?.relaties?.id;
-  if (!relaties_id) {
-    return { valid: false, reason: 'relaties_id is missing' };
-  }
-
-  if (!region_id) {
-    return { valid: false, reason: 'region_id is null/missing' };
-  }
-
-  if (!coord.latitude || !coord.longitude) {
-    return { valid: false, reason: `Invalid coordinates — lat: ${coord.latitude}, lon: ${coord.longitude}` };
-  }
-
-  const resolvedPlanningDate = planning_date ?? getTodayDate();
-
-  return {
-    valid: true,
-    payload: {
-      token: String(token),
-      role: String(role),
-      planning_date: String(resolvedPlanningDate),
-      relaties_id: String(relaties_id),
-      user_id: String(user_id),
-      region_id: String(region_id),
-      latitude: String(coord.latitude),
-      longitude: String(coord.longitude),
-      heading: String(coord.heading ?? ''),
-      accuracy: String(coord.accuracy ?? ''),
-      speed: String(coord.speed ?? ''),
-      is_active: isActive,
-    },
-  };
-}
-
 export default function useUserGPS() {
   const {
     UserData,
@@ -281,7 +203,7 @@ export default function useUserGPS() {
     activeShift,
   } = useContext(GlobalContextData);
 
-  const [userCoordinate, setUserCoordinate] = useState<UserCoordinateProps>({
+  const [userCoordinate, setUserCoordinate] = useState<DriverCoordinate>({
     latitude: 0,
     longitude: 0,
     heading: null,
@@ -290,210 +212,271 @@ export default function useUserGPS() {
   });
   const [isSending, setIsSending] = useState(false);
   const [permissionDenied, setPermissionDenied] = useState(false);
+  const [locationAccess, setLocationAccess] = useState<LocationAccessStatus>('denied');
 
   const subscriptionRef = useRef<Location.LocationSubscription | null>(null);
   const lastSentCoordRef = useRef<{ latitude: number; longitude: number } | null>(null);
   const isSendingRef = useRef(false);
   const deactivateCalledRef = useRef(false);
+  const trackingStartedRef = useRef(false);
 
-  const contextRef = useRef({ UserData, SelectCurrentDate, selectRegionData, activeShift });
+  const contextRef = useRef({
+    UserData,
+    SelectCurrentDate,
+    selectRegionData,
+    activeShift,
+  });
+
   useEffect(() => {
-    contextRef.current = { UserData, SelectCurrentDate, selectRegionData, activeShift };
+    contextRef.current = {
+      UserData,
+      SelectCurrentDate,
+      selectRegionData,
+      activeShift,
+    };
   }, [UserData, SelectCurrentDate, selectRegionData, activeShift]);
 
-  const isChauffeur = UserData?.user?.role === REQUIRED_ROLE;
-  const shiftActive = Boolean(activeShift?.shiftActive);
-  const canTrack = isGpsTracking && isChauffeur && shiftActive;
+  const isChauffeur = UserData?.user?.role === REQUIRED_CHAUFFEUR_ROLE;
+  const isLoggedIn = Boolean(UserData?.user?.id);
+  const shouldTrack = isChauffeur && isLoggedIn && isGpsTracking;
+  const canTrack = shouldTrack && locationAccess === 'granted';
 
-  const getTrackingContext = useCallback(() => {
+  const getTrackingContext = useCallback(async () => {
     const { activeShift: shift, SelectCurrentDate: currentDate, selectRegionData: region } =
       contextRef.current;
 
-    if (shift?.shiftActive) {
-      return {
-        region_id: shift.region_id,
-        planning_date: shift.planning_date,
-      };
-    }
-
-    return {
-      region_id: region?.id,
-      planning_date: currentDate ?? getTodayDate(),
-    };
+    return resolveTrackingContext(
+      shift,
+      region?.id,
+      currentDate ?? null,
+    );
   }, []);
 
-  const sendLocationToBackend = useCallback(async (coord: UserCoordinateProps, isActive: number) => {
-    if (isSendingRef.current) return;
+  const sendLocationToBackend = useCallback(
+    async (coord: DriverCoordinate, isActive: number) => {
+      if (isSendingRef.current) {
+        return;
+      }
 
-    const { UserData } = contextRef.current;
-    const { region_id, planning_date } = getTrackingContext();
+      const { UserData: currentUser } = contextRef.current;
+      const { region_id, planning_date } = await getTrackingContext();
 
-    const result: any = buildAndValidatePayload(
-      coord,
-      UserData,
-      planning_date,
-      region_id,
-      isActive,
-    );
-
-    if (!result.valid) {
-      console.warn(`[useUserGPS] API call skipped — ${result.reason}`);
-      return;
-    }
-
-    isSendingRef.current = true;
-    setIsSending(true);
-
-    try {
-      const res = await ApiService(
-        apiConstants.update_driver_live_location,
-        { customData: result.payload },
+      const result = buildAndValidateDriverPayload(
+        coord,
+        currentUser,
+        planning_date,
+        region_id,
+        isActive,
       );
 
-      if (res?.status) {
-        if (isActive === 1) {
-          console.log('[useUserGPS] tracking on', {
-            lat: coord.latitude,
-            lon: coord.longitude,
-            region_id: result.payload.region_id,
-            planning_date: result.payload.planning_date,
-          });
+      if (result.valid === false) {
+        console.warn(`[useUserGPS] API call skipped — ${result.reason}`);
+        return;
+      }
+
+      isSendingRef.current = true;
+      setIsSending(true);
+
+      try {
+        const sent = await sendDriverLocationUpdate(
+          coord,
+          currentUser,
+          region_id,
+          planning_date,
+          isActive,
+        );
+
+        if (sent && isActive === 1) {
           lastSentCoordRef.current = {
             latitude: coord.latitude,
             longitude: coord.longitude,
           };
         }
-      } else {
-        console.warn('[useUserGPS] API responded with failure status');
+      } finally {
+        isSendingRef.current = false;
+        setIsSending(false);
       }
+    },
+    [getTrackingContext],
+  );
+
+  const refreshLocationAccess = useCallback(async () => {
+    const status = await recheckLocationAccess();
+    setLocationAccess(status);
+    setPermissionDenied(status !== 'granted');
+    return status;
+  }, []);
+
+  const stopTracking = useCallback(async (sendDeactivate = true) => {
+    subscriptionRef.current?.remove();
+    subscriptionRef.current = null;
+    trackingStartedRef.current = false;
+
+    try {
+      await stopDriverBackgroundLocation();
     } catch (error) {
-      console.error('[useUserGPS] Failed to send location:', error);
-    } finally {
-      isSendingRef.current = false;
-      setIsSending(false);
+      console.warn('[useUserGPS] failed to stop background location:', error);
     }
-  }, [getTrackingContext]);
 
-  useEffect(() => {
-    if (!canTrack) {
-      if (!isGpsTracking && isChauffeur && !deactivateCalledRef.current) {
-        deactivateCalledRef.current = true;
+    if (sendDeactivate && !deactivateCalledRef.current) {
+      deactivateCalledRef.current = true;
+      const lastCoord = lastSentCoordRef.current;
+      const coordToSend: DriverCoordinate = lastCoord
+        ? {
+            latitude: lastCoord.latitude,
+            longitude: lastCoord.longitude,
+            heading: null,
+            speed: null,
+            accuracy: null,
+          }
+        : {
+            latitude: 0,
+            longitude: 0,
+            heading: null,
+            speed: null,
+            accuracy: null,
+          };
 
-        const lastCoord = lastSentCoordRef.current;
-        const coordToSend: UserCoordinateProps = lastCoord
-          ? { latitude: lastCoord.latitude, longitude: lastCoord.longitude, heading: null, speed: null, accuracy: null }
-          : { latitude: 0, longitude: 0, heading: null, speed: null, accuracy: null };
+      await sendLocationToBackend(coordToSend, 0);
+    }
 
-        sendLocationToBackend(coordToSend, 0);
-      } else if (!isChauffeur) {
-        console.warn(`[useUserGPS] Tracking blocked — role is "${UserData?.user?.role}", required "${REQUIRED_ROLE}"`);
-      }
+    lastSentCoordRef.current = null;
+    isSendingRef.current = false;
+  }, [sendLocationToBackend]);
 
-      subscriptionRef.current?.remove();
-      subscriptionRef.current = null;
-      lastSentCoordRef.current = null;
-      isSendingRef.current = false;
+  const ensureBackgroundTracking = useCallback(async () => {
+    if (AppState.currentState !== 'active') {
+      return false;
+    }
+
+    if (await isDriverLocationTaskRunning()) {
+      return true;
+    }
+
+    return startDriverBackgroundLocation();
+  }, []);
+
+  const startTracking = useCallback(async () => {
+    const status = await resolveLocationAccess();
+    setLocationAccess(status);
+
+    if (status !== 'granted') {
+      setPermissionDenied(true);
       return;
     }
 
+    setPermissionDenied(false);
     deactivateCalledRef.current = false;
-    console.log('[Shift] ON - GPS tracking active');
-    let mounted = true;
 
-    const startTracking = async () => {
-      try {
-        const permission = await checkLocationPermission();
+    if (!trackingStartedRef.current) {
+      const initial = await getSafeCurrentPosition();
+      if (initial?.coords) {
+        const initialCoord: DriverCoordinate = {
+          latitude: initial.coords.latitude,
+          longitude: initial.coords.longitude,
+          heading: initial.coords.heading,
+          speed: initial.coords.speed,
+          accuracy: initial.coords.accuracy,
+        };
 
-        if (!permission.granted) {
-          setPermissionDenied(true);
-          if (!contextRef.current.activeShift?.shiftActive) {
-            setIsGpsTracking(false);
-          }
-          return;
-        }
+        setUserCoordinate(initialCoord);
+        await sendLocationToBackend(initialCoord, 1);
+      }
+    }
 
-        setPermissionDenied(false);
-
-        const initial = await getSafeCurrentPosition();
-        if (initial?.coords && mounted) {
-          const initialCoord: UserCoordinateProps = {
-            latitude: initial.coords.latitude,
-            longitude: initial.coords.longitude,
-            heading: initial.coords.heading,
-            speed: initial.coords.speed,
-            accuracy: initial.coords.accuracy,
+    if (!subscriptionRef.current) {
+      subscriptionRef.current = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.Balanced,
+          timeInterval: 3000,
+          distanceInterval: 50,
+        },
+        (location) => {
+          const { latitude, longitude, heading, speed, accuracy } = location.coords;
+          const newCoord: DriverCoordinate = {
+            latitude,
+            longitude,
+            heading,
+            speed,
+            accuracy,
           };
 
-          setUserCoordinate(initialCoord);
-          sendLocationToBackend(initialCoord, 1);
-        }
-
-        subscriptionRef.current = await Location.watchPositionAsync(
-          {
-            accuracy: Location.Accuracy.Balanced,
-            timeInterval: TIME_INTERVAL,
-            distanceInterval: DISTANCE_INTERVAL,
-          },
-          location => {
-            if (!mounted) return;
-
-            const { latitude, longitude, heading, speed, accuracy } = location.coords;
-
-            const newCoord: UserCoordinateProps = {
-              latitude,
-              longitude,
-              heading,
-              speed,
-              accuracy,
-            };
-
-            setUserCoordinate(prev => {
-              if (prev.latitude === latitude && prev.longitude === longitude) return prev;
-              return newCoord;
-            });
-
-            const last = lastSentCoordRef.current;
-            const distanceMoved =
-              last !== null
-                ? haversineDistance(last.latitude, last.longitude, latitude, longitude)
-                : Infinity;
-
-            if (distanceMoved >= API_DISTANCE_THRESHOLD) {
-              sendLocationToBackend(newCoord, 1);
+          setUserCoordinate((prev) => {
+            if (prev.latitude === latitude && prev.longitude === longitude) {
+              return prev;
             }
-          },
-        );
-      } catch {
-        setPermissionDenied(true);
-        if (!contextRef.current.activeShift?.shiftActive) {
-          setIsGpsTracking(false);
-        }
-        subscriptionRef.current?.remove();
-        subscriptionRef.current = null;
+            return newCoord;
+          });
+
+          const last = lastSentCoordRef.current;
+          const distanceMoved =
+            last !== null
+              ? haversineDistance(last.latitude, last.longitude, latitude, longitude)
+              : Infinity;
+
+          if (distanceMoved >= API_DISTANCE_THRESHOLD) {
+            sendLocationToBackend(newCoord, 1);
+          }
+        },
+      );
+    }
+
+    const backgroundStarted = await ensureBackgroundTracking();
+    trackingStartedRef.current = true;
+    console.log(
+      backgroundStarted
+        ? '[useUserGPS] chauffeur tracking active (foreground + background)'
+        : '[useUserGPS] chauffeur tracking active (foreground)',
+    );
+  }, [sendLocationToBackend, ensureBackgroundTracking]);
+
+  useEffect(() => {
+    if (!shouldTrack) {
+      stopTracking(true);
+      return;
+    }
+
+    startTracking().catch((error) => {
+      console.error('[useUserGPS] failed to start tracking:', error);
+      setPermissionDenied(true);
+    });
+  }, [shouldTrack, startTracking, stopTracking]);
+
+  useEffect(() => {
+    if (!shouldTrack) {
+      return;
+    }
+
+    const syncAccess = async () => {
+      const status = await refreshLocationAccess();
+      if (status === 'granted') {
+        await ensureBackgroundTracking();
       }
     };
 
-    startTracking().catch(() => {
-      if (!contextRef.current.activeShift?.shiftActive) {
-        setIsGpsTracking(false);
+    syncAccess();
+    const intervalId = setInterval(syncAccess, 5000);
+    const appStateSub = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        syncAccess();
       }
-      subscriptionRef.current?.remove();
-      subscriptionRef.current = null;
     });
 
     return () => {
-      mounted = false;
-      subscriptionRef.current?.remove();
-      subscriptionRef.current = null;
+      clearInterval(intervalId);
+      appStateSub.remove();
     };
-  }, [canTrack, sendLocationToBackend, isGpsTracking, isChauffeur, shiftActive, setIsGpsTracking]);
+  }, [shouldTrack, refreshLocationAccess, ensureBackgroundTracking]);
 
   return {
     userCoordinate,
     isSending,
     permissionDenied,
+    locationAccess,
     isGpsTracking,
     isChauffeur,
+    shouldTrack,
+    canTrack,
     setIsGpsTracking,
     requestLocationAccess,
     checkLocationPermission,
@@ -501,5 +484,7 @@ export default function useUserGPS() {
     retryLocationPermission,
     openAppSettings,
     recheckLocationAccess,
+    refreshLocationAccess,
+    startTracking,
   };
 }

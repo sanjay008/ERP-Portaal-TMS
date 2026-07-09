@@ -1,3 +1,4 @@
+import "@/src/tasks/driverLocationTask";
 import BottomTabs from "@/src/bottomTabs/BottomTabs";
 import LayoutHeader from "@/src/components/_LayoutHeader";
 import CustomCamera from "@/src/components/CustomCamera";

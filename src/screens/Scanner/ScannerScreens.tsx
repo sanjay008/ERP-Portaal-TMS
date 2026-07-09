@@ -234,7 +234,8 @@ export default function ScannerScreens({ navigation, route }: any) {
     SelectCurrentDeliveryLabel, setSelectCurrentDeliveryLabel,
     AllDamageListReason, setAllDamageListReason,
     selectDamageData, setselectDamageData,
-    CommentId, setCommentId
+    CommentId, setCommentId,
+    selectRegionData
   } = useContext(GlobalContextData);
 
   const selectCurrentDeliveryLabelRef = useRef<any>(null);
@@ -750,6 +751,7 @@ export default function ScannerScreens({ navigation, route }: any) {
       reversParcelFun: ReversParcelFun,
       getSessionDeliveryLabel,
       unlockScanner,
+      selectRegionData,
     });
   };
 

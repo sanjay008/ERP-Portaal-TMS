@@ -18,6 +18,7 @@ export type ParcelVerifyScanPayload = {
 
 export type ParcelVerifyFlowDeps = {
   userData: any;
+  selectRegionData: any;
   slideType: string;
   routeSlideType?: string;
   selectCurrentDate: string;
@@ -80,6 +81,7 @@ export async function runParcelVerifyFlow(
       user_id: deps.userData?.user?.id,
       item_id: data?.item_id,
       order_id: data?.order_id,
+      region_id:deps?.selectRegionData?.id,
       date:
         deps.globlyTypeSlide === 'outbound_scan'
           ? ApiFormatDate(new Date())

@@ -72,3 +72,24 @@ export async function clearActiveShift(): Promise<void> {
   await storeData(ACTIVE_SHIFT_KEY, null);
   console.log('[Shift] cleared');
 }
+
+export const TRACKING_REGION_KEY = 'TRACKING_REGION_CONTEXT';
+
+export type TrackingRegionContext = {
+  region_id: number | string;
+  planning_date: string;
+};
+
+export async function saveTrackingRegion(
+  context: TrackingRegionContext,
+): Promise<void> {
+  await storeData(TRACKING_REGION_KEY, context);
+}
+
+export async function loadTrackingRegion(): Promise<TrackingRegionContext | null> {
+  const context = await getData(TRACKING_REGION_KEY);
+  if (!context?.region_id) {
+    return null;
+  }
+  return context as TrackingRegionContext;
+}

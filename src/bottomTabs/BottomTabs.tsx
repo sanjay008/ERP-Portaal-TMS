@@ -7,7 +7,6 @@ import apiConstants from "../api/apiConstants";
 import { Images } from "../assets/images";
 import CustomHeader from "../components/CustomHeader";
 import Loader from "../components/loading";
-import ShiftExitGuard from "../components/ShiftExitGuard";
 import { GlobalContextData } from "../context/GlobalContext";
 import HomeScreens from "../screens/Home/HomeScreens";
 import LoadedScreens from "../screens/Loaded/LoadedScreens";
@@ -209,7 +208,6 @@ export default function BottomTabs({ navigation }: any) {
             }}
           />
         </Tab.Navigator>
-        <ShiftExitGuard navigation={navigation} />
         </>
       )}
     </View>

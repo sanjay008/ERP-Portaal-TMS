@@ -1,7 +1,7 @@
 import PickUpBox from '@/src/components/PickUpBox';
 import { Colors } from '@/src/utils/colors';
 import { FONTS } from '@/src/utils/storeData';
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
@@ -21,6 +21,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GlobalContextData } from '../context/GlobalContext';
 
 type Props = {
   visible: boolean;
@@ -46,7 +47,10 @@ export default function PickupPlannedSheet({
   const insets = useSafeAreaInsets();
   const progress = useSharedValue(0);
   const [mounted, setMounted] = useState(false);
-
+  const {
+    GloblyTypeSlide,
+    setGloblyTypeSlide,
+  } = useContext(GlobalContextData);
   useEffect(() => {
     if (visible) {
       setMounted(true);
@@ -158,24 +162,31 @@ export default function PickupPlannedSheet({
               onPress={onCancelPickup}
               disabled={loading}
             >
+              {
+                GloblyTypeSlide == "additional_address" ?
+                <Text style={styles.btnTextDark}>{t('Stop')}</Text>
+                :
               <Text style={styles.btnTextDark}>{t('Cancel this pickup')}</Text>
+              }
             </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.actionBtn,
-                styles.btnGreen,
-                { opacity: pressed || loading ? 0.85 : 1 },
-              ]}
-              onPress={onPickupNextScan}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color={Colors.white} />
-              ) : (
-                <Text style={styles.btnTextLight}>{t('Pickup & next scan')}</Text>
-              )}
-            </Pressable>
+            {
+              GloblyTypeSlide !== "additional_address" &&
+              <Pressable
+                style={({ pressed }) => [
+                  styles.actionBtn,
+                  styles.btnGreen,
+                  { opacity: pressed || loading ? 0.85 : 1 },
+                ]}
+                onPress={onPickupNextScan}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color={Colors.white} />
+                ) : (
+                  <Text style={styles.btnTextLight}>{t('Pickup & next scan')}</Text>
+                )}
+              </Pressable>
+            }
           </View>
         </ScrollView>
       </Animated.View>

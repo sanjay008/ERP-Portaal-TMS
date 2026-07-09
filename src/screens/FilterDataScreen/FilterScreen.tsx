@@ -29,7 +29,7 @@ import {
   getCurrentTimeString,
   tripOn,
 } from "@/src/utils/regionTripApi";
-import { saveActiveShift } from "@/src/utils/shiftSession";
+import { saveActiveShift, saveTrackingRegion } from "@/src/utils/shiftSession";
 import { Ionicons } from "@expo/vector-icons";
 import { useIsFocused } from "@react-navigation/native";
 import React, { useCallback, useContext, useEffect, useMemo, useState } from "react";
@@ -114,9 +114,13 @@ export default function FilterScreen({ navigation, route }: any) {
   const syncTrackingFlag = useCallback(
     (locationStatus: LocationAccessStatus, shiftActive: boolean) => {
       setDeviceLocationStatus(locationStatus);
+      if (UserData?.user?.role === 'chauffeur') {
+        setIsGpsTracking(true);
+        return;
+      }
       setIsGpsTracking(locationStatus === 'granted' && shiftActive);
     },
-    [setIsGpsTracking],
+    [setIsGpsTracking, UserData?.user?.role],
   );
 
   const handleGpsPermissionResult = useCallback(
@@ -227,6 +231,10 @@ export default function FilterScreen({ navigation, route }: any) {
         await saveActiveShift(session);
         setActiveShift(session);
         setSelectCurrentDate(date);
+        await saveTrackingRegion({
+          region_id: selectRegionData?.id,
+          planning_date: date,
+        });
         console.log('[Shift] ON', session);
 
         setGpsStartPopupVisible(false);
@@ -341,6 +349,21 @@ export default function FilterScreen({ navigation, route }: any) {
       setSelectDate(SelectActiveDate);
     }
   }, [SelectActiveDate, SelectDate]);
+
+  useEffect(() => {
+    if (
+      UserData?.user?.role !== 'chauffeur' ||
+      !selectRegionData?.id ||
+      !SelectDate
+    ) {
+      return;
+    }
+
+    saveTrackingRegion({
+      region_id: selectRegionData.id,
+      planning_date: SelectDate,
+    }).catch(() => undefined);
+  }, [UserData?.user?.role, selectRegionData?.id, SelectDate]);
 
   const getFilterDataFun = useCallback(async () => {
     try {
