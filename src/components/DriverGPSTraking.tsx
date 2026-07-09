@@ -7,7 +7,7 @@ import useUserGPS, {
   retryLocationPermission,
 } from '../hooks/useUserGPS';
 import { doesShiftBelongToUser, loadActiveShift } from '../utils/shiftSession';
-import { restartDriverBackgroundLocation } from '@/src/tasks/driverLocationTask';
+import { refreshNativeNotificationLabels } from '@/src/utils/nativeDriverLocation';
 import { GlobalContextData } from '../context/GlobalContext';
 import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
@@ -45,7 +45,9 @@ export default function DriverGPSTraking() {
       if (status === 'granted') {
         setGpsPermissionSheet({ visible: false, reason: null });
         setIsGpsTracking(true);
-        await startTracking();
+        if (AppState.currentState === 'active') {
+          await startTracking();
+        }
         return;
       }
 
@@ -91,8 +93,12 @@ export default function DriverGPSTraking() {
         return;
       }
 
-      if (!cancelled) {
-        await startTracking();
+      if (!cancelled && AppState.currentState === 'active') {
+        setTimeout(() => {
+          if (!cancelled) {
+            startTracking().catch(() => undefined);
+          }
+        }, 800);
       }
     })();
 
@@ -124,7 +130,7 @@ export default function DriverGPSTraking() {
     }
 
     lastNotificationLanguageRef.current = SelectLanguage;
-    restartDriverBackgroundLocation().catch(() => undefined);
+    refreshNativeNotificationLabels().catch(() => undefined);
   }, [SelectLanguage, isChauffeur, chauffeurId, shouldTrack]);
 
   useEffect(() => {
@@ -135,7 +141,7 @@ export default function DriverGPSTraking() {
     const monitorLocationAccess = async () => {
       const status = await recheckLocationAccess();
       if (status === 'granted') {
-        if (gpsPermissionSheet.visible) {
+        if (gpsPermissionSheet.visible && AppState.currentState === 'active') {
           await handleGpsPermissionResult(status);
         }
         return;
@@ -179,7 +185,7 @@ export default function DriverGPSTraking() {
 
       await openAppSettings();
       const status = await refreshLocationAccess();
-      if (status === 'granted') {
+      if (status === 'granted' && AppState.currentState === 'active') {
         await handleGpsPermissionResult(status);
       }
     } finally {

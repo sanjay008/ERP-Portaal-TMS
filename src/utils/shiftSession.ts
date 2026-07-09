@@ -73,6 +73,56 @@ export async function clearActiveShift(): Promise<void> {
   console.log('[Shift] cleared');
 }
 
+export const SHIFT_REGISTRY_KEY = 'SHIFT_REGISTRY_BY_REGION';
+
+export type ShiftRegistry = Record<string, ActiveShiftSession>;
+
+function getShiftRegistryKey(regionId: number | string): string {
+  return String(regionId);
+}
+
+export async function saveShiftToRegistry(
+  session: ActiveShiftSession,
+): Promise<void> {
+  const registry =
+    ((await getData(SHIFT_REGISTRY_KEY)) as ShiftRegistry | null) ?? {};
+  registry[getShiftRegistryKey(session.region_id)] = session;
+  await storeData(SHIFT_REGISTRY_KEY, registry);
+}
+
+export async function loadShiftFromRegistry(
+  regionId: number | string | null | undefined,
+): Promise<ActiveShiftSession | null> {
+  if (regionId == null) {
+    return null;
+  }
+  const registry =
+    ((await getData(SHIFT_REGISTRY_KEY)) as ShiftRegistry | null) ?? {};
+  const session = registry[getShiftRegistryKey(regionId)];
+  return isShiftActive(session) ? session : null;
+}
+
+export function isShiftActiveForRegion(
+  session: ActiveShiftSession | null | undefined,
+  regionId: number | string | null | undefined,
+): boolean {
+  if (!isShiftActive(session) || regionId == null) {
+    return false;
+  }
+  return String(session!.region_id) === String(regionId);
+}
+
+export async function deactivateActiveShift(
+  session: ActiveShiftSession | null | undefined,
+): Promise<void> {
+  if (!session) {
+    await clearActiveShift();
+    return;
+  }
+  const inactive = { ...session, shiftActive: false };
+  await storeData(ACTIVE_SHIFT_KEY, inactive);
+}
+
 export const TRACKING_REGION_KEY = 'TRACKING_REGION_CONTEXT';
 
 export type TrackingRegionContext = {

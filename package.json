@@ -39,6 +39,7 @@
     "expo-clipboard": "~8.0.8",
     "expo-constants": "~18.0.13",
     "expo-device": "^55.0.17",
+    "expo-driver-location": "file:./modules/expo-driver-location",
     "expo-file-system": "~19.0.22",
     "expo-font": "~14.0.9",
     "expo-haptics": "~15.0.8",

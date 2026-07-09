@@ -29,7 +29,15 @@ import {
   getCurrentTimeString,
   tripOn,
 } from "@/src/utils/regionTripApi";
-import { saveActiveShift, saveTrackingRegion } from "@/src/utils/shiftSession";
+import {
+  deactivateActiveShift,
+  loadShiftFromRegistry,
+  saveActiveShift,
+  saveShiftToRegistry,
+  saveTrackingRegion,
+  isShiftActiveForRegion,
+  type ActiveShiftSession,
+} from "@/src/utils/shiftSession";
 import { Ionicons } from "@expo/vector-icons";
 import { useIsFocused } from "@react-navigation/native";
 import React, { useCallback, useContext, useEffect, useMemo, useState } from "react";
@@ -108,8 +116,19 @@ export default function FilterScreen({ navigation, route }: any) {
 
   const isDeviceLocationReady = deviceLocationStatus === 'granted';
 
-  const isRouteReady =
-    isDeviceLocationReady && Boolean(activeShift?.shiftActive);
+  const isShiftReadyForRegion = useMemo(
+    () => isShiftActiveForRegion(activeShift, selectRegionData?.id),
+    [activeShift, selectRegionData?.id],
+  );
+
+  const isRouteReady = isDeviceLocationReady && isShiftReadyForRegion;
+
+  const shiftBlockedMessage = t(
+    'Please start your shift for the selected region before continuing.',
+  );
+  const selectRegionFirstMessage = t(
+    'Please select a region first, then start your shift.',
+  );
 
   const syncTrackingFlag = useCallback(
     (locationStatus: LocationAccessStatus, shiftActive: boolean) => {
@@ -127,14 +146,14 @@ export default function FilterScreen({ navigation, route }: any) {
     (status: LocationAccessStatus) => {
       if (status === 'granted') {
         setGpsPermissionSheet({ visible: false, reason: null });
-        syncTrackingFlag('granted', Boolean(activeShift?.shiftActive));
+        syncTrackingFlag('granted', isShiftReadyForRegion);
         return;
       }
 
-      syncTrackingFlag(status, Boolean(activeShift?.shiftActive));
+      syncTrackingFlag(status, isShiftReadyForRegion);
       setGpsPermissionSheet({ visible: true, reason: status });
     },
-    [activeShift?.shiftActive, syncTrackingFlag],
+    [isShiftReadyForRegion, syncTrackingFlag],
   );
 
   const handleLocationIconPress = useCallback(async () => {
@@ -154,9 +173,7 @@ export default function FilterScreen({ navigation, route }: any) {
     }
 
     if (!selectRegionData) {
-      setTooltipMessage(
-        t('Please select a region first. GPS tracking can be enabled afterward.'),
-      );
+      setTooltipMessage(selectRegionFirstMessage);
       setTooltipVisible(true);
       return;
     }
@@ -169,15 +186,14 @@ export default function FilterScreen({ navigation, route }: any) {
     handleLocationIconPress,
     isDeviceLocationReady,
     selectRegionData,
+    selectRegionFirstMessage,
     t,
   ]);
 
   const handleGpsStartConfirm = useCallback(
     async (date: string, time: string) => {
       if (!selectRegionData) {
-        setTooltipMessage(
-          t('Please select a region first. GPS tracking can be enabled afterward.'),
-        );
+        setTooltipMessage(selectRegionFirstMessage);
         setTooltipVisible(true);
         return;
       }
@@ -218,7 +234,7 @@ export default function FilterScreen({ navigation, route }: any) {
           return;
         }
 
-        const session = {
+        const session: ActiveShiftSession = {
           shiftActive: true,
           region_id: selectRegionData?.id,
           region_name: selectRegionData?.name || "",
@@ -229,6 +245,7 @@ export default function FilterScreen({ navigation, route }: any) {
           role: UserData?.user?.role,
         };
         await saveActiveShift(session);
+        await saveShiftToRegistry(session);
         setActiveShift(session);
         setSelectCurrentDate(date);
         await saveTrackingRegion({
@@ -253,6 +270,7 @@ export default function FilterScreen({ navigation, route }: any) {
     [
       UserData,
       selectRegionData,
+      selectRegionFirstMessage,
       handleGpsPermissionResult,
       syncTrackingFlag,
       setActiveShift,
@@ -290,18 +308,18 @@ export default function FilterScreen({ navigation, route }: any) {
       const status = await recheckLocationAccess();
       if (status === 'granted') {
         setGpsPermissionSheet({ visible: false, reason: null });
-        syncTrackingFlag('granted', Boolean(activeShift?.shiftActive));
+        syncTrackingFlag('granted', isShiftReadyForRegion);
         return;
       }
 
-      syncTrackingFlag(status, Boolean(activeShift?.shiftActive));
+      syncTrackingFlag(status, isShiftReadyForRegion);
       setGpsPermissionSheet((prev) =>
         prev.visible ? { visible: true, reason: status } : prev,
       );
     });
 
     return () => subscription.remove();
-  }, [gpsPermissionSheet.visible, activeShift?.shiftActive, syncTrackingFlag]);
+  }, [gpsPermissionSheet.visible, isShiftReadyForRegion, syncTrackingFlag]);
 
   const shouldMonitorDeviceGps =
     Focused && isPickupDropoffChauffeur;
@@ -321,11 +339,11 @@ export default function FilterScreen({ navigation, route }: any) {
         setGpsPermissionSheet((prev) =>
           prev.visible ? { visible: false, reason: null } : prev,
         );
-        syncTrackingFlag('granted', Boolean(activeShift?.shiftActive));
+        syncTrackingFlag('granted', isShiftReadyForRegion);
         return;
       }
 
-      syncTrackingFlag(status, Boolean(activeShift?.shiftActive));
+      syncTrackingFlag(status, isShiftReadyForRegion);
       setGpsPermissionSheet({ visible: true, reason: status });
     };
 
@@ -342,7 +360,7 @@ export default function FilterScreen({ navigation, route }: any) {
       clearInterval(intervalId);
       appStateSub.remove();
     };
-  }, [shouldMonitorDeviceGps, activeShift?.shiftActive, syncTrackingFlag]);
+  }, [shouldMonitorDeviceGps, isShiftReadyForRegion, syncTrackingFlag]);
 
   useEffect(() => {
     if (SelectActiveDate && !SelectDate) {
@@ -352,7 +370,8 @@ export default function FilterScreen({ navigation, route }: any) {
 
   useEffect(() => {
     if (
-      UserData?.user?.role !== 'chauffeur' ||
+      !isPickupDropoffChauffeur ||
+      !isShiftReadyForRegion ||
       !selectRegionData?.id ||
       !SelectDate
     ) {
@@ -363,7 +382,45 @@ export default function FilterScreen({ navigation, route }: any) {
       region_id: selectRegionData.id,
       planning_date: SelectDate,
     }).catch(() => undefined);
-  }, [UserData?.user?.role, selectRegionData?.id, SelectDate]);
+  }, [
+    isPickupDropoffChauffeur,
+    isShiftReadyForRegion,
+    selectRegionData?.id,
+    SelectDate,
+  ]);
+
+  useEffect(() => {
+    if (
+      !isPickupDropoffChauffeur ||
+      !isShiftReadyForRegion ||
+      !SelectDate ||
+      !activeShift?.region_id
+    ) {
+      return;
+    }
+
+    if (activeShift.planning_date === SelectDate) {
+      return;
+    }
+
+    const updated: ActiveShiftSession = {
+      ...activeShift,
+      planning_date: SelectDate,
+    };
+    setActiveShift(updated);
+    saveActiveShift(updated).catch(() => undefined);
+    saveShiftToRegistry(updated).catch(() => undefined);
+    saveTrackingRegion({
+      region_id: updated.region_id,
+      planning_date: SelectDate,
+    }).catch(() => undefined);
+  }, [
+    SelectDate,
+    activeShift,
+    isPickupDropoffChauffeur,
+    isShiftReadyForRegion,
+    setActiveShift,
+  ]);
 
   const getFilterDataFun = useCallback(async () => {
     try {
@@ -389,8 +446,10 @@ export default function FilterScreen({ navigation, route }: any) {
         setAllFilterDataGet(newData);
 
         if (newData.length === 0) {
-          setSelectRegionData(null);
           setRegionOrderData([]);
+          if (selectRegionData?.id) {
+            await RegionDetailsDataFun(selectRegionData);
+          }
           return;
         }
 
@@ -398,19 +457,37 @@ export default function FilterScreen({ navigation, route }: any) {
           (item: any) => item?.id === selectRegionData?.id,
         );
 
-        const selectedRegion =
-          matchedRegion || newData?.[0] || null;
-        setTotalCountParcel({ pickup: selectedRegion?.pickup_orders?.length || 0, dropoff: selectedRegion?.deliver_orders?.length || 0 })
-        setSelectRegionData(selectedRegion);
+        const selectedRegion = matchedRegion
+          ? matchedRegion
+          : selectRegionData?.id
+            ? selectRegionData
+            : newData?.[0] || null;
 
-        if (selectedRegion?.id) {
-          await RegionDetailsDataFun(selectedRegion);
+        setTotalCountParcel({
+          pickup: matchedRegion?.pickup_orders?.length || 0,
+          dropoff: matchedRegion?.deliver_orders?.length || 0,
+        });
+
+        if (selectedRegion?.id && selectedRegion !== selectRegionData) {
+          setSelectRegionData(selectedRegion);
+        } else if (!selectRegionData?.id && selectedRegion?.id) {
+          setSelectRegionData(selectedRegion);
+        }
+
+        const regionForDetails = selectedRegion?.id
+          ? selectedRegion
+          : selectRegionData;
+
+        if (regionForDetails?.id) {
+          await RegionDetailsDataFun(regionForDetails);
         } else {
           setRegionOrderData([]);
         }
       } else {
         setAllFilterDataGet([]);
-        setSelectRegionData(null);
+        if (!selectRegionData?.id) {
+          setSelectRegionData(null);
+        }
         setRegionOrderData([]);
 
         if (response?.message && response?.message !== 'No Data Found.') {
@@ -426,7 +503,9 @@ export default function FilterScreen({ navigation, route }: any) {
       console.error('Get FilterWise Data Error:', error);
 
       setAllFilterDataGet([]);
-      setSelectRegionData(null);
+      if (!selectRegionData?.id) {
+        setSelectRegionData(null);
+      }
       setRegionOrderData([]);
 
       setToast({
@@ -462,11 +541,7 @@ export default function FilterScreen({ navigation, route }: any) {
           handleLocationIconPress();
           return;
         }
-        setTooltipMessage(
-          t(
-            'Please start your shift to verify parcels. This feature will be available once GPS tracking is enabled.',
-          ),
-        );
+        setTooltipMessage(shiftBlockedMessage);
         setTooltipVisible(true);
         return;
       }
@@ -477,8 +552,8 @@ export default function FilterScreen({ navigation, route }: any) {
       isRouteReady,
       isDeviceLocationReady,
       handleLocationIconPress,
+      shiftBlockedMessage,
       parcelVerifyFlow,
-      t,
     ],
   );
 
@@ -566,6 +641,65 @@ export default function FilterScreen({ navigation, route }: any) {
       setLoading(false);
     }
   };
+
+  const handleRegionSelect = useCallback(
+    async (region: any) => {
+      if (!region?.id) {
+        setSelectRegionData(null);
+        setRegionOrderData([]);
+        return;
+      }
+
+      setSelectRegionData(region);
+
+      if (!isPickupDropoffChauffeur) {
+        await RegionDetailsDataFun(region);
+        return;
+      }
+
+      if (isShiftActiveForRegion(activeShift, region.id)) {
+        await saveTrackingRegion({
+          region_id: region.id,
+          planning_date: SelectDate,
+        });
+        syncTrackingFlag(deviceLocationStatus, true);
+        await RegionDetailsDataFun(region);
+        return;
+      }
+
+      const storedShift = await loadShiftFromRegistry(region.id);
+      if (storedShift) {
+        const restored: ActiveShiftSession = {
+          ...storedShift,
+          planning_date: SelectDate || storedShift.planning_date,
+        };
+        await saveActiveShift(restored);
+        setActiveShift(restored);
+        await saveTrackingRegion({
+          region_id: restored.region_id,
+          planning_date: restored.planning_date,
+        });
+        syncTrackingFlag(deviceLocationStatus, true);
+        await RegionDetailsDataFun(region);
+        return;
+      }
+
+      if (activeShift?.shiftActive) {
+        await deactivateActiveShift(activeShift);
+        setActiveShift({ ...activeShift, shiftActive: false });
+      }
+      syncTrackingFlag(deviceLocationStatus, false);
+      await RegionDetailsDataFun(region);
+    },
+    [
+      SelectDate,
+      activeShift,
+      deviceLocationStatus,
+      isPickupDropoffChauffeur,
+      setActiveShift,
+      syncTrackingFlag,
+    ],
+  );
 
 const FilterData = useMemo(() => {
   const q = search?.trim().toLowerCase();
@@ -662,13 +796,13 @@ const FilterData = useMemo(() => {
     } else {
       setTotalCountParcel({ pickup: 0, dropoff: 0 });
     }
-    if (!activeShift?.shiftActive) {
+    if (!isShiftReadyForRegion) {
       syncTrackingFlag(deviceLocationStatus, false);
     }
   }, [
     selectRegionData,
-    RegionOrderData,
-    activeShift?.shiftActive,
+    TemopryryDataStore,
+    isShiftReadyForRegion,
     deviceLocationStatus,
     syncTrackingFlag,
   ]);
@@ -715,9 +849,8 @@ const FilterData = useMemo(() => {
             <DropDownBox
               data={AllFilterData}
               value={selectRegionData}
-              setValue={setSelectRegionData}
+              setValue={handleRegionSelect}
               labelFieldKey="name"
-              fun={(item) => RegionDetailsDataFun(item)}
               valueFieldKey="id"
               ContainerStyle={{ flex: 1 / 1.05 }}
             />
@@ -733,11 +866,7 @@ const FilterData = useMemo(() => {
                     await handleLocationIconPress();
                     return;
                   }
-                  setTooltipMessage(
-                    t(
-                      'Please start your shift before scanning. This feature will be available once GPS tracking is enabled.',
-                    ),
-                  );
+                  setTooltipMessage(shiftBlockedMessage);
                   setTooltipVisible(true);
                   return;
                 }
@@ -764,12 +893,16 @@ const FilterData = useMemo(() => {
               onSelect={() => {}}
               containerStyle={{
                 flex:
-                  isPickupDropoffChauffeur && !activeShift?.shiftActive
+                  isPickupDropoffChauffeur &&
+                  selectRegionData?.id &&
+                  !isShiftReadyForRegion
                     ? 1 / 1.05
                     : 1,
               }}
             />
-            {isPickupDropoffChauffeur && !activeShift?.shiftActive && (
+            {isPickupDropoffChauffeur &&
+              selectRegionData?.id &&
+              !isShiftReadyForRegion && (
               <TouchableOpacity
                 style={[
                   styles.button,

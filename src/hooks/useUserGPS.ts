@@ -1,19 +1,17 @@
 import * as Location from 'expo-location';
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { AppState, Linking, Platform } from 'react-native';
+import { AppState, InteractionManager, Linking, Platform } from 'react-native';
 import { GlobalContextData } from '../context/GlobalContext';
 import {
-  buildAndValidateDriverPayload,
   REQUIRED_CHAUFFEUR_ROLE,
-  resolveTrackingContext,
-  sendDriverLocationUpdate,
   type DriverCoordinate,
 } from '../utils/driverLocationApi';
 import {
-  isDriverLocationTaskRunning,
-  startDriverBackgroundLocation,
-  stopDriverBackgroundLocation,
-} from '../tasks/driverLocationTask';
+  getLastLocation,
+  isNativeDriverTracking,
+  stopNativeDriverTracking,
+  syncNativeDriverTracking,
+} from '../utils/nativeDriverLocation';
 import {
   ensureBackgroundPermission,
   getBackgroundPermissionStatus,
@@ -175,24 +173,6 @@ export async function getSafeCurrentPosition(): Promise<Location.LocationObject 
   }
 }
 
-const API_DISTANCE_THRESHOLD = 50;
-
-function haversineDistance(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number,
-): number {
-  const R = 6371000;
-  const toRad = (deg: number) => (deg * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
 export default function useUserGPS() {
   const {
     UserData,
@@ -214,11 +194,9 @@ export default function useUserGPS() {
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [locationAccess, setLocationAccess] = useState<LocationAccessStatus>('denied');
 
-  const subscriptionRef = useRef<Location.LocationSubscription | null>(null);
-  const lastSentCoordRef = useRef<{ latitude: number; longitude: number } | null>(null);
-  const isSendingRef = useRef(false);
-  const deactivateCalledRef = useRef(false);
   const trackingStartedRef = useRef(false);
+  const gpsSuspendedRef = useRef(false);
+  const ensureInFlightRef = useRef(false);
 
   const contextRef = useRef({
     UserData,
@@ -241,64 +219,20 @@ export default function useUserGPS() {
   const shouldTrack = isChauffeur && isLoggedIn && isGpsTracking;
   const canTrack = shouldTrack && locationAccess === 'granted';
 
-  const getTrackingContext = useCallback(async () => {
-    const { activeShift: shift, SelectCurrentDate: currentDate, selectRegionData: region } =
-      contextRef.current;
+  const refreshUserCoordinate = useCallback(async () => {
+    const last = await getLastLocation();
+    if (!last) {
+      return;
+    }
 
-    return resolveTrackingContext(
-      shift,
-      region?.id,
-      currentDate ?? null,
-    );
+    setUserCoordinate({
+      latitude: last.latitude,
+      longitude: last.longitude,
+      heading: last.heading,
+      speed: last.speed,
+      accuracy: last.accuracy,
+    });
   }, []);
-
-  const sendLocationToBackend = useCallback(
-    async (coord: DriverCoordinate, isActive: number) => {
-      if (isSendingRef.current) {
-        return;
-      }
-
-      const { UserData: currentUser } = contextRef.current;
-      const { region_id, planning_date } = await getTrackingContext();
-
-      const result = buildAndValidateDriverPayload(
-        coord,
-        currentUser,
-        planning_date,
-        region_id,
-        isActive,
-      );
-
-      if (result.valid === false) {
-        console.warn(`[useUserGPS] API call skipped — ${result.reason}`);
-        return;
-      }
-
-      isSendingRef.current = true;
-      setIsSending(true);
-
-      try {
-        const sent = await sendDriverLocationUpdate(
-          coord,
-          currentUser,
-          region_id,
-          planning_date,
-          isActive,
-        );
-
-        if (sent && isActive === 1) {
-          lastSentCoordRef.current = {
-            latitude: coord.latitude,
-            longitude: coord.longitude,
-          };
-        }
-      } finally {
-        isSendingRef.current = false;
-        setIsSending(false);
-      }
-    },
-    [getTrackingContext],
-  );
 
   const refreshLocationAccess = useCallback(async () => {
     const status = await recheckLocationAccess();
@@ -307,132 +241,106 @@ export default function useUserGPS() {
     return status;
   }, []);
 
-  const stopTracking = useCallback(async (sendDeactivate = true) => {
-    subscriptionRef.current?.remove();
-    subscriptionRef.current = null;
+  const stopTracking = useCallback(async () => {
     trackingStartedRef.current = false;
+    setIsSending(false);
 
     try {
-      await stopDriverBackgroundLocation();
+      await stopNativeDriverTracking();
     } catch (error) {
-      console.warn('[useUserGPS] failed to stop background location:', error);
+      console.warn('[useUserGPS] failed to stop native tracking:', error);
     }
-
-    if (sendDeactivate && !deactivateCalledRef.current) {
-      deactivateCalledRef.current = true;
-      const lastCoord = lastSentCoordRef.current;
-      const coordToSend: DriverCoordinate = lastCoord
-        ? {
-            latitude: lastCoord.latitude,
-            longitude: lastCoord.longitude,
-            heading: null,
-            speed: null,
-            accuracy: null,
-          }
-        : {
-            latitude: 0,
-            longitude: 0,
-            heading: null,
-            speed: null,
-            accuracy: null,
-          };
-
-      await sendLocationToBackend(coordToSend, 0);
-    }
-
-    lastSentCoordRef.current = null;
-    isSendingRef.current = false;
-  }, [sendLocationToBackend]);
-
-  const ensureBackgroundTracking = useCallback(async () => {
-    if (AppState.currentState !== 'active') {
-      return false;
-    }
-
-    if (await isDriverLocationTaskRunning()) {
-      return true;
-    }
-
-    return startDriverBackgroundLocation();
   }, []);
 
-  const startTracking = useCallback(async () => {
-    const status = await resolveLocationAccess();
-    setLocationAccess(status);
-
-    if (status !== 'granted') {
-      setPermissionDenied(true);
+  const ensureNativeTracking = useCallback(async () => {
+    if (AppState.currentState !== 'active' || ensureInFlightRef.current) {
       return;
     }
 
-    setPermissionDenied(false);
-    deactivateCalledRef.current = false;
+    ensureInFlightRef.current = true;
+    setIsSending(true);
 
-    if (!trackingStartedRef.current) {
-      const initial = await getSafeCurrentPosition();
-      if (initial?.coords) {
-        const initialCoord: DriverCoordinate = {
-          latitude: initial.coords.latitude,
-          longitude: initial.coords.longitude,
-          heading: initial.coords.heading,
-          speed: initial.coords.speed,
-          accuracy: initial.coords.accuracy,
-        };
+    try {
+      const status = await refreshLocationAccess();
 
-        setUserCoordinate(initialCoord);
-        await sendLocationToBackend(initialCoord, 1);
+      if (status !== 'granted') {
+        setPermissionDenied(true);
+        const nativeStillRunning = await isNativeDriverTracking();
+        if (nativeStillRunning || trackingStartedRef.current) {
+          gpsSuspendedRef.current = true;
+          trackingStartedRef.current = false;
+          await stopNativeDriverTracking();
+        }
+        return;
       }
-    }
 
-    if (!subscriptionRef.current) {
-      subscriptionRef.current = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.Balanced,
-          timeInterval: 3000,
-          distanceInterval: 50,
-        },
-        (location) => {
-          const { latitude, longitude, heading, speed, accuracy } = location.coords;
-          const newCoord: DriverCoordinate = {
-            latitude,
-            longitude,
-            heading,
-            speed,
-            accuracy,
-          };
+      setPermissionDenied(false);
 
-          setUserCoordinate((prev) => {
-            if (prev.latitude === latitude && prev.longitude === longitude) {
-              return prev;
-            }
-            return newCoord;
-          });
+      const nativeAlreadyRunning = await isNativeDriverTracking();
+      if (nativeAlreadyRunning) {
+        gpsSuspendedRef.current = false;
+        trackingStartedRef.current = true;
 
-          const last = lastSentCoordRef.current;
-          const distanceMoved =
-            last !== null
-              ? haversineDistance(last.latitude, last.longitude, latitude, longitude)
-              : Infinity;
+        const { UserData: currentUser, activeShift: shift, selectRegionData: region, SelectCurrentDate: currentDate } =
+          contextRef.current;
 
-          if (distanceMoved >= API_DISTANCE_THRESHOLD) {
-            sendLocationToBackend(newCoord, 1);
-          }
-        },
+        const result = await syncNativeDriverTracking(
+          currentUser,
+          shift,
+          region?.id,
+          currentDate ?? null,
+        );
+
+        if (result !== 'skipped') {
+          await refreshUserCoordinate();
+        }
+        return;
+      }
+
+      if (gpsSuspendedRef.current) {
+        gpsSuspendedRef.current = false;
+      }
+
+      const { UserData: currentUser, activeShift: shift, selectRegionData: region, SelectCurrentDate: currentDate } =
+        contextRef.current;
+
+      const result = await syncNativeDriverTracking(
+        currentUser,
+        shift,
+        region?.id,
+        currentDate ?? null,
       );
-    }
 
-    const backgroundStarted = await ensureBackgroundTracking();
-    trackingStartedRef.current = true;
-    console.log(
-      backgroundStarted
-        ? '[useUserGPS] chauffeur tracking active (foreground + background)'
-        : '[useUserGPS] chauffeur tracking active (foreground)',
-    );
-  }, [sendLocationToBackend, ensureBackgroundTracking]);
+      if (result === 'skipped') {
+        console.warn('[useUserGPS] native tracking skipped — missing config');
+        return;
+      }
+
+      trackingStartedRef.current = true;
+      await refreshUserCoordinate();
+      console.log('[useUserGPS] native chauffeur tracking active');
+    } catch (error) {
+      console.error('[useUserGPS] failed to ensure native tracking:', error);
+      setPermissionDenied(true);
+    } finally {
+      ensureInFlightRef.current = false;
+      setIsSending(false);
+    }
+  }, [refreshLocationAccess, refreshUserCoordinate, stopTracking]);
+
+  const startTracking = useCallback(async () => {
+    await new Promise<void>((resolve) => {
+      setTimeout(() => {
+        InteractionManager.runAfterInteractions(() => resolve());
+      }, 500);
+    });
+    await ensureNativeTracking();
+  }, [ensureNativeTracking]);
 
   useEffect(() => {
     if (!shouldTrack) {
-      stopTracking(true);
+      gpsSuspendedRef.current = false;
+      stopTracking();
       return;
     }
 
@@ -443,14 +351,51 @@ export default function useUserGPS() {
   }, [shouldTrack, startTracking, stopTracking]);
 
   useEffect(() => {
+    if (!shouldTrack || AppState.currentState !== 'active') {
+      return;
+    }
+
+    ensureNativeTracking().catch((error) => {
+      console.warn('[useUserGPS] failed to refresh native tracking config:', error);
+    });
+  }, [
+    shouldTrack,
+    ensureNativeTracking,
+    activeShift?.region_id,
+    activeShift?.planning_date,
+    selectRegionData?.id,
+    SelectCurrentDate,
+  ]);
+
+  useEffect(() => {
     if (!shouldTrack) {
       return;
     }
 
     const syncAccess = async () => {
+      if (AppState.currentState !== 'active') {
+        return;
+      }
+
       const status = await refreshLocationAccess();
-      if (status === 'granted') {
-        await ensureBackgroundTracking();
+      if (status !== 'granted') {
+        const nativeStillRunning = await isNativeDriverTracking();
+        if (nativeStillRunning || trackingStartedRef.current) {
+          gpsSuspendedRef.current = true;
+          trackingStartedRef.current = false;
+          await stopNativeDriverTracking();
+        }
+        return;
+      }
+
+      if (gpsSuspendedRef.current) {
+        await ensureNativeTracking();
+        return;
+      }
+
+      const nativeRunning = await isNativeDriverTracking();
+      if (nativeRunning) {
+        trackingStartedRef.current = true;
       }
     };
 
@@ -459,6 +404,11 @@ export default function useUserGPS() {
     const appStateSub = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'active') {
         syncAccess();
+        if (shouldTrack) {
+          setTimeout(() => {
+            ensureNativeTracking().catch(() => undefined);
+          }, 800);
+        }
       }
     });
 
@@ -466,7 +416,17 @@ export default function useUserGPS() {
       clearInterval(intervalId);
       appStateSub.remove();
     };
-  }, [shouldTrack, refreshLocationAccess, ensureBackgroundTracking]);
+  }, [shouldTrack, refreshLocationAccess, ensureNativeTracking]);
+
+  useEffect(() => {
+    if (!shouldTrack || AppState.currentState !== 'active') {
+      return;
+    }
+
+    refreshUserCoordinate();
+    const intervalId = setInterval(refreshUserCoordinate, 10000);
+    return () => clearInterval(intervalId);
+  }, [shouldTrack, refreshUserCoordinate]);
 
   return {
     userCoordinate,
@@ -486,5 +446,6 @@ export default function useUserGPS() {
     recheckLocationAccess,
     refreshLocationAccess,
     startTracking,
+    stopTracking,
   };
 }

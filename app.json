@@ -2,7 +2,7 @@
   "expo": {
     "name": "ERP TMS Driver",
     "slug": "erp-portaal-tms-driver",
-    "version": "26.7.2",
+    "version": "26.7.9",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "erpportaaltmsdriver",
@@ -24,7 +24,7 @@
     },
     "android": {
       "allowBackup": false,
-      "versionCode": 9,
+      "versionCode": 10,
       "edgeToEdgeEnabled": true,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -120,7 +120,8 @@
       "expo-asset",
       "expo-maps",
       "expo-web-browser",
-      "expo-background-task"
+      "expo-background-task",
+      "./modules/expo-driver-location/app.plugin.js"
     ],
     "experiments": {
       "typedRoutes": true,

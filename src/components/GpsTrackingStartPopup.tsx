@@ -58,11 +58,11 @@ export default function GpsTrackingStartPopup({
   const isStartMode = mode === 'start';
   const dateLabel = isStartMode ? t('Start Date') : t('End Date');
   const timeLabel = isStartMode ? t('Start Time') : t('End Time');
-  const title = isStartMode ? t('GPS Tracking') : t('Close shift');
+  const title = isStartMode ? t('Start Shift') : t('Close shift');
   const subtitle = isStartMode
-    ? t('Select start time for tracking')
+    ? t('Select start time for shift')
     : t('Select end time to close shift');
-  const confirmLabel = isStartMode ? t('Start') : t('Close shift');
+  const confirmLabel = isStartMode ? t('Start Shift') : t('Close shift');
   const formattedDate = initialDate
     ? formatDate(initialDate, SelectLanguage || 'en')
     : '—';

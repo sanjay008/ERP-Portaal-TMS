@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["ExpoDriverLocationModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.driverlocation.ExpoDriverLocationModule"]
+  }
+}
