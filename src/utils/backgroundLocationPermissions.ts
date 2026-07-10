@@ -4,7 +4,12 @@ import { Platform } from 'react-native';
 let backgroundPermissionApiAvailable: boolean | null = null;
 
 export async function isBackgroundLocationApiAvailable(): Promise<boolean> {
-  if (Platform.OS !== 'android' && Platform.OS !== 'ios') {
+  // Android tracking uses a foreground service with while-in-use location only.
+  if (Platform.OS === 'android') {
+    return false;
+  }
+
+  if (Platform.OS !== 'ios') {
     return false;
   }
 
@@ -41,6 +46,10 @@ export async function getBackgroundPermissionStatus(): Promise<Location.Permissi
 }
 
 export async function ensureBackgroundPermission(): Promise<boolean> {
+  if (Platform.OS === 'android') {
+    return true;
+  }
+
   if (!(await isBackgroundLocationApiAvailable())) {
     return false;
   }

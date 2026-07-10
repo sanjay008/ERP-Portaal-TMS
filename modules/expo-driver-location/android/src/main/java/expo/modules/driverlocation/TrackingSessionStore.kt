@@ -11,7 +11,7 @@ object TrackingSessionStore {
   private const val KEY_RELATIES_ID = "relaties_id"
   private const val KEY_USER_ID = "user_id"
   private const val KEY_REGION_ID = "region_id"
-  private const val KEY_DISTANCE_THRESHOLD = "distance_threshold"
+  private const val KEY_API_INTERVAL_SECONDS = "api_interval_seconds"
   private const val KEY_NOTIFICATION_TITLE = "notification_title"
   private const val KEY_NOTIFICATION_BODY = "notification_body"
   private const val KEY_LAST_LAT = "last_lat"
@@ -19,8 +19,6 @@ object TrackingSessionStore {
   private const val KEY_LAST_HEADING = "last_heading"
   private const val KEY_LAST_SPEED = "last_speed"
   private const val KEY_LAST_ACCURACY = "last_accuracy"
-  private const val KEY_LAST_SENT_LAT = "last_sent_lat"
-  private const val KEY_LAST_SENT_LON = "last_sent_lon"
 
   fun save(context: Context, config: TrackingConfig) {
     context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
@@ -31,7 +29,7 @@ object TrackingSessionStore {
       .putString(KEY_RELATIES_ID, config.relatiesId)
       .putString(KEY_USER_ID, config.userId)
       .putString(KEY_REGION_ID, config.regionId)
-      .putFloat(KEY_DISTANCE_THRESHOLD, config.distanceThresholdMeters.toFloat())
+      .putInt(KEY_API_INTERVAL_SECONDS, config.apiIntervalSeconds)
       .putString(KEY_NOTIFICATION_TITLE, config.notificationTitle)
       .putString(KEY_NOTIFICATION_BODY, config.notificationBody)
       .apply()
@@ -55,7 +53,7 @@ object TrackingSessionStore {
       relatiesId = relatiesId,
       userId = userId,
       regionId = regionId,
-      distanceThresholdMeters = prefs.getFloat(KEY_DISTANCE_THRESHOLD, 50f).toDouble(),
+      apiIntervalSeconds = prefs.getInt(KEY_API_INTERVAL_SECONDS, 30).coerceAtLeast(10),
       notificationTitle = prefs.getString(KEY_NOTIFICATION_TITLE, "ERP TMS Driver") ?: "ERP TMS Driver",
       notificationBody = prefs.getString(KEY_NOTIFICATION_BODY, "Location tracking is active")
         ?: "Location tracking is active",
@@ -98,28 +96,6 @@ object TrackingSessionStore {
       speed = prefs.getFloat(KEY_LAST_SPEED, 0f).toDouble().takeIf { it != 0.0 },
       accuracy = prefs.getFloat(KEY_LAST_ACCURACY, 0f).toDouble().takeIf { it != 0.0 },
     )
-  }
-
-  fun getLastSentCoord(context: Context): Pair<Double, Double>? {
-    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    if (!prefs.contains(KEY_LAST_SENT_LAT) || !prefs.contains(KEY_LAST_SENT_LON)) {
-      return null
-    }
-    return prefs.getFloat(KEY_LAST_SENT_LAT, 0f).toDouble() to prefs.getFloat(KEY_LAST_SENT_LON, 0f).toDouble()
-  }
-
-  fun setLastSentCoord(context: Context, latitude: Double, longitude: Double) {
-    context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
-      .putFloat(KEY_LAST_SENT_LAT, latitude.toFloat())
-      .putFloat(KEY_LAST_SENT_LON, longitude.toFloat())
-      .apply()
-  }
-
-  fun clearLastSentCoord(context: Context) {
-    context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
-      .remove(KEY_LAST_SENT_LAT)
-      .remove(KEY_LAST_SENT_LON)
-      .apply()
   }
 
   fun clear(context: Context) {

@@ -24,7 +24,7 @@
     },
     "android": {
       "allowBackup": false,
-      "versionCode": 10,
+      "versionCode": 11,
       "edgeToEdgeEnabled": true,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -35,12 +35,14 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.erpportaal.ERP_Portaal_TMS",
       "googleServicesFile": "./google-services.json",
+      "blockedPermissions": [
+        "android.permission.ACCESS_BACKGROUND_LOCATION"
+      ],
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.ACCESS_BACKGROUND_LOCATION",
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_LOCATION",
         "android.permission.MODIFY_AUDIO_SETTINGS"
@@ -91,8 +93,8 @@
           "locationAlwaysAndWhenInUsePermission": "ERP TMS Driver uses your location to track delivery routes while the app is running.",
           "locationAlwaysPermission": "ERP TMS Driver uses your location to track delivery routes while the app is running in the background.",
           "locationWhenInUsePermission": "ERP TMS Driver uses your location to track delivery routes while the app is running.",
-          "isAndroidBackgroundLocationEnabled": true,
-          "isAndroidForegroundServiceEnabled": true
+          "isAndroidBackgroundLocationEnabled": false,
+          "isAndroidForegroundServiceEnabled": false
         }
       ],
       [

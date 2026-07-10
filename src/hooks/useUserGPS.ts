@@ -32,11 +32,15 @@ export type LocationAccessStatus =
 export async function checkLocationPermission(): Promise<LocationPermissionStatus> {
   const { status, canAskAgain } = await Location.getForegroundPermissionsAsync();
   const backgroundStatus = await getBackgroundPermissionStatus();
+  const foregroundGranted = status === Location.PermissionStatus.GRANTED;
 
   return {
-    granted: status === Location.PermissionStatus.GRANTED,
+    granted: foregroundGranted,
     canAskAgain: canAskAgain !== false,
-    backgroundGranted: backgroundStatus === Location.PermissionStatus.GRANTED,
+    backgroundGranted:
+      Platform.OS === 'android'
+        ? foregroundGranted
+        : backgroundStatus === Location.PermissionStatus.GRANTED,
   };
 }
 

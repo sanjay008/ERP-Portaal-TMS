@@ -1,5 +1,6 @@
 import Foundation
 import CoreLocation
+import UIKit
 
 struct TrackingConfig {
   let apiUrl: String
@@ -9,24 +10,32 @@ struct TrackingConfig {
   let relatiesId: String
   let userId: String
   let regionId: String
-  let distanceThresholdMeters: Double
+  let apiIntervalSeconds: Int
   let notificationTitle: String
   let notificationBody: String
 
   static func fromDictionary(_ dict: [String: Any]) throws -> TrackingConfig {
     guard
-      let apiUrl = dict["apiUrl"] as? String,
-      let token = dict["token"] as? String,
-      let role = dict["role"] as? String,
-      let planningDate = dict["planningDate"] as? String,
-      let relatiesId = dict["relatiesId"] as? String,
-      let userId = dict["userId"] as? String,
-      let regionId = dict["regionId"] as? String
+      let apiUrl = stringValue(dict, key: "apiUrl"),
+      let token = stringValue(dict, key: "token"),
+      let role = stringValue(dict, key: "role"),
+      let planningDate = stringValue(dict, key: "planningDate"),
+      let relatiesId = stringValue(dict, key: "relatiesId"),
+      let userId = stringValue(dict, key: "userId"),
+      let regionId = stringValue(dict, key: "regionId")
     else {
       throw NSError(domain: "ExpoDriverLocation", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid tracking config"])
     }
 
-    let distance = (dict["distanceThresholdMeters"] as? NSNumber)?.doubleValue ?? 50
+    let interval: Int
+    if let seconds = dict["apiIntervalSeconds"] as? NSNumber {
+      interval = max(10, seconds.intValue)
+    } else if let legacy = dict["distanceThresholdMeters"] as? NSNumber {
+      interval = max(10, legacy.intValue)
+    } else {
+      interval = 30
+    }
+
     let title = dict["notificationTitle"] as? String ?? "ERP TMS Driver"
     let body = dict["notificationBody"] as? String ?? "Location tracking is active"
 
@@ -38,10 +47,27 @@ struct TrackingConfig {
       relatiesId: relatiesId,
       userId: userId,
       regionId: regionId,
-      distanceThresholdMeters: distance,
+      apiIntervalSeconds: interval,
       notificationTitle: title,
       notificationBody: body
     )
+  }
+
+  private static func stringValue(_ dict: [String: Any], key: String) -> String? {
+    if let value = dict[key] as? String {
+      let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+      return trimmed.isEmpty ? nil : trimmed
+    }
+    if let value = dict[key] as? NSNumber {
+      return value.stringValue
+    }
+    if let value = dict[key] as? Int {
+      return String(value)
+    }
+    if let value = dict[key] as? Double {
+      return String(value)
+    }
+    return nil
   }
 }
 
@@ -64,7 +90,7 @@ enum TrackingSessionStore {
     defaults.set(config.relatiesId, forKey: "relaties_id")
     defaults.set(config.userId, forKey: "user_id")
     defaults.set(config.regionId, forKey: "region_id")
-    defaults.set(config.distanceThresholdMeters, forKey: "distance_threshold")
+    defaults.set(config.apiIntervalSeconds, forKey: "api_interval_seconds")
     defaults.set(config.notificationTitle, forKey: "notification_title")
     defaults.set(config.notificationBody, forKey: "notification_body")
   }
@@ -90,7 +116,14 @@ enum TrackingSessionStore {
       relatiesId: relatiesId,
       userId: userId,
       regionId: regionId,
-      distanceThresholdMeters: defaults.double(forKey: "distance_threshold").nonZeroOr,
+      apiIntervalSeconds: {
+        let stored = defaults.integer(forKey: "api_interval_seconds")
+        if stored > 0 {
+          return max(10, stored)
+        }
+        let legacy = defaults.double(forKey: "distance_threshold")
+        return legacy > 0 ? max(10, Int(legacy)) : 30
+      }(),
       notificationTitle: defaults.string(forKey: "notification_title") ?? "ERP TMS Driver",
       notificationBody: defaults.string(forKey: "notification_body") ?? "Location tracking is active"
     )
@@ -119,16 +152,6 @@ enum TrackingSessionStore {
     )
   }
 
-  static func getLastSentCoord() -> (Double, Double)? {
-    guard defaults.object(forKey: "last_sent_lat") != nil else { return nil }
-    return (defaults.double(forKey: "last_sent_lat"), defaults.double(forKey: "last_sent_lon"))
-  }
-
-  static func setLastSentCoord(latitude: Double, longitude: Double) {
-    defaults.set(latitude, forKey: "last_sent_lat")
-    defaults.set(longitude, forKey: "last_sent_lon")
-  }
-
   static func clearLastSentCoord() {
     defaults.removeObject(forKey: "last_sent_lat")
     defaults.removeObject(forKey: "last_sent_lon")
@@ -136,7 +159,6 @@ enum TrackingSessionStore {
 }
 
 private extension Double {
-  var nonZeroOr: Double { self == 0 ? 50 : self }
   var nonZeroOrNil: Double? { self == 0 ? nil : self }
 }
 
@@ -202,7 +224,25 @@ enum LocationApiClient {
       ]
     )
 
+    var backgroundTaskId: UIBackgroundTaskIdentifier = .invalid
+    if Thread.isMainThread {
+      backgroundTaskId = UIApplication.shared.beginBackgroundTask(withName: "ExpoDriverLocationAPI") {
+        if backgroundTaskId != .invalid {
+          UIApplication.shared.endBackgroundTask(backgroundTaskId)
+          backgroundTaskId = .invalid
+        }
+      }
+    }
+
     URLSession.shared.dataTask(with: request) { data, response, error in
+      defer {
+        if backgroundTaskId != .invalid {
+          DispatchQueue.main.async {
+            UIApplication.shared.endBackgroundTask(backgroundTaskId)
+          }
+        }
+      }
+
       if let error {
         print("[\(logTag)] API failed → network error is_active=\(isActive): \(error.localizedDescription)")
         completion?(false)

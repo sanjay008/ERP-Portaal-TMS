@@ -6,7 +6,7 @@ export type NativeTrackingConfig = {
   relatiesId: string;
   userId: string;
   regionId: string;
-  distanceThresholdMeters: number;
+  apiIntervalSeconds: number;
   notificationTitle: string;
   notificationBody: string;
 };

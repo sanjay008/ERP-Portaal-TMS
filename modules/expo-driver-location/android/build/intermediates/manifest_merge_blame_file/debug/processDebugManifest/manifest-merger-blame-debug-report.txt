@@ -10,28 +10,25 @@
 8    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 8-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:3:3-77
 8-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:3:20-74
-9    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
-9-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:4:3-83
-9-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:4:20-80
-10    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-10-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:5:3-75
-10-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:5:20-72
-11    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
-11-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:6:3-84
-11-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:6:20-81
-12
-13    <application>
-13-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:8:3-14:17
-14        <service
-14-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:9:5-13:50
-15            android:name="expo.modules.driverlocation.DriverLocationService"
-15-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:10:7-71
-16            android:exported="false"
-16-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:11:7-31
-17            android:foregroundServiceType="location"
-17-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:13:7-47
-18            android:stopWithTask="false" />
-18-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:12:7-35
-19    </application>
-20
-21</manifest>
+9    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+9-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:4:3-75
+9-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:4:20-72
+10    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+10-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:5:3-84
+10-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:5:20-81
+11
+12    <application>
+12-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:7:3-13:17
+13        <service
+13-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:8:5-12:50
+14            android:name="expo.modules.driverlocation.DriverLocationService"
+14-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:9:7-71
+15            android:exported="false"
+15-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:10:7-31
+16            android:foregroundServiceType="location"
+16-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:12:7-47
+17            android:stopWithTask="true" />
+17-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:11:7-34
+18    </application>
+19
+20</manifest>

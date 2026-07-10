@@ -1,5 +1,6 @@
 package expo.modules.driverlocation
 
+import android.util.Log
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -9,10 +10,13 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.Manifest
 import android.location.Location
 import android.location.LocationManager
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import androidx.core.app.NotificationCompat
@@ -28,6 +32,7 @@ class DriverLocationService : Service() {
     const val ACTION_START = "expo.modules.driverlocation.START"
     const val ACTION_UPDATE = "expo.modules.driverlocation.UPDATE"
     const val ACTION_STOP = "expo.modules.driverlocation.STOP"
+    private const val TAG = "ExpoDriverLocation"
     private const val CHANNEL_ID = "driver_location_tracking"
     private const val NOTIFICATION_ID = 481516
 
@@ -122,16 +127,22 @@ class DriverLocationService : Service() {
   }
 
   private val fusedClient by lazy { LocationServices.getFusedLocationProviderClient(this) }
+  private val apiHandler = Handler(Looper.getMainLooper())
   private var locationCallback: LocationCallback? = null
+  private var apiIntervalRunnable: Runnable? = null
   private var activeConfig: TrackingConfig? = null
   private var userStopped = false
+
+  @Volatile
+  private var isDeactivating = false
 
   private val providerReceiver = object : BroadcastReceiver() {
     override fun onReceive(context: Context?, intent: Intent?) {
       if (intent?.action != LocationManager.PROVIDERS_CHANGED_ACTION) {
         return
       }
-      if (!isLocationEnabled()) {
+      if (!canTrackLocation()) {
+        Log.w(TAG, "Location unavailable — sending is_active=0 and stopping tracking")
         sendDeactivateAndStop(restartAllowed = false)
       }
     }
@@ -163,12 +174,12 @@ class DriverLocationService : Service() {
           stopSelf()
           return START_NOT_STICKY
         }
-        if (!isLocationEnabled()) {
+        if (!canTrackLocation()) {
           sendDeactivateAndStop(restartAllowed = false)
           return START_NOT_STICKY
         }
         refreshTracking(config)
-        return START_STICKY
+        return START_NOT_STICKY
       }
       ACTION_START, null -> {
         userStopped = false
@@ -176,7 +187,7 @@ class DriverLocationService : Service() {
           stopSelf()
           return START_NOT_STICKY
         }
-        if (!isLocationEnabled()) {
+        if (!canTrackLocation()) {
           stopSelf()
           return START_NOT_STICKY
         }
@@ -185,14 +196,16 @@ class DriverLocationService : Service() {
         } else {
           startForegroundTracking(config)
         }
-        return START_STICKY
+        return START_NOT_STICKY
       }
       else -> return START_NOT_STICKY
     }
   }
 
   override fun onTaskRemoved(rootIntent: Intent?) {
-    // Keep the foreground service running after the user swipes the app from recents.
+    Log.i(TAG, "App task removed — stopping driver location tracking")
+    userStopped = true
+    sendDeactivateAndStop(restartAllowed = false)
     super.onTaskRemoved(rootIntent)
   }
 
@@ -208,7 +221,8 @@ class DriverLocationService : Service() {
         startForeground(NOTIFICATION_ID, notification)
       }
       isRunning = true
-      requestLocationUpdates(config)
+      requestLocationUpdates()
+      startApiInterval(config)
       sendImmediateUpdate(config)
     } catch (_: Exception) {
       isRunning = false
@@ -224,27 +238,28 @@ class DriverLocationService : Service() {
     }
 
     updateNotification(this, config.notificationTitle, config.notificationBody)
-    requestLocationUpdates(config)
+    requestLocationUpdates()
+    startApiInterval(config)
   }
 
-  private fun requestLocationUpdates(config: TrackingConfig) {
+  private fun requestLocationUpdates() {
     locationCallback?.let { fusedClient.removeLocationUpdates(it) }
 
     val request = LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 3000L)
       .setMinUpdateIntervalMillis(3000L)
-      .setMinUpdateDistanceMeters(config.distanceThresholdMeters.toFloat())
+      .setMinUpdateDistanceMeters(10f)
       .setWaitForAccurateLocation(false)
       .build()
 
     val callback = object : LocationCallback() {
       override fun onLocationResult(result: LocationResult) {
         val location = result.lastLocation ?: return
-        if (!isLocationEnabled()) {
+        if (!canTrackLocation()) {
+          Log.w(TAG, "Location unavailable during location update — sending is_active=0")
           sendDeactivateAndStop(restartAllowed = false)
           return
         }
-        val currentConfig = activeConfig ?: TrackingSessionStore.load(this@DriverLocationService) ?: return
-        handleLocation(currentConfig, location)
+        saveLocation(location)
       }
     }
 
@@ -256,19 +271,50 @@ class DriverLocationService : Service() {
     }
   }
 
+  private fun startApiInterval(config: TrackingConfig) {
+    stopApiInterval()
+    val intervalMs = config.apiIntervalSeconds.coerceAtLeast(10) * 1000L
+    val runnable = object : Runnable {
+      override fun run() {
+        if (!isRunning || userStopped) {
+          return
+        }
+        if (!canTrackLocation()) {
+          Log.w(TAG, "Location unavailable during API interval — sending is_active=0")
+          sendDeactivateAndStop(restartAllowed = false)
+          return
+        }
+        val currentConfig = activeConfig ?: TrackingSessionStore.load(this@DriverLocationService) ?: return
+        sendActiveApiUpdate(currentConfig)
+        apiHandler.postDelayed(this, intervalMs)
+      }
+    }
+    apiIntervalRunnable = runnable
+    apiHandler.postDelayed(runnable, intervalMs)
+    Log.i(TAG, "API interval started — every ${config.apiIntervalSeconds}s")
+  }
+
+  private fun stopApiInterval() {
+    apiIntervalRunnable?.let { apiHandler.removeCallbacks(it) }
+    apiIntervalRunnable = null
+  }
+
   private fun sendImmediateUpdate(config: TrackingConfig) {
     try {
       fusedClient.lastLocation.addOnSuccessListener { location ->
         if (location != null) {
-          handleLocation(config, location, forceSend = true)
+          saveLocation(location)
         }
+        sendActiveApiUpdate(config)
+      }.addOnFailureListener {
+        sendActiveApiUpdate(config)
       }
     } catch (_: SecurityException) {
-      // ignored
+      sendActiveApiUpdate(config)
     }
   }
 
-  private fun handleLocation(config: TrackingConfig, location: Location, forceSend: Boolean = false) {
+  private fun saveLocation(location: Location) {
     val coord = DriverCoordinate(
       latitude = location.latitude,
       longitude = location.longitude,
@@ -276,46 +322,83 @@ class DriverLocationService : Service() {
       speed = if (location.hasSpeed()) location.speed.toDouble() else null,
       accuracy = if (location.hasAccuracy()) location.accuracy.toDouble() else null,
     )
-
-    TrackingSessionStore.saveLastLocation(this, coord)
-
-    val lastSent = TrackingSessionStore.getLastSentCoord(this)
-    val distanceMoved = if (lastSent != null) {
-      LocationMath.haversineDistance(lastSent.first, lastSent.second, coord.latitude, coord.longitude)
-    } else {
-      Double.MAX_VALUE
-    }
-
-    if (!forceSend && distanceMoved < config.distanceThresholdMeters) {
+    if (coord.latitude == 0.0 && coord.longitude == 0.0) {
       return
     }
+    TrackingSessionStore.saveLastLocation(this, coord)
+  }
 
-    LocationApiClient.sendLocationUpdate(config, coord, 1) { success ->
-      if (success) {
-        TrackingSessionStore.setLastSentCoord(this, coord.latitude, coord.longitude)
-      }
+  private fun sendActiveApiUpdate(config: TrackingConfig) {
+    val coord = TrackingSessionStore.getLastLocation(this) ?: return
+    if (coord.latitude == 0.0 && coord.longitude == 0.0) {
+      return
     }
+    LocationApiClient.sendLocationUpdate(config, coord, 1) { _ -> }
   }
 
   private fun sendDeactivateAndStop(restartAllowed: Boolean) {
+    if (isDeactivating) {
+      return
+    }
+    isDeactivating = true
+
     val config = activeConfig ?: TrackingSessionStore.load(this)
     val lastCoord = TrackingSessionStore.getLastLocation(this)
-      ?: DriverCoordinate(0.0, 0.0, null, null, null)
 
     stopTrackingInternal()
     activeConfig = null
-    if (!restartAllowed) {
-      TrackingSessionStore.clearLastSentCoord(this)
+
+    Thread {
+      try {
+        sendDeactivateApi(config, lastCoord)
+      } finally {
+        isDeactivating = false
+        if (!restartAllowed) {
+          stopSelf()
+        }
+      }
+    }.start()
+  }
+
+  private fun sendDeactivateApi(config: TrackingConfig?, lastCoord: DriverCoordinate?) {
+    if (config == null) {
+      Log.w(TAG, "Deactivate skipped — missing tracking config")
+      return
+    }
+    val coord = lastCoord ?: run {
+      Log.w(TAG, "Deactivate skipped — no last location for is_active=0")
+      return
+    }
+    if (coord.latitude == 0.0 && coord.longitude == 0.0) {
+      Log.w(TAG, "Deactivate skipped — invalid last location (0,0)")
+      return
     }
 
-    if (config != null && lastCoord.latitude != 0.0 && lastCoord.longitude != 0.0) {
-      LocationApiClient.sendLocationUpdate(config, lastCoord, 0)
+    Log.i(TAG, "Sending deactivate API — is_active=0")
+    val success = LocationApiClient.sendLocationUpdateBlocking(config, coord, 0)
+    if (!success) {
+      Log.w(TAG, "Deactivate API failed — is_active=0")
     }
+  }
 
-    stopSelf()
+  private fun canTrackLocation(): Boolean {
+    return isLocationEnabled() && hasLocationPermission()
+  }
+
+  private fun hasLocationPermission(): Boolean {
+    val fineGranted = ContextCompat.checkSelfPermission(
+      this,
+      Manifest.permission.ACCESS_FINE_LOCATION,
+    ) == PackageManager.PERMISSION_GRANTED
+    val coarseGranted = ContextCompat.checkSelfPermission(
+      this,
+      Manifest.permission.ACCESS_COARSE_LOCATION,
+    ) == PackageManager.PERMISSION_GRANTED
+    return fineGranted || coarseGranted
   }
 
   private fun stopTrackingInternal() {
+    stopApiInterval()
     locationCallback?.let {
       fusedClient.removeLocationUpdates(it)
     }

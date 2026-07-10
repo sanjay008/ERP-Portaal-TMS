@@ -15,7 +15,7 @@ import {
   type NativeTrackingConfig,
 } from 'expo-driver-location';
 
-export const API_DISTANCE_THRESHOLD = 50;
+export const API_INTERVAL_SECONDS = 30;
 
 type UserDataShape = {
   user?: {
@@ -73,7 +73,7 @@ export async function buildNativeTrackingConfig(
     relatiesId: validation.payload.relaties_id,
     userId: validation.payload.user_id,
     regionId: validation.payload.region_id,
-    distanceThresholdMeters: API_DISTANCE_THRESHOLD,
+    apiIntervalSeconds: API_INTERVAL_SECONDS,
     notificationTitle,
     notificationBody,
   };
