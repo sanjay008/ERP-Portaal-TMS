@@ -1,5 +1,6 @@
 package expo.modules.driverlocation
 
+import android.util.Log
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.MediaType.Companion.toMediaType
@@ -12,6 +13,8 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 object LocationApiClient {
+  private const val TAG = "ExpoDriverLocation"
+
   private val client = OkHttpClient.Builder()
     .connectTimeout(30, TimeUnit.SECONDS)
     .readTimeout(30, TimeUnit.SECONDS)
@@ -25,9 +28,16 @@ object LocationApiClient {
     onComplete: ((Boolean) -> Unit)? = null,
   ) {
     if (coord.latitude == 0.0 || coord.longitude == 0.0) {
+      Log.w(TAG, "API skipped — invalid coordinates (0,0) is_active=$isActive")
       onComplete?.invoke(false)
       return
     }
+
+    Log.d(
+      TAG,
+      "API request → is_active=$isActive lat=${coord.latitude} lon=${coord.longitude} " +
+        "region=${config.regionId} user=${config.userId} planning=${config.planningDate}",
+    )
 
     val multipart = MultipartBody.Builder()
       .setType(MultipartBody.FORM)
@@ -52,11 +62,24 @@ object LocationApiClient {
 
     client.newCall(request).enqueue(object : Callback {
       override fun onFailure(call: Call, e: IOException) {
+        Log.e(TAG, "API failed → network error is_active=$isActive: ${e.message}", e)
         onComplete?.invoke(false)
       }
 
       override fun onResponse(call: Call, response: Response) {
         response.use {
+          val body = it.body?.string().orEmpty()
+          if (it.isSuccessful) {
+            Log.i(
+              TAG,
+              "API success → status=${it.code} is_active=$isActive lat=${coord.latitude} lon=${coord.longitude}",
+            )
+          } else {
+            Log.w(
+              TAG,
+              "API error → status=${it.code} is_active=$isActive body=${body.take(200)}",
+            )
+          }
           onComplete?.invoke(it.isSuccessful)
         }
       }
@@ -69,8 +92,15 @@ object LocationApiClient {
     isActive: Int,
   ): Boolean {
     if (coord.latitude == 0.0 || coord.longitude == 0.0) {
+      Log.w(TAG, "API skipped (blocking) — invalid coordinates (0,0) is_active=$isActive")
       return false
     }
+
+    Log.d(
+      TAG,
+      "API request (blocking) → is_active=$isActive lat=${coord.latitude} lon=${coord.longitude} " +
+        "region=${config.regionId} user=${config.userId} planning=${config.planningDate}",
+    )
 
     val multipart = MultipartBody.Builder()
       .setType(MultipartBody.FORM)
@@ -94,8 +124,23 @@ object LocationApiClient {
       .build()
 
     return try {
-      client.newCall(request).execute().use { it.isSuccessful }
-    } catch (_: IOException) {
+      client.newCall(request).execute().use { response ->
+        val body = response.body?.string().orEmpty()
+        if (response.isSuccessful) {
+          Log.i(
+            TAG,
+            "API success (blocking) → status=${response.code} is_active=$isActive lat=${coord.latitude} lon=${coord.longitude}",
+          )
+        } else {
+          Log.w(
+            TAG,
+            "API error (blocking) → status=${response.code} is_active=$isActive body=${body.take(200)}",
+          )
+        }
+        response.isSuccessful
+      }
+    } catch (e: IOException) {
+      Log.e(TAG, "API failed (blocking) → network error is_active=$isActive: ${e.message}", e)
       false
     }
   }

@@ -153,6 +153,8 @@ enum LocationMath {
 }
 
 enum LocationApiClient {
+  private static let logTag = "ExpoDriverLocation"
+
   private static func formatOptional(_ value: Double?) -> String {
     guard let value else {
       return ""
@@ -162,14 +164,21 @@ enum LocationApiClient {
 
   static func sendLocationUpdate(config: TrackingConfig, coord: DriverCoordinate, isActive: Int, completion: ((Bool) -> Void)? = nil) {
     guard coord.latitude != 0, coord.longitude != 0 else {
+      print("[\(logTag)] API skipped — invalid coordinates (0,0) is_active=\(isActive)")
       completion?(false)
       return
     }
 
     guard let url = URL(string: config.apiUrl) else {
+      print("[\(logTag)] API skipped — invalid apiUrl is_active=\(isActive)")
       completion?(false)
       return
     }
+
+    print(
+      "[\(logTag)] API request → is_active=\(isActive) lat=\(coord.latitude) lon=\(coord.longitude) " +
+        "region=\(config.regionId) user=\(config.userId) planning=\(config.planningDate)"
+    )
 
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
@@ -193,9 +202,24 @@ enum LocationApiClient {
       ]
     )
 
-    URLSession.shared.dataTask(with: request) { _, response, _ in
+    URLSession.shared.dataTask(with: request) { data, response, error in
+      if let error {
+        print("[\(logTag)] API failed → network error is_active=\(isActive): \(error.localizedDescription)")
+        completion?(false)
+        return
+      }
+
       let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
       let success = (200...299).contains(statusCode)
+      if success {
+        print(
+          "[\(logTag)] API success → status=\(statusCode) is_active=\(isActive) " +
+            "lat=\(coord.latitude) lon=\(coord.longitude)"
+        )
+      } else {
+        let body = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        print("[\(logTag)] API error → status=\(statusCode) is_active=\(isActive) body=\(body.prefix(200))")
+      }
       completion?(success)
     }.resume()
   }
