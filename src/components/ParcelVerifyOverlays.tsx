@@ -10,6 +10,7 @@ import { Colors } from '@/src/utils/colors';
 import { GlobalContextData } from '@/src/context/GlobalContext';
 import React, { useContext } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useIsFocused } from '@react-navigation/native';
 import type { useParcelVerifyFlow } from '@/src/hooks/useParcelVerifyFlow';
 
 type VerifyFlow = ReturnType<typeof useParcelVerifyFlow>;
@@ -21,6 +22,7 @@ type Props = {
 
 export default function ParcelVerifyOverlays({ flow, navigation }: Props) {
   const { t } = useTranslation();
+  const isFocused = useIsFocused();
   const {
     GloblyTypeSlide,
     AllDeliveyLabel,
@@ -29,6 +31,9 @@ export default function ParcelVerifyOverlays({ flow, navigation }: Props) {
     setselectDamageData,
     SelectCurrentDeliveryLabel,
   } = useContext(GlobalContextData);
+
+  // Shared commentVisible — only the focused screen mounts the modal UI.
+  const commentVisible = Boolean(flow.comment && isFocused);
 
   return (
     <>
@@ -91,7 +96,7 @@ export default function ParcelVerifyOverlays({ flow, navigation }: Props) {
       />
 
       <AnimatedModal
-        visible={flow.evetyTimeShowDeliveryLabelList}
+        visible={Boolean(flow.evetyTimeShowDeliveryLabelList)}
         setVisible={flow.setEvetyTimeShowDeliveryLabelList}
         onCancel={flow.closeDeliveryLabelModal}
         AllDeliveyLabel={AllDeliveyLabel}
@@ -105,7 +110,7 @@ export default function ParcelVerifyOverlays({ flow, navigation }: Props) {
       />
 
       <ParcelVerifyCommentModal
-        visible={flow.comment}
+        visible={commentVisible}
         userData={flow.userData}
         itemsData={flow.itemsData}
         selectCurrentDeliveryLabel={flow.effectiveDeliveryLabel}

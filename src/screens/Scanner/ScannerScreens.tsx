@@ -669,7 +669,12 @@ export default function ScannerScreens({ navigation, route }: any) {
         }
 
         Vibration.vibrate(500);
-        await playBeep();
+        // Beep must not block verify/popup — sound failures were intermittent "vibrate but no popup"
+        try {
+          await playBeep();
+        } catch (_) {
+          // ignore audio errors
+        }
 
         await QuestiongetApi(parsedData);
       } catch (error: any) {
@@ -682,18 +687,28 @@ export default function ScannerScreens({ navigation, route }: any) {
             type: "error",
             visible: true,
           });
+        } else {
+          setToast({
+            top: 45,
+            text: ErrorHandle(error).message || t("Something went wrong"),
+            type: "error",
+            visible: true,
+          });
         }
       } finally {
-        if (
-          !isScannerBlockedByModalRef.current &&
-          !deliveryLabelModalPendingRef.current &&
-          !pickupPlannedModalPendingRef.current
-        ) {
-          unlockScanner();
-        }
+        // Defer unlock so setState modals (confirm/alert) can commit before scanner re-arms
+        requestAnimationFrame(() => {
+          if (
+            !isScannerBlockedByModalRef.current &&
+            !deliveryLabelModalPendingRef.current &&
+            !pickupPlannedModalPendingRef.current
+          ) {
+            unlockScanner();
+          }
+        });
       }
     },
-    [lastDetectedBarcode, playBeep, restrictedOrderId, t, unlockScanner]
+    [lastDetectedBarcode, playBeep, restrictedOrderId, t, unlockScanner, ErrorHandle]
   );
 
   const refreshCamera = () => {

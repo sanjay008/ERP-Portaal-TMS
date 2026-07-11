@@ -978,12 +978,11 @@ export default function DetailsScreens({ navigation, route }: any) {
             onParcelManualVerify={handleParcelManualVerify}
           />
 
-          {
-            ItemsData?.driver_note &&
+          {ItemsData?.driver_note ? (
             <View style={styles.DriverBG}>
               <Text style={[styles.Text, { color: "#FFEA00" }]}>{ItemsData?.driver_note || ""}</Text>
             </View>
-          }
+          ) : null}
 
           <MapsViewBox
             orderStatusId={ItemsData?.tmsstatus?.id ?? ItemsData?.status}
@@ -1029,8 +1028,7 @@ export default function DetailsScreens({ navigation, route }: any) {
                 IconStyle={{ width: 22, height: 22 }}
               />
             </View>
-          )
-            : isDeliveryOrder(ItemsData) &&
+          ) : isDeliveryOrder(ItemsData) ? (
             <FlatList
               data={AllDeliveyLabel}
               scrollEnabled={false}
@@ -1085,7 +1083,7 @@ export default function DetailsScreens({ navigation, route }: any) {
                 );
               }}
             />
-          }
+          ) : null}
 
 
           {getMergedImages(ItemsData, AllSelectImage)?.length > 0 && (

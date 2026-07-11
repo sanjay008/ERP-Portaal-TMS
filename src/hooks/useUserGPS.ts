@@ -240,8 +240,13 @@ export default function useUserGPS() {
 
   const refreshLocationAccess = useCallback(async () => {
     const status = await recheckLocationAccess();
-    setLocationAccess(status);
-    setPermissionDenied(status !== 'granted');
+    // Bail out when unchanged — avoids "Maximum update depth exceeded" when
+    // tracking refresh runs in a tight loop with shift/date sync.
+    setLocationAccess((prev) => (prev === status ? prev : status));
+    setPermissionDenied((prev) => {
+      const next = status !== 'granted';
+      return prev === next ? prev : next;
+    });
     return status;
   }, []);
 

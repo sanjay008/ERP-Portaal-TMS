@@ -16,11 +16,11 @@ import TwoTypeButton from "@/src/components/TwoTypeButton";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import { useParcelVerifyFlow } from "@/src/hooks/useParcelVerifyFlow";
 import {
-  type LocationAccessStatus,
   openAppSettings,
   recheckLocationAccess,
   resolveLocationAccess,
   retryLocationPermission,
+  type LocationAccessStatus,
 } from "@/src/hooks/useUserGPS";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
@@ -31,11 +31,11 @@ import {
 } from "@/src/utils/regionTripApi";
 import {
   deactivateActiveShift,
+  isShiftActiveForRegion,
   loadShiftFromRegistry,
   saveActiveShift,
   saveShiftToRegistry,
   saveTrackingRegion,
-  isShiftActiveForRegion,
   type ActiveShiftSession,
 } from "@/src/utils/shiftSession";
 import { Ionicons } from "@expo/vector-icons";
@@ -389,25 +389,37 @@ export default function FilterScreen({ navigation, route }: any) {
     SelectDate,
   ]);
 
+  // Sync filter calendar → active shift planning_date only while focused.
+  // Depend on primitives (not the whole activeShift object) so setActiveShift
+  // cannot re-trigger this effect. Unfocused stacked Filter screens must not
+  // fight over the shared shift session (that caused [Shift] saved loops).
   useEffect(() => {
     if (
+      !Focused ||
       !isPickupDropoffChauffeur ||
       !isShiftReadyForRegion ||
-      !SelectDate ||
-      !activeShift?.region_id
+      !SelectDate
     ) {
       return;
     }
 
-    if (activeShift.planning_date === SelectDate) {
+    let updated: ActiveShiftSession | null = null;
+    setActiveShift((prev) => {
+      if (
+        !prev?.region_id ||
+        !prev.shiftActive ||
+        prev.planning_date === SelectDate
+      ) {
+        return prev;
+      }
+      updated = { ...prev, planning_date: SelectDate };
+      return updated;
+    });
+
+    if (!updated) {
       return;
     }
 
-    const updated: ActiveShiftSession = {
-      ...activeShift,
-      planning_date: SelectDate,
-    };
-    setActiveShift(updated);
     saveActiveShift(updated).catch(() => undefined);
     saveShiftToRegistry(updated).catch(() => undefined);
     saveTrackingRegion({
@@ -415,114 +427,141 @@ export default function FilterScreen({ navigation, route }: any) {
       planning_date: SelectDate,
     }).catch(() => undefined);
   }, [
+    Focused,
     SelectDate,
-    activeShift,
+    activeShift?.planning_date,
+    activeShift?.region_id,
     isPickupDropoffChauffeur,
     isShiftReadyForRegion,
     setActiveShift,
   ]);
 
-  const getFilterDataFun = useCallback(async () => {
-    try {
-      const payload = {
-        token: UserData?.user?.verify_token,
-        role: UserData?.user?.role,
-        relaties_id: UserData?.relaties?.id,
-        user_id: UserData?.user?.id,
-        date: SelectDate,
-        type: GloblyTypeSlide ?? item?.type ?? Type,
-      };
+const getFilterDataFun = useCallback(async () => {
+  try {
+    const payload = {
+      token: UserData?.user?.verify_token,
+      role: UserData?.user?.role,
+      relaties_id: UserData?.relaties?.id,
+      user_id: UserData?.user?.id,
+      date: SelectDate,
+      type: GloblyTypeSlide ?? item?.type ?? Type,
+    };
 
-      const response = await ApiService(apiConstants.getOrderByDriver, {
-        customData: payload,
-      });
+    const missingFields = [
+      !payload.token && "token",
+      !payload.role && "role",
+      payload.relaties_id == null && "relaties_id",
+      payload.user_id == null && "user_id",
+      !payload.date && "date",
+      !payload.type && "type",
+    ].filter(Boolean);
 
-      if (response?.status) {
-        setTemopryryDataStore(response?.data || []);
-        const newData = Array.isArray(response?.data)
-          ? response.data
-          : [];
-
-        setAllFilterDataGet(newData);
-
-        if (newData.length === 0) {
-          setRegionOrderData([]);
-          if (selectRegionData?.id) {
-            await RegionDetailsDataFun(selectRegionData);
-          }
-          return;
-        }
-
-        const matchedRegion = newData.find(
-          (item: any) => item?.id === selectRegionData?.id,
-        );
-
-        const selectedRegion = matchedRegion
-          ? matchedRegion
-          : selectRegionData?.id
-            ? selectRegionData
-            : newData?.[0] || null;
-
-        setTotalCountParcel({
-          pickup: matchedRegion?.pickup_orders?.length || 0,
-          dropoff: matchedRegion?.deliver_orders?.length || 0,
-        });
-
-        if (selectedRegion?.id && selectedRegion !== selectRegionData) {
-          setSelectRegionData(selectedRegion);
-        } else if (!selectRegionData?.id && selectedRegion?.id) {
-          setSelectRegionData(selectedRegion);
-        }
-
-        const regionForDetails = selectedRegion?.id
-          ? selectedRegion
-          : selectRegionData;
-
-        if (regionForDetails?.id) {
-          await RegionDetailsDataFun(regionForDetails);
-        } else {
-          setRegionOrderData([]);
-        }
-      } else {
-        setAllFilterDataGet([]);
-        if (!selectRegionData?.id) {
-          setSelectRegionData(null);
-        }
-        setRegionOrderData([]);
-
-        if (response?.message && response?.message !== 'No Data Found.') {
-          setToast({
-            top: 45,
-            text: response?.message || 'Something went wrong',
-            type: 'error',
-            visible: true,
-          });
-        }
-      }
-    } catch (error: any) {
-      console.error('Get FilterWise Data Error:', error);
-
-      setAllFilterDataGet([]);
-      if (!selectRegionData?.id) {
-        setSelectRegionData(null);
-      }
-      setRegionOrderData([]);
+    if (missingFields.length > 0) {
+      console.warn("Invalid payload:", payload);
+      console.warn("Missing fields:", missingFields);
 
       setToast({
         top: 45,
-        text: ErrorHandle(error)?.message || 'Something went wrong',
-        type: 'error',
+        text: "Required data is missing. Please try again.",
+        type: "error",
         visible: true,
       });
+
+      return;
     }
-  }, [
-    SelectDate,
-    UserData,
-    GloblyTypeSlide,
-    item?.type,
-    Type,
-    selectRegionData?.id,
-  ]);
+console.log("payload",payload);
+
+    const response = await ApiService(apiConstants.getOrderByDriver, {
+      customData: payload,
+    });
+
+    if (response?.status) {
+      const newData = Array.isArray(response?.data) ? response.data : [];
+      setTemopryryDataStore(newData);
+      setAllFilterDataGet(newData);
+
+      if (newData.length === 0) {
+        setRegionOrderData([]);
+        if (selectRegionData?.id) {
+          await RegionDetailsDataFun(selectRegionData);
+        }
+
+        return;
+      }
+
+      let selectedRegion: any = null;
+
+      if (selectRegionData?.id) {
+        const matchedRegion = newData.find(
+          (region: any) => String(region?.id) === String(selectRegionData.id),
+        );
+        selectedRegion = matchedRegion || newData[0] || null;
+      } else {
+        selectedRegion = newData[0] || null;
+      }
+
+      setTotalCountParcel({
+        pickup: selectedRegion?.pickup_orders?.length || 0,
+        dropoff: selectedRegion?.deliver_orders?.length || 0,
+      });
+
+      if (selectedRegion?.id && selectedRegion?.id !== selectRegionData?.id) {
+        setSelectRegionData(selectedRegion);
+      }
+
+      const regionForDetails = selectedRegion?.id
+        ? selectedRegion
+        : selectRegionData;
+
+      if (regionForDetails?.id) {
+        await RegionDetailsDataFun(regionForDetails);
+      } else {
+        setRegionOrderData([]);
+      }
+    } else {
+      setAllFilterDataGet([]);
+
+      if (!selectRegionData?.id) {
+        setSelectRegionData(null);
+      }
+
+      setRegionOrderData([]);
+
+      if (response?.message && response?.message !== "No Data Found.") {
+        setToast({
+          top: 45,
+          text: response?.message || "Something went wrong",
+          type: "error",
+          visible: true,
+        });
+      }
+    }
+  } catch (error: any) {
+    console.error("Get FilterWise Data Error:", error);
+
+    setAllFilterDataGet([]);
+
+    if (!selectRegionData?.id) {
+      setSelectRegionData(null);
+    }
+
+    setRegionOrderData([]);
+
+    setToast({
+      top: 45,
+      text: ErrorHandle(error)?.message || "Something went wrong",
+      type: "error",
+      visible: true,
+    });
+  }
+}, [
+  SelectDate,
+  UserData,
+  GloblyTypeSlide,
+  item?.type,
+  Type,
+  selectRegionData?.id,
+]);
 
   const parcelVerifyFlow = useParcelVerifyFlow({
     slideType: SlideType ?? GloblyTypeSlide ?? item?.type ?? Type,
@@ -558,7 +597,11 @@ export default function FilterScreen({ navigation, route }: any) {
   );
 
   useEffect(() => {
-
+    console.log('[FilterScreen] focus clear → setSelectCurrentDeliveryLabel(null)', {
+      Focused,
+      SelectDate,
+      Type,
+    });
     setSelectCurrentDeliveryLabel(null);
     if (UserData !== null && Focused && SelectDate) {
       getFilterDataFun();
@@ -593,6 +636,9 @@ export default function FilterScreen({ navigation, route }: any) {
         region_id: selectRegion?.id,
       };
 
+
+      console.log("Request Data Planing",payload);
+      
       const response = await ApiService(
         apiConstants.get_tms_orders_flat_by_region,
         {

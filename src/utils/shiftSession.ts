@@ -56,6 +56,17 @@ export function doesShiftBelongToUser(
 export async function saveActiveShift(
   session: ActiveShiftSession,
 ): Promise<void> {
+  const existing = await getData(ACTIVE_SHIFT_KEY);
+  if (
+    existing &&
+    String(existing.region_id) === String(session.region_id) &&
+    existing.planning_date === session.planning_date &&
+    existing.shiftActive === session.shiftActive &&
+    existing.started_at === session.started_at &&
+    String(existing.user_id ?? '') === String(session.user_id ?? '')
+  ) {
+    return;
+  }
   await storeData(ACTIVE_SHIFT_KEY, session);
   console.log('[Shift] saved', session);
 }

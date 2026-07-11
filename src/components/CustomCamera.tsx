@@ -279,7 +279,12 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GlobalContextData } from "../context/GlobalContext";
+import {
+  runLatestDeliveryCameraSetData,
+  runLatestPickupCameraSetData,
+} from "../context/ParcelVerifySessionContext";
 import { Colors } from "../utils/colors";
+import { unlockParcelCameraCallback } from "../utils/parcelVerifyCameraReturn";
 import { FONTS } from "../utils/storeData";
 
 export default function CustomCamera({ navigation, route }: any) {
@@ -445,14 +450,32 @@ export default function CustomCamera({ navigation, route }: any) {
     if (!isDoneEnabled) return;
     if (isRecordingRef.current) stopRecording();
     const allMedia = [...photos, ...videos];
+    console.log('[CustomCamera] done', {
+      from: route?.params?.from,
+      count: allMedia.length,
+    });
     if (route?.params?.from === "Pickup") {
-      PickUpDataSave?.setData?.(allMedia);
+      const ran = runLatestPickupCameraSetData(allMedia);
+      if (ran === undefined) {
+        PickUpDataSave?.setData?.(allMedia);
+      }
     } else {
-      DeliveyDataSave?.setData?.(allMedia);
+      const ran = runLatestDeliveryCameraSetData(allMedia);
+      if (ran === undefined) {
+        DeliveyDataSave?.setData?.(allMedia);
+      }
     }
     cameraRef.current?.resumePreview?.();
     router.back();
-  }, [photos, videos, stopRecording, isDoneEnabled]);
+  }, [
+    photos,
+    videos,
+    stopRecording,
+    isDoneEnabled,
+    DeliveyDataSave,
+    PickUpDataSave,
+    route?.params?.from,
+  ]);
 
   useEffect(() => {
     requestPermission();
@@ -468,6 +491,8 @@ export default function CustomCamera({ navigation, route }: any) {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       if (switchLockRef.current) clearTimeout(switchLockRef.current);
+      // Camera cancelled / left without Done — release parcel-verify lock.
+      unlockParcelCameraCallback();
     };
   }, []);
 

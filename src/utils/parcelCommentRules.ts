@@ -16,58 +16,35 @@ export function shouldShowDamageInCommentModal(
   return isDeliveryOrder(order) || isPickupPlannedOrder(order);
 }
 
-/** Signature step after last parcel — same rules as ScannerScreens CommentFun. */
+/** Signature after last parcel — use delivery label flag only (no tms_current_status). */
 export function isSignatureRequiredAfterStatusUpdate(
-  statusUpdateResponse: any,
+  _statusUpdateResponse: any,
   deliveryLabel: any,
 ): boolean {
-  return (
-    Number(statusUpdateResponse?.tms_current_status) === 5 &&
-    Number(deliveryLabel?.signature_required) === 1
-  );
+  return deliveryLabel?.signature_required == 1;
 }
 
-/**
- * Description optional when backend marks it optional, or legacy Delivered + Undamaged.
- * Backend can send on damage row or delivery label:
- * - comment_optional: 1
- * - comment_required: 0
- */
+
 export function isDescriptionOptional(
   deliveryLabel: any,
   damageData: any,
   order?: any,
 ): boolean {
-  if (order != null && !isDeliveryOrder(order)) {
-    return false;
-  }
-  const damageOptional = toFlag(damageData?.comment_optional);
-  if (damageOptional === true) return true;
-  if (toFlag(damageData?.comment_required) === false) return true;
-  if (toFlag(damageData?.comment_required) === true) return false;
-
-  const labelOptional = toFlag(deliveryLabel?.comment_optional);
-  if (labelOptional === true) return true;
-  if (toFlag(deliveryLabel?.comment_required) === false) return true;
-  if (toFlag(deliveryLabel?.comment_required) === true) return false;
-
-  // Scanner legacy: Delivered label (21) + Undamaged (34)
-  return Number(deliveryLabel?.id) === 21 && Number(damageData?.id) === 34;
+  const statusId = Number(order?.tmsstatus?.id ?? order?.status);
+  return (
+    statusId === 4 &&
+    Number(deliveryLabel?.id) === 21 &&
+    Number(damageData?.id) === 34
+  );
 }
 
 /**
- * Skip comment modal after camera proof (go straight to status/signature flow).
- * Backend: skip_comment / comment_modal_skip on damage or label.
+ * Skip comment modal after camera proof — same rule as ScannerScreens camera setData.
  */
 export function shouldSkipCommentAfterCamera(
   deliveryLabel: any,
   damageData: any,
 ): boolean {
-  if (toFlag(damageData?.skip_comment) === true) return true;
-  if (toFlag(damageData?.comment_modal_skip) === true) return true;
-  if (toFlag(deliveryLabel?.skip_comment) === true) return true;
-
-  // Scanner legacy
   return Number(deliveryLabel?.id) === 21 && Number(damageData?.id) === 28;
 }
 

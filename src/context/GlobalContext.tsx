@@ -36,7 +36,18 @@ export default function GlobalContext({ children }: any) {
   const [OrderDeliveryMapingLableOption, setOrderDeliveryMapingLableOption] = useState(null);
   const [TimeZone, setTimeZone] = useState<string>("");
   const [AllDeliveyLabel, setAllDeliveyLabel] = useState<any []>([]);
-  const [SelectCurrentDeliveryLabel,setSelectCurrentDeliveryLabel] = useState<any>(null);
+  const [SelectCurrentDeliveryLabel, setSelectCurrentDeliveryLabelState] = useState<any>(null);
+  const setSelectCurrentDeliveryLabel = useCallback((label: any) => {
+    console.log('[SelectCurrentDeliveryLabel] SET', {
+      id: label?.id ?? null,
+      title: label?.title ?? label?.name ?? null,
+      signature_required: label?.signature_required,
+      isNull: label == null,
+      full: label,
+    });
+    // Delivery label for direct verify lives in ParcelVerifySession only.
+    setSelectCurrentDeliveryLabelState(label);
+  }, []);
   const [AllDamageListReason,setAllDamageListReason] = useState([]);
   const [selectRegionData, setSelectRegionData] = useState<any>(null);
   const [selectDamageData, setselectDamageData] = useState<any>(null);

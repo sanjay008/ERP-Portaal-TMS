@@ -6,6 +6,11 @@ import { Colors } from '@/src/utils/colors';
 import { isDeliveryOrder, isPickupOrder } from '@/src/utils/orderStatus';
 import { shouldSkipCommentAfterCamera } from '@/src/utils/parcelCommentRules';
 import {
+  lockParcelCameraCallback,
+  unlockParcelCameraCallback,
+} from '@/src/utils/parcelVerifyCameraReturn';
+import { setLatestDeliveryCameraSetData } from '@/src/context/ParcelVerifySessionContext';
+import {
   isDeliveryItemAlreadyScanned,
   itemNeedsDeliveryLabelSelection,
   shouldOpenPickupPlannedModal,
@@ -64,6 +69,7 @@ export type ParcelVerifyFlowDeps = {
     item_id: number | string | null,
   ) => Promise<void>;
   getSessionDeliveryLabel: () => any;
+  clearDeliveryLabelSelection?: () => void;
   unlockScanner?: () => void;
 };
 
@@ -228,11 +234,15 @@ export async function runParcelVerifyFlow(
         return;
       }
 
-      const sessionDeliveryLabel = deps.getSessionDeliveryLabel();
+      const sessionDeliveryLabel = deps.isManualDirectVerify
+        ? null
+        : deps.getSessionDeliveryLabel();
       const needsLabel = itemNeedsDeliveryLabelSelection(res?.data, data);
 
       if (needsLabel) {
         if (sessionDeliveryLabel == null) {
+          // Fresh parcel: context must be empty so next select replaces cleanly.
+          deps.clearDeliveryLabelSelection?.();
           deps.deliveryLabelModalPendingRef.current = true;
           deps.setEvetyTimeShowDeliveryLabelList(true);
           return;
@@ -251,10 +261,9 @@ export async function runParcelVerifyFlow(
           LColor: Colors.black,
           onPress: () => {
             deps.deliveryTypeRef.current = false;
-            deps.setDeliveyDataSave({
-              Data: res?.data?.order_data,
-              selectReason: sessionDeliveryLabel,
-              setData: async (images: any[]) => {
+            lockParcelCameraCallback();
+            const setData = async (images: any[]) => {
+              try {
                 if (images?.length > 0) {
                   deps.setAllSelectImage(images);
                   if (
@@ -268,7 +277,15 @@ export async function runParcelVerifyFlow(
                     deps.setComment(true);
                   }
                 }
-              },
+              } finally {
+                unlockParcelCameraCallback();
+              }
+            };
+            setLatestDeliveryCameraSetData(setData);
+            deps.setDeliveyDataSave({
+              Data: res?.data?.order_data,
+              selectReason: sessionDeliveryLabel,
+              setData,
               type: false,
             });
             deps.navigation.navigate('Camera');
@@ -297,7 +314,9 @@ export async function runParcelVerifyFlow(
       return;
     }
 
-    const sessionLabelForCamera = deps.getSessionDeliveryLabel();
+    const sessionLabelForCamera = deps.isManualDirectVerify
+      ? null
+      : deps.getSessionDeliveryLabel();
     const isDeliveryPendingItem =
       isStatus4 &&
       slideType === 'pickup_dropoff' &&
@@ -325,10 +344,9 @@ export async function runParcelVerifyFlow(
         LColor: Colors.black,
         onPress: () => {
           deps.deliveryTypeRef.current = false;
-          deps.setDeliveyDataSave({
-            Data: res?.data?.order_data,
-            selectReason: sessionLabelForCamera,
-            setData: async (images: any[]) => {
+          lockParcelCameraCallback();
+          const setData = async (images: any[]) => {
+            try {
               if (images?.length > 0) {
                 deps.setAllSelectImage(images);
                 if (
@@ -342,7 +360,15 @@ export async function runParcelVerifyFlow(
                   deps.setComment(true);
                 }
               }
-            },
+            } finally {
+              unlockParcelCameraCallback();
+            }
+          };
+          setLatestDeliveryCameraSetData(setData);
+          deps.setDeliveyDataSave({
+            Data: res?.data?.order_data,
+            selectReason: sessionLabelForCamera,
+            setData,
             type: false,
           });
           deps.navigation.navigate('Camera');

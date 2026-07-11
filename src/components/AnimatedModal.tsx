@@ -15,6 +15,7 @@ import {
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useParcelVerifySession } from "../context/ParcelVerifySessionContext";
 import { Colors } from "../utils/colors";
 import { FONTS } from "../utils/storeData";
 import PickUpBox from "./PickUpBox";
@@ -29,7 +30,7 @@ type Props = {
     AllDamageListReason?: any[];
     setselectDamageData?: (item: any) => void;
     selectDamageData?: any;
-    fun?: () => void;
+    fun?: (selectedLabel?: any) => void;
     onCancel?: () => void;
     GloblyTypeSlide?: string | null;
     ItemsData: any;
@@ -50,6 +51,7 @@ export default function AnimatedModal({
 }: Props) {
     const { t } = useTranslation();
     const insets = useSafeAreaInsets();
+    const { setSessionDeliveryLabel } = useParcelVerifySession();
     const translateY = useRef(new Animated.Value(height)).current;
     const opacity = useRef(new Animated.Value(0)).current;
     const overlayOpacity = useRef(new Animated.Value(0)).current;
@@ -117,8 +119,8 @@ export default function AnimatedModal({
         onCancel?.();
     };
 
-    const completeSelection = () => {
-        fun?.();
+    const completeSelection = (selectedLabel?: any) => {
+        fun?.(selectedLabel);
         setVisible(false);
     };
 
@@ -126,15 +128,19 @@ export default function AnimatedModal({
     const hasDeliveryLabel = AllDeliveyLabel && AllDeliveyLabel.filter((i) => i?.id !== 15).length > 0;
 
     const handleDeliveryLabelSelect = (item: any) => {
-        if (setSelectCurrentDeliveryLabel) {
-            setSelectCurrentDeliveryLabel(item);
-        }
+        // Context is source of truth — always replace with latest tap.
+        console.log('[AnimatedModal] select delivery label → context', {
+            id: item?.id,
+            title: item?.title,
+        });
+        setSessionDeliveryLabel(item);
+        setSelectCurrentDeliveryLabel?.(item);
         if (!hasDamageList) {
-            completeSelection();
+            completeSelection(item);
             return;
         }
         if (selectDamageData) {
-            completeSelection();
+            completeSelection(item);
         }
     };
 

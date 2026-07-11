@@ -52,6 +52,7 @@
 
 import LayoutHeader from "@/src/components/_LayoutHeader";
 import GlobalContext from "@/src/context/GlobalContext";
+import { ParcelVerifySessionProvider } from "@/src/context/ParcelVerifySessionContext";
 import DropboxProvider from "@/src/context/UploadProider";
 import i18n from "@/src/screens/Translation/i18n";
 import * as Notifications from 'expo-notifications';
@@ -95,14 +96,16 @@ export default function RootLayout() {
       <DropboxProvider>
         <MenuProvider>
           <GlobalContext>
-            <LayoutHeader>
-              <StatusBar style="dark" />
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                }}
-              />
-            </LayoutHeader>
+            <ParcelVerifySessionProvider>
+              <LayoutHeader>
+                <StatusBar style="dark" />
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                  }}
+                />
+              </LayoutHeader>
+            </ParcelVerifySessionProvider>
           </GlobalContext>
         </MenuProvider>
       </DropboxProvider>
