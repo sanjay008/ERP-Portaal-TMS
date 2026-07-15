@@ -3,9 +3,9 @@ import React, { useCallback, useContext, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Dimensions,
-  Image as RNImage,
   Modal,
   Pressable,
+  Image as RNImage,
   StyleSheet,
   Text,
   View,
@@ -98,6 +98,7 @@ export default function ParcelBox({
 
     onManualVerify?.();
   }, [isShiftBlocked, onManualVerify]);
+console.log(data);
 
   return (
     <>
@@ -120,6 +121,16 @@ export default function ParcelBox({
         </View>
 
         <View style={styles.RightSection}>
+          {
+            data?.can_update_tms_product == 1 &&
+            <Pressable style={[styles.itemLable,{backgroundColor:Colors.primary}]}>
+              <Image
+                source={Images.ExchangeIcon}
+                style={{ width: 18, height: 18 }}
+                tintColor={Colors.white}
+              />
+            </Pressable>
+          }
           {data?.tmslabel && (
             <View
               style={[

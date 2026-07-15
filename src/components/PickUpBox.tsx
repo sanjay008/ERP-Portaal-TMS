@@ -286,6 +286,8 @@ function PickUpBox({
             scrollEnabled={false}
             keyExtractor={(item, index) => String(item?.id ?? index)}
             renderItem={({ item, index }) => {
+              console.log("item",item);
+              
               const canManualVerify =
                 Number(item?.allow_direct_scan) === 1 &&
                 typeof onParcelManualVerify === 'function';

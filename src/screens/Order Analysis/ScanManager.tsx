@@ -8,7 +8,7 @@ import ApiService from '@/src/utils/Apiservice';
 import { Colors } from '@/src/utils/colors';
 import { height, width } from '@/src/utils/storeData';
 import { Ionicons } from '@expo/vector-icons';
-import { useIsFocused, useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused, useNavigation } from '@react-navigation/native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Image } from 'expo-image';
 import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
@@ -90,6 +90,7 @@ export default function ScanManager({ route }: any) {
             type: slideType,
           },
         });
+
 
         if (res?.status) {
           setOrderData(res?.data);

@@ -162,15 +162,27 @@ export default function PickupPlannedSheet({
               onPress={onCancelPickup}
               disabled={loading}
             >
+             
+              <Text style={styles.btnTextDark}>{t('Cancel this pickup')}</Text>
+              
+            </Pressable>
+            {/* <Pressable
+              style={({ pressed }) => [
+                styles.actionBtn,
+                styles.btnGrey,
+                { opacity: pressed || loading ? 0.85 : 1 },
+              ]}
+              onPress={onCancelPickup}
+              disabled={loading}
+            >
               {
                 GloblyTypeSlide == "additional_address" ?
                 <Text style={styles.btnTextDark}>{t('Stop')}</Text>
                 :
               <Text style={styles.btnTextDark}>{t('Cancel this pickup')}</Text>
               }
-            </Pressable>
-            {
-              GloblyTypeSlide !== "additional_address" &&
+            </Pressable> */}
+           
               <Pressable
                 style={({ pressed }) => [
                   styles.actionBtn,
@@ -186,7 +198,7 @@ export default function PickupPlannedSheet({
                   <Text style={styles.btnTextLight}>{t('Pickup & next scan')}</Text>
                 )}
               </Pressable>
-            }
+          
           </View>
         </ScrollView>
       </Animated.View>

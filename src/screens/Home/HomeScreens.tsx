@@ -171,10 +171,10 @@ export default function HomeScreens({ navigation, route }: any) {
 
   const handleSlidePress = useCallback(
     (slideItem: any) => {
-      if (slideItem?.type === "pickup_dropoff") {
-        handlePickupDropoffPress(slideItem);
-        return;
-      }
+      // if (slideItem?.type === "pickup_dropoff") {
+      //   handlePickupDropoffPress(slideItem);
+      //   return;
+      // }
 
       setGloblyTypeSlide(slideItem?.type);
       if (slideItem?.type == "outbound_scan") {

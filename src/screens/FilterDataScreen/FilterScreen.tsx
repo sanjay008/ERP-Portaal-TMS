@@ -6,7 +6,6 @@ import CalenderDate from "@/src/components/CalenderDate";
 import CustomHeader from "@/src/components/CustomHeader";
 import DropDownBox from "@/src/components/DropDownBox";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
-import GpsPermissionSheet from "@/src/components/GpsPermissionSheet";
 import GpsTrackingStartPopup from "@/src/components/GpsTrackingStartPopup";
 import Loader from "@/src/components/loading";
 import ParcelVerifyOverlays from "@/src/components/ParcelVerifyOverlays";
@@ -1078,14 +1077,14 @@ const FilterData = useMemo(() => {
         onClose={() => setGpsStartPopupVisible(false)}
         onConfirm={handleGpsStartConfirm}
       />
-
+{/* 
       <GpsPermissionSheet
         visible={gpsPermissionSheet.visible}
         reason={gpsPermissionSheet.reason}
         loading={isGpsPermissionLoading}
         onClose={() => setGpsPermissionSheet({ visible: false, reason: null })}
         onPrimaryAction={handleGpsSheetPrimaryAction}
-      />
+      /> */}
 
       <ParcelVerifyOverlays flow={parcelVerifyFlow} navigation={navigation} />
     </SafeAreaView>

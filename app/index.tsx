@@ -1,7 +1,6 @@
 import BottomTabs from "@/src/bottomTabs/BottomTabs";
 import LayoutHeader from "@/src/components/_LayoutHeader";
 import CustomCamera from "@/src/components/CustomCamera";
-import DriverGPSTraking from "@/src/components/DriverGPSTraking";
 import DropboxUploadRunner from "@/src/components/DropboxUploadRunner";
 import GlobalContext from "@/src/context/GlobalContext";
 import Chat from "@/src/screens/Chat/Chat";
@@ -73,7 +72,7 @@ export default function index() {
         <MenuProvider>
           <GlobalContext>
             <DropboxUploadRunner />
-            <DriverGPSTraking />
+            {/* <DriverGPSTraking /> */}
             {isConnected ? (
               <Stack.Navigator
                 id="MainStack"

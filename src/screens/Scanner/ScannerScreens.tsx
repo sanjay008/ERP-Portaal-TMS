@@ -785,7 +785,7 @@ export default function ScannerScreens({ navigation, route }: any) {
       const res = await ApiService(apiConstants.revert_order_item_status, {
         customData: payload,
       });
-      console.log("ReversParcelFun", res);
+  
 
       if (res?.status) {
         setToast({

@@ -1,6 +1,7 @@
 import apiConstants from '@/src/api/apiConstants';
 import { Images } from '@/src/assets/images';
 import { ApiFormatDate } from '@/src/components/ApiFormatDate';
+import { setLatestDeliveryCameraSetData } from '@/src/context/ParcelVerifySessionContext';
 import ApiService from '@/src/utils/Apiservice';
 import { Colors } from '@/src/utils/colors';
 import { isDeliveryOrder, isPickupOrder } from '@/src/utils/orderStatus';
@@ -9,7 +10,6 @@ import {
   lockParcelCameraCallback,
   unlockParcelCameraCallback,
 } from '@/src/utils/parcelVerifyCameraReturn';
-import { setLatestDeliveryCameraSetData } from '@/src/context/ParcelVerifySessionContext';
 import {
   isDeliveryItemAlreadyScanned,
   itemNeedsDeliveryLabelSelection,
