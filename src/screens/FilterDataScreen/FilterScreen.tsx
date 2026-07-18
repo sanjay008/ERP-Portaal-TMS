@@ -1026,9 +1026,14 @@ const FilterData = useMemo(() => {
                     LableBackground={item?.tmsstatus?.color}
                     additional_cost_label={item?.additional_cost_label}
                     onPress={() => {
+                      if(GloblyTypeSlide === "additional_address"){
+                      navigation.navigate("Details", { item, type: SlideType });
+
+                        return
+                      }
                       if (
                         ScanBTNAvailble ||
-                        (isPickupDropoffChauffeur && !isRouteReady)
+                        (isPickupDropoffChauffeur && !isRouteReady )
                       ) {
                         return;
                       }

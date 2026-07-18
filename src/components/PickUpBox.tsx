@@ -297,6 +297,7 @@ function PickUpBox({
                   qty={item?.qty}
                   index={index}
                   data={item}
+                  orderData={ItemData}
                   title={item?.tms_product_name}
                   statusData={statusData}
                   Icon={getDirectDropboxLink(item?.tmsstatus?.shared_link)}
