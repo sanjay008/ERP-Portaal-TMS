@@ -23,6 +23,7 @@ import {
 } from "@/src/hooks/useUserGPS";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
+import { getActiveVerifyDeliveryLabel } from "@/src/utils/parcelVerifyDeliveryLabelStore";
 import {
   buildDateTime,
   getCurrentTimeString,
@@ -73,6 +74,8 @@ export default function FilterScreen({ navigation, route }: any) {
     setSelectCurrentDate,
     AllDeliveyLabel, setAllDeliveyLabel,
     setSelectCurrentDeliveryLabel,
+    EffectiveDeliveryLabel,
+    PinnedDeliveryLabel,
     AllDamageListReason, setAllDamageListReason,
     selectRegionData, setSelectRegionData,
     isGpsTracking, setIsGpsTracking,
@@ -573,7 +576,15 @@ console.log("payload",payload);
   });
 
   const handleParcelManualVerify = useCallback(
-    ({ order_id, item_id }: { order_id: number | string; item_id: number | string }) => {
+    ({
+      order_id,
+      item_id,
+      item,
+    }: {
+      order_id: number | string;
+      item_id: number | string;
+      item?: any;
+    }) => {
       if (isPickupDropoffChauffeur && !isRouteReady) {
         if (!isDeviceLocationReady) {
           handleLocationIconPress();
@@ -583,7 +594,7 @@ console.log("payload",payload);
         setTooltipVisible(true);
         return;
       }
-      parcelVerifyFlow.startVerify({ order_id, item_id });
+      parcelVerifyFlow.startVerify({ order_id, item_id, item });
     },
     [
       isPickupDropoffChauffeur,
@@ -600,8 +611,27 @@ console.log("payload",payload);
       Focused,
       SelectDate,
       Type,
+      commentOpen: parcelVerifyFlow.comment,
+      sigOpen: parcelVerifyFlow.showSig,
+      labelModal: parcelVerifyFlow.evetyTimeShowDeliveryLabelList,
+      alertOpen: parcelVerifyFlow.alertModalOpen?.visible,
+      pinnedId: PinnedDeliveryLabel?.id ?? null,
+      effectiveId: EffectiveDeliveryLabel?.id ?? null,
+      storeId: getActiveVerifyDeliveryLabel()?.id ?? null,
     });
-    setSelectCurrentDeliveryLabel(null);
+    // Keep Direct Flow label while label picker / camera proof / comment / signature
+    // is active, OR while global pin still holds the selected label.
+    const keepLabel =
+      EffectiveDeliveryLabel != null ||
+      PinnedDeliveryLabel != null ||
+      getActiveVerifyDeliveryLabel() != null ||
+      parcelVerifyFlow.comment ||
+      parcelVerifyFlow.showSig ||
+      parcelVerifyFlow.evetyTimeShowDeliveryLabelList ||
+      parcelVerifyFlow.alertModalOpen?.visible;
+    if (!keepLabel) {
+      setSelectCurrentDeliveryLabel(null);
+    }
     if (UserData !== null && Focused && SelectDate) {
       getFilterDataFun();
       if (SelectDate) {
@@ -612,7 +642,19 @@ console.log("payload",payload);
     setSlideType(currentType);
     const shouldAllowNavigation = currentType === "pickup_dropoff";
     setScanBTNAvailble(!shouldAllowNavigation);
-  }, [SelectDate, UserData, Focused, Type, item]);
+  }, [
+    SelectDate,
+    UserData,
+    Focused,
+    Type,
+    item,
+    parcelVerifyFlow.comment,
+    parcelVerifyFlow.showSig,
+    parcelVerifyFlow.evetyTimeShowDeliveryLabelList,
+    parcelVerifyFlow.alertModalOpen?.visible,
+    EffectiveDeliveryLabel,
+    PinnedDeliveryLabel,
+  ]);
 
   const RegionDetailsDataFun = async (
     selectRegion = selectRegionData,
@@ -650,6 +692,8 @@ console.log("payload",payload);
           setAllDamageListReason(response?.damaged_parcel || [])
         }
         if (AllDeliveyLabel?.length == 0) {
+          console.log("response?.delivery_label_title_map",response?.delivery_label_title_map);
+          
           setAllDeliveyLabel(response?.delivery_label_title_map || []);
         }
         setRegionOrderData(

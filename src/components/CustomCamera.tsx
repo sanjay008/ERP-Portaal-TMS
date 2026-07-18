@@ -446,7 +446,7 @@ export default function CustomCamera({ navigation, route }: any) {
     }
   }, [isVideoMode, isCameraSwitching, stopRecording, startRecording, takePhoto]);
 
-  const done = useCallback(() => {
+  const done = useCallback(async () => {
     if (!isDoneEnabled) return;
     if (isRecordingRef.current) stopRecording();
     const allMedia = [...photos, ...videos];
@@ -458,11 +458,15 @@ export default function CustomCamera({ navigation, route }: any) {
       const ran = runLatestPickupCameraSetData(allMedia);
       if (ran === undefined) {
         PickUpDataSave?.setData?.(allMedia);
+      } else if (ran && typeof (ran as any)?.then === 'function') {
+        await ran;
       }
     } else {
       const ran = runLatestDeliveryCameraSetData(allMedia);
       if (ran === undefined) {
         DeliveyDataSave?.setData?.(allMedia);
+      } else if (ran && typeof (ran as any)?.then === 'function') {
+        await ran;
       }
     }
     cameraRef.current?.resumePreview?.();

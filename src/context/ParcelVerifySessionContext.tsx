@@ -5,6 +5,11 @@ import React, {
   useMemo,
   useState,
 } from 'react';
+import {
+  clearActiveVerifyDeliveryLabel,
+  getActiveVerifyDeliveryLabel,
+  setActiveVerifyDeliveryLabel,
+} from '@/src/utils/parcelVerifyDeliveryLabelStore';
 
 export type ParcelVerifySession = {
   deliveryLabel: any | null;
@@ -36,9 +41,15 @@ const EMPTY_SESSION: ParcelVerifySession = {
 
 /**
  * Survives FilterScreen focus clear + React remount of session state.
- * Only cleared explicitly after signature / go-to-list.
+ * Only cleared explicitly after signature / go-to-list / next-parcel clear.
  */
 let rememberedDeliveryLabel: any = null;
+
+/**
+ * Hard pin for Direct Flow — survives brief clears while Camera is open /
+ * Filter focus races. Cleared only with clearRememberedDeliveryLabel.
+ */
+let pinnedDeliveryLabel: any = null;
 
 /**
  * Latest Camera setData — set synchronously before navigate so CustomCamera
@@ -80,6 +91,8 @@ export function runLatestPickupCameraSetData(images: any[]) {
 export function rememberDeliveryLabel(label: any) {
   if (label == null) return;
   rememberedDeliveryLabel = label;
+  pinnedDeliveryLabel = label;
+  setActiveVerifyDeliveryLabel(label);
   console.log('[rememberDeliveryLabel]', {
     id: label?.id,
     signature_required: label?.signature_required,
@@ -88,12 +101,18 @@ export function rememberDeliveryLabel(label: any) {
 }
 
 export function getRememberedDeliveryLabel() {
-  return rememberedDeliveryLabel;
+  return (
+    getActiveVerifyDeliveryLabel() ??
+    pinnedDeliveryLabel ??
+    rememberedDeliveryLabel
+  );
 }
 
 export function clearRememberedDeliveryLabel() {
   console.log('[clearRememberedDeliveryLabel]');
   rememberedDeliveryLabel = null;
+  pinnedDeliveryLabel = null;
+  clearActiveVerifyDeliveryLabel();
 }
 
 const ParcelVerifySessionContext =
@@ -114,10 +133,10 @@ export function ParcelVerifySessionProvider({
       isNull: label == null,
       full: label,
     });
+    // Only pin on set — never wipe remembered here (Filter/Direct Flow soft clears
+    // call this with null and were wiping optional label mid-flow).
     if (label != null) {
       rememberDeliveryLabel(label);
-    } else {
-      clearRememberedDeliveryLabel();
     }
     setSession((prev) => ({ ...prev, deliveryLabel: label }));
   }, []);

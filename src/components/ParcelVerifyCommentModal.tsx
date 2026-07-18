@@ -1,9 +1,13 @@
 import { Images } from '@/src/assets/images';
 import { Colors } from '@/src/utils/colors';
 import { FONTS } from '@/src/utils/storeData';
-import { shouldShowDamageInCommentModal } from '@/src/utils/parcelCommentRules';
+import {
+  isDescriptionOptional,
+  shouldShowDamageInCommentModal,
+} from '@/src/utils/parcelCommentRules';
+import { GlobalContextData } from '@/src/context/GlobalContext';
 import CheckBox from '@react-native-community/checkbox';
-import React from 'react';
+import React, { useContext } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
@@ -33,7 +37,7 @@ type Props = {
   setDescription: (value: string) => void;
   commentError: string;
   commentLoader: boolean;
-  isCommentOptional: boolean;
+  isCommentOptional?: boolean;
   onSubmit: () => void;
   onClose: () => void;
 };
@@ -50,14 +54,28 @@ export default function ParcelVerifyCommentModal({
   setDescription,
   commentError,
   commentLoader,
-  isCommentOptional,
+  isCommentOptional: _isCommentOptionalProp,
   onSubmit,
   onClose,
 }: Props) {
   const { t } = useTranslation();
+  const { EffectiveDeliveryLabel, PinnedDeliveryLabel } =
+    useContext(GlobalContextData);
+
+  // Global pin is source of truth — survives Filter soft-null races.
+  const resolvedLabel =
+    EffectiveDeliveryLabel ??
+    PinnedDeliveryLabel ??
+    selectCurrentDeliveryLabel;
+
+  const isCommentOptional = isDescriptionOptional(
+    resolvedLabel,
+    selectDamageData,
+    itemsData,
+  );
 
   const showDamageList = shouldShowDamageInCommentModal(
-    selectCurrentDeliveryLabel,
+    resolvedLabel ?? selectCurrentDeliveryLabel,
     itemsData,
   );
 
@@ -75,6 +93,7 @@ export default function ParcelVerifyCommentModal({
       propagateSwipe
       avoidKeyboard={false}
       onBackdropPress={onClose}
+      onBackButtonPress={onClose}
     >
       <View style={{ flex: 1 }}>
         <SafeAreaView />
@@ -143,7 +162,7 @@ export default function ParcelVerifyCommentModal({
                 placeholder={t('Type here...')}
                 multiline
                 placeholderTextColor={Colors.black}
-                numberOfLines={5}
+                numberOfLines={3}
                 textAlignVertical="top"
               />
               {commentError ? <Text style={styles.error}>{commentError}</Text> : null}
@@ -239,7 +258,8 @@ const styles = StyleSheet.create({
     padding: 10,
     fontSize: 14,
     backgroundColor: Colors.white,
-    minHeight: 240,
+    minHeight: 150,
+    maxHeight: 210,
     fontFamily: FONTS.Regular,
     color: Colors.black,
     marginTop: 10,

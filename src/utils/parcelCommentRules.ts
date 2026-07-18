@@ -10,18 +10,31 @@ const toFlag = (value: unknown): boolean | null => {
 };
 
 export function shouldShowDamageInCommentModal(
-  _deliveryLabel: any,
+  deliveryLabel: any,
   order: any,
 ): boolean {
-  return isDeliveryOrder(order) || isPickupPlannedOrder(order);
+  // Pickup: always show damage list (no label flag check).
+  if (isPickupPlannedOrder(order)) {
+    return true;
+  }
+  // Delivery / drop: only when label says damaged_required == 1.
+  if (isDeliveryOrder(order)) {
+    return deliveryLabel?.damaged_required == 1;
+  }
+  return false;
 }
 
-/** Signature after last parcel — use delivery label flag only (no tms_current_status). */
+/** Signature after last parcel — same rules as ScannerScreens CommentFun. */
 export function isSignatureRequiredAfterStatusUpdate(
-  _statusUpdateResponse: any,
+  statusUpdateResponse: any,
   deliveryLabel: any,
 ): boolean {
-  return deliveryLabel?.signature_required == 1;
+  const status =
+    statusUpdateResponse?.tms_current_status ??
+    statusUpdateResponse?.data?.tms_current_status;
+  return (
+    Number(status) === 5 && deliveryLabel?.signature_required == 1
+  );
 }
 
 
@@ -30,7 +43,9 @@ export function isDescriptionOptional(
   damageData: any,
   order?: any,
 ): boolean {
-  const statusId = Number(order?.tmsstatus?.id ?? order?.status);
+  const statusId = Number(
+    order?.tmsstatus?.id ?? order?.status ?? order?.items?.[0]?.tmsstatus?.id,
+  );
   return (
     statusId === 4 &&
     Number(deliveryLabel?.id) === 21 &&

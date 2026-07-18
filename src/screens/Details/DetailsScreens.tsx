@@ -410,8 +410,16 @@ export default function DetailsScreens({ navigation, route }: any) {
   });
 
   const handleParcelManualVerify = useCallback(
-    ({ order_id, item_id }: { order_id: number | string; item_id: number | string }) => {
-      parcelVerifyFlow.startVerify({ order_id, item_id });
+    ({
+      order_id,
+      item_id,
+      item,
+    }: {
+      order_id: number | string;
+      item_id: number | string;
+      item?: any;
+    }) => {
+      parcelVerifyFlow.startVerify({ order_id, item_id, item });
     },
     [parcelVerifyFlow],
   );

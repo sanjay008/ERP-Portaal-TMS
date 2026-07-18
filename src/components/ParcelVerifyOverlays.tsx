@@ -28,12 +28,14 @@ export default function ParcelVerifyOverlays({ flow, navigation }: Props) {
     AllDeliveyLabel,
     AllDamageListReason,
     selectDamageData,
-    setselectDamageData,
-    SelectCurrentDeliveryLabel,
   } = useContext(GlobalContextData);
 
   // Shared commentVisible — only the focused screen mounts the modal UI.
   const commentVisible = Boolean(flow.comment && isFocused);
+  const signatureVisible = Boolean(flow.showSig && isFocused);
+  const secondModalVisible = flow.secondModal?.visible && isFocused
+    ? flow.secondModal
+    : { ...flow.secondModal, visible: false };
 
   return (
     <>
@@ -103,7 +105,7 @@ export default function ParcelVerifyOverlays({ flow, navigation }: Props) {
         fun={flow.openCameraProofAfterLabelSelect}
         setSelectCurrentDeliveryLabel={flow.handleSelectDeliveryLabel}
         AllDamageListReason={AllDamageListReason}
-        setselectDamageData={setselectDamageData}
+        setselectDamageData={flow.handleSelectDamage}
         selectDamageData={selectDamageData}
         GloblyTypeSlide={GloblyTypeSlide}
         ItemsData={flow.itemsData}
@@ -128,7 +130,7 @@ export default function ParcelVerifyOverlays({ flow, navigation }: Props) {
 
       <SignatureModal
         IsLoading={flow.signatureLoader}
-        visible={flow.showSig}
+        visible={signatureVisible}
         defaultName={flow.itemsData?.display_name}
         ProductDamageList={flow.productDamageList}
         onClose={() => flow.setShowSig(false)}
@@ -137,7 +139,7 @@ export default function ParcelVerifyOverlays({ flow, navigation }: Props) {
         onClear={() => {}}
       />
 
-      <SecondCustomModal SecondModal={flow.secondModal} />
+      <SecondCustomModal SecondModal={secondModalVisible} />
 
       <LoadingModal visible={flow.isLoading} message={t('Please wait…')} />
     </>

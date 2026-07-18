@@ -37,17 +37,42 @@ export default function GlobalContext({ children }: any) {
   const [TimeZone, setTimeZone] = useState<string>("");
   const [AllDeliveyLabel, setAllDeliveyLabel] = useState<any []>([]);
   const [SelectCurrentDeliveryLabel, setSelectCurrentDeliveryLabelState] = useState<any>(null);
+  /**
+   * Hard pin for Direct Flow / Scanner delivery label.
+   * Soft `setSelectCurrentDeliveryLabel(null)` (Filter focus, mid-camera) does NOT
+   * clear this — only clearPinnedDeliveryLabel() does. Fixes optional comment
+   * (label 21 + damage 34) after Camera return races.
+   */
+  const [PinnedDeliveryLabel, setPinnedDeliveryLabel] = useState<any>(null);
+
   const setSelectCurrentDeliveryLabel = useCallback((label: any) => {
     console.log('[SelectCurrentDeliveryLabel] SET', {
       id: label?.id ?? null,
       title: label?.title ?? label?.name ?? null,
       signature_required: label?.signature_required,
       isNull: label == null,
-      full: label,
     });
-    // Delivery label for direct verify lives in ParcelVerifySession only.
-    setSelectCurrentDeliveryLabelState(label);
+    if (label != null) {
+      setSelectCurrentDeliveryLabelState(label);
+      setPinnedDeliveryLabel(label);
+    } else {
+      // Soft clear — keep PinnedDeliveryLabel for optional / status_update / signature.
+      setSelectCurrentDeliveryLabelState(null);
+    }
   }, []);
+
+  const clearPinnedDeliveryLabel = useCallback(() => {
+    console.log('[PinnedDeliveryLabel] CLEAR', {
+      id: PinnedDeliveryLabel?.id ?? null,
+    });
+    setSelectCurrentDeliveryLabelState(null);
+    setPinnedDeliveryLabel(null);
+  }, [PinnedDeliveryLabel?.id]);
+
+  /** Prefer live selection, else pin — single source for Direct Flow optional. */
+  const EffectiveDeliveryLabel =
+    SelectCurrentDeliveryLabel ?? PinnedDeliveryLabel;
+
   const [AllDamageListReason,setAllDamageListReason] = useState([]);
   const [selectRegionData, setSelectRegionData] = useState<any>(null);
   const [selectDamageData, setselectDamageData] = useState<any>(null);
@@ -148,7 +173,10 @@ export default function GlobalContext({ children }: any) {
         NoParcelDetailsScreenEvent, setNoParcelDetailsScreenEvent,
         TimeZone, setTimeZone,
         AllDeliveyLabel, setAllDeliveyLabel,
-        SelectCurrentDeliveryLabel,setSelectCurrentDeliveryLabel,
+        SelectCurrentDeliveryLabel, setSelectCurrentDeliveryLabel,
+        PinnedDeliveryLabel,
+        EffectiveDeliveryLabel,
+        clearPinnedDeliveryLabel,
         AllLanguage,
         setAllLanguage,
         AllDamageListReason,setAllDamageListReason,

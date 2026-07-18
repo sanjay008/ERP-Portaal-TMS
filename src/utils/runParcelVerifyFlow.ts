@@ -11,6 +11,11 @@ import {
   unlockParcelCameraCallback,
 } from '@/src/utils/parcelVerifyCameraReturn';
 import {
+  getActiveVerifyDeliveryLabel,
+  setActiveVerifyDeliveryLabel,
+  setFallbackDeliveryLabelId,
+} from '@/src/utils/parcelVerifyDeliveryLabelStore';
+import {
   isDeliveryItemAlreadyScanned,
   itemNeedsDeliveryLabelSelection,
   shouldOpenPickupPlannedModal,
@@ -19,6 +24,8 @@ import {
 export type ParcelVerifyScanPayload = {
   order_id: number | string;
   item_id: number | string;
+  /** Tapped parcel from PickUpBox — used to seed delivery_label fallback. */
+  item?: any;
 };
 
 export type ParcelVerifyFlowDeps = {
@@ -110,6 +117,15 @@ export async function runParcelVerifyFlow(
     });
 
     if (!Boolean(res?.status)) {
+      const orderData = res?.data?.order_data || null;
+      const productItems =
+        (Array.isArray(orderData?.items) && orderData.items.length > 0
+          ? orderData.items
+          : null) ||
+        (Array.isArray(res?.data?.items) && res.data.items.length > 0
+          ? res.data.items
+          : null) ||
+        [];
       deps.setConformationModal({
         visible: true,
         Icon: Images.InValidScanner,
@@ -117,9 +133,9 @@ export async function runParcelVerifyFlow(
         LButtonText: deps.t('Cancel'),
         RColor: Colors.white,
         bgColor: Colors.red,
-        personData: res?.data?.order_data || [],
-        ProductItem: res?.data?.order_data?.items || [],
-        order_id: data?.order_id,
+        personData: orderData || [],
+        ProductItem: productItems,
+        order_id: orderData?.id || data?.order_id,
         OrderData: res?.data,
       });
       deps.setToast({
@@ -175,11 +191,28 @@ export async function runParcelVerifyFlow(
 
     deps.setOrderDeliveryMapingLableOption(res?.data?.order_label_mapping || []);
     deps.setItemsData(res?.data?.order_data);
+    deps.setResponseOrderData(res?.data?.order_data);
     deps.setShowDeliveryLabelList(res?.data?.delivery_btn || 0);
     deps.setSelectPlace({
       item_id: data?.item_id,
       order_id: data?.order_id,
     });
+
+    // Seed delivery_label fallback from verify response / tapped item.
+    const orderItems = res?.data?.order_data?.items ?? [];
+    const matchedItem =
+      orderItems.find(
+        (el: any) => Number(el?.id) === Number(data?.item_id),
+      ) ?? data?.item;
+    const seedLabelId = matchedItem?.delivery_label;
+    if (seedLabelId != null && seedLabelId !== '') {
+      setFallbackDeliveryLabelId(seedLabelId);
+    }
+    // If user already pinned a label this session, keep it hot.
+    const pinned = getActiveVerifyDeliveryLabel();
+    if (pinned != null) {
+      setActiveVerifyDeliveryLabel(pinned);
+    }
 
     if (Number(res?.data?.total_remaining_item_to_scan) <= 1) {
       deps.setProductDamageList(res?.data?.item_data_list || []);
@@ -241,7 +274,8 @@ export async function runParcelVerifyFlow(
 
       if (needsLabel) {
         if (sessionDeliveryLabel == null) {
-          // Fresh parcel: context must be empty so next select replaces cleanly.
+          // Soft clear only — do not wipe pinned/remembered label mid Direct Flow.
+          // New tap in handleSelectDeliveryLabel overwrites the pin.
           deps.clearDeliveryLabelSelection?.();
           deps.deliveryLabelModalPendingRef.current = true;
           deps.setEvetyTimeShowDeliveryLabelList(true);

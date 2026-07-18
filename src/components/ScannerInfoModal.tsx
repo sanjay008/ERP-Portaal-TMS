@@ -16,10 +16,12 @@ import DashedLine from "react-native-dashed-line";
 import { Images } from "../assets/images";
 import { GlobalContextData } from "../context/GlobalContext";
 import { Colors } from "../utils/colors";
+import { isDeliveryOrder } from "../utils/orderStatus";
 import { FONTS, SimpleFlex, width } from "../utils/storeData";
 import ConformationModal from "./ConformationModal";
 import { getDirectDropboxLink } from "./DropBoxUrlGet";
 import ParcelBox from "./ParcelBox";
+import PickUpBox from "./PickUpBox";
 
 type Props = {
   style?: object;
@@ -204,6 +206,69 @@ export default function ScannerInfoModal({
     stopData !== undefined &&
     stopData !== "";
 
+  // Unauthorized / invalid-scan popup only (red backdrop from verify fail).
+  // Reuse PickUpBox here — do not change PickUpBox itself or other modal types.
+  const pickupOrderData =
+    OrderData?.order_data ??
+    (personData && !Array.isArray(personData) && personData?.id
+      ? personData
+      : null);
+  const showUnauthorizedPickUpBox =
+    bgColor === Colors.red && !!pickupOrderData;
+
+  const firstNonEmptyItems = (...lists: any[][]) => {
+    for (const list of lists) {
+      if (Array.isArray(list) && list.length > 0) return list;
+    }
+    return [];
+  };
+
+  const resolvedProductItems = firstNonEmptyItems(
+    ProductItem,
+    pickupOrderData?.items,
+    personData?.items,
+    OrderData?.order_data?.items,
+    OrderData?.items,
+  );
+
+  const unauthorizedStatusId = Number(
+    pickupOrderData?.tmsstatus?.id ??
+      OrderData?.order_data?.tmsstatus?.id ??
+      0,
+  );
+  // Delivery Date / Region rows only for delivery (drop) orders — not pickup.
+  const showUnauthorizedDeliveryMeta =
+    showUnauthorizedPickUpBox &&
+    (isDeliveryOrder(pickupOrderData) ||
+      pickupOrderData?.tms_order_type === "delivery" ||
+      unauthorizedStatusId === 4);
+  const unauthorizedDeliverDate =
+    pickupOrderData?.deliver_date ||
+    personData?.deliver_date ||
+    OrderData?.order_data?.deliver_date ||
+    "";
+  const unauthorizedRegionName =
+    pickupOrderData?.delivery_region_data?.name ||
+    personData?.delivery_region_data?.name ||
+    pickupOrderData?.region_data?.name ||
+    OrderData?.order_data?.region_data?.name ||
+    OrderData?.region_data?.name ||
+    "";
+  const unauthorizedPostcode =
+    pickupOrderData?.deliver_postcode ||
+    personData?.deliver_postcode ||
+    OrderData?.order_data?.deliver_postcode ||
+    "";
+  const unauthorizedItemData = pickupOrderData
+    ? {
+        ...pickupOrderData,
+        items:
+          resolvedProductItems.length > 0
+            ? resolvedProductItems
+            : pickupOrderData?.items || [],
+      }
+    : null;
+
   return (
     <>
       <View style={styles.AbsoluteWrapper}>
@@ -214,7 +279,12 @@ export default function ScannerInfoModal({
         />
 
         <View style={[styles.container, style, bgColor && { backgroundColor: bgColor }]}>
-          <View style={[styles.ContentView]}>
+          <View
+            style={[
+              styles.ContentView,
+              showUnauthorizedPickUpBox && styles.ContentViewUnauthorized,
+            ]}
+          >
             <ScrollView
               bounces={false}
               showsVerticalScrollIndicator={false}
@@ -229,6 +299,58 @@ export default function ScannerInfoModal({
 
 
               {!showReasonList && !showDeliveredAtList && (
+                showUnauthorizedPickUpBox ? (
+                  <View style={styles.pickUpBoxWrap}>
+                    <PickUpBox
+                      AllisCollapsed={true}
+                      downButton={true}
+                      index={0}
+                      LableStatus={unauthorizedItemData?.tmsstatus?.status_name}
+                      OrderId={unauthorizedItemData?.id ?? OrderId}
+                      ProductItem={resolvedProductItems}
+                      driver_note={unauthorizedItemData?.driver_note || null}
+                      LableBackground={unauthorizedItemData?.tmsstatus?.color}
+                      start={unauthorizedItemData?.pickup_location}
+                      end={unauthorizedItemData?.deliver_location}
+                      ItemData={unauthorizedItemData}
+                      additional_cost_label={unauthorizedItemData?.additional_cost_label}
+                      customerData={unauthorizedItemData?.customer}
+                      external_platform_data={unauthorizedItemData?.display_name}
+                      external_order_id={unauthorizedItemData?.external_order_id}
+                      statusData={unauthorizedItemData?.tmsstatus}
+                      LacationProgress={true}
+                      contact={false}
+                    />
+
+                    {showUnauthorizedDeliveryMeta && (
+                      <View style={styles.unauthorizedMeta}>
+                        <View style={[styles.Flex, { marginTop: 10 }]}>
+                          <Text style={styles.DarkText}>{t("Delivery Date")}</Text>
+                          <Text style={styles.Text}>
+                            {unauthorizedDeliverDate || "-"}
+                          </Text>
+                        </View>
+
+                        <DashedLine
+                          dashLength={4}
+                          dashThickness={1}
+                          dashGap={2}
+                          dashColor={Colors.orderdark}
+                          style={styles.DasheLine}
+                        />
+
+                        <View style={styles.Flex}>
+                          <Text style={styles.DarkText}>{t("Region")}</Text>
+                          <Text style={styles.Text}>
+                            {[unauthorizedRegionName, unauthorizedPostcode]
+                              .filter(Boolean)
+                              .join(" ") || "-"}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                ) : (
                 <View style={styles.OrderView}>
                   {showStopData && (
                     <Text style={styles.StopOrderText}>{stopData}</Text>
@@ -332,9 +454,11 @@ export default function ScannerInfoModal({
                       </>
                     )}
 
-                </View> 
+                </View>
+                )
               )}
               {
+                !showUnauthorizedPickUpBox &&
                 [1, 2, 3].includes(OrderData?.order_data?.tmsstatus?.id) &&
                 <View style={{ paddingHorizontal: 15, paddingVertical: 5, gap: 5 }}>
                   <FlatList
@@ -407,7 +531,7 @@ export default function ScannerInfoModal({
                   ))}
                 </View>
               )}
-
+            </ScrollView>
 
               {!showReasonList && !showDeliveredAtList && (() => {
                 const showCancel =
@@ -561,7 +685,6 @@ export default function ScannerInfoModal({
                   </View>
                 );
               })()}
-            </ScrollView>
           </View>
         </View>
       </View>
@@ -637,9 +760,19 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.red,
   },
   container: { flexGrow: 1, justifyContent: "center", alignItems: "center", margin: 0, padding: 15 },
-  ContentView: { width: width * 0.9, maxHeight: Dimensions.get('window').height * 0.82, backgroundColor: Colors.white, borderRadius: 7 },
-  modalScroll: { flexGrow: 0 },
-  modalScrollContent: { flexGrow: 1 },
+  ContentView: {
+    width: width * 0.9,
+    maxHeight: Dimensions.get("window").height * 0.82,
+    backgroundColor: Colors.white,
+    borderRadius: 7,
+    overflow: "hidden",
+  },
+  ContentViewUnauthorized: {
+    maxHeight: Dimensions.get("window").height * 0.92,
+    width: width * 0.94,
+  },
+  modalScroll: { flexGrow: 1, flexShrink: 1 },
+  modalScrollContent: { flexGrow: 1, paddingBottom: 8 },
   InfoContainer: { padding: 15 },
   Text: { fontSize: 15, fontFamily: FONTS.SemiBold, color: Colors.black },
   StopOrderText: {
@@ -654,11 +787,27 @@ const styles = StyleSheet.create({
   OrderIdText: { fontSize: 13, color: Colors.orderdark, fontFamily: FONTS.Medium },
   Flex: { width: "100%", flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   OrderView: { backgroundColor: Colors.background, padding: 15 },
+  pickUpBoxWrap: {
+    paddingHorizontal: 10,
+    paddingBottom: 5,
+    backgroundColor: Colors.background,
+  },
+  unauthorizedMeta: {
+    paddingHorizontal: 5,
+    paddingTop: 4,
+    paddingBottom: 10,
+  },
   TotalProductConatiner: { marginVertical: 15 },
   ContentContainerStyle: { gap: 10 },
   DarkText: { fontSize: 13, color: Colors.darkText, fontFamily: FONTS.Medium },
   DasheLine: { marginVertical: 15 },
-  LastButtonContainer: { padding: 15, gap: 10 },
+  LastButtonContainer: {
+    padding: 15,
+    gap: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.Boxgray,
+    backgroundColor: Colors.white,
+  },
   FooterCenter: { alignItems: "center", width: "100%" },
   FooterRow: {
     width: "100%",

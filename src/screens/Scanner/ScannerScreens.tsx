@@ -25,10 +25,22 @@ import {
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors.js";
 import { appendToLocalUploadQueue } from "@/src/utils/localUploadQueue";
-import { shouldShowDamageInCommentModal } from "@/src/utils/parcelCommentRules";
+import {
+  setLatestDeliveryCameraSetData,
+  setLatestPickupCameraSetData,
+} from "@/src/context/ParcelVerifySessionContext";
+import {
+  shouldShowDamageInCommentModal,
+  shouldSkipCommentAfterCamera,
+} from "@/src/utils/parcelCommentRules";
 import {
   hasRemainingParcelsToDeliver,
 } from "@/src/utils/pickupPlanned";
+import {
+  isParcelCameraCallbackLocked,
+  lockParcelCameraCallback,
+  unlockParcelCameraCallback,
+} from "@/src/utils/parcelVerifyCameraReturn";
 import { runParcelVerifyFlow } from "@/src/utils/runParcelVerifyFlow";
 import { isBlankSignatureData } from "@/src/utils/signatureValidation";
 import { FONTS, height, width } from "@/src/utils/storeData";
@@ -232,6 +244,9 @@ export default function ScannerScreens({ navigation, route }: any) {
     NoParcelDetailsScreenEvent, setNoParcelDetailsScreenEvent,
     AllDeliveyLabel, setAllDeliveyLabel,
     SelectCurrentDeliveryLabel, setSelectCurrentDeliveryLabel,
+    EffectiveDeliveryLabel,
+    PinnedDeliveryLabel,
+    clearPinnedDeliveryLabel,
     AllDamageListReason, setAllDamageListReason,
     selectDamageData, setselectDamageData,
     CommentId, setCommentId,
@@ -246,7 +261,7 @@ export default function ScannerScreens({ navigation, route }: any) {
 
   const isCommentOptional =
     Number(ItemsData?.tmsstatus?.id ?? ItemsData?.status) === 4 &&
-    SelectCurrentDeliveryLabel?.id === 21 &&
+    (EffectiveDeliveryLabel ?? PinnedDeliveryLabel ?? SelectCurrentDeliveryLabel)?.id === 21 &&
     selectDamageData?.id === 34;
 
   const getSessionDeliveryLabel = useCallback(
@@ -388,8 +403,8 @@ export default function ScannerScreens({ navigation, route }: any) {
   const clearDeliveryLabelSelection = useCallback(() => {
     pendingDeliveryLabelRef.current = null;
     selectCurrentDeliveryLabelRef.current = null;
-    setSelectCurrentDeliveryLabel(null);
-  }, [setSelectCurrentDeliveryLabel]);
+    clearPinnedDeliveryLabel?.();
+  }, [clearPinnedDeliveryLabel]);
 
   const closeDeliveryLabelModalAndUnlockScan = useCallback(() => {
     deliveryLabelModalPendingRef.current = false;
@@ -420,26 +435,40 @@ export default function ScannerScreens({ navigation, route }: any) {
       LColor: Colors.black,
       onPress: () => {
         deliveryTypeRef.current = false;
-        setDeliveyDataSave({
-          Data: ItemsData,
-          selectReason: selectedLabel,
-          setData: async (data: any[]) => {
+        lockParcelCameraCallback();
+        const setData = async (data: any[]) => {
+          try {
             if (data?.length > 0) {
               setAllSelectImage(data);
-              if (SelectCurrentDeliveryLabel?.id == 21 && selectDamageData?.id == 28) {
+              if (shouldSkipCommentAfterCamera(selectedLabel, selectDamageData)) {
                 setComment(false);
               } else {
                 setComment(true);
               }
             }
-          },
+          } finally {
+            unlockParcelCameraCallback();
+          }
+        };
+        setLatestDeliveryCameraSetData(setData);
+        setDeliveyDataSave({
+          Data: ItemsData,
+          selectReason: selectedLabel,
+          setData,
           type: false,
         });
         navigation.navigate("Camera");
         setAlerModalOpen((prev) => ({ ...prev, visible: false }));
       },
     });
-  }, [ItemsData, navigation, SelectCurrentDeliveryLabel, setDeliveyDataSave, t]);
+  }, [
+    ItemsData,
+    navigation,
+    SelectCurrentDeliveryLabel,
+    selectDamageData,
+    setDeliveyDataSave,
+    t,
+  ]);
 
   useEffect(() => {
     if (!Focused) {
@@ -581,35 +610,42 @@ export default function ScannerScreens({ navigation, route }: any) {
   }, []);
 
 
+  // Register Scanner camera callbacks while focused so CustomCamera does not
+  // call a stale Filter/Details latest* handler (which opens shared comment only
+  // after leaving Scanner).
   useEffect(() => {
-    setPickUpDataSave({
-      setData: async (data: any[]) => {
-        if (data?.length > 0) {
-          setAllSelectImage(data);
+    if (!Focused || isParcelCameraCallbackLocked()) {
+      return;
+    }
+
+    const pickupSetData = async (data: any[]) => {
+      if (data?.length > 0) {
+        setAllSelectImage(data);
+        setComment(true);
+      }
+    };
+    setLatestPickupCameraSetData(pickupSetData);
+    setPickUpDataSave({ setData: pickupSetData });
+
+    const deliverySetData = async (data: any[]) => {
+      if (!data?.length) return;
+      setAllSelectImage(data);
+      if (!deliveryTypeRef.current) {
+        const label =
+          selectCurrentDeliveryLabelRef.current ?? SelectCurrentDeliveryLabel;
+        if (shouldSkipCommentAfterCamera(label, selectDamageData)) {
+          setComment(false);
+        } else {
           setComment(true);
         }
-      },
-    });
-
+        setShowSig(false);
+      } else {
+        reopenSignatureAfterCamera(data);
+      }
+    };
+    setLatestDeliveryCameraSetData(deliverySetData);
     setDeliveyDataSave({
-      setData: async (data: any[]) => {
-        if (data?.length > 0) {
-          setAllSelectImage(data);
-
-          if (!deliveryTypeRef.current) {
-            if (SelectCurrentDeliveryLabel?.id == 21 && selectDamageData?.id == 28) {
-              setComment(false);
-
-            } else {
-              setComment(true);
-
-            }
-            setShowSig(false);
-          } else {
-            reopenSignatureAfterCamera(data);
-          }
-        }
-      },
+      setData: deliverySetData,
       type: deliveryTypeRef.current,
     });
 
@@ -619,7 +655,14 @@ export default function ScannerScreens({ navigation, route }: any) {
         clearTimeout(signatureReopenTimerRef.current);
       }
     };
-  }, [Focused, reopenSignatureAfterCamera]);
+  }, [
+    Focused,
+    SelectCurrentDeliveryLabel,
+    selectDamageData,
+    reopenSignatureAfterCamera,
+    setPickUpDataSave,
+    setDeliveyDataSave,
+  ]);
 
   const onBarcodeScanned = useCallback(
     async ({ data, type }: { data: string; type: string }) => {
@@ -910,8 +953,21 @@ export default function ScannerScreens({ navigation, route }: any) {
     pickupPlannedModalPendingRef.current = false;
     setPickupPlannedSheetOpen((prev) => ({ ...prev, visible: false }));
     pendingPickupScanRef.current = null;
+    lockParcelCameraCallback();
+    const setData = async (data: any[]) => {
+      try {
+        if (data?.length > 0) {
+          setAllSelectImage(data);
+          setComment(true);
+        }
+      } finally {
+        unlockParcelCameraCallback();
+      }
+    };
+    setLatestPickupCameraSetData(setData);
+    setPickUpDataSave({ setData });
     navigation.navigate("Camera", { from: "Pickup" });
-  }, [navigation]);
+  }, [navigation, setPickUpDataSave]);
 
   const handlePickupNextScan = useCallback(async () => {
     const scanData =
@@ -1789,7 +1845,20 @@ export default function ScannerScreens({ navigation, route }: any) {
             setConformationModal((prev: any[]) => ({
               ...prev,
               visible: false,
-            }))
+            }));
+            lockParcelCameraCallback();
+            const setData = async (data: any[]) => {
+              try {
+                if (data?.length > 0) {
+                  setAllSelectImage(data);
+                  setComment(true);
+                }
+              } finally {
+                unlockParcelCameraCallback();
+              }
+            };
+            setLatestPickupCameraSetData(setData);
+            setPickUpDataSave({ setData });
             navigation.navigate("Camera", {
               from: "Pickup",
             });
@@ -1840,12 +1909,19 @@ export default function ScannerScreens({ navigation, route }: any) {
         onPress={() => {
           deliveryTypeRef.current = true;
           setShowSig(false);
+          lockParcelCameraCallback();
+          const setData = async (data: any[]) => {
+            try {
+              reopenSignatureAfterCamera(data);
+            } finally {
+              unlockParcelCameraCallback();
+            }
+          };
+          setLatestDeliveryCameraSetData(setData);
           setDeliveyDataSave({
             Data: ReposonseOrderData,
             selectReason: item,
-            setData: async (data: any[]) => {
-              reopenSignatureAfterCamera(data);
-            },
+            setData,
             type: true,
           });
           navigation.navigate("Camera");

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useContext, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import {
     Animated,
@@ -15,8 +15,13 @@ import {
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useParcelVerifySession } from "../context/ParcelVerifySessionContext";
+import { GlobalContextData } from "../context/GlobalContext";
+import {
+    getRememberedDeliveryLabel,
+    useParcelVerifySession,
+} from "../context/ParcelVerifySessionContext";
 import { Colors } from "../utils/colors";
+import { setActiveVerifyDeliveryLabel } from "../utils/parcelVerifyDeliveryLabelStore";
 import { FONTS } from "../utils/storeData";
 import PickUpBox from "./PickUpBox";
 
@@ -52,6 +57,8 @@ export default function AnimatedModal({
     const { t } = useTranslation();
     const insets = useSafeAreaInsets();
     const { setSessionDeliveryLabel } = useParcelVerifySession();
+    const { setSelectCurrentDeliveryLabel: setGlobalDeliveryLabel, EffectiveDeliveryLabel } =
+        useContext(GlobalContextData);
     const translateY = useRef(new Animated.Value(height)).current;
     const opacity = useRef(new Animated.Value(0)).current;
     const overlayOpacity = useRef(new Animated.Value(0)).current;
@@ -128,17 +135,20 @@ export default function AnimatedModal({
     const hasDeliveryLabel = AllDeliveyLabel && AllDeliveyLabel.filter((i) => i?.id !== 15).length > 0;
 
     const handleDeliveryLabelSelect = (item: any) => {
-        // Context is source of truth — always replace with latest tap.
-        console.log('[AnimatedModal] select delivery label → context', {
+        // Pin to GlobalContext FIRST — soft null from Filter cannot wipe this.
+        console.log('[AnimatedModal] select delivery label → global pin', {
             id: item?.id,
             title: item?.title,
         });
+        setGlobalDeliveryLabel?.(item);
+        setActiveVerifyDeliveryLabel(item);
         setSessionDeliveryLabel(item);
         setSelectCurrentDeliveryLabel?.(item);
         if (!hasDamageList) {
             completeSelection(item);
             return;
         }
+        // Damage already chosen (e.g. default undamaged) — continue with this label.
         if (selectDamageData) {
             completeSelection(item);
         }
@@ -147,6 +157,12 @@ export default function AnimatedModal({
     const handleDamageSelect = (item: any) => {
         if (setselectDamageData) {
             setselectDamageData(item);
+        }
+        // Label already chosen earlier — finish with global pin / remembered.
+        const selectedLabel =
+            EffectiveDeliveryLabel ?? getRememberedDeliveryLabel();
+        if (selectedLabel != null) {
+            completeSelection(selectedLabel);
         }
     };
 

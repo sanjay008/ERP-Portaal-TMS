@@ -5,9 +5,18 @@ import { GlobalContextData } from '@/src/context/GlobalContext';
 import {
   useParcelVerifySession,
   getRememberedDeliveryLabel,
+  clearRememberedDeliveryLabel,
   setLatestDeliveryCameraSetData,
   setLatestPickupCameraSetData,
 } from '@/src/context/ParcelVerifySessionContext';
+import {
+  getActiveVerifyDeliveryLabel,
+  setActiveVerifyDeliveryLabel,
+  clearActiveVerifyDeliveryLabel,
+  setFallbackDeliveryLabelId,
+  getFallbackDeliveryLabelId,
+  resolveVerifyDeliveryLabel,
+} from '@/src/utils/parcelVerifyDeliveryLabelStore';
 import { DropboxContext } from '@/src/context/UploadProider';
 import ApiService from '@/src/utils/Apiservice';
 import { Colors } from '@/src/utils/colors';
@@ -15,7 +24,6 @@ import { appendToLocalUploadQueue } from '@/src/utils/localUploadQueue';
 import { isDeliveryOrder } from '@/src/utils/orderStatus';
 import {
   isDescriptionOptional,
-  isSignatureRequiredAfterStatusUpdate,
   shouldSkipCommentAfterCamera,
 } from '@/src/utils/parcelCommentRules';
 import { hasRemainingParcelsToDeliver } from '@/src/utils/pickupPlanned';
@@ -102,11 +110,16 @@ export function useParcelVerifyFlow({
     setselectDamageData,
     SelectCurrentDeliveryLabel,
     setSelectCurrentDeliveryLabel,
+    PinnedDeliveryLabel,
+    EffectiveDeliveryLabel,
+    clearPinnedDeliveryLabel,
     setOrderDeliveryMapingLableOption,
+    DeliveyDataSave,
     setDeliveyDataSave,
     setPickUpDataSave,
     CommentId,
     setCommentId,
+    selectRegionData,
   } = useContext(GlobalContextData);
 
   const [isLoading, setIsLoading] = useState(false);
@@ -155,11 +168,14 @@ export function useParcelVerifyFlow({
   const pendingPickupScanRef = useRef<ParcelVerifyScanPayload | null>(null);
   const pendingDeliveryLabelRef = useRef<any>(null);
   const selectCurrentDeliveryLabelRef = useRef<any>(null);
-  /** Survives FilterScreen focus clear of SelectCurrentDeliveryLabel — used for status_update + signature. */
+  /** Survives FilterScreen focus clear of SelectCurrentDeliveryLabel — used for status_update + signature + optional. */
   const deliveryLabelSnapshotRef = useRef<any>(null);
+  const [lockedDeliveryLabel, setLockedDeliveryLabel] = useState<any>(null);
   const selectDamageDataRef = useRef<any>(null);
   const deliveryTypeRef = useRef(false);
   const signatureReopenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Locked at label select — survives stub overwrites so signature button still shows. */
+  const signatureRequiredRef = useRef(false);
 
   useEffect(() => {
     selectCurrentDeliveryLabelRef.current = SelectCurrentDeliveryLabel;
@@ -169,36 +185,111 @@ export function useParcelVerifyFlow({
     selectDamageDataRef.current = selectDamageData;
   }, [selectDamageData]);
 
-  const isCommentOptional = useMemo(
-    () => {
-      const label =
-        getRememberedDeliveryLabel() ??
-        parcelVerifySession.deliveryLabel ??
-        SelectCurrentDeliveryLabel;
-      const damage =
-        selectDamageData ?? parcelVerifySession.damageData;
-      const optional = isDescriptionOptional(label, damage, itemsData);
+  const resolveLabelFromId = useCallback(
+    (labelId: any) => {
+      if (labelId == null || labelId === '') return null;
+      const fromList = AllDeliveyLabel?.find(
+        (item: any) => Number(item?.id) === Number(labelId),
+      );
+      if (fromList) return fromList;
+      // Minimal stub so optional rule (id === 21) still works if list not loaded.
+      return { id: Number(labelId) };
+    },
+    [AllDeliveyLabel],
+  );
+
+  const resolveDeliveryLabel = useCallback(() => {
+    const fromItemId = (() => {
+      const items = itemsData?.items ?? itemsData?.order_data?.items ?? [];
+      const match =
+        items.find(
+          (el: any) =>
+            selectPlace?.item_id != null &&
+            Number(el?.id) === Number(selectPlace.item_id),
+        ) ?? items[0];
+      return (
+        match?.delivery_label ??
+        getFallbackDeliveryLabelId() ??
+        null
+      );
+    })();
+
+    // Global pin first — survives Filter soft-null + dual hook instances.
+    const resolved = resolveVerifyDeliveryLabel({
+      snapshot: deliveryLabelSnapshotRef.current,
+      locked: lockedDeliveryLabel,
+      pending: pendingDeliveryLabelRef.current,
+      remembered: getRememberedDeliveryLabel(),
+      session: parcelVerifySession.deliveryLabel,
+      global: EffectiveDeliveryLabel ?? SelectCurrentDeliveryLabel ?? PinnedDeliveryLabel,
+      saveReason: DeliveyDataSave?.selectReason,
+      itemDeliveryLabelId: fromItemId,
+      resolveFromId: resolveLabelFromId,
+    });
+
+    // Prefer global pin over anything else when present.
+    const withGlobalPin =
+      EffectiveDeliveryLabel ??
+      PinnedDeliveryLabel ??
+      getActiveVerifyDeliveryLabel() ??
+      resolved;
+
+    if (comment && isFocused) {
+      console.log('[DirectFlow] resolveDeliveryLabel', {
+        pinnedId: PinnedDeliveryLabel?.id ?? null,
+        effectiveId: EffectiveDeliveryLabel?.id ?? null,
+        storeId: getActiveVerifyDeliveryLabel()?.id ?? null,
+        snapshotId: deliveryLabelSnapshotRef.current?.id ?? null,
+        lockedId: lockedDeliveryLabel?.id ?? null,
+        pendingId: pendingDeliveryLabelRef.current?.id ?? null,
+        rememberedId: getRememberedDeliveryLabel()?.id ?? null,
+        sessionId: parcelVerifySession.deliveryLabel?.id ?? null,
+        globalId: SelectCurrentDeliveryLabel?.id ?? null,
+        saveReasonId: DeliveyDataSave?.selectReason?.id ?? null,
+        itemDeliveryLabel: fromItemId,
+        fallbackId: getFallbackDeliveryLabelId(),
+        resolvedId: withGlobalPin?.id ?? null,
+      });
+    }
+    return withGlobalPin;
+  }, [
+    comment,
+    isFocused,
+    lockedDeliveryLabel,
+    parcelVerifySession.deliveryLabel,
+    SelectCurrentDeliveryLabel,
+    PinnedDeliveryLabel,
+    EffectiveDeliveryLabel,
+    DeliveyDataSave?.selectReason,
+    itemsData,
+    selectPlace?.item_id,
+    resolveLabelFromId,
+  ]);
+
+  const isCommentOptional = useMemo(() => {
+    // Always read module store first — shared across Filter + Details instances.
+    const label = resolveDeliveryLabel();
+    const damage = selectDamageData ?? parcelVerifySession.damageData;
+    const optional = isDescriptionOptional(label, damage, itemsData);
+    if (comment && isFocused) {
       console.log('[DirectFlow] isCommentOptional', {
         optional,
         labelId: label?.id ?? null,
         damageId: damage?.id ?? null,
         statusId: itemsData?.tmsstatus?.id ?? itemsData?.status ?? null,
       });
-      return optional;
-    },
-    [
-      SelectCurrentDeliveryLabel,
-      selectDamageData,
-      itemsData,
-      parcelVerifySession.deliveryLabel,
-      parcelVerifySession.damageData,
-    ],
-  );
+    }
+    return optional;
+  }, [
+    resolveDeliveryLabel,
+    selectDamageData,
+    itemsData,
+    parcelVerifySession.damageData,
+    comment,
+    isFocused,
+  ]);
 
-  const effectiveDeliveryLabel =
-    parcelVerifySession.deliveryLabel ??
-    getRememberedDeliveryLabel() ??
-    SelectCurrentDeliveryLabel;
+  const effectiveDeliveryLabel = resolveDeliveryLabel();
 
   const reopenSignatureAfterCamera = useCallback((data: any[]) => {
     if (!data?.length) return;
@@ -219,17 +310,26 @@ export function useParcelVerifyFlow({
     [parcelVerifySession.deliveryLabel],
   );
 
-  /** After status_update success / before next parcel — context label must be null. */
+  /** Soft clear — UI only. Does not wipe global pin (Direct Flow mid-camera). */
+  const softClearDeliveryLabelUi = useCallback(() => {
+    setSelectCurrentDeliveryLabel(null);
+  }, [setSelectCurrentDeliveryLabel]);
+
+  /** After status_update success / go-to-list — full wipe including global pin. */
   const clearDeliveryLabelSelection = useCallback(() => {
-    console.log('[DirectFlow] clearDeliveryLabelSelection → session null');
+    console.log('[DirectFlow] clearDeliveryLabelSelection → full wipe');
     pendingDeliveryLabelRef.current = null;
     selectCurrentDeliveryLabelRef.current = null;
     deliveryLabelSnapshotRef.current = null;
-    setSelectCurrentDeliveryLabel(null);
+    signatureRequiredRef.current = false;
+    setLockedDeliveryLabel(null);
+    clearPinnedDeliveryLabel();
     setSessionDeliveryLabel(null);
-  }, [setSelectCurrentDeliveryLabel, setSessionDeliveryLabel]);
+    clearRememberedDeliveryLabel();
+    clearActiveVerifyDeliveryLabel();
+  }, [clearPinnedDeliveryLabel, setSessionDeliveryLabel]);
 
-  const clearDeliveryLabelForNextParcel = clearDeliveryLabelSelection;
+  const clearDeliveryLabelForNextParcel = softClearDeliveryLabelUi;
 
   const handleGoToListPage = useCallback(() => {
     setSecondModal((prev: any) => ({ ...prev, visible: false }));
@@ -255,6 +355,11 @@ export function useParcelVerifyFlow({
       if (!scan) return;
       setIsLoading(true);
       try {
+    // Prefer live global selection / pin for delivered_lable_id.
+    const labelForStatus =
+      EffectiveDeliveryLabel ??
+      PinnedDeliveryLabel ??
+      SelectCurrentDeliveryLabel;
         const payload: any = {
           token: UserData?.user?.verify_token,
           role: UserData?.user?.role,
@@ -263,9 +368,9 @@ export function useParcelVerifyFlow({
           item_id: data?.item_id,
           order_id: data?.order_id,
           type: slideType ?? GloblyTypeSlide,
-          ...(SelectCurrentDeliveryLabel != null &&
+          ...(labelForStatus != null &&
             GloblyTypeSlide === 'pickup_dropoff' && {
-              delivered_lable_id: SelectCurrentDeliveryLabel?.id,
+              delivered_lable_id: labelForStatus?.id,
             }),
         };
 
@@ -355,6 +460,8 @@ export function useParcelVerifyFlow({
       slideType,
       GloblyTypeSlide,
       SelectCurrentDeliveryLabel,
+      EffectiveDeliveryLabel,
+      PinnedDeliveryLabel,
       selectDamageData,
       clearDeliveryLabelSelection,
       onSuccess,
@@ -416,6 +523,7 @@ export function useParcelVerifyFlow({
   const flowDeps = useMemo(
     () => ({
       userData: UserData,
+      selectRegionData,
       slideType,
       selectCurrentDate,
       isScanRoute,
@@ -458,6 +566,7 @@ export function useParcelVerifyFlow({
     }),
     [
       UserData,
+      selectRegionData,
       slideType,
       selectCurrentDate,
       isScanRoute,
@@ -486,9 +595,15 @@ export function useParcelVerifyFlow({
   );
 
   const startVerify = useCallback(
-    async (data: ParcelVerifyScanPayload) => {
+    async (data: ParcelVerifyScanPayload & { item?: any }) => {
       setIsLoading(true);
       try {
+        // Seed fallback from tapped parcel so optional (label 21) survives
+        // even if React state is wiped before comment opens.
+        const tappedLabelId = data?.item?.delivery_label;
+        if (tappedLabelId != null && tappedLabelId !== '') {
+          setFallbackDeliveryLabelId(tappedLabelId);
+        }
         await runParcelVerifyFlow(data, flowDeps);
       } finally {
         setIsLoading(false);
@@ -545,40 +660,81 @@ export function useParcelVerifyFlow({
     unlockScanner?.();
   }, [unlockScanner]);
 
+  const persistDeliveryLabel = useCallback(
+    (labelItem: any) => {
+      if (labelItem == null) return;
+      // Enrich from global list so signature_required is never missing on pin.
+      let fullLabel = labelItem;
+      if (labelItem?.id != null && AllDeliveyLabel?.length) {
+        const fromList = AllDeliveyLabel.find(
+          (el: any) => Number(el?.id) === Number(labelItem.id),
+        );
+        if (fromList) {
+          fullLabel = { ...fromList, ...labelItem };
+        }
+      }
+      signatureRequiredRef.current = fullLabel?.signature_required == 1;
+      console.log('[DirectFlow] persistDeliveryLabel', {
+        id: fullLabel?.id,
+        signature_required: fullLabel?.signature_required,
+        signatureRequiredRef: signatureRequiredRef.current,
+      });
+      // Global pin first (survives soft null). Then module store + local refs.
+      setSelectCurrentDeliveryLabel(fullLabel);
+      setActiveVerifyDeliveryLabel(fullLabel);
+      setSessionDeliveryLabel(fullLabel);
+      deliveryLabelSnapshotRef.current = fullLabel;
+      setLockedDeliveryLabel(fullLabel);
+      pendingDeliveryLabelRef.current = fullLabel;
+      selectCurrentDeliveryLabelRef.current = fullLabel;
+    },
+    [AllDeliveyLabel, setSelectCurrentDeliveryLabel, setSessionDeliveryLabel],
+  );
+
   const handleSelectDeliveryLabel = useCallback(
     (labelItem: any) => {
       console.log('[DirectFlow] handleSelectDeliveryLabel', {
         id: labelItem?.id,
         signature_required: labelItem?.signature_required,
       });
-      // Always replace context with latest selection.
-      setSessionDeliveryLabel(labelItem);
-      deliveryLabelSnapshotRef.current = labelItem;
-      pendingDeliveryLabelRef.current = labelItem;
-      selectCurrentDeliveryLabelRef.current = labelItem;
-      setSelectCurrentDeliveryLabel(labelItem);
+      persistDeliveryLabel(labelItem);
     },
-    [setSelectCurrentDeliveryLabel, setSessionDeliveryLabel],
+    [persistDeliveryLabel],
   );
 
   const openCameraProofAfterLabelSelect = useCallback(
     (labelItem?: any) => {
       deliveryLabelModalPendingRef.current = false;
       setEvetyTimeShowDeliveryLabelList(false);
-      // Latest tap wins — arg, else context (already set on select).
+      // Latest tap wins — arg, else module store / pinned / session.
       const selectedLabel =
         labelItem ??
+        getActiveVerifyDeliveryLabel() ??
+        deliveryLabelSnapshotRef.current ??
+        lockedDeliveryLabel ??
+        pendingDeliveryLabelRef.current ??
         getRememberedDeliveryLabel() ??
         parcelVerifySession.deliveryLabel;
 
       console.log('[DirectFlow] openCameraProofAfterLabelSelect', {
         fromArg: labelItem?.id ?? null,
+        storeId: getActiveVerifyDeliveryLabel()?.id ?? null,
         selectedId: selectedLabel?.id ?? null,
       });
 
-      if (selectedLabel != null) {
-        setSessionDeliveryLabel(selectedLabel);
+      if (selectedLabel == null) {
+        console.warn('[DirectFlow] openCameraProofAfterLabelSelect: no label');
+        setToast({
+          top: 45,
+          text: t('Please select a delivery label'),
+          type: 'error',
+          visible: true,
+        });
+        setEvetyTimeShowDeliveryLabelList(true);
+        return;
       }
+
+      persistDeliveryLabel(selectedLabel);
 
       setAlerModalOpen({
         visible: true,
@@ -594,24 +750,33 @@ export function useParcelVerifyFlow({
         onPress: () => {
           deliveryTypeRef.current = false;
           const labelForReturn = selectedLabel;
+          setActiveVerifyDeliveryLabel(labelForReturn);
           lockParcelCameraCallback();
           const setData = async (data: any[]) => {
             try {
               if (!data?.length) return;
               setAllSelectImage(data);
-              if (labelForReturn != null) {
-                setSessionDeliveryLabel(labelForReturn);
+              const labelOnReturn =
+                getActiveVerifyDeliveryLabel() ??
+                labelForReturn ??
+                deliveryLabelSnapshotRef.current ??
+                getRememberedDeliveryLabel();
+              if (labelOnReturn != null) {
+                persistDeliveryLabel(labelOnReturn);
+              } else {
+                console.warn('[DirectFlow] camera return: label still null');
               }
               const damage = selectDamageDataRef.current ?? selectDamageData;
-              if (shouldSkipCommentAfterCamera(labelForReturn, damage)) {
+              if (shouldSkipCommentAfterCamera(labelOnReturn, damage)) {
                 console.log('[DirectFlow] skip comment after camera', {
-                  labelId: labelForReturn?.id,
+                  labelId: labelOnReturn?.id,
                   damageId: damage?.id,
                 });
                 setComment(false);
               } else {
                 console.log('[DirectFlow] open comment (camera return)', {
-                  labelId: labelForReturn?.id,
+                  labelId:
+                    labelOnReturn?.id ?? getActiveVerifyDeliveryLabel()?.id,
                   images: data?.length,
                 });
                 setComment(true);
@@ -635,12 +800,14 @@ export function useParcelVerifyFlow({
     },
     [
       itemsData,
+      lockedDeliveryLabel,
       navigation,
       parcelVerifySession.deliveryLabel,
+      persistDeliveryLabel,
       selectDamageData,
       setComment,
       setDeliveyDataSave,
-      setSessionDeliveryLabel,
+      setToast,
       t,
     ],
   );
@@ -855,11 +1022,13 @@ export function useParcelVerifyFlow({
 
   const commentFun = useCallback(async () => {
     const effectiveType = slideType ?? GloblyTypeSlide;
-    // Context first; Global fallback if select wrote Global before session re-render.
-    const activeDeliveryLabel =
-      getRememberedDeliveryLabel() ??
-      parcelVerifySession.deliveryLabel ??
-      SelectCurrentDeliveryLabel;
+    // Snapshot first — module store / fallback survive Filter focus clears.
+    const activeDeliveryLabel = resolveDeliveryLabel();
+    const commentOptionalNow = isDescriptionOptional(
+      activeDeliveryLabel,
+      selectDamageData ?? parcelVerifySession.damageData,
+      itemsData,
+    );
 
     if (
       isDeliveryOrder(itemsData) &&
@@ -873,7 +1042,7 @@ export function useParcelVerifyFlow({
 
     setCommentLoader(true);
     try {
-      if (!isCommentOptional && !description.trim()) {
+      if (!commentOptionalNow && !description.trim()) {
         setCommentError(t('Please enter a comment'));
         return;
       }
@@ -926,22 +1095,36 @@ export function useParcelVerifyFlow({
         return;
       }
 
-      // Capture before nulling context (signature check needs this).
-      let savedDeliveryLabel = activeDeliveryLabel;
+      // Capture before any clear — global pin + list enrichment (Scanner-aligned).
+      let savedDeliveryLabel =
+        EffectiveDeliveryLabel ??
+        PinnedDeliveryLabel ??
+        activeDeliveryLabel;
       if (savedDeliveryLabel?.id != null && AllDeliveyLabel?.length) {
         const fromList = AllDeliveyLabel.find(
           (item: any) => Number(item?.id) === Number(savedDeliveryLabel.id),
         );
         if (fromList) {
-          savedDeliveryLabel = fromList;
+          savedDeliveryLabel = { ...savedDeliveryLabel, ...fromList };
         }
       }
+
+      const statusForSignature = Number(
+        res?.tms_current_status ??
+          res?.data?.tms_current_status ??
+          res?.data?.data?.tms_current_status,
+      );
+      const labelNeedsSignature =
+        savedDeliveryLabel?.signature_required == 1 ||
+        signatureRequiredRef.current;
 
       console.log('[DirectFlow] commentFun signature check', {
         savedDeliveryLabel: {
           id: savedDeliveryLabel?.id ?? null,
           signature_required: savedDeliveryLabel?.signature_required,
         },
+        signatureRequiredRef: signatureRequiredRef.current,
+        tms_current_status: statusForSignature,
       });
 
       const savedDamageId = selectDamageData?.id;
@@ -995,7 +1178,7 @@ export function useParcelVerifyFlow({
         setDeliveyDataSave([]);
         setDescription('');
         setCommentError('');
-      } else if (isCommentOptional) {
+      } else if (commentOptionalNow) {
         setAllSelectImage([]);
         setPickUpDataSave([]);
         setDeliveyDataSave([]);
@@ -1011,26 +1194,32 @@ export function useParcelVerifyFlow({
         [],
         selectPlace?.item_id,
       );
-      const isSignatureAllowed = isSignatureRequiredAfterStatusUpdate(
-        res,
-        savedDeliveryLabel,
-      );
+      // Same rule as ScannerScreens CommentFun — plus locked ref if pin was stubbed.
+      const isSignatureAllowed =
+        statusForSignature === 5 && labelNeedsSignature;
 
       console.log('[DirectFlow] commentFun button decision', {
         parcelsStillRemaining,
         isSignatureAllowed,
         willShow: isSignatureAllowed ? 'Signature' : 'Go to List Page',
         check: {
+          statusForSignature,
           signature_required_eq_1: savedDeliveryLabel?.signature_required == 1,
-          SelectCurrentDeliveryLabel_signature_required:
-            SelectCurrentDeliveryLabel?.signature_required,
+          signatureRequiredRef: signatureRequiredRef.current,
         },
       });
 
-      clearDeliveryLabelSelection();
       deliveryLabelModalPendingRef.current = false;
       setEvetyTimeShowDeliveryLabelList(false);
       setConformationModal((prev: any) => ({ ...prev, visible: false }));
+
+      // Keep pin while signature is still needed; full wipe otherwise.
+      if (isSignatureAllowed) {
+        softClearDeliveryLabelUi();
+      } else {
+        clearDeliveryLabelSelection();
+      }
+
       await onSuccess?.();
 
       if (effectiveType !== 'outbound_scan') {
@@ -1041,7 +1230,10 @@ export function useParcelVerifyFlow({
             buttons.push({
               text: t('Signature'),
               type: 'primary',
-              onPress: () => setShowSig(true),
+              onPress: () => {
+                setSecondModal((prev: any) => ({ ...prev, visible: false }));
+                setShowSig(true);
+              },
             });
           } else {
             buttons.push({
@@ -1060,6 +1252,7 @@ export function useParcelVerifyFlow({
               effectiveType === 'outbound_scan' ? Colors.primary : Colors.green,
           });
         } else {
+          clearDeliveryLabelSelection();
           setSecondModal({
             visible: true,
             title: t('There are Parcels Remaining'),
@@ -1104,11 +1297,16 @@ export function useParcelVerifyFlow({
             {
               text: t('Signature'),
               type: 'primary',
-              onPress: () => setShowSig(true),
+              onPress: () => {
+                setSecondModal((prev: any) => ({ ...prev, visible: false }));
+                setShowSig(true);
+              },
             },
           ],
           color: Colors.green,
         });
+      } else {
+        clearDeliveryLabelSelection();
       }
     } catch (error) {
       setToast({
@@ -1122,20 +1320,24 @@ export function useParcelVerifyFlow({
     }
   }, [
     SelectCurrentDeliveryLabel,
+    EffectiveDeliveryLabel,
+    PinnedDeliveryLabel,
     selectDamageData,
-    isCommentOptional,
     description,
     selectPlace,
     UserData,
     slideType,
     GloblyTypeSlide,
     AllDeliveyLabel,
+    resolveDeliveryLabel,
     parcelVerifySession.deliveryLabel,
+    parcelVerifySession.damageData,
     setSessionDeliveryLabel,
     itemsData,
     conformationModal?.ProductItem,
     allSelectImage,
     clearDeliveryLabelSelection,
+    softClearDeliveryLabelUi,
     onSuccess,
     addImageOrCommentFun,
     queueProofImagesOnly,
@@ -1163,17 +1365,18 @@ export function useParcelVerifyFlow({
     };
     setLatestDeliveryCameraSetData(setData);
     setDeliveyDataSave({
-      Data: responseOrderData,
-      selectReason: parcelVerifySession.deliveryLabel,
+      Data: responseOrderData ?? itemsData,
+      selectReason: resolveDeliveryLabel(),
       setData,
       type: true,
     });
     navigation.navigate('Camera');
   }, [
-    parcelVerifySession.deliveryLabel,
+    resolveDeliveryLabel,
     navigation,
     reopenSignatureAfterCamera,
     responseOrderData,
+    itemsData,
     setDeliveyDataSave,
   ]);
 
@@ -1185,6 +1388,43 @@ export function useParcelVerifyFlow({
     },
     [setselectDamageData, setSessionDamageData],
   );
+
+  // After Camera → Filter focus wipe, restore label from global pin.
+  useEffect(() => {
+    if (!isFocused) return;
+    if (!comment && !showSig) return;
+    const snap =
+      EffectiveDeliveryLabel ??
+      PinnedDeliveryLabel ??
+      getActiveVerifyDeliveryLabel() ??
+      deliveryLabelSnapshotRef.current ??
+      lockedDeliveryLabel ??
+      pendingDeliveryLabelRef.current ??
+      getRememberedDeliveryLabel();
+    // Do NOT fall back to id-only stub here — that wipes signature_required.
+    if (snap == null) return;
+    if (
+      snap?.signature_required == null &&
+      signatureRequiredRef.current &&
+      snap?.id != null
+    ) {
+      snap.signature_required = 1;
+    }
+    setSelectCurrentDeliveryLabel(snap);
+    setSessionDeliveryLabel(snap);
+    setLockedDeliveryLabel(snap);
+    deliveryLabelSnapshotRef.current = snap;
+    setActiveVerifyDeliveryLabel(snap);
+  }, [
+    isFocused,
+    comment,
+    showSig,
+    lockedDeliveryLabel,
+    EffectiveDeliveryLabel,
+    PinnedDeliveryLabel,
+    setSelectCurrentDeliveryLabel,
+    setSessionDeliveryLabel,
+  ]);
 
   // Only the focused screen may register camera callbacks (Scanner pattern).
   // While Camera is open, lock prevents Filter/Details from stealing DeliveyDataSave.
@@ -1207,7 +1447,15 @@ export function useParcelVerifyFlow({
       setAllSelectImage(data);
       if (!deliveryTypeRef.current) {
         const label =
-          getRememberedDeliveryLabel() ?? parcelVerifySession.deliveryLabel;
+          getActiveVerifyDeliveryLabel() ??
+          deliveryLabelSnapshotRef.current ??
+          lockedDeliveryLabel ??
+          pendingDeliveryLabelRef.current ??
+          getRememberedDeliveryLabel() ??
+          parcelVerifySession.deliveryLabel;
+        if (label != null) {
+          persistDeliveryLabel(label);
+        }
         const damage = selectDamageDataRef.current ?? selectDamageData;
         if (shouldSkipCommentAfterCamera(label, damage)) {
           setComment(false);
@@ -1237,6 +1485,7 @@ export function useParcelVerifyFlow({
     isFocused,
     selectDamageData?.id,
     parcelVerifySession.deliveryLabel?.id,
+    lockedDeliveryLabel?.id,
     reopenSignatureAfterCamera,
     setDeliveyDataSave,
     setPickUpDataSave,
