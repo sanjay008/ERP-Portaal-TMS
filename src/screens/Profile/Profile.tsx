@@ -4,6 +4,7 @@ import ProfileImageViewer from "@/src/components/ProfileImageViewer";
 import ProfileItem from "@/src/components/ProfileItem";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import { Colors } from "@/src/utils/colors";
+import { resetChauffeurLocationSession } from "@/src/hooks/useChauffeurLocation";
 import { clearUserSessionStorage } from "@/src/utils/logoutSession";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
@@ -57,6 +58,7 @@ export default function Profile({ navigation }: any) {
   };
 
   const finishLogout = useCallback(async () => {
+    resetChauffeurLocationSession();
     setActiveShift(null);
     setIsGpsTracking(false);
     setUserData(null);

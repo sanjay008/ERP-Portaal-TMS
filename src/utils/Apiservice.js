@@ -1,6 +1,8 @@
 
 import axios from "axios";
+import apiConstants from "../api/apiConstants";
 import { getData } from "../utils/storeData";
+import { getChauffeurCoordsForApi } from "./chauffeurLocationCache";
 
 const ApiService = async (endpoint, options = {}) => {
   try {
@@ -8,8 +10,18 @@ const ApiService = async (endpoint, options = {}) => {
     const verify_token = await getData("USERDATA");
     // console.log(verify_token, 'data------------');
 
+    let customData = options.customData;
+
+    if (endpoint === apiConstants.status_update && customData) {
+      const userData = verify_token?.data ?? verify_token;
+      const coords = getChauffeurCoordsForApi(userData?.user?.role);
+      if (coords) {
+        customData = { ...customData, ...coords };
+      }
+    }
+
     let requestData;
-    if (options.includeToken || options.customData) {
+    if (options.includeToken || customData) {
       requestData = new FormData();
 
       // Add token if requested
@@ -18,12 +30,12 @@ const ApiService = async (endpoint, options = {}) => {
       }
 
       // Add custom data if any
-      Object.keys(options.customData || {}).forEach((key) => {
-        requestData.append(key, options.customData[key]);
+      Object.keys(customData || {}).forEach((key) => {
+        requestData.append(key, customData[key]);
       });
     }
 
-console.log("requestData",requestData);
+console.log("requestData",requestData,apiConstants.status_update);
 
     const response = await axios({
       method: options.method || "POST", // Default to POST

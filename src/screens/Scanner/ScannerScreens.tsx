@@ -171,6 +171,9 @@ export default function ScannerScreens({ navigation, route }: any) {
   const deliveryLabelModalPendingRef = useRef(false);
   const [showQRError, setShowQRError] = useState(false);
   const [qrErrorMessage, setQrErrorMessage] = useState<string | null>(null);
+  const [manualEntryOpen, setManualEntryOpen] = useState(false);
+  const [manualOrderId, setManualOrderId] = useState("");
+  const [manualItemId, setManualItemId] = useState("");
   const [CommentLoader, setCommentLoader] = useState<boolean>(false);
   const [Refreshcondition, setRefreshCondition] = useState(false);
   const animatedHeight = useRef(new Animated.Value(height)).current;
@@ -343,7 +346,8 @@ export default function ScannerScreens({ navigation, route }: any) {
     isAnyScannerModalOpen ||
     showSig ||
     comment ||
-    showQRError;
+    showQRError ||
+    manualEntryOpen;
 
   const isScannerBlockedByModalRef = useRef(false);
   isScannerBlockedByModalRef.current =
@@ -1776,6 +1780,94 @@ export default function ScannerScreens({ navigation, route }: any) {
     }
   }, [route.params?.refreshTime]);
 
+  useEffect(() => {
+    if (restrictedOrderId != null && restrictedOrderId !== "") {
+      setManualOrderId(String(restrictedOrderId));
+    }
+  }, [restrictedOrderId]);
+
+  const submitManualEntry = async () => {
+    const orderId = manualOrderId.trim();
+    const itemId = manualItemId.trim();
+
+    if (!orderId || !itemId) {
+      setToast({
+        top: 45,
+        text: t("Please enter Order ID and Item ID"),
+        type: "error",
+        visible: true,
+      });
+      return;
+    }
+
+    if (
+      restrictedOrderId != null &&
+      String(orderId) !== String(restrictedOrderId)
+    ) {
+      setManualEntryOpen(false);
+      setQrErrorMessage(
+        t("Please scan the QR code for the current order only."),
+      );
+      setShowQRError(true);
+      return;
+    }
+
+    if (isVerifyingScanRef.current) {
+      return;
+    }
+
+    Keyboard.dismiss();
+    isVerifyingScanRef.current = true;
+    setIsVerifyingScan(true);
+
+    try {
+      Vibration.vibrate(500);
+      try {
+        await playBeep();
+      } catch (_) {
+        // ignore audio errors
+      }
+
+      await QuestiongetApi({
+        order_id: orderId,
+        item_id: itemId,
+      });
+      setManualEntryOpen(false);
+      setManualItemId("");
+    } catch (error: any) {
+      if (axios.isAxiosError(error)) {
+        setQrErrorMessage(null);
+        setShowQRError(true);
+        setToast({
+          top: 45,
+          text:
+            t(error?.response?.data?.message) ??
+            t(error?.message) ??
+            t("Invalid QR code format"),
+          type: "error",
+          visible: true,
+        });
+      } else {
+        setToast({
+          top: 45,
+          text: ErrorHandle(error).message || t("Something went wrong"),
+          type: "error",
+          visible: true,
+        });
+      }
+    } finally {
+      requestAnimationFrame(() => {
+        if (
+          !isScannerBlockedByModalRef.current &&
+          !deliveryLabelModalPendingRef.current &&
+          !pickupPlannedModalPendingRef.current
+        ) {
+          unlockScanner();
+        }
+      });
+    }
+  };
+
   return (
     <GestureHandlerRootView key={refreshKey} style={styles.container}>
       {
@@ -1808,10 +1900,99 @@ export default function ScannerScreens({ navigation, route }: any) {
           />
         </TouchableOpacity>
 
+        {!manualEntryOpen ? (
+          <TouchableOpacity
+            style={styles.ManualEntryChip}
+            activeOpacity={0.85}
+            onPress={() => setManualEntryOpen(true)}
+          >
+            <Ionicons name="keypad-outline" size={16} color={Colors.white} />
+            <Text style={styles.ManualEntryChipText}>{t("Enter code")}</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 1 }} />
+        )}
+
         <TouchableOpacity style={[styles.Button,]} onPress={goBack}>
           <Image source={Images.Close} style={styles.Icons} />
         </TouchableOpacity>
       </View>
+
+      {manualEntryOpen ? (
+        <ReAnimated.View
+          entering={FadeIn.duration(180)}
+          style={[
+            styles.ManualEntryPanel,
+            { top: (top ? top * 1.2 : 40) + 56 },
+          ]}
+        >
+          <View style={styles.ManualEntryHeader}>
+            <Text style={styles.ManualEntryTitle}>{t("Enter QR details")}</Text>
+            <TouchableOpacity
+              hitSlop={10}
+              onPress={() => {
+                Keyboard.dismiss();
+                setManualEntryOpen(false);
+              }}
+            >
+              <Ionicons name="chevron-up" size={20} color={Colors.white} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.ManualEntryFields}>
+            <View style={styles.ManualEntryField}>
+              <Text style={styles.ManualEntryLabel}>{t("Order ID")}</Text>
+              <TextInput
+                style={styles.ManualEntryInput}
+                value={manualOrderId}
+                onChangeText={setManualOrderId}
+                placeholder="24687"
+                placeholderTextColor="rgba(255,255,255,0.35)"
+                keyboardType="number-pad"
+                returnKeyType="next"
+                selectTextOnFocus
+              />
+            </View>
+            <View style={styles.ManualEntryField}>
+              <Text style={styles.ManualEntryLabel}>{t("Item ID")}</Text>
+              <TextInput
+                style={styles.ManualEntryInput}
+                value={manualItemId}
+                onChangeText={setManualItemId}
+                placeholder="26489"
+                placeholderTextColor="rgba(255,255,255,0.35)"
+                keyboardType="number-pad"
+                returnKeyType="done"
+                onSubmitEditing={submitManualEntry}
+                autoFocus={restrictedOrderId != null}
+                selectTextOnFocus
+              />
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={[
+              styles.ManualEntrySubmit,
+              (!manualOrderId.trim() || !manualItemId.trim() || isVerifyingScan) &&
+                styles.ManualEntrySubmitDisabled,
+            ]}
+            activeOpacity={0.85}
+            disabled={
+              !manualOrderId.trim() || !manualItemId.trim() || isVerifyingScan
+            }
+            onPress={submitManualEntry}
+          >
+            {isVerifyingScan ? (
+              <ActivityIndicator size="small" color={Colors.white} />
+            ) : (
+              <>
+                <Text style={styles.ManualEntrySubmitText}>{t("Continue")}</Text>
+                <Ionicons name="arrow-forward" size={16} color={Colors.white} />
+              </>
+            )}
+          </TouchableOpacity>
+        </ReAnimated.View>
+      ) : null}
 
       <CameraPermissionSheet
         visible={cameraPermissionSheet.visible}
@@ -2348,8 +2529,92 @@ const styles = StyleSheet.create({
     top: 40,
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
     width: "100%",
     paddingHorizontal: 20,
+    zIndex: 20,
+  },
+  ManualEntryChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 22,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.22)",
+  },
+  ManualEntryChipText: {
+    fontSize: 13,
+    fontFamily: FONTS.Medium,
+    color: Colors.white,
+  },
+  ManualEntryPanel: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    zIndex: 25,
+    borderRadius: 16,
+    padding: 14,
+    backgroundColor: "rgba(12,12,14,0.88)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.16)",
+    gap: 12,
+  },
+  ManualEntryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  ManualEntryTitle: {
+    fontSize: 13,
+    fontFamily: FONTS.Medium,
+    color: "rgba(255,255,255,0.72)",
+    letterSpacing: 0.2,
+  },
+  ManualEntryFields: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  ManualEntryField: {
+    flex: 1,
+    gap: 6,
+  },
+  ManualEntryLabel: {
+    fontSize: 11,
+    fontFamily: FONTS.Medium,
+    color: "rgba(255,255,255,0.5)",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  ManualEntryInput: {
+    height: 44,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    fontSize: 16,
+    fontFamily: FONTS.Medium,
+    color: Colors.white,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.14)",
+  },
+  ManualEntrySubmit: {
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: Colors.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  ManualEntrySubmitDisabled: {
+    opacity: 0.45,
+  },
+  ManualEntrySubmitText: {
+    fontSize: 14,
+    fontFamily: FONTS.Medium,
+    color: Colors.white,
   },
   Button: {
     backgroundColor: "rgba(0,0,0,0.5)",
