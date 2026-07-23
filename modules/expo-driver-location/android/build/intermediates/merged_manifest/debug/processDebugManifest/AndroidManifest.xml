@@ -15,6 +15,11 @@
             android:exported="false"
             android:foregroundServiceType="location"
             android:stopWithTask="true" />
+        <service
+            android:name="expo.modules.driverlocation.ShiftLocationGuardService"
+            android:exported="false"
+            android:foregroundServiceType="location"
+            android:stopWithTask="false" />
     </application>
 
 </manifest>

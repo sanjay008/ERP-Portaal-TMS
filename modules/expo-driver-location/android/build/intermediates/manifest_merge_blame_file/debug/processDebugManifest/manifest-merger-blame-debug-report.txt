@@ -18,7 +18,7 @@
 10-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:5:20-81
 11
 12    <application>
-12-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:7:3-13:17
+12-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:7:3-18:17
 13        <service
 13-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:8:5-12:50
 14            android:name="expo.modules.driverlocation.DriverLocationService"
@@ -29,6 +29,16 @@
 16-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:12:7-47
 17            android:stopWithTask="true" />
 17-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:11:7-34
-18    </application>
-19
-20</manifest>
+18        <service
+18-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:13:5-17:50
+19            android:name="expo.modules.driverlocation.ShiftLocationGuardService"
+19-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:14:7-75
+20            android:exported="false"
+20-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:15:7-31
+21            android:foregroundServiceType="location"
+21-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:17:7-47
+22            android:stopWithTask="false" />
+22-->/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:16:7-35
+23    </application>
+24
+25</manifest>

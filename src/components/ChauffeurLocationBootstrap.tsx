@@ -20,7 +20,7 @@ import React, { useCallback, useContext, useEffect, useRef, useState } from 'rea
 import { AppState } from 'react-native';
 
 export default function ChauffeurLocationBootstrap() {
-  const { UserData, setActiveShift, setSelectCurrentDate } =
+  const { UserData, setActiveShift, setSelectCurrentDate, activeShift } =
     useContext(GlobalContextData);
   const role = UserData?.user?.role;
   const userId = UserData?.user?.id;
@@ -34,10 +34,48 @@ export default function ChauffeurLocationBootstrap() {
 
   const permissionPromptedRef = useRef<number | string | null>(null);
   const shiftRestoredRef = useRef(false);
+  const activeShiftRef = useRef(activeShift);
+  activeShiftRef.current = activeShift;
 
   useChauffeurLocation(role);
 
-  // Restore active shift after app reopen (same date/region) — does not close shift.
+  // Native force-close (location off) → wipe JS shift state immediately.
+  useEffect(() => {
+    if (!isChauffeur) {
+      return;
+    }
+    let sub: { remove: () => void } | null = null;
+    (async () => {
+      const { subscribeShiftForceClosed, consumeAndWipePendingShiftClose } =
+        await import('@/src/utils/shiftLocationGuard');
+      await consumeAndWipePendingShiftClose(setActiveShift);
+      sub = subscribeShiftForceClosed(setActiveShift);
+    })();
+    return () => {
+      sub?.remove();
+    };
+  }, [isChauffeur, setActiveShift]);
+
+  const enableGuardIfNeeded = useCallback(async () => {
+    if (!isChauffeur || !UserData) {
+      return;
+    }
+
+    const current = activeShiftRef.current;
+    const session =
+      (current?.shiftActive ? current : null) ?? (await loadActiveShift());
+
+    if (!doesShiftBelongToUser(session, UserData)) {
+      return;
+    }
+
+    const { enableShiftLocationGuard } = await import(
+      '@/src/utils/shiftLocationGuard'
+    );
+    await enableShiftLocationGuard(UserData, session);
+  }, [UserData, isChauffeur]);
+
+  // Restore active shift after app reopen — do NOT start native guard until permission is granted.
   useEffect(() => {
     if (!isChauffeur || !userId) {
       shiftRestoredRef.current = false;
@@ -69,47 +107,64 @@ export default function ChauffeurLocationBootstrap() {
     };
   }, [isChauffeur, userId, UserData, setActiveShift, setSelectCurrentDate]);
 
+  // After restore / Filter shift ON: enable guard once permission is available.
+  useEffect(() => {
+    if (!isChauffeur || !activeShift?.shiftActive) {
+      return;
+    }
+    void enableGuardIfNeeded();
+  }, [
+    isChauffeur,
+    activeShift?.shiftActive,
+    activeShift?.region_id,
+    activeShift?.planning_date,
+    enableGuardIfNeeded,
+  ]);
+
   const handleGpsPermissionResult = useCallback(async (status: LocationAccessStatus) => {
     if (status === 'granted') {
       setGpsPermissionSheet({ visible: false, reason: null });
       await startChauffeurLocationWatch();
+      // Native FGS needs location permission first — enable only after grant.
+      await enableGuardIfNeeded();
       return;
     }
 
     setGpsPermissionSheet({ visible: true, reason: status });
-  }, []);
+  }, [enableGuardIfNeeded]);
 
-  const requestChauffeurLocationPermission = useCallback(async () => {
-    if (!isChauffeur || !userId) {
-      return;
-    }
-
-    if (permissionPromptedRef.current === userId) {
-      const status = await recheckLocationAccess();
-      if (status === 'granted') {
-        await handleGpsPermissionResult(status);
-      }
-      return;
-    }
-
-    permissionPromptedRef.current = userId;
-    setIsGpsPermissionLoading(true);
-    try {
-      const status = await resolveLocationAccess();
-      await handleGpsPermissionResult(status);
-    } finally {
-      setIsGpsPermissionLoading(false);
-    }
-  }, [handleGpsPermissionResult, isChauffeur, userId]);
-
+  // Permission once per user — do not re-run when activeShift changes (that caused duplicate guard enable).
   useEffect(() => {
     if (!isChauffeur || !userId) {
       permissionPromptedRef.current = null;
       return;
     }
 
-    requestChauffeurLocationPermission().catch(() => undefined);
-  }, [isChauffeur, userId, requestChauffeurLocationPermission]);
+    if (permissionPromptedRef.current === userId) {
+      return;
+    }
+
+    permissionPromptedRef.current = userId;
+    let cancelled = false;
+
+    (async () => {
+      setIsGpsPermissionLoading(true);
+      try {
+        const status = await resolveLocationAccess();
+        if (!cancelled) {
+          await handleGpsPermissionResult(status);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsGpsPermissionLoading(false);
+        }
+      }
+    })().catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isChauffeur, userId, handleGpsPermissionResult]);
 
   const handleGpsSheetPrimaryAction = useCallback(async () => {
     const reason = gpsPermissionSheet.reason;

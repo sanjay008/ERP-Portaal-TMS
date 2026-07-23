@@ -4,6 +4,18 @@ public final class ExpoDriverLocationModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ExpoDriverLocation")
 
+    Events("onShiftForceClosed")
+
+    OnCreate {
+      ShiftLocationGuardManager.shared.onForceClosed = { [weak self] body in
+        self?.sendEvent("onShiftForceClosed", body)
+      }
+    }
+
+    OnDestroy {
+      ShiftLocationGuardManager.shared.onForceClosed = nil
+    }
+
     AsyncFunction("startTracking") { (config: [String: Any]) in
       let trackingConfig = try TrackingConfig.fromDictionary(config)
       try DriverLocationManager.shared.startTracking(config: trackingConfig)
@@ -32,6 +44,27 @@ public final class ExpoDriverLocationModule: Module {
         "speed": coord.speed as Any,
         "accuracy": coord.accuracy as Any,
       ]
+    }
+
+    AsyncFunction("enableShiftLocationGuard") { (config: [String: Any]) in
+      let trackingConfig = try TrackingConfig.fromDictionary(config)
+      let endTripApiUrl = config["endTripApiUrl"] as? String
+      let seedLat = (config["seedLatitude"] as? NSNumber)?.doubleValue
+      let seedLon = (config["seedLongitude"] as? NSNumber)?.doubleValue
+      ShiftLocationGuardManager.shared.enable(
+        config: trackingConfig,
+        endTripApiUrl: endTripApiUrl,
+        seedLatitude: seedLat,
+        seedLongitude: seedLon
+      )
+    }
+
+    AsyncFunction("disableShiftLocationGuard") {
+      ShiftLocationGuardManager.shared.disable()
+    }
+
+    AsyncFunction("consumePendingShiftClose") { () -> String? in
+      ShiftLocationGuardManager.shared.consumePendingCloseReason()
     }
   }
 }

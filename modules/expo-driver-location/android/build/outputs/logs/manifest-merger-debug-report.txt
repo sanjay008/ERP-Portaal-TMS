@@ -1,7 +1,7 @@
 -- Merging decision tree log ---
 manifest
-ADDED from /Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:1:1-14:12
-INJECTED from /Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:1:1-14:12
+ADDED from /Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:1:1-19:12
+INJECTED from /Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:1:1-19:12
 	package
 		INJECTED from /Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml
 	xmlns:android
@@ -23,7 +23,7 @@ ADDED from /Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-locati
 	android:name
 		ADDED from /Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:5:20-81
 application
-ADDED from /Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:7:3-13:17
+ADDED from /Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:7:3-18:17
 service#expo.modules.driverlocation.DriverLocationService
 ADDED from /Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:8:5-12:50
 	android:exported
@@ -34,6 +34,16 @@ ADDED from /Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-locati
 		ADDED from /Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:12:7-47
 	android:name
 		ADDED from /Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:9:7-71
+service#expo.modules.driverlocation.ShiftLocationGuardService
+ADDED from /Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:13:5-17:50
+	android:exported
+		ADDED from /Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:15:7-31
+	android:stopWithTask
+		ADDED from /Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:16:7-35
+	android:foregroundServiceType
+		ADDED from /Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:17:7-47
+	android:name
+		ADDED from /Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml:14:7-75
 uses-sdk
 INJECTED from /Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from /Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android/src/main/AndroidManifest.xml

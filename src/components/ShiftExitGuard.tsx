@@ -65,8 +65,36 @@ export default function ShiftExitGuard({ navigation }: Props) {
 
       await new Promise((resolve) => setTimeout(resolve, 150));
 
+      // Silent is_active=0 + disable guard (trip already ended above).
+      const { getChauffeurLocation } = await import(
+        '@/src/utils/chauffeurLocationCache'
+      );
+      const { sendDriverLocationUpdate } = await import(
+        '@/src/utils/driverLocationApi'
+      );
+      const cached = getChauffeurLocation();
+      if (cached.latitude && cached.longitude) {
+        await sendDriverLocationUpdate(
+          {
+            latitude: cached.latitude,
+            longitude: cached.longitude,
+            heading: null,
+            speed: null,
+            accuracy: null,
+          },
+          UserData,
+          activeShift!.region_id,
+          planning_date,
+          0,
+        ).catch(() => undefined);
+      }
+
       await clearActiveShift();
       setActiveShift(null);
+      const { disableShiftLocationGuard } = await import(
+        '@/src/utils/shiftLocationGuard'
+      );
+      await disableShiftLocationGuard();
       BackHandler.exitApp();
     } catch (error: any) {
       setToast({

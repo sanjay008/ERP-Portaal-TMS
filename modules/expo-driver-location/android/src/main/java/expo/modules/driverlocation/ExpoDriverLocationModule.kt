@@ -1,7 +1,6 @@
 package expo.modules.driverlocation
 
 import android.content.Context
-import android.content.Intent
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
@@ -13,6 +12,22 @@ class ExpoDriverLocationModule : Module() {
 
   override fun definition() = ModuleDefinition {
     Name("ExpoDriverLocation")
+
+    Events("onShiftForceClosed")
+
+    OnCreate {
+      ShiftLocationGuardService.eventSink = { name, body ->
+        try {
+          sendEvent(name, body)
+        } catch (_: Exception) {
+          // JS bridge may be gone during app kill
+        }
+      }
+    }
+
+    OnDestroy {
+      ShiftLocationGuardService.eventSink = null
+    }
 
     AsyncFunction("startTracking") { config: Map<String, Any?> ->
       val context = resolveContext() ?: return@AsyncFunction null
@@ -66,6 +81,61 @@ class ExpoDriverLocationModule : Module() {
         "speed" to (coord.speed ?: 0.0),
         "accuracy" to (coord.accuracy ?: 0.0),
       )
+    }
+
+    AsyncFunction("enableShiftLocationGuard") { config: Map<String, Any?> ->
+      val context = resolveContext() ?: return@AsyncFunction null
+      val trackingConfig = TrackingConfig.fromMap(config)
+      val endTripApiUrl = config["endTripApiUrl"] as? String
+      ShiftGuardSessionStore.save(context, trackingConfig, endTripApiUrl)
+
+      val seedLat = (config["seedLatitude"] as? Number)?.toDouble()
+      val seedLon = (config["seedLongitude"] as? Number)?.toDouble()
+      if (seedLat != null && seedLon != null && seedLat != 0.0 && seedLon != 0.0) {
+        ShiftGuardSessionStore.saveLastLocation(
+          context,
+          DriverCoordinate(
+            latitude = seedLat,
+            longitude = seedLon,
+            heading = null,
+            speed = null,
+            accuracy = null,
+          ),
+        )
+      }
+
+      try {
+        ShiftLocationGuardService.launch(context, ShiftLocationGuardService.ACTION_ENABLE)
+      } catch (_: Exception) {
+        context.startService(
+          ShiftLocationGuardService.startServiceIntent(
+            context,
+            ShiftLocationGuardService.ACTION_ENABLE,
+          ),
+        )
+      }
+      null
+    }
+
+    AsyncFunction("disableShiftLocationGuard") {
+      val context = resolveContext() ?: return@AsyncFunction null
+      try {
+        ShiftLocationGuardService.launch(context, ShiftLocationGuardService.ACTION_DISABLE)
+      } catch (_: Exception) {
+        context.startService(
+          ShiftLocationGuardService.startServiceIntent(
+            context,
+            ShiftLocationGuardService.ACTION_DISABLE,
+          ),
+        )
+      }
+      ShiftGuardSessionStore.clear(context)
+      null
+    }
+
+    AsyncFunction("consumePendingShiftClose") {
+      val context = resolveContext() ?: return@AsyncFunction null
+      ShiftGuardSessionStore.consumePendingCloseReason(context)
     }
   }
 }

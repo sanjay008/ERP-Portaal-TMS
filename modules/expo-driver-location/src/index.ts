@@ -1,7 +1,21 @@
-import ExpoDriverLocation from './ExpoDriverLocationModule';
-import type { NativeDriverCoordinate, NativeTrackingConfig } from './ExpoDriverLocation.types';
+import ExpoDriverLocation, {
+  addShiftForceClosedListener,
+} from './ExpoDriverLocationModule';
+import type {
+  NativeDriverCoordinate,
+  NativeShiftLocationGuardConfig,
+  NativeTrackingConfig,
+  ShiftForceClosedEvent,
+} from './ExpoDriverLocation.types';
 
-export type { NativeDriverCoordinate, NativeTrackingConfig } from './ExpoDriverLocation.types';
+export type {
+  NativeDriverCoordinate,
+  NativeShiftLocationGuardConfig,
+  NativeTrackingConfig,
+  ShiftForceClosedEvent,
+} from './ExpoDriverLocation.types';
+
+export { addShiftForceClosedListener };
 
 export async function startTracking(config: NativeTrackingConfig): Promise<void> {
   await ExpoDriverLocation.startTracking(config);
@@ -21,4 +35,18 @@ export async function updateNotificationLabels(title: string, body: string): Pro
 
 export async function getLastLocation(): Promise<NativeDriverCoordinate | null> {
   return ExpoDriverLocation.getLastLocation();
+}
+
+export async function enableShiftLocationGuard(
+  config: NativeShiftLocationGuardConfig,
+): Promise<void> {
+  await ExpoDriverLocation.enableShiftLocationGuard(config);
+}
+
+export async function disableShiftLocationGuard(): Promise<void> {
+  await ExpoDriverLocation.disableShiftLocationGuard();
+}
+
+export async function consumePendingShiftClose(): Promise<string | null> {
+  return ExpoDriverLocation.consumePendingShiftClose();
 }

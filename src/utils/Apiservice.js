@@ -35,7 +35,7 @@ const ApiService = async (endpoint, options = {}) => {
       });
     }
 
-console.log("requestData",requestData,apiConstants.status_update);
+console.log("requestData", requestData, endpoint);
 
     const response = await axios({
       method: options.method || "POST", // Default to POST

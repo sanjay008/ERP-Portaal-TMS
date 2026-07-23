@@ -1,5 +1,6 @@
 import { Images } from "@/src/assets/images";
 import ConformationModal from "@/src/components/ConformationModal";
+import LoadingModal from "@/src/components/LoadingModal";
 import ProfileImageViewer from "@/src/components/ProfileImageViewer";
 import ProfileItem from "@/src/components/ProfileItem";
 import { GlobalContextData } from "@/src/context/GlobalContext";
@@ -26,10 +27,12 @@ export default function Profile({ navigation }: any) {
     setUserData,
     CompanysData,
     setPermission,
+    activeShift,
     setActiveShift,
     setIsGpsTracking,
   } = useContext(GlobalContextData);
   const [CurrentVersion, setCurrentVersion] = useState<string>("1");
+  const [logoutLoading, setLogoutLoading] = useState(false);
   const [AlertModalOpen, setAlerModalOpen] = useState<any>({
     visible: false,
     title: "",
@@ -58,14 +61,26 @@ export default function Profile({ navigation }: any) {
   };
 
   const finishLogout = useCallback(async () => {
-    resetChauffeurLocationSession();
-    setActiveShift(null);
-    setIsGpsTracking(false);
-    setUserData(null);
-    setPermission([]);
-    await clearUserSessionStorage();
-    navigation?.replace("OnBoarding");
+    setLogoutLoading(true);
+    try {
+      const { closeActiveShiftSilent } = await import(
+        '@/src/utils/shiftLocationGuard'
+      );
+      // Silent trip end + is_active=0, then clear session.
+      await closeActiveShiftSilent(UserData, activeShift);
+      resetChauffeurLocationSession();
+      setActiveShift(null);
+      setIsGpsTracking(false);
+      setUserData(null);
+      setPermission([]);
+      await clearUserSessionStorage();
+      navigation?.replace("OnBoarding");
+    } finally {
+      setLogoutLoading(false);
+    }
   }, [
+    UserData,
+    activeShift,
     navigation,
     setActiveShift,
     setIsGpsTracking,
@@ -224,6 +239,8 @@ export default function Profile({ navigation }: any) {
         Description={AlertModalOpen.Desctiption}
         HeaderBgColor={AlertModalOpen.HeaderBgColor}
       />
+
+      <LoadingModal visible={logoutLoading} />
     </View>
   );
 }

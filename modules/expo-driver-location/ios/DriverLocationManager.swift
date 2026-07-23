@@ -63,7 +63,7 @@ final class DriverLocationManager: NSObject, CLLocationManagerDelegate {
   }
 
   func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-    guard !userStopped, !gpsLocationDisabled, let config = config ?? TrackingSessionStore.load() else { return }
+    guard !userStopped, !gpsLocationDisabled, (config ?? TrackingSessionStore.load()) != nil else { return }
     guard CLLocationManager.locationServicesEnabled() else {
       suspendTrackingForDisabledLocation(sendDeactivate: true)
       return

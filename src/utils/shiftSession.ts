@@ -84,6 +84,29 @@ export async function clearActiveShift(): Promise<void> {
   console.log('[Shift] cleared');
 }
 
+/** Wipe all local shift session data (active + registry + tracking region). */
+export async function wipeShiftLocalData(
+  regionId?: number | string | null,
+  reason?: string,
+): Promise<void> {
+  await storeData(ACTIVE_SHIFT_KEY, null);
+  await storeData(TRACKING_REGION_KEY, null);
+
+  if (regionId != null) {
+    const registry =
+      ((await getData(SHIFT_REGISTRY_KEY)) as ShiftRegistry | null) ?? {};
+    delete registry[getShiftRegistryKey(regionId)];
+    await storeData(SHIFT_REGISTRY_KEY, registry);
+  } else {
+    await storeData(SHIFT_REGISTRY_KEY, null);
+  }
+
+  console.log('[Shift] CLOSE local data wiped', {
+    reason: reason ?? null,
+    regionId: regionId ?? null,
+  });
+}
+
 export const SHIFT_REGISTRY_KEY = 'SHIFT_REGISTRY_BY_REGION';
 
 export type ShiftRegistry = Record<string, ActiveShiftSession>;

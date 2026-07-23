@@ -255,9 +255,18 @@ export default function FilterScreen({ navigation, route }: any) {
           planning_date: date,
         });
         console.log('[Shift] ON', session);
+        console.log('[Shift] ON trip API success', {
+          region_id: session.region_id,
+          planning_date: session.planning_date,
+          started_at: session.started_at,
+        });
 
         setGpsStartPopupVisible(false);
         syncTrackingFlag('granted', true);
+        const { enableShiftLocationGuard } = await import(
+          '@/src/utils/shiftLocationGuard'
+        );
+        await enableShiftLocationGuard(UserData, session);
       } catch (error: any) {
         setToast({
           top: 45,
@@ -769,6 +778,12 @@ console.log("payload",payload);
           planning_date: restored.planning_date,
         });
         syncTrackingFlag(deviceLocationStatus, true);
+        if (deviceLocationStatus === 'granted') {
+          const { enableShiftLocationGuard } = await import(
+            '@/src/utils/shiftLocationGuard'
+          );
+          await enableShiftLocationGuard(UserData, restored);
+        }
         await RegionDetailsDataFun(region);
         return;
       }
@@ -776,12 +791,17 @@ console.log("payload",payload);
       if (activeShift?.shiftActive) {
         await deactivateActiveShift(activeShift);
         setActiveShift({ ...activeShift, shiftActive: false });
+        const { disableShiftLocationGuard } = await import(
+          '@/src/utils/shiftLocationGuard'
+        );
+        await disableShiftLocationGuard();
       }
       syncTrackingFlag(deviceLocationStatus, false);
       await RegionDetailsDataFun(region);
     },
     [
       SelectDate,
+      UserData,
       activeShift,
       deviceLocationStatus,
       isPickupDropoffChauffeur,
