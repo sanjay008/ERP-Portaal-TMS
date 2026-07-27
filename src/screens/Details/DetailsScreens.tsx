@@ -18,12 +18,17 @@ import SecondCustomModal from "@/src/components/SecondCustomModal";
 import SignatureModal from "@/src/components/SignatureModal";
 import TwoTypeButton from "@/src/components/TwoTypeButton";
 import { GlobalContextData } from "@/src/context/GlobalContext";
+import { setLatestPickupCameraSetData } from "@/src/context/ParcelVerifySessionContext";
 import { useParcelVerifyFlow } from "@/src/hooks/useParcelVerifyFlow";
 import { DropboxContext } from "@/src/context/UploadProider";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
 import { appendToLocalUploadQueue } from "@/src/utils/localUploadQueue";
 import { isDeliveryOrder, isPickupOrder } from "@/src/utils/orderStatus";
+import {
+  lockParcelCameraCallback,
+  unlockParcelCameraCallback,
+} from "@/src/utils/parcelVerifyCameraReturn";
 import { isBlankSignatureData } from "@/src/utils/signatureValidation";
 import { FONTS } from "@/src/utils/storeData";
 import { useIsFocused } from "@react-navigation/native";
@@ -233,14 +238,21 @@ export default function DetailsScreens({ navigation, route }: any) {
   }, [Focused, SelectActiveDate, SelectActiveRegionData, type]);
 
   const openNoParcelPickupCamera = useCallback(() => {
-    setPickUpDataSave({
-      setData: async (data: any[]) => {
+    // Lock + register latest pickup callback so CustomCamera does not hit
+    // useParcelVerifyFlow's stale handler (wrong comment modal / error).
+    lockParcelCameraCallback();
+    const setData = async (data: any[]) => {
+      try {
         if (data?.length > 0) {
           setAllSelectImage(data);
           setComment(true);
         }
-      },
-    });
+      } finally {
+        unlockParcelCameraCallback();
+      }
+    };
+    setLatestPickupCameraSetData(setData);
+    setPickUpDataSave({ setData });
     navigation.navigate('Camera', { from: 'Pickup' });
   }, [navigation, setPickUpDataSave]);
 

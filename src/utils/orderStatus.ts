@@ -4,7 +4,7 @@ export function getOrderStatusId(order: any): number {
 
 /** Order is in pickup phase (status id 1). */
 export function isPickupOrder(order: any): boolean {
-  return getOrderStatusId(order) === 1 || getOrderStatusId(order) === 37;
+  return getOrderStatusId(order) === 1 || getOrderStatusId(order) === 37 || getOrderStatusId(order) === 42;
 }
 
 /** Order is in delivery phase (status id 4). */

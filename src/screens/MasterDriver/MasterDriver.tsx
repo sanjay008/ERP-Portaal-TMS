@@ -7,7 +7,7 @@ import { goBackOrPopTo } from '@/src/components/goBackOrPopTo';
 import { GlobalContextData } from '@/src/context/GlobalContext';
 import ApiService from '@/src/utils/Apiservice';
 import { Colors } from '@/src/utils/colors';
-import { height, width } from '@/src/utils/storeData';
+import { height, ScanPlatFormId, width } from '@/src/utils/storeData';
 import { Ionicons } from '@expo/vector-icons';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -190,6 +190,7 @@ export default function MasterDriver() {
         user_id: UserData?.user?.id,
         type: API_TYPE,
         order_id: Number(orderId),
+        platform: ScanPlatFormId,
         ...buildMasterDriverFields(order, statusId),
       };
 

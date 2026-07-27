@@ -10,7 +10,7 @@ import StatusSelectSheet from '@/src/components/StatusSelectSheet';
 import { GlobalContextData } from '@/src/context/GlobalContext';
 import ApiService from '@/src/utils/Apiservice';
 import { Colors } from '@/src/utils/colors';
-import { FONTS } from '@/src/utils/storeData';
+import { FONTS, ScanPlatFormId } from '@/src/utils/storeData';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
@@ -421,8 +421,10 @@ const {top,bottom} = useSafeAreaInsets();
       user_id: UserData?.user?.id,
       type,
       order_id: resolvedOrderId,
+      platform: ScanPlatFormId,
       ...changedFields,
     };
+console.log("payloadpayloadpayloadpayloadpayloadpayload",payload);
 
     setSaving(true);
     try {
@@ -514,6 +516,7 @@ const {top,bottom} = useSafeAreaInsets();
               labelFieldKey="name"
               valueFieldKey="id"
               disbled={regionsLoading}
+              ContainerStyle={styles.routeDropdown}
             />
 
             <Text style={styles.label}>{t('Delivery date')}</Text>
@@ -528,6 +531,8 @@ const {top,bottom} = useSafeAreaInsets();
               labelFieldKey="name"
               valueFieldKey="id"
               disbled={regionsLoading}
+              dropdownPosition="top"
+              ContainerStyle={styles.routeDropdown}
             />
 
             <Text style={styles.label}>{t('Status')}</Text>
@@ -613,6 +618,11 @@ const styles = StyleSheet.create({
     gap: 10,
     borderWidth: 1,
     borderColor: Colors.litegray,
+    overflow: 'visible',
+    zIndex: 1,
+  },
+  routeDropdown: {
+    zIndex: 20,
   },
   label: {
     fontSize: 14,

@@ -41,6 +41,7 @@ import { useIsFocused, useNavigation } from '@react-navigation/native';
 import axios from 'axios';
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ScanPlatFormId } from '../utils/storeData';
 
 type UseParcelVerifyFlowOptions = {
   slideType: string;
@@ -147,7 +148,7 @@ export function useParcelVerifyFlow({
     RColor: Colors.white,
     LButtonStyle: {},
     LColor: Colors.black,
-    onPress: () => {},
+    onPress: () => { },
   });
   const [allSelectImage, setAllSelectImage] = useState<any[]>([]);
   const [description, setDescription] = useState('');
@@ -355,11 +356,11 @@ export function useParcelVerifyFlow({
       if (!scan) return;
       setIsLoading(true);
       try {
-    // Prefer live global selection / pin for delivered_lable_id.
-    const labelForStatus =
-      EffectiveDeliveryLabel ??
-      PinnedDeliveryLabel ??
-      SelectCurrentDeliveryLabel;
+        // Prefer live global selection / pin for delivered_lable_id.
+        const labelForStatus =
+          EffectiveDeliveryLabel ??
+          PinnedDeliveryLabel ??
+          SelectCurrentDeliveryLabel;
         const payload: any = {
           token: UserData?.user?.verify_token,
           role: UserData?.user?.role,
@@ -367,11 +368,12 @@ export function useParcelVerifyFlow({
           user_id: UserData?.user?.id,
           item_id: data?.item_id,
           order_id: data?.order_id,
+          platform: ScanPlatFormId,
           type: slideType ?? GloblyTypeSlide,
           ...(labelForStatus != null &&
             GloblyTypeSlide === 'pickup_dropoff' && {
-              delivered_lable_id: labelForStatus?.id,
-            }),
+            delivered_lable_id: labelForStatus?.id,
+          }),
         };
 
         if (is_driver_unloading) {
@@ -1065,10 +1067,11 @@ export function useParcelVerifyFlow({
         item_id: selectPlace?.item_id,
         order_id: selectPlace?.order_id,
         type: effectiveType,
+        platform: ScanPlatFormId,
         ...(activeDeliveryLabel != null &&
           effectiveType === 'pickup_dropoff' && {
-            delivered_lable_id: activeDeliveryLabel?.id,
-          }),
+          delivered_lable_id: activeDeliveryLabel?.id,
+        }),
       };
 
       if (effectiveType === 'pickup_dropoff' && selectDamageData) {
@@ -1111,8 +1114,8 @@ export function useParcelVerifyFlow({
 
       const statusForSignature = Number(
         res?.tms_current_status ??
-          res?.data?.tms_current_status ??
-          res?.data?.data?.tms_current_status,
+        res?.data?.tms_current_status ??
+        res?.data?.data?.tms_current_status,
       );
       const labelNeedsSignature =
         savedDeliveryLabel?.signature_required == 1 ||

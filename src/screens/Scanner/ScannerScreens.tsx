@@ -43,7 +43,7 @@ import {
 } from "@/src/utils/parcelVerifyCameraReturn";
 import { runParcelVerifyFlow } from "@/src/utils/runParcelVerifyFlow";
 import { isBlankSignatureData } from "@/src/utils/signatureValidation";
-import { FONTS, height, width } from "@/src/utils/storeData";
+import { FONTS, height, ScanPlatFormId, width } from "@/src/utils/storeData";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import BottomSheet, {
   BottomSheetFlatList
@@ -885,6 +885,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         user_id: UserData?.user?.id,
         item_id: data?.item_id,
         order_id: data?.order_id,
+        platform:ScanPlatFormId,
         type: type ?? GloblyTypeSlide,
         ...(SelectCurrentDeliveryLabel != null && GloblyTypeSlide == "pickup_dropoff" && {
           delivered_lable_id: SelectCurrentDeliveryLabel?.id,
@@ -1322,6 +1323,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         item_id: SelectPlace?.item_id,
         order_id: SelectPlace?.order_id,
         type: GloblyTypeSlide,
+        platform:ScanPlatFormId,
         ...(SelectCurrentDeliveryLabel !== null && GloblyTypeSlide == "pickup_dropoff" && {
           delivered_lable_id: SelectCurrentDeliveryLabel?.id,
         }),

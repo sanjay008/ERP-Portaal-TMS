@@ -46,7 +46,7 @@ const removeMultipleData = async keys => {
 export { clearAllData, getData, removeData, removeMultipleData, storeData };
 
 export const token = "lbws07ifTs076zQH4Jo3ktN8tWgaS9ASh";
-
+export const ScanPlatFormId = "mobile"
 
 export const SimpleFlex = StyleSheet.create({
   Flex: {

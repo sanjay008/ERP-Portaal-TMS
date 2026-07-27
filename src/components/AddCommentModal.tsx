@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Image,
+  Keyboard,
   Platform,
   StyleSheet,
   Text,
@@ -50,8 +51,8 @@ export default function AddCommentModal({ IsVisible, setIsVisible, fun, imageLoa
       animationIn={"bounceInUp"}
       animationOut={"bounceOutDown"}
       style={{ margin: 0, }}
-      onBackdropPress={() => { setIsVisible(false) }}
-      onBackButtonPress={() => { setIsVisible(false) }}
+      onBackdropPress={() => { Keyboard.dismiss() }}
+      onBackButtonPress={() => { Keyboard.dismiss() }}
       useNativeDriver
       avoidKeyboard
     >

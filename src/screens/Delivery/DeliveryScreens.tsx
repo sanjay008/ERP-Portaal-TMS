@@ -9,7 +9,7 @@ import PickUpBox from "@/src/components/PickUpBox";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
-import { width } from "@/src/utils/storeData";
+import { ScanPlatFormId, width } from "@/src/utils/storeData";
 import axios from "axios";
 // import { Image } from "expo-image";
 import CommentViewBox from "@/src/components/CommentViewBox";
@@ -164,7 +164,7 @@ export default function DeliveryScreens({ route, navigation }: any) {
         customData: {
           token: UserData?.user?.verify_token,
           role: UserData?.user?.role,
-
+          platform: ScanPlatFormId,
           relaties_id: UserData?.relaties?.id,
           user_id: UserData?.user?.id,
           item_id: item?.order_data?.items[0]?.id,
@@ -533,7 +533,7 @@ export default function DeliveryScreens({ route, navigation }: any) {
               ? ItemsData?.customer
               : item?.order_data?.customer
           }
-          external_platform_data={ItemsData?.display_name || item?.display_name }
+          external_platform_data={ItemsData?.display_name || item?.display_name}
 
           statusData={
             ItemsData && ItemsData !== null

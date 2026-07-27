@@ -23,6 +23,7 @@ type Props = {
   ContainerStyle?: object;
   disbled?: boolean;
   fun?:(value:any) => void;
+  dropdownPosition?: "auto" | "top" | "bottom";
 };
 
 const DropDownBox: React.FC<Props> = ({
@@ -36,6 +37,7 @@ const DropDownBox: React.FC<Props> = ({
   ContainerStyle,
   disbled = false,
   fun,
+  dropdownPosition = "auto",
 }) => {
   const { t } = useTranslation();
   const {setSelectActiveRegionData} = useContext(GlobalContextData);
@@ -57,7 +59,8 @@ const DropDownBox: React.FC<Props> = ({
         valueField={valueFieldKey}
         placeholder={t(placeholder)}
         autoScroll={false}
-        containerStyle={[styles.container,{width:'92%'}]}
+        dropdownPosition={dropdownPosition}
+        containerStyle={styles.dropdownList}
         value={value}
         onChange={(item) => {
           setValue(item);
@@ -97,6 +100,16 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderRadius: 7,
   },
+  dropdownList: {
+    backgroundColor: Colors.white,
+    borderRadius: 7,
+    overflow: "hidden",
+    shadowColor: "transparent",
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 0,
+  },
   dropdown: {
     height: 50,
     borderColor: Colors.primary,
@@ -105,6 +118,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     flexDirection: "row",
     alignItems: "center",
+    shadowOpacity: 0,
+    elevation: 0,
   },
   icon: {
     marginRight: 8,
