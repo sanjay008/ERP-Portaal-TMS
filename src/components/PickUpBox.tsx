@@ -123,7 +123,7 @@ function PickUpBox({
   };
 
   const handleCall = async () => {
-    const phoneNumber = getPhoneNumber();
+    const phoneNumber = ItemData?.calling_number;
     if (!phoneNumber) return;
     try {
       await Linking.openURL(`tel:${phoneNumber}`);

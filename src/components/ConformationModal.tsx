@@ -279,7 +279,7 @@ export default function ConformationModal({
                   styles.Text,
                   {
                     fontSize:
-                      ((Title ?? "").length > 20 ? 8 : 14),
+                      ((Title ?? "").length > 25 ? 8 : 14),
                     width: "90%",
                   },
                 ]}

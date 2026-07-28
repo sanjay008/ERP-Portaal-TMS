@@ -16,6 +16,7 @@ export const Colors = {
   litegray: "#E7E7E7",
   litegray1: "#F2F2F2",
   red: "#FF0000F2",
+  no_parcel: "#F7AD06",
   pink: "#EF5A7E",
   primarylite: "#EDF3FD",
   transparant: "rgba(0,0,0,0.5)",

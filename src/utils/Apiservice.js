@@ -12,7 +12,7 @@ const ApiService = async (endpoint, options = {}) => {
 
     let customData = options.customData;
 
-    if (endpoint === apiConstants.status_update && customData) {
+    if (customData) {
       const userData = verify_token?.data ?? verify_token;
       const coords = getChauffeurCoordsForApi(userData?.user?.role);
       if (coords) {

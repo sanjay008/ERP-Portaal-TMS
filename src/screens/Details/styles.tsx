@@ -12,11 +12,20 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 15,
     flexGrow: 1,
   },
+  NoParcelButton: {
+    width: "100%",
+    backgroundColor: Colors.no_parcel,
+    marginTop:15
+  },
     DriverBG:{
     backgroundColor:"#595959",
     padding:5,
     borderRadius:4
 
+  },
+  OpenCameraButton: {
+    width: "100%",
+    backgroundColor: Colors.green,
   },
   LabelBtn:{
     width:"100%",

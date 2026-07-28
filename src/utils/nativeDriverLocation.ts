@@ -15,7 +15,7 @@ import {
   type NativeTrackingConfig,
 } from 'expo-driver-location';
 
-export const API_INTERVAL_SECONDS = 30;
+export const API_INTERVAL_SECONDS = 15 * 60;
 
 type UserDataShape = {
   user?: {

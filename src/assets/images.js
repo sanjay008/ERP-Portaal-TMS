@@ -70,6 +70,7 @@ export const Images = {
   ChatIcon: require("./image/ChatIcon.png"),
   RightIcon: require("./image/RightIcon.png"),
   Info: require("./image/Info.png"),
+  NoHomeIcon: require("./image/NoHomeIcon.png"),
   Privacy: require("./image/Privacy.png"),
   Terms: require("./image/Terams.png"),
   Phone: require("./image/Phone.png"),

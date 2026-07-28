@@ -136,7 +136,6 @@ export default function FilterScreen({ navigation, route }: any) {
     (locationStatus: LocationAccessStatus, shiftActive: boolean) => {
       setDeviceLocationStatus(locationStatus);
       if (UserData?.user?.role === 'chauffeur') {
-        setIsGpsTracking(true);
         return;
       }
       setIsGpsTracking(locationStatus === 'granted' && shiftActive);
@@ -502,12 +501,23 @@ console.log("payload",payload);
 
       let selectedRegion: any = null;
 
-      if (selectRegionData?.id) {
+      // Prefer active shift region when Filter opens / refreshes
+      if (activeShift?.shiftActive && activeShift.region_id != null) {
+        const shiftRegion = newData.find(
+          (region: any) =>
+            String(region?.id) === String(activeShift.region_id),
+        );
+        if (shiftRegion) {
+          selectedRegion = shiftRegion;
+        }
+      }
+
+      if (!selectedRegion && selectRegionData?.id) {
         const matchedRegion = newData.find(
           (region: any) => String(region?.id) === String(selectRegionData.id),
         );
         selectedRegion = matchedRegion || newData[0] || null;
-      } else {
+      } else if (!selectedRegion) {
         selectedRegion = newData[0] || null;
       }
 
@@ -572,6 +582,8 @@ console.log("payload",payload);
   item?.type,
   Type,
   selectRegionData?.id,
+  activeShift?.shiftActive,
+  activeShift?.region_id,
 ]);
 
   const parcelVerifyFlow = useParcelVerifyFlow({
@@ -755,20 +767,41 @@ console.log("payload",payload);
         return;
       }
 
-      if (isShiftActiveForRegion(activeShift, region.id)) {
+      // 1) Already ON for this region right now → no popup
+      if (
+        isShiftActiveForRegion(activeShift, region.id) &&
+        (!SelectDate || activeShift?.planning_date === SelectDate)
+      ) {
         await saveTrackingRegion({
           region_id: region.id,
-          planning_date: SelectDate,
+          planning_date: SelectDate || activeShift!.planning_date,
         });
         syncTrackingFlag(deviceLocationStatus, true);
         await RegionDetailsDataFun(region);
         return;
       }
 
+      // 2) Same region + same date was ON earlier (registry) → restore, no popup
+      //    Example: 12 ON → switch 13 → back to 12
       const storedShift = await loadShiftFromRegistry(region.id);
-      if (storedShift) {
+      if (
+        storedShift &&
+        (!SelectDate || storedShift.planning_date === SelectDate)
+      ) {
+        if (
+          activeShift?.shiftActive &&
+          String(activeShift.region_id) !== String(region.id)
+        ) {
+          await deactivateActiveShift(activeShift);
+          const { disableShiftLocationGuard } = await import(
+            '@/src/utils/shiftLocationGuard'
+          );
+          await disableShiftLocationGuard();
+        }
+
         const restored: ActiveShiftSession = {
           ...storedShift,
+          shiftActive: true,
           planning_date: SelectDate || storedShift.planning_date,
         };
         await saveActiveShift(restored);
@@ -788,6 +821,8 @@ console.log("payload",payload);
         return;
       }
 
+      // 3) New region / no shift for this date → close current.
+      //    Shift ON popup only via the button next to search (not auto).
       if (activeShift?.shiftActive) {
         await deactivateActiveShift(activeShift);
         setActiveShift({ ...activeShift, shiftActive: false });
@@ -1099,6 +1134,14 @@ const FilterData = useMemo(() => {
                         ScanBTNAvailble ||
                         (isPickupDropoffChauffeur && !isRouteReady )
                       ) {
+                        if (isPickupDropoffChauffeur && !isRouteReady) {
+                          if (!isDeviceLocationReady) {
+                            handleLocationIconPress();
+                            return;
+                          }
+                          setTooltipMessage(shiftBlockedMessage);
+                          setTooltipVisible(true);
+                        }
                         return;
                       }
                       navigation.navigate("Details", { item, type: SlideType });

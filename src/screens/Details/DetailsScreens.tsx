@@ -11,16 +11,16 @@ import Loader from "@/src/components/loading";
 import LoadingModal from "@/src/components/LoadingModal";
 import MapsViewBox from "@/src/components/MapsViewBox";
 import NoParcelModal from "@/src/components/NoParcelModal";
-import PickUpBox from "@/src/components/PickUpBox";
 import ParcelVerifyOverlays from "@/src/components/ParcelVerifyOverlays";
+import PickUpBox from "@/src/components/PickUpBox";
 import ScannerInfoModal from "@/src/components/ScannerInfoModal";
 import SecondCustomModal from "@/src/components/SecondCustomModal";
 import SignatureModal from "@/src/components/SignatureModal";
 import TwoTypeButton from "@/src/components/TwoTypeButton";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import { setLatestPickupCameraSetData } from "@/src/context/ParcelVerifySessionContext";
-import { useParcelVerifyFlow } from "@/src/hooks/useParcelVerifyFlow";
 import { DropboxContext } from "@/src/context/UploadProider";
+import { useParcelVerifyFlow } from "@/src/hooks/useParcelVerifyFlow";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
 import { appendToLocalUploadQueue } from "@/src/utils/localUploadQueue";
@@ -30,7 +30,7 @@ import {
   unlockParcelCameraCallback,
 } from "@/src/utils/parcelVerifyCameraReturn";
 import { isBlankSignatureData } from "@/src/utils/signatureValidation";
-import { FONTS } from "@/src/utils/storeData";
+import { FONTS, ScanPlatFormId, Stop_PickupType } from "@/src/utils/storeData";
 import { useIsFocused } from "@react-navigation/native";
 import axios from "axios";
 import * as ImagePicker from "expo-image-picker";
@@ -712,7 +712,7 @@ export default function DetailsScreens({ navigation, route }: any) {
       setIsLoading(false);
     }
   };
-// console.log(ItemsData);
+  // console.log(ItemsData);
 
   const BackOrderFun = async (
     lable = "",
@@ -939,6 +939,55 @@ export default function DetailsScreens({ navigation, route }: any) {
   );
   const showInitialLoader = DataLoading && !hasOrderPreview;
 
+  const StatusUpdateFun = async () => {
+    setIsLoading(true);
+console.log("caa");
+
+    try {
+      const payload: any = {
+        token: UserData?.user?.verify_token,
+        role: UserData?.user?.role,
+        relaties_id: UserData?.relaties?.id,
+        user_id: UserData?.user?.id,
+        order_id: ItemsData?.id || ItemsData?.order_data?.id,
+        platform: ScanPlatFormId,
+        type: type ?? GloblyTypeSlide,
+        is_customer_not_at_home: 1,
+      };
+      console.log("StatusUpdateFun", payload);
+      const res = await ApiService(apiConstants.status_update, {
+        customData: payload,
+      });
+
+      if (res?.status) {
+        console.log("res", res);
+        
+        setToast({
+          top: 45,
+          text: t(res?.message),
+          type: "success",
+          visible: true,
+        });
+        GetIdByOrderFun();
+      } else {
+        setToast({
+          top: 45,
+          text: t(res?.message) || t("Failed to update status"),
+          type: "error",
+          visible: true,
+        });
+      }
+    } catch (error) {
+      setToast({
+        top: 45,
+        text: ErrorHandle(error).message,
+        type: "error",
+        visible: true,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor="white" />
@@ -1013,11 +1062,27 @@ export default function DetailsScreens({ navigation, route }: any) {
           />
 
           {PermissionData?.can_scan_order && !isDeliveryOrder(ItemsData) ? (
-            <View style={styles.Flex}>
+            <View>
+              <TwoTypeButton
+                Icon={Images.Scan}
+                title={t("Open Scanner")}
+                style={styles.OpenCameraButton}
+
+                onPress={() =>
+                  navigation.navigate("Scanner", {
+                    fun: GetIdByOrderFun,
+                    type: type,
+                    restrictedOrderId:
+                      ItemsData?.id || ItemsData?.order_data?.id,
+                  })
+                }
+                IconStyle={{ width: 22, height: 22 }}
+              />
+
               <TwoTypeButton
                 title={t("No Parcel")}
                 Icon={Images.NoParcel}
-                style={{ width: "48%" }}
+                style={styles.NoParcelButton}
                 IconStyle={{ width: 22, height: 22 }}
                 onPress={() => {
                   if (NoParcelOptions.length > 0) {
@@ -1032,21 +1097,38 @@ export default function DetailsScreens({ navigation, route }: any) {
                   }
                 }}
               />
+              {
+                (
+                  GloblyTypeSlide === "pickup_dropoff" ||
+                  GloblyTypeSlide === "additional_address"
+                ) &&
+                ItemsData?.tms_order_type === Stop_PickupType &&
+                <TwoTypeButton
+                  title={t("Customer is not at home")}
+                  Icon={Images.NoHomeIcon}
+                  style={[styles.NoParcelButton, { backgroundColor: Colors.red }]}
+                  IconStyle={{ width: 22, height: 22 }}
+                  onPress={() => {
+                    setAlerModalOpen({
+                      visible: true,
+                      title: t("Customer is not at home"),
+                      Desctiption: t(
+                        "Are you sure the customer is not at home?",
+                      ),
+                      LButtonText: t("Cancel"),
+                      RButtonText: t("Confirm"),
+                      Icon: Images.NoHomeIcon,
+                      RButtonStyle: Colors.red,
+                      RColor: Colors.white,
+                      onPress: () => {
+                        StatusUpdateFun();
+                      },
+                    });
+                  }}
+                />
+              }
 
-              <TwoTypeButton
-                Icon={Images.Scan}
-                title={t("Open Scanner")}
-                style={{ width: "48%" }}
-                onPress={() =>
-                  navigation.navigate("Scanner", {
-                    fun: GetIdByOrderFun,
-                    type: type,
-                    restrictedOrderId:
-                      ItemsData?.id || ItemsData?.order_data?.id,
-                  })
-                }
-                IconStyle={{ width: 22, height: 22 }}
-              />
+
             </View>
           ) : isDeliveryOrder(ItemsData) ? (
             <FlatList

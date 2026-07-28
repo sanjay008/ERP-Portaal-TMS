@@ -37,6 +37,7 @@ module.exports = {
     // new tms api
     store_tms_comment:`${baseUrlnew}tms-driver/store-tms-comment`,
     store_tms_comment_img_new:`${baseUrlnew}tms-driver/store-tms-comment-img-new`,
+    store_tms_image_upload_error:`${baseUrlnew}tms-driver/store-tms-image-upload-error`,
     update_driver_live_location:`${baseUrlnew}tms-driver/update-driver-live-location`,
     start_region_trip:`${baseUrlnew}tms-driver/start-region-trip`,
     end_region_trip:`${baseUrlnew}tms-driver/end-region-trip`,

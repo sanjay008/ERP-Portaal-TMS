@@ -50,6 +50,10 @@ export interface FileUploadResult {
   shared_link: string | null;
 }
 
+type UploadSingleFileOutcome =
+  | { ok: true; data: FileUploadResult }
+  | { ok: false; error: string; file: string };
+
 export interface LocalUploadItem {
   order_id: number | null;
   image_data: string[];
@@ -318,7 +322,11 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
   }, [RefreshToken, ClientId, ClientSecret, setAccessToken, showToast, t]);
 
   const uploadSingleFile = useCallback(
-    async (uri: string, folder: string = "photos", retry: number = 0): Promise<FileUploadResult | null> => {
+    async (
+      uri: string,
+      folder: string = "photos",
+      retry: number = 0,
+    ): Promise<UploadSingleFileOutcome | null> => {
       try {
         if (!uri) return null;
 
@@ -328,6 +336,7 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         const mimeType = EXTENSION_TO_MIME[extension] || "";
 
         if (!ALLOWED_MIME_TYPES.has(mimeType)) {
+          const errorMessage = `Unsupported file type: .${extension || "unknown"} (${mimeType || "unknown mime"})`;
           logDropboxUploadError("uploadSingleFile rejected", {
             step: "mime_validation",
             retry,
@@ -335,9 +344,10 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
             extension: extension || "unknown",
             mimeType: mimeType || "unknown",
             uri: sanitizeFileUri(uri),
+            errorMessage,
           });
           showToast(t(UPLOAD_TOAST.unsupportedFile));
-          return null;
+          return { ok: false, error: errorMessage, file: originalFileName };
         }
 
         let token = accessTokenRef.current;
@@ -425,7 +435,7 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
           }
 
           showToast(userMessage);
-          return null;
+          return { ok: false, error: errorMessage, file: originalFileName };
         }
 
         const uploadData = JSON.parse(uploadRes.body);
@@ -462,9 +472,11 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
           file: originalFileName,
           shared_link: sharedLink,
         };
-        return fileJson;
+        return { ok: true, data: fileJson };
 
       } catch (e: any) {
+        const rawName = uri.split("/").pop() || `file-${Date.now()}`;
+        const originalFileName = rawName.replace(/\+/g, "_");
         const errorMessage =
           e?.message || e?.response?.data?.message || "Unknown upload error";
         const userMessage = getUserFriendlyExceptionError(e, t);
@@ -486,7 +498,7 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         }
 
         showToast(userMessage);
-        return null;
+        return { ok: false, error: errorMessage, file: originalFileName };
       }
     },
     [refreshAccessToken, showToast, t]
@@ -590,6 +602,62 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
       }
     },
     [UserData, t, showToast]
+  );
+
+  const reportImageUploadError = useCallback(
+    async (params: {
+      order_id: number | null;
+      item_id: number | null;
+      order_log_id: number | null;
+      error: string;
+      file: string;
+    }): Promise<{ success: boolean; message?: string }> => {
+      if (!UserData?.user?.verify_token) {
+        return { success: false, message: "User data not available" };
+      }
+
+      try {
+        const formData = new FormData();
+
+        formData.append("token", UserData.user.verify_token);
+        formData.append("role", UserData.user.role);
+        formData.append("relaties_id", String(UserData.relaties?.id ?? ""));
+        formData.append("user_id", String(UserData.user.id ?? ""));
+        formData.append("order_id", String(params.order_id ?? ""));
+        formData.append("order_log_id", String(params.order_log_id ?? ""));
+        formData.append("error", params.error);
+        formData.append("file", params.file);
+
+        if (params.item_id !== null && params.item_id !== undefined) {
+          formData.append("item_id", String(params.item_id));
+        }
+
+        const response = await axios.post(
+          apiConstants.store_tms_image_upload_error,
+          formData,
+          {
+            headers: { "Content-Type": "multipart/form-data" },
+            transformRequest: (data) => data,
+          },
+        );
+
+        const data = response?.data;
+        if (!isStoreImageApiSuccess(data)) {
+          throw new Error(data?.message || t("something_went_wrong"));
+        }
+
+        return { success: true };
+      } catch (e: any) {
+        const message =
+          e?.response?.data?.message || e?.message || "Unknown API error";
+        logDropboxUploadError("reportImageUploadError failed", {
+          ...params,
+          message,
+        });
+        return { success: false, message };
+      }
+    },
+    [UserData, t],
   );
 
   const getQueueItemKey = (item: DropboxQueueItem | LocalUploadItem): string => {
@@ -758,7 +826,46 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
 
         const folder = item.folder || "photos";
         const results = await Promise.all(uris.map((uri) => uploadSingleFile(uri, folder)));
-        const uploaded = results.filter((r): r is FileUploadResult => r !== null);
+
+        const uploaded: FileUploadResult[] = [];
+        const failedReports: Promise<{ success: boolean; message?: string }>[] = [];
+
+        for (const result of results) {
+          if (!result) continue;
+
+          if (result.ok === false) {
+            failedReports.push(
+              reportImageUploadError({
+                order_id: batchItem.order_id,
+                item_id: batchItem.item_id,
+                order_log_id: batchItem.commentId,
+                error: result.error,
+                file: result.file,
+              }),
+            );
+          } else {
+            uploaded.push(result.data);
+          }
+        }
+
+        if (failedReports.length > 0) {
+          const reportResults = await Promise.all(failedReports);
+          const reportFailed = reportResults.some((r) => !r.success);
+
+          if (reportFailed && uploaded.length === 0) {
+            logDropboxUploadError("processQueueItem error API failed", {
+              step: "process_queue_item",
+              orderId: batchItem?.order_id ?? null,
+              itemId: batchItem?.item_id ?? null,
+              commentId: batchItem?.commentId ?? null,
+              attemptedCount: uris.length,
+              folder,
+            });
+            processingLocalKeysRef.current.delete(itemKey);
+            syncLocalQueue([...latestQueueRef.current, batchItem]);
+            return false;
+          }
+        }
 
         if (uploaded.length === 0) {
           logDropboxUploadError("processQueueItem all files failed", {
@@ -770,8 +877,7 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
             folder,
           });
           processingLocalKeysRef.current.delete(itemKey);
-          syncLocalQueue([...latestQueueRef.current, batchItem]);
-          return false;
+          return true;
         }
 
         const doneItem: DropboxQueueItem = withBatchId({
@@ -818,7 +924,7 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         return false;
       }
     },
-    [uploadSingleFile, setDropBoxUploadImageDataQues, setLocalImagesUploadbeforeData, syncLocalQueue, syncApiQueue, showToast, t]
+    [uploadSingleFile, reportImageUploadError, setDropBoxUploadImageDataQues, setLocalImagesUploadbeforeData, syncLocalQueue, syncApiQueue, showToast, t]
   );
 
   const processQueue = useCallback(
