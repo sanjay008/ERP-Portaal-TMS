@@ -13,6 +13,7 @@ struct TrackingConfig {
   let apiIntervalSeconds: Int
   let notificationTitle: String
   let notificationBody: String
+  let orderId: String?
 
   static func fromDictionary(_ dict: [String: Any]) throws -> TrackingConfig {
     guard
@@ -38,6 +39,7 @@ struct TrackingConfig {
 
     let title = dict["notificationTitle"] as? String ?? "ERP TMS Driver"
     let body = dict["notificationBody"] as? String ?? "Location tracking is active"
+    let orderId = stringValue(dict, key: "orderId")
 
     return TrackingConfig(
       apiUrl: apiUrl,
@@ -49,7 +51,8 @@ struct TrackingConfig {
       regionId: regionId,
       apiIntervalSeconds: interval,
       notificationTitle: title,
-      notificationBody: body
+      notificationBody: body,
+      orderId: orderId
     )
   }
 
@@ -93,6 +96,11 @@ enum TrackingSessionStore {
     defaults.set(config.apiIntervalSeconds, forKey: "api_interval_seconds")
     defaults.set(config.notificationTitle, forKey: "notification_title")
     defaults.set(config.notificationBody, forKey: "notification_body")
+    if let orderId = config.orderId, !orderId.isEmpty {
+      defaults.set(orderId, forKey: "order_id")
+    } else {
+      defaults.removeObject(forKey: "order_id")
+    }
   }
 
   static func load() -> TrackingConfig? {
@@ -125,7 +133,8 @@ enum TrackingSessionStore {
         return legacy > 0 ? max(10, Int(legacy)) : 30
       }(),
       notificationTitle: defaults.string(forKey: "notification_title") ?? "ERP TMS Driver",
-      notificationBody: defaults.string(forKey: "notification_body") ?? "Location tracking is active"
+      notificationBody: defaults.string(forKey: "notification_body") ?? "Location tracking is active",
+      orderId: defaults.string(forKey: "order_id")
     )
   }
 
@@ -199,29 +208,33 @@ enum LocationApiClient {
 
     print(
       "[\(logTag)] API request → is_active=\(isActive) lat=\(coord.latitude) lon=\(coord.longitude) " +
-        "region=\(config.regionId) user=\(config.userId) planning=\(config.planningDate)"
+        "region=\(config.regionId) user=\(config.userId) planning=\(config.planningDate) order=\(config.orderId ?? "nil")"
     )
 
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
     let boundary = "Boundary-\(UUID().uuidString)"
     request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+    var fields: [String: String] = [
+      "token": config.token,
+      "role": config.role,
+      "planning_date": config.planningDate,
+      "relaties_id": config.relatiesId,
+      "user_id": config.userId,
+      "region_id": config.regionId,
+      "latitude": String(coord.latitude),
+      "longitude": String(coord.longitude),
+      "heading": formatOptional(coord.heading),
+      "accuracy": formatOptional(coord.accuracy),
+      "speed": formatOptional(coord.speed),
+      "is_active": "\(isActive)",
+    ]
+    if let orderId = config.orderId, !orderId.isEmpty {
+      fields["order_id"] = orderId
+    }
     request.httpBody = buildMultipartBody(
       boundary: boundary,
-      fields: [
-        "token": config.token,
-        "role": config.role,
-        "planning_date": config.planningDate,
-        "relaties_id": config.relatiesId,
-        "user_id": config.userId,
-        "region_id": config.regionId,
-        "latitude": String(coord.latitude),
-        "longitude": String(coord.longitude),
-        "heading": formatOptional(coord.heading),
-        "accuracy": formatOptional(coord.accuracy),
-        "speed": formatOptional(coord.speed),
-        "is_active": "\(isActive)",
-      ]
+      fields: fields
     )
 
     var backgroundTaskId: UIBackgroundTaskIdentifier = .invalid

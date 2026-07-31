@@ -4,6 +4,7 @@ import {
   resolveTrackingContext,
   REQUIRED_CHAUFFEUR_ROLE,
 } from '@/src/utils/driverLocationApi';
+import { getLastScannedOrderId } from '@/src/utils/lastScannedOrderId';
 import { getTrackingNotificationLabels } from '@/src/utils/trackingNotificationLabels';
 import type { ActiveShiftSession } from '@/src/utils/shiftSession';
 import {
@@ -64,6 +65,7 @@ export async function buildNativeTrackingConfig(
   }
 
   const { notificationTitle, notificationBody } = getTrackingNotificationLabels();
+  const orderId = await getLastScannedOrderId();
 
   return {
     apiUrl: apiConstants.update_driver_live_location,
@@ -76,6 +78,7 @@ export async function buildNativeTrackingConfig(
     apiIntervalSeconds: API_INTERVAL_SECONDS,
     notificationTitle,
     notificationBody,
+    ...(orderId ? { orderId } : {}),
   };
 }
 

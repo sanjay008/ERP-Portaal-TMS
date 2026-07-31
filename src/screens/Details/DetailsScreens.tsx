@@ -941,7 +941,6 @@ export default function DetailsScreens({ navigation, route }: any) {
 
   const StatusUpdateFun = async () => {
     setIsLoading(true);
-console.log("caa");
 
     try {
       const payload: any = {
@@ -961,7 +960,7 @@ console.log("caa");
 
       if (res?.status) {
         console.log("res", res);
-        
+
         setToast({
           top: 45,
           text: t(res?.message),
@@ -970,6 +969,8 @@ console.log("caa");
         });
         GetIdByOrderFun();
       } else {
+        console.log("Fails Status update",res);
+        
         setToast({
           top: 45,
           text: t(res?.message) || t("Failed to update status"),
@@ -978,6 +979,8 @@ console.log("caa");
         });
       }
     } catch (error) {
+        console.log("Error Status update",error);
+
       setToast({
         top: 45,
         text: ErrorHandle(error).message,

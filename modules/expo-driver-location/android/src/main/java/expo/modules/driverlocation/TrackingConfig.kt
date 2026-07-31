@@ -11,12 +11,19 @@ data class TrackingConfig(
   val apiIntervalSeconds: Int,
   val notificationTitle: String,
   val notificationBody: String,
+  val orderId: String? = null,
 ) {
   companion object {
     fun fromMap(map: Map<String, Any?>): TrackingConfig {
       val interval = when (val raw = map["apiIntervalSeconds"] ?: map["distanceThresholdMeters"]) {
         is Number -> raw.toInt().coerceAtLeast(10)
         else -> 30
+      }
+
+      val orderId = when (val raw = map["orderId"]) {
+        is String -> raw.trim().takeIf { it.isNotEmpty() }
+        is Number -> raw.toString()
+        else -> null
       }
 
       return TrackingConfig(
@@ -30,6 +37,7 @@ data class TrackingConfig(
         apiIntervalSeconds = interval,
         notificationTitle = map["notificationTitle"] as? String ?: "ERP TMS Driver",
         notificationBody = map["notificationBody"] as? String ?: "Location tracking is active",
+        orderId = orderId,
       )
     }
   }

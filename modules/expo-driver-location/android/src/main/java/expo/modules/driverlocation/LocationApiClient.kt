@@ -36,10 +36,10 @@ object LocationApiClient {
     Log.d(
       TAG,
       "API request → is_active=$isActive lat=${coord.latitude} lon=${coord.longitude} " +
-        "region=${config.regionId} user=${config.userId} planning=${config.planningDate}",
+        "region=${config.regionId} user=${config.userId} planning=${config.planningDate} order=${config.orderId}",
     )
 
-    val multipart = MultipartBody.Builder()
+    val multipartBuilder = MultipartBody.Builder()
       .setType(MultipartBody.FORM)
       .addFormDataPart("token", config.token)
       .addFormDataPart("role", config.role)
@@ -53,7 +53,12 @@ object LocationApiClient {
       .addFormDataPart("accuracy", coord.accuracy?.toString() ?: "")
       .addFormDataPart("speed", coord.speed?.toString() ?: "")
       .addFormDataPart("is_active", isActive.toString())
-      .build()
+
+    if (!config.orderId.isNullOrBlank()) {
+      multipartBuilder.addFormDataPart("order_id", config.orderId)
+    }
+
+    val multipart = multipartBuilder.build()
 
     val request = Request.Builder()
       .url(config.apiUrl)
@@ -99,10 +104,10 @@ object LocationApiClient {
     Log.d(
       TAG,
       "API request (blocking) → is_active=$isActive lat=${coord.latitude} lon=${coord.longitude} " +
-        "region=${config.regionId} user=${config.userId} planning=${config.planningDate}",
+        "region=${config.regionId} user=${config.userId} planning=${config.planningDate} order=${config.orderId}",
     )
 
-    val multipart = MultipartBody.Builder()
+    val multipartBuilder = MultipartBody.Builder()
       .setType(MultipartBody.FORM)
       .addFormDataPart("token", config.token)
       .addFormDataPart("role", config.role)
@@ -116,7 +121,12 @@ object LocationApiClient {
       .addFormDataPart("accuracy", coord.accuracy?.toString() ?: "")
       .addFormDataPart("speed", coord.speed?.toString() ?: "")
       .addFormDataPart("is_active", isActive.toString())
-      .build()
+
+    if (!config.orderId.isNullOrBlank()) {
+      multipartBuilder.addFormDataPart("order_id", config.orderId)
+    }
+
+    val multipart = multipartBuilder.build()
 
     val request = Request.Builder()
       .url(config.apiUrl)

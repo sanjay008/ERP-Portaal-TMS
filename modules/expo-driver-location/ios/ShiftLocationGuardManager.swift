@@ -296,6 +296,11 @@ enum ShiftGuardSessionStore {
     defaults.set(config.regionId, forKey: "region_id")
     defaults.set(config.notificationTitle, forKey: "notification_title")
     defaults.set(config.notificationBody, forKey: "notification_body")
+    if let orderId = config.orderId, !orderId.isEmpty {
+      defaults.set(orderId, forKey: "order_id")
+    } else {
+      defaults.removeObject(forKey: "order_id")
+    }
     defaults.removeObject(forKey: "pending_close_reason")
   }
 
@@ -323,7 +328,8 @@ enum ShiftGuardSessionStore {
       regionId: regionId,
       apiIntervalSeconds: 30,
       notificationTitle: defaults.string(forKey: "notification_title") ?? "ERP TMS Driver",
-      notificationBody: defaults.string(forKey: "notification_body") ?? "Shift session active"
+      notificationBody: defaults.string(forKey: "notification_body") ?? "Shift session active",
+      orderId: defaults.string(forKey: "order_id")
     )
   }
 

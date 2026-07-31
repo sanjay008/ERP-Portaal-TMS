@@ -9,6 +9,8 @@ export type NativeTrackingConfig = {
   apiIntervalSeconds: number;
   notificationTitle: string;
   notificationBody: string;
+  /** Latest scanned order — omitted when none yet */
+  orderId?: string;
 };
 
 export type NativeShiftLocationGuardConfig = Omit<

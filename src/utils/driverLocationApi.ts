@@ -1,5 +1,6 @@
 import apiConstants from '@/src/api/apiConstants';
 import ApiService from '@/src/utils/Apiservice';
+import { getLastScannedOrderId } from '@/src/utils/lastScannedOrderId';
 import { ACTIVE_SHIFT_KEY, type ActiveShiftSession, loadTrackingRegion } from '@/src/utils/shiftSession';
 import { getData } from '@/src/utils/storeData';
 
@@ -197,8 +198,14 @@ export async function sendDriverLocationUpdate(
   }
 
   try {
+    const orderId = await getLastScannedOrderId();
+    const customData =
+      orderId != null
+        ? { ...result.payload, order_id: orderId }
+        : result.payload;
+
     const res = await ApiService(apiConstants.update_driver_live_location, {
-      customData: result.payload,
+      customData,
     });
 
     if (res?.status) {
@@ -208,6 +215,7 @@ export async function sendDriverLocationUpdate(
           lon: coord.longitude,
           region_id: result.payload.region_id,
           planning_date: result.payload.planning_date,
+          order_id: orderId,
         });
       }
       return true;
@@ -218,5 +226,64 @@ export async function sendDriverLocationUpdate(
   } catch (error) {
     console.error('[driverLocationApi] Failed to send location:', error);
     return false;
+  }
+}
+
+/**
+ * Fire-and-forget: ping live location once (e.g. after successful Verify_status).
+ * Does not replace the 15-min native tracking interval.
+ */
+export async function pingDriverLiveLocation(
+  userData?: UserDataShape | null,
+): Promise<void> {
+  try {
+    const resolvedUser = userData ?? (await loadTrackingUserData());
+    if (!resolvedUser?.user || resolvedUser.user.role !== REQUIRED_CHAUFFEUR_ROLE) {
+      return;
+    }
+
+    const { getLastLocation } = await import('expo-driver-location');
+    const { getChauffeurLocation } = await import(
+      '@/src/utils/chauffeurLocationCache'
+    );
+
+    let latitude = 0;
+    let longitude = 0;
+    let heading: number | null = null;
+    let speed: number | null = null;
+    let accuracy: number | null = null;
+
+    const last = await getLastLocation();
+    if (last?.latitude && last?.longitude) {
+      latitude = last.latitude;
+      longitude = last.longitude;
+      heading = last.heading ?? null;
+      speed = last.speed ?? null;
+      accuracy = last.accuracy ?? null;
+    } else {
+      const cached = getChauffeurLocation();
+      if (cached.latitude && cached.longitude) {
+        latitude = cached.latitude;
+        longitude = cached.longitude;
+      }
+    }
+
+    if (!latitude || !longitude) {
+      console.warn(
+        '[driverLocationApi] live location ping skipped — no coords',
+      );
+      return;
+    }
+
+    const { region_id, planning_date } = await resolveTrackingContext();
+    await sendDriverLocationUpdate(
+      { latitude, longitude, heading, speed, accuracy },
+      resolvedUser,
+      region_id,
+      planning_date,
+      1,
+    );
+  } catch (error) {
+    console.warn('[driverLocationApi] live location ping failed', error);
   }
 }

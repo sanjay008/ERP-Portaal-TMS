@@ -4,6 +4,9 @@ import { ApiFormatDate } from '@/src/components/ApiFormatDate';
 import { setLatestDeliveryCameraSetData } from '@/src/context/ParcelVerifySessionContext';
 import ApiService from '@/src/utils/Apiservice';
 import { Colors } from '@/src/utils/colors';
+import { pingDriverLiveLocation } from '@/src/utils/driverLocationApi';
+import { setLastScannedOrderId } from '@/src/utils/lastScannedOrderId';
+import { syncNativeDriverTracking } from '@/src/utils/nativeDriverLocation';
 import { isDeliveryOrder, isPickupOrder } from '@/src/utils/orderStatus';
 import { shouldSkipCommentAfterCamera } from '@/src/utils/parcelCommentRules';
 import {
@@ -146,6 +149,10 @@ export async function runParcelVerifyFlow(
       });
       return;
     }
+
+    await setLastScannedOrderId(data?.order_id);
+    void pingDriverLiveLocation(deps.userData);
+    void syncNativeDriverTracking(deps.userData);
 
     if (Array.isArray(res?.data?.damaged_parcel) && res.data.damaged_parcel.length > 0) {
       deps.setAllDamageListReason(res.data.damaged_parcel);

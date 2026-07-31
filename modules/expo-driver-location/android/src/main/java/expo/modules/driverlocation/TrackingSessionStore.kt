@@ -14,6 +14,7 @@ object TrackingSessionStore {
   private const val KEY_API_INTERVAL_SECONDS = "api_interval_seconds"
   private const val KEY_NOTIFICATION_TITLE = "notification_title"
   private const val KEY_NOTIFICATION_BODY = "notification_body"
+  private const val KEY_ORDER_ID = "order_id"
   private const val KEY_LAST_LAT = "last_lat"
   private const val KEY_LAST_LON = "last_lon"
   private const val KEY_LAST_HEADING = "last_heading"
@@ -32,6 +33,13 @@ object TrackingSessionStore {
       .putInt(KEY_API_INTERVAL_SECONDS, config.apiIntervalSeconds)
       .putString(KEY_NOTIFICATION_TITLE, config.notificationTitle)
       .putString(KEY_NOTIFICATION_BODY, config.notificationBody)
+      .apply {
+        if (config.orderId.isNullOrBlank()) {
+          remove(KEY_ORDER_ID)
+        } else {
+          putString(KEY_ORDER_ID, config.orderId)
+        }
+      }
       .apply()
   }
 
@@ -57,6 +65,7 @@ object TrackingSessionStore {
       notificationTitle = prefs.getString(KEY_NOTIFICATION_TITLE, "ERP TMS Driver") ?: "ERP TMS Driver",
       notificationBody = prefs.getString(KEY_NOTIFICATION_BODY, "Location tracking is active")
         ?: "Location tracking is active",
+      orderId = prefs.getString(KEY_ORDER_ID, null)?.takeIf { it.isNotBlank() },
     )
   }
 

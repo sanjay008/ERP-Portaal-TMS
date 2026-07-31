@@ -8,6 +8,7 @@ import {
   resolveTrackingContext,
   sendDriverLocationUpdate,
 } from '@/src/utils/driverLocationApi';
+import { getLastScannedOrderId } from '@/src/utils/lastScannedOrderId';
 import { recheckLocationAccess } from '@/src/hooks/useUserGPS';
 import {
   buildDateTime,
@@ -175,6 +176,7 @@ export async function enableShiftLocationGuard(
   enableInFlightKey = guardKey;
   enableInFlight = (async () => {
     try {
+      const orderId = await getLastScannedOrderId();
       await nativeEnableShiftLocationGuard({
         apiUrl: apiConstants.update_driver_live_location,
         endTripApiUrl: apiConstants.end_region_trip,
@@ -188,6 +190,7 @@ export async function enableShiftLocationGuard(
         notificationBody: 'Shift session active',
         seedLatitude,
         seedLongitude,
+        ...(orderId ? { orderId } : {}),
       });
       enabledGuardKey = guardKey;
       console.log('[Shift] ON guard enabled', {
