@@ -171,11 +171,6 @@ export default function HomeScreens({ navigation, route }: any) {
 
   const handleSlidePress = useCallback(
     (slideItem: any) => {
-      // if (slideItem?.type === "pickup_dropoff") {
-      //   handlePickupDropoffPress(slideItem);
-      //   return;
-      // }
-
       setGloblyTypeSlide(slideItem?.type);
       if (slideItem?.type == "outbound_scan") {
         navigation.navigate("Scanner", { item: slideItem });

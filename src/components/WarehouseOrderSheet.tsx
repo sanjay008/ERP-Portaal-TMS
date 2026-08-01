@@ -37,6 +37,7 @@ type Props = {
   onEdit: () => void;
   onEditAgain: () => void;
   onClose: () => void;
+  onAddImage?: () => void;
 };
 
 export default function WarehouseOrderSheet({
@@ -49,6 +50,7 @@ export default function WarehouseOrderSheet({
   onEdit,
   onEditAgain,
   onClose,
+  onAddImage,
 }: Props) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -248,6 +250,19 @@ export default function WarehouseOrderSheet({
               </View>
             </>
           )}
+          {!!onAddImage && (
+            <Pressable
+              style={({ pressed }) => [
+                styles.btn,
+                styles.addImageBtn,
+                pressed && styles.pressed,
+              ]}
+              onPress={onAddImage}
+              disabled={loading || !orderData}
+            >
+              <Text style={styles.addImageBtnText}>{t('Take picture')}</Text>
+            </Pressable>
+          )}
         </View>
 
         {loading && (
@@ -373,6 +388,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.approve,
   },
   editBtnText: {
+    color: Colors.white,
+    fontSize: 16,
+    fontFamily: FONTS.SemiBold,
+  },
+  addImageBtn: {
+    backgroundColor: Colors.red,
+  },
+  addImageBtnText: {
     color: Colors.white,
     fontSize: 16,
     fontFamily: FONTS.SemiBold,

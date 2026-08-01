@@ -4,11 +4,15 @@ import { useErrorHandle } from '@/src/components/ErrorHandle';
 import WarehouseOrderSheet from '@/src/components/WarehouseOrderSheet';
 import { goBackOrPopTo } from '@/src/components/goBackOrPopTo';
 import { GlobalContextData } from '@/src/context/GlobalContext';
+import { setLatestDeliveryCameraSetData } from '@/src/context/ParcelVerifySessionContext';
+import { DropboxContext } from '@/src/context/UploadProider';
 import ApiService from '@/src/utils/Apiservice';
 import { Colors } from '@/src/utils/colors';
+import { appendToLocalUploadQueue } from '@/src/utils/localUploadQueue';
 import { height, width } from '@/src/utils/storeData';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useIsFocused, useNavigation } from '@react-navigation/native';
+import axios from 'axios';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Image } from 'expo-image';
 import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
@@ -22,6 +26,9 @@ import {
 } from 'react-native';
 
 const WAREHOUSE_TYPE = 'warehouse_change';
+
+const isVideoUri = (uri: string) =>
+  /\.(mp4|mov|m4v|webm|3gp|avi|mkv)(\?|$)/i.test(String(uri || ''));
 
 export default function ScanManager({ route }: any) {
   const navigation = useNavigation<any>();
@@ -38,18 +45,35 @@ export default function ScanManager({ route }: any) {
   const [orderData, setOrderData] = useState<any>(null);
   const [activeOrderId, setActiveOrderId] = useState<string | number | null>(null);
 
-  const { UserData, setToast, fetchTmsStatusList, warehouseScanResume, setWarehouseScanResume } =
-    useContext(GlobalContextData);
+  const {
+    UserData,
+    setToast,
+    fetchTmsStatusList,
+    warehouseScanResume,
+    setWarehouseScanResume,
+    setDeliveyDataSave,
+  } = useContext(GlobalContextData);
+  const { setLocalImagesUploadbeforeData } = useContext(DropboxContext);
 
   const lastScannedRef = useRef('');
   const isVerifyingScanRef = useRef(false);
   const sheetVisibleRef = useRef(false);
   const reopenSavedSheetRef = useRef(false);
+  const sheetModeRef = useRef<'scan' | 'saved'>('scan');
+  const activeOrderIdRef = useRef<string | number | null>(null);
   const slideType = route?.params?.item?.type || route?.params?.type || WAREHOUSE_TYPE;
 
   useEffect(() => {
     sheetVisibleRef.current = sheetVisible;
   }, [sheetVisible]);
+
+  useEffect(() => {
+    sheetModeRef.current = sheetMode;
+  }, [sheetMode]);
+
+  useEffect(() => {
+    activeOrderIdRef.current = activeOrderId;
+  }, [activeOrderId]);
 
   useEffect(() => {
     if (!permission?.granted) {
@@ -197,6 +221,139 @@ export default function ScanManager({ route }: any) {
     handleEdit();
   }, [handleEdit]);
 
+  const uploadWarehouseMedia = useCallback(
+    async (media: any[]) => {
+      const orderId = activeOrderIdRef.current;
+      const uris = (media || [])
+        .map((item) => (typeof item === 'string' ? item : item?.uri))
+        .filter(Boolean) as string[];
+
+      const photos = uris.filter((uri) => !isVideoUri(uri));
+      const videos = uris.filter((uri) => isVideoUri(uri));
+      // Same as CustomCamera: 3 photos OR 1 video
+      const hasRequiredMedia = videos.length >= 1 || photos.length >= 3;
+
+      if (!hasRequiredMedia) {
+        setToast({
+          top: 45,
+          text:
+            photos.length === 0
+              ? t('Please take at least 3 photos')
+              : photos.length < 3
+                ? `${3 - photos.length} ${t('more photo(s) needed')}`
+                : t('Please record at least 1 video'),
+          type: 'error',
+          visible: true,
+        });
+        return;
+      }
+
+      if (orderId == null) {
+        setToast({
+          top: 45,
+          text: t('Invalid or missing order details. Please rescan.'),
+          type: 'error',
+          visible: true,
+        });
+        return;
+      }
+
+      setSheetLoading(true);
+      try {
+        const formData: any = new FormData();
+        formData.append('token', UserData?.user?.verify_token);
+        formData.append('role', UserData?.user?.role);
+        formData.append('relaties_id', UserData?.relaties?.id);
+        formData.append('user_id', UserData?.user?.id);
+        formData.append('order_comment', '');
+        formData.append('order_id', orderId);
+
+        const res: any = await axios.post(apiConstants.store_tms_comment, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          transformRequest: (fd) => fd,
+        });
+
+        if (!Boolean(res?.data?.status)) {
+          setToast({
+            top: 45,
+            text: t(res?.data?.message) || t('something_went_wrong'),
+            type: 'error',
+            visible: true,
+          });
+          return;
+        }
+
+        const orderLogId = res?.data?.data?.order_log_id;
+        const resolvedOrderId = res?.data?.data?.order_id ?? orderId;
+
+        if (uris.length > 0 && orderLogId != null && resolvedOrderId != null) {
+          appendToLocalUploadQueue(setLocalImagesUploadbeforeData, {
+            order_id: resolvedOrderId,
+            image_data: uris,
+            item_id: null,
+            commentId: orderLogId,
+          });
+        }
+
+        setToast({
+          top: 45,
+          text: t(res?.data?.message) || t('Image uploaded successfully'),
+          type: 'success',
+          visible: true,
+        });
+      } catch (error) {
+        setToast({
+          top: 45,
+          text: ErrorHandle(error).message,
+          type: 'error',
+          visible: true,
+        });
+      } finally {
+        setSheetLoading(false);
+        setWarehouseScanResume({
+          orderId,
+          sheetMode: sheetModeRef.current,
+        });
+      }
+    },
+    [
+      UserData,
+      setToast,
+      t,
+      ErrorHandle,
+      setLocalImagesUploadbeforeData,
+      setWarehouseScanResume,
+    ],
+  );
+
+  const handleAddImage = useCallback(() => {
+    if (!activeOrderId) return;
+
+    const onMediaReady = async (media: any[]) => {
+      setLatestDeliveryCameraSetData(null);
+      await uploadWarehouseMedia(media);
+    };
+
+    setLatestDeliveryCameraSetData(onMediaReady);
+    setDeliveyDataSave({
+      setData: onMediaReady,
+    });
+
+    setWarehouseScanResume({
+      orderId: activeOrderId,
+      sheetMode: sheetModeRef.current,
+    });
+    hideSheet();
+    navigation.navigate('Camera', { from: 'warehouse_change' });
+  }, [
+    activeOrderId,
+    hideSheet,
+    navigation,
+    setDeliveyDataSave,
+    setWarehouseScanResume,
+    uploadWarehouseMedia,
+  ]);
+
   const onBarcodeScanned = useCallback(
     ({ data }: { data: string }) => {
       if (
@@ -322,6 +479,7 @@ export default function ScanManager({ route }: any) {
         onEdit={handleEdit}
         onEditAgain={handleEditAgain}
         onClose={handleNextScan}
+        onAddImage={handleAddImage}
       />
 
       {sheetVisible && (
