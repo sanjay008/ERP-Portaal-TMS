@@ -1,12 +1,12 @@
 import apiConstants from '@/src/api/apiConstants';
 import {
   buildAndValidateDriverPayload,
-  resolveTrackingContext,
   REQUIRED_CHAUFFEUR_ROLE,
+  resolveTrackingContext,
 } from '@/src/utils/driverLocationApi';
 import { getLastScannedOrderId } from '@/src/utils/lastScannedOrderId';
-import { getTrackingNotificationLabels } from '@/src/utils/trackingNotificationLabels';
 import type { ActiveShiftSession } from '@/src/utils/shiftSession';
+import { getTrackingNotificationLabels } from '@/src/utils/trackingNotificationLabels';
 import {
   getLastLocation,
   isTracking,

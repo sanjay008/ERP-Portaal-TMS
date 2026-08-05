@@ -80,6 +80,24 @@ struct DriverCoordinate {
   let heading: Double?
   let speed: Double?
   let accuracy: Double?
+  /// Epoch ms when this fix was published (15-min tick).
+  let capturedAtMs: Double?
+
+  init(
+    latitude: Double,
+    longitude: Double,
+    heading: Double?,
+    speed: Double?,
+    accuracy: Double?,
+    capturedAtMs: Double? = nil
+  ) {
+    self.latitude = latitude
+    self.longitude = longitude
+    self.heading = heading
+    self.speed = speed
+    self.accuracy = accuracy
+    self.capturedAtMs = capturedAtMs
+  }
 }
 
 enum TrackingSessionStore {
@@ -138,12 +156,39 @@ enum TrackingSessionStore {
     )
   }
 
-  static func saveLastLocation(_ coord: DriverCoordinate) {
+  static func saveWarmLocation(_ coord: DriverCoordinate) {
+    defaults.set(coord.latitude, forKey: "warm_lat")
+    defaults.set(coord.longitude, forKey: "warm_lon")
+    defaults.set(coord.heading ?? 0, forKey: "warm_heading")
+    defaults.set(coord.speed ?? 0, forKey: "warm_speed")
+    defaults.set(coord.accuracy ?? 0, forKey: "warm_accuracy")
+  }
+
+  static func getWarmLocation() -> DriverCoordinate? {
+    guard defaults.object(forKey: "warm_lat") != nil else { return nil }
+    let lat = defaults.double(forKey: "warm_lat")
+    let lon = defaults.double(forKey: "warm_lon")
+    if lat == 0 && lon == 0 { return nil }
+    return DriverCoordinate(
+      latitude: lat,
+      longitude: lon,
+      heading: defaults.double(forKey: "warm_heading").nonZeroOrNil,
+      speed: defaults.double(forKey: "warm_speed").nonZeroOrNil,
+      accuracy: defaults.double(forKey: "warm_accuracy").nonZeroOrNil
+    )
+  }
+
+  static func savePublishedLocation(_ coord: DriverCoordinate) {
     defaults.set(coord.latitude, forKey: "last_lat")
     defaults.set(coord.longitude, forKey: "last_lon")
     defaults.set(coord.heading ?? 0, forKey: "last_heading")
     defaults.set(coord.speed ?? 0, forKey: "last_speed")
     defaults.set(coord.accuracy ?? 0, forKey: "last_accuracy")
+    defaults.set(coord.capturedAtMs ?? (Date().timeIntervalSince1970 * 1000), forKey: "last_captured_at")
+  }
+
+  static func saveLastLocation(_ coord: DriverCoordinate) {
+    savePublishedLocation(coord)
   }
 
   static func getLastLocation() -> DriverCoordinate? {
@@ -152,13 +197,22 @@ enum TrackingSessionStore {
     let lon = defaults.double(forKey: "last_lon")
     if lat == 0 && lon == 0 { return nil }
 
+    let capturedAt = defaults.object(forKey: "last_captured_at") != nil
+      ? defaults.double(forKey: "last_captured_at")
+      : nil
+
     return DriverCoordinate(
       latitude: lat,
       longitude: lon,
       heading: defaults.double(forKey: "last_heading").nonZeroOrNil,
       speed: defaults.double(forKey: "last_speed").nonZeroOrNil,
-      accuracy: defaults.double(forKey: "last_accuracy").nonZeroOrNil
+      accuracy: defaults.double(forKey: "last_accuracy").nonZeroOrNil,
+      capturedAtMs: capturedAt
     )
+  }
+
+  static func getLocationForApiOrDeactivate() -> DriverCoordinate? {
+    getLastLocation() ?? getWarmLocation()
   }
 
   static func clearLastSentCoord() {
@@ -231,6 +285,9 @@ enum LocationApiClient {
     ]
     if let orderId = config.orderId, !orderId.isEmpty {
       fields["order_id"] = orderId
+    }
+    if let capturedAt = coord.capturedAtMs {
+      fields["captured_at"] = String(Int64(capturedAt))
     }
     request.httpBody = buildMultipartBody(
       boundary: boundary,

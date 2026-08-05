@@ -26,6 +26,7 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 
 class DriverLocationService : Service() {
   companion object {
@@ -35,6 +36,10 @@ class DriverLocationService : Service() {
     private const val TAG = "ExpoDriverLocation"
     private const val CHANNEL_ID = "driver_location_tracking"
     private const val NOTIFICATION_ID = 481516
+    /** Reject fallback fixes older than this. */
+    private const val MAX_LOCATION_AGE_MS = 60_000L
+    /** Reject fixes with worse horizontal accuracy (meters). */
+    private const val MAX_ACCURACY_METERS = 100f
 
     @Volatile
     var isRunning: Boolean = false
@@ -132,6 +137,9 @@ class DriverLocationService : Service() {
   private var apiIntervalRunnable: Runnable? = null
   private var activeConfig: TrackingConfig? = null
   private var userStopped = false
+  private var apiIntervalGeneration = 0
+  private var publishInFlight = false
+  private var activePublishToken: CancellationTokenSource? = null
 
   @Volatile
   private var isDeactivating = false
@@ -239,7 +247,10 @@ class DriverLocationService : Service() {
 
     updateNotification(this, config.notificationTitle, config.notificationBody)
     requestLocationUpdates()
-    startApiInterval(config)
+    // Do not restart a healthy interval — avoids double-schedule when JS sends UPDATE.
+    if (apiIntervalRunnable == null) {
+      startApiInterval(config)
+    }
   }
 
   private fun requestLocationUpdates() {
@@ -259,7 +270,7 @@ class DriverLocationService : Service() {
           sendDeactivateAndStop(restartAllowed = false)
           return
         }
-        saveLocation(location)
+        saveWarmLocation(location)
       }
     }
 
@@ -273,10 +284,11 @@ class DriverLocationService : Service() {
 
   private fun startApiInterval(config: TrackingConfig) {
     stopApiInterval()
+    val generation = ++apiIntervalGeneration
     val intervalMs = config.apiIntervalSeconds.coerceAtLeast(10) * 1000L
     val runnable = object : Runnable {
       override fun run() {
-        if (!isRunning || userStopped) {
+        if (generation != apiIntervalGeneration || !isRunning || userStopped) {
           return
         }
         if (!canTrackLocation()) {
@@ -285,36 +297,148 @@ class DriverLocationService : Service() {
           return
         }
         val currentConfig = activeConfig ?: TrackingSessionStore.load(this@DriverLocationService) ?: return
-        sendActiveApiUpdate(currentConfig)
-        apiHandler.postDelayed(this, intervalMs)
+        publishFreshAndSend(currentConfig)
+        if (generation == apiIntervalGeneration && isRunning && !userStopped) {
+          apiHandler.postDelayed(this, intervalMs)
+        }
       }
     }
     apiIntervalRunnable = runnable
     apiHandler.postDelayed(runnable, intervalMs)
-    Log.i(TAG, "API interval started — every ${config.apiIntervalSeconds}s")
+    Log.i(TAG, "API interval started — every ${config.apiIntervalSeconds}s (fresh GPS each tick) gen=$generation")
   }
 
   private fun stopApiInterval() {
+    apiIntervalGeneration++
     apiIntervalRunnable?.let { apiHandler.removeCallbacks(it) }
     apiIntervalRunnable = null
   }
 
   private fun sendImmediateUpdate(config: TrackingConfig) {
-    try {
-      fusedClient.lastLocation.addOnSuccessListener { location ->
-        if (location != null) {
-          saveLocation(location)
-        }
+    publishFreshAndSend(config)
+  }
+
+  /**
+   * Force a fresh GPS fix, lock it as the published 15-min cache, then API.
+   * Continuous GPS only warms a separate cache and must not overwrite this.
+   */
+  private fun publishFreshAndSend(config: TrackingConfig) {
+    if (publishInFlight) {
+      Log.d(TAG, "publish skipped — already in flight")
+      return
+    }
+    publishInFlight = true
+
+    fun finish() {
+      try {
         sendActiveApiUpdate(config)
-      }.addOnFailureListener {
-        sendActiveApiUpdate(config)
+      } finally {
+        publishInFlight = false
       }
+    }
+
+    try {
+      activePublishToken?.cancel()
+      val cts = CancellationTokenSource()
+      activePublishToken = cts
+
+      fusedClient
+        .getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cts.token)
+        .addOnSuccessListener { location ->
+          if (location != null && tryPublishLocation(location, "getCurrentLocation")) {
+            finish()
+            return@addOnSuccessListener
+          }
+          fusedClient.lastLocation
+            .addOnSuccessListener { last ->
+              if (last != null) {
+                tryPublishLocation(last, "lastLocation")
+              } else {
+                tryPublishWarmOnlyIfNoPublished()
+              }
+              finish()
+            }
+            .addOnFailureListener {
+              tryPublishWarmOnlyIfNoPublished()
+              finish()
+            }
+        }
+        .addOnFailureListener {
+          fusedClient.lastLocation
+            .addOnSuccessListener { last ->
+              if (last != null) {
+                tryPublishLocation(last, "lastLocation")
+              } else {
+                tryPublishWarmOnlyIfNoPublished()
+              }
+              finish()
+            }
+            .addOnFailureListener {
+              tryPublishWarmOnlyIfNoPublished()
+              finish()
+            }
+        }
     } catch (_: SecurityException) {
-      sendActiveApiUpdate(config)
+      tryPublishWarmOnlyIfNoPublished()
+      finish()
     }
   }
 
-  private fun saveLocation(location: Location) {
+  private fun tryPublishWarmOnlyIfNoPublished() {
+    if (TrackingSessionStore.getLastLocation(this) != null) {
+      Log.d(TAG, "Keeping existing published fix — warm/fallback not used")
+      return
+    }
+    val warm = TrackingSessionStore.getWarmLocation(this) ?: return
+    TrackingSessionStore.savePublishedLocation(
+      this,
+      warm.copy(capturedAtMs = System.currentTimeMillis().toDouble()),
+    )
+    Log.i(TAG, "Seeded published from warm (first fix) → lat=${warm.latitude} lon=${warm.longitude}")
+  }
+
+  private fun tryPublishLocation(location: Location, source: String): Boolean {
+    if (!isAcceptableFix(location)) {
+      val ageMs = System.currentTimeMillis() - location.time
+      val accuracy = if (location.hasAccuracy()) location.accuracy else -1f
+      Log.w(TAG, "Rejected $source fix ageMs=$ageMs accuracy=$accuracy")
+      return false
+    }
+    publishLocation(location)
+    return true
+  }
+
+  private fun isAcceptableFix(location: Location): Boolean {
+    if (location.latitude == 0.0 && location.longitude == 0.0) {
+      return false
+    }
+    val ageMs = System.currentTimeMillis() - location.time
+    if (ageMs < 0 || ageMs > MAX_LOCATION_AGE_MS) {
+      return false
+    }
+    if (location.hasAccuracy() && location.accuracy > MAX_ACCURACY_METERS) {
+      return false
+    }
+    return true
+  }
+
+  private fun saveWarmLocation(location: Location) {
+    val coord = locationToCoord(location) ?: return
+    TrackingSessionStore.saveWarmLocation(this, coord)
+  }
+
+  private fun publishLocation(location: Location) {
+    val coord = locationToCoord(location) ?: return
+    val published = coord.copy(capturedAtMs = System.currentTimeMillis().toDouble())
+    TrackingSessionStore.savePublishedLocation(this, published)
+    TrackingSessionStore.saveWarmLocation(this, published)
+    Log.i(
+      TAG,
+      "Published fresh fix → lat=${published.latitude} lon=${published.longitude} at=${published.capturedAtMs}",
+    )
+  }
+
+  private fun locationToCoord(location: Location): DriverCoordinate? {
     val coord = DriverCoordinate(
       latitude = location.latitude,
       longitude = location.longitude,
@@ -323,9 +447,9 @@ class DriverLocationService : Service() {
       accuracy = if (location.hasAccuracy()) location.accuracy.toDouble() else null,
     )
     if (coord.latitude == 0.0 && coord.longitude == 0.0) {
-      return
+      return null
     }
-    TrackingSessionStore.saveLastLocation(this, coord)
+    return coord
   }
 
   private fun sendActiveApiUpdate(config: TrackingConfig) {
@@ -343,7 +467,7 @@ class DriverLocationService : Service() {
     isDeactivating = true
 
     val config = activeConfig ?: TrackingSessionStore.load(this)
-    val lastCoord = TrackingSessionStore.getLastLocation(this)
+    val lastCoord = TrackingSessionStore.getLocationForApiOrDeactivate(this)
 
     stopTrackingInternal()
     activeConfig = null
@@ -399,6 +523,9 @@ class DriverLocationService : Service() {
 
   private fun stopTrackingInternal() {
     stopApiInterval()
+    activePublishToken?.cancel()
+    activePublishToken = null
+    publishInFlight = false
     locationCallback?.let {
       fusedClient.removeLocationUpdates(it)
     }

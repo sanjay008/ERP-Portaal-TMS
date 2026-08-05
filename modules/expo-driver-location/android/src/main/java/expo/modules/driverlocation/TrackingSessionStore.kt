@@ -15,11 +15,21 @@ object TrackingSessionStore {
   private const val KEY_NOTIFICATION_TITLE = "notification_title"
   private const val KEY_NOTIFICATION_BODY = "notification_body"
   private const val KEY_ORDER_ID = "order_id"
+
+  // Published (15-min) cache — used for API + scan
   private const val KEY_LAST_LAT = "last_lat"
   private const val KEY_LAST_LON = "last_lon"
   private const val KEY_LAST_HEADING = "last_heading"
   private const val KEY_LAST_SPEED = "last_speed"
   private const val KEY_LAST_ACCURACY = "last_accuracy"
+  private const val KEY_LAST_CAPTURED_AT = "last_captured_at"
+
+  // Warm GPS (continuous) — never used for API until published
+  private const val KEY_WARM_LAT = "warm_lat"
+  private const val KEY_WARM_LON = "warm_lon"
+  private const val KEY_WARM_HEADING = "warm_heading"
+  private const val KEY_WARM_SPEED = "warm_speed"
+  private const val KEY_WARM_ACCURACY = "warm_accuracy"
 
   fun save(context: Context, config: TrackingConfig) {
     context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
@@ -76,24 +86,57 @@ object TrackingSessionStore {
       .apply()
   }
 
-  fun saveLastLocation(context: Context, coord: DriverCoordinate) {
+  /** Continuous GPS warm cache — does not overwrite published 15-min coords. */
+  fun saveWarmLocation(context: Context, coord: DriverCoordinate) {
     context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
-      .putFloat(KEY_LAST_LAT, coord.latitude.toFloat())
-      .putFloat(KEY_LAST_LON, coord.longitude.toFloat())
-      .putFloat(KEY_LAST_HEADING, (coord.heading ?: 0.0).toFloat())
-      .putFloat(KEY_LAST_SPEED, (coord.speed ?: 0.0).toFloat())
-      .putFloat(KEY_LAST_ACCURACY, (coord.accuracy ?: 0.0).toFloat())
+      .putString(KEY_WARM_LAT, coord.latitude.toString())
+      .putString(KEY_WARM_LON, coord.longitude.toString())
+      .putString(KEY_WARM_HEADING, (coord.heading ?: 0.0).toString())
+      .putString(KEY_WARM_SPEED, (coord.speed ?: 0.0).toString())
+      .putString(KEY_WARM_ACCURACY, (coord.accuracy ?: 0.0).toString())
       .apply()
+  }
+
+  fun getWarmLocation(context: Context): DriverCoordinate? {
+    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    val lat = readDouble(prefs, KEY_WARM_LAT) ?: return null
+    val lon = readDouble(prefs, KEY_WARM_LON) ?: return null
+    if (lat == 0.0 && lon == 0.0) {
+      return null
+    }
+    return DriverCoordinate(
+      latitude = lat,
+      longitude = lon,
+      heading = readDouble(prefs, KEY_WARM_HEADING)?.takeIf { it != 0.0 },
+      speed = readDouble(prefs, KEY_WARM_SPEED)?.takeIf { it != 0.0 },
+      accuracy = readDouble(prefs, KEY_WARM_ACCURACY)?.takeIf { it != 0.0 },
+    )
+  }
+
+  /** Published 15-min fix — used by API + getLastLocation / scan. */
+  fun savePublishedLocation(context: Context, coord: DriverCoordinate) {
+    context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+      .putString(KEY_LAST_LAT, coord.latitude.toString())
+      .putString(KEY_LAST_LON, coord.longitude.toString())
+      .putString(KEY_LAST_HEADING, (coord.heading ?: 0.0).toString())
+      .putString(KEY_LAST_SPEED, (coord.speed ?: 0.0).toString())
+      .putString(KEY_LAST_ACCURACY, (coord.accuracy ?: 0.0).toString())
+      .putString(
+        KEY_LAST_CAPTURED_AT,
+        (coord.capturedAtMs ?: System.currentTimeMillis().toDouble()).toString(),
+      )
+      .apply()
+  }
+
+  /** @deprecated Prefer savePublishedLocation / saveWarmLocation */
+  fun saveLastLocation(context: Context, coord: DriverCoordinate) {
+    savePublishedLocation(context, coord)
   }
 
   fun getLastLocation(context: Context): DriverCoordinate? {
     val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    if (!prefs.contains(KEY_LAST_LAT) || !prefs.contains(KEY_LAST_LON)) {
-      return null
-    }
-
-    val lat = prefs.getFloat(KEY_LAST_LAT, 0f).toDouble()
-    val lon = prefs.getFloat(KEY_LAST_LON, 0f).toDouble()
+    val lat = readDouble(prefs, KEY_LAST_LAT) ?: return null
+    val lon = readDouble(prefs, KEY_LAST_LON) ?: return null
     if (lat == 0.0 && lon == 0.0) {
       return null
     }
@@ -101,13 +144,41 @@ object TrackingSessionStore {
     return DriverCoordinate(
       latitude = lat,
       longitude = lon,
-      heading = prefs.getFloat(KEY_LAST_HEADING, 0f).toDouble().takeIf { it != 0.0 },
-      speed = prefs.getFloat(KEY_LAST_SPEED, 0f).toDouble().takeIf { it != 0.0 },
-      accuracy = prefs.getFloat(KEY_LAST_ACCURACY, 0f).toDouble().takeIf { it != 0.0 },
+      heading = readDouble(prefs, KEY_LAST_HEADING)?.takeIf { it != 0.0 },
+      speed = readDouble(prefs, KEY_LAST_SPEED)?.takeIf { it != 0.0 },
+      accuracy = readDouble(prefs, KEY_LAST_ACCURACY)?.takeIf { it != 0.0 },
+      capturedAtMs = readDouble(prefs, KEY_LAST_CAPTURED_AT),
     )
+  }
+
+  fun getLocationForApiOrDeactivate(context: Context): DriverCoordinate? {
+    return getLastLocation(context) ?: getWarmLocation(context)
   }
 
   fun clear(context: Context) {
     context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().clear().apply()
+  }
+
+  /**
+   * Prefs may hold legacy Float values or new String doubles — never ClassCast crash.
+   */
+  private fun readDouble(prefs: android.content.SharedPreferences, key: String): Double? {
+    if (!prefs.contains(key)) {
+      return null
+    }
+    return try {
+      prefs.getString(key, null)?.toDoubleOrNull()
+    } catch (_: ClassCastException) {
+      try {
+        val value = prefs.getFloat(key, Float.NaN)
+        if (value.isNaN()) null else value.toDouble()
+      } catch (_: ClassCastException) {
+        try {
+          prefs.getLong(key, Long.MIN_VALUE).takeIf { it != Long.MIN_VALUE }?.toDouble()
+        } catch (_: ClassCastException) {
+          null
+        }
+      }
+    }
   }
 }

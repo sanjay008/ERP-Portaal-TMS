@@ -12,11 +12,17 @@ const ApiService = async (endpoint, options = {}) => {
 
     let customData = options.customData;
 
-    if (customData) {
+    // Never overwrite explicit lat/lon on live-location (native / scan ping payload).
+    const isLiveLocationEndpoint =
+      endpoint === apiConstants.update_driver_live_location;
+    if (customData && !isLiveLocationEndpoint) {
       const userData = verify_token?.data ?? verify_token;
       const coords = getChauffeurCoordsForApi(userData?.user?.role);
       if (coords) {
-        customData = { ...customData, ...coords };
+        customData = {
+          ...coords,
+          ...customData,
+        };
       }
     }
 
