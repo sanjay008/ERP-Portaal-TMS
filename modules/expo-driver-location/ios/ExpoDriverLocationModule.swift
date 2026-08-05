@@ -43,6 +43,7 @@ public final class ExpoDriverLocationModule: Module {
         "heading": coord.heading as Any,
         "speed": coord.speed as Any,
         "accuracy": coord.accuracy as Any,
+        "capturedAtMs": (coord.capturedAtMs ?? 0) as Any,
       ]
     }
 

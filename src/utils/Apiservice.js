@@ -6,17 +6,20 @@ import { getChauffeurCoordsForApi } from "./chauffeurLocationCache";
 
 const ApiService = async (endpoint, options = {}) => {
   try {
-    // Retrieve token if needed
     const verify_token = await getData("USERDATA");
-    // console.log(verify_token, 'data------------');
 
     let customData = options.customData;
 
-    if (customData) {
+    const isLiveLocationEndpoint =
+      endpoint === apiConstants.update_driver_live_location;
+    if (customData && !isLiveLocationEndpoint) {
       const userData = verify_token?.data ?? verify_token;
       const coords = getChauffeurCoordsForApi(userData?.user?.role);
       if (coords) {
-        customData = { ...customData, ...coords };
+        customData = {
+          ...coords,
+          ...customData,
+        };
       }
     }
 
@@ -29,9 +32,34 @@ const ApiService = async (endpoint, options = {}) => {
         requestData.append("token", verify_token.data.user.verify_token);
       }
 
-      // Add custom data if any
       Object.keys(customData || {}).forEach((key) => {
-        requestData.append(key, customData[key]);
+        const value = customData[key];
+
+        if (
+          key === "is_damage" &&
+          Array.isArray(value) &&
+          value.length > 0 &&
+          typeof value[0] === "object" &&
+          value[0] !== null
+        ) {
+          value.forEach((row, index) => {
+            if (row?.item_id != null) {
+              requestData.append(
+                `is_damage[${index}][item_id]`,
+                String(row.item_id),
+              );
+            }
+            if (row?.damage_id != null) {
+              requestData.append(
+                `is_damage[${index}][damage_id]`,
+                String(row.damage_id),
+              );
+            }
+          });
+          return;
+        }
+
+        requestData.append(key, value);
       });
     }
 

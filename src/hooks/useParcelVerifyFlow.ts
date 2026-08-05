@@ -26,8 +26,20 @@ import {
   isDescriptionOptional,
   shouldSkipCommentAfterCamera,
 } from '@/src/utils/parcelCommentRules';
-import { hasRemainingParcelsToDeliver } from '@/src/utils/pickupPlanned';
 import {
+  buildIsDamagePayload,
+  initParcelDamageSelections,
+  moreParcelsTitle,
+  type ParcelDamageSelectionMap,
+} from '@/src/utils/deliveryMultiParcel';
+import {
+  DELIVERY_STATUS_ID,
+  getMoreParcelsCountAfterScan,
+  getOrderTmsStatusId,
+  hasRemainingParcelsToDeliver,
+} from '@/src/utils/pickupPlanned';
+import {
+  type DeliveryScanContinueContext,
   type ParcelVerifyScanPayload,
   runParcelVerifyFlow,
 } from '@/src/utils/runParcelVerifyFlow';
@@ -163,6 +175,25 @@ export function useParcelVerifyFlow({
     buttons: [] as any[],
     color: Colors.green,
   });
+  const [parcelDamageSelections, setParcelDamageSelections] =
+    useState<ParcelDamageSelectionMap>({});
+  const pendingDeliveryContinueRef = useRef<DeliveryScanContinueContext | null>(
+    null,
+  );
+  const deliveryMoreParcelsYesRef = useRef<(() => void) | null>(null);
+  const deliveryMoreParcelsNoRef = useRef<(() => void) | null>(null);
+  /** Yes/No "No" path — after comment → signature → goBack (skip No Parcel / Open Scanner). */
+  const deliveryMoreParcelsNoPathRef = useRef(false);
+  /** Full verify API payload — used for direct-flow Yes/No moreCount only. */
+  const lastVerifyApiDataRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (!comment) return;
+    if (!isDeliveryOrder(itemsData) || !productDamageList?.length) return;
+    setParcelDamageSelections((prev) =>
+      initParcelDamageSelections(productDamageList, AllDamageListReason, prev),
+    );
+  }, [comment, productDamageList, AllDamageListReason, itemsData]);
 
   const deliveryLabelModalPendingRef = useRef(false);
   const pickupPlannedModalPendingRef = useRef(false);
@@ -352,6 +383,7 @@ export function useParcelVerifyFlow({
       data: ParcelVerifyScanPayload,
       scan = false,
       is_driver_unloading = false,
+      options?: { keepDeliveryLabel?: boolean; skipDamage?: boolean },
     ) => {
       if (!scan) return;
       setIsLoading(true);
@@ -380,7 +412,12 @@ export function useParcelVerifyFlow({
           payload.is_driver_unloading = 1;
         }
 
-        if (GloblyTypeSlide === 'pickup_dropoff' || GloblyTypeSlide === 'additional_address') {
+        if (
+          !options?.skipDamage &&
+          (GloblyTypeSlide === 'pickup_dropoff' ||
+            GloblyTypeSlide === 'additional_address') &&
+          selectDamageData
+        ) {
           payload.is_damage = selectDamageData?.id;
         }
 
@@ -398,11 +435,18 @@ export function useParcelVerifyFlow({
           return;
         }
 
-        clearDeliveryLabelSelection();
-        deliveryLabelModalPendingRef.current = false;
-        setEvetyTimeShowDeliveryLabelList(false);
+        if (!options?.keepDeliveryLabel) {
+          clearDeliveryLabelSelection();
+          deliveryLabelModalPendingRef.current = false;
+          setEvetyTimeShowDeliveryLabelList(false);
+        }
         setConformationModal((prev: any) => ({ ...prev, visible: false }));
         await onSuccess?.();
+
+        // Mid-scan "Yes / more parcels" — stay on scanner, no remaining modal.
+        if (options?.keepDeliveryLabel) {
+          return;
+        }
 
         const parcelsStillRemaining = hasRemainingParcelsToDeliver(
           itemsData,
@@ -522,6 +566,140 @@ export function useParcelVerifyFlow({
     [UserData, slideType, GloblyTypeSlide, onSuccess, t, setToast, ErrorHandle],
   );
 
+  const openDeliveryCameraProof = useCallback(
+    (sessionLabel?: any, orderData?: any) => {
+      const selectedLabel =
+        sessionLabel ??
+        getActiveVerifyDeliveryLabel() ??
+        deliveryLabelSnapshotRef.current ??
+        pendingDeliveryLabelRef.current ??
+        getRememberedDeliveryLabel();
+
+      if (selectedLabel == null) {
+        setToast({
+          top: 45,
+          text: t('Please select a delivery label'),
+          type: 'error',
+          visible: true,
+        });
+        return;
+      }
+
+      setAlerModalOpen({
+        visible: true,
+        title: t('Camera'),
+        Description: t('You have to take a picture for proof?'),
+        LButtonText: t('Cancel'),
+        RButtonText: t('Camera'),
+        Icon: Images.UploadPhoto,
+        RButtonStyle: Colors.primary,
+        RColor: Colors.white,
+        LButtonStyle: Colors.gray,
+        LColor: Colors.black,
+        onPress: () => {
+          deliveryTypeRef.current = false;
+          setActiveVerifyDeliveryLabel(selectedLabel);
+          lockParcelCameraCallback();
+          const setData = async (data: any[]) => {
+            try {
+              if (!data?.length) return;
+              setAllSelectImage(data);
+              setParcelDamageSelections((prev) =>
+                initParcelDamageSelections(
+                  productDamageList,
+                  AllDamageListReason,
+                  prev,
+                ),
+              );
+              const damage = selectDamageDataRef.current ?? selectDamageData;
+              if (shouldSkipCommentAfterCamera(selectedLabel, damage)) {
+                setComment(false);
+              } else {
+                setComment(true);
+              }
+              setShowSig(false);
+            } finally {
+              unlockParcelCameraCallback();
+            }
+          };
+          setLatestDeliveryCameraSetData(setData);
+          setDeliveyDataSave({
+            Data: orderData ?? itemsData,
+            selectReason: selectedLabel,
+            setData,
+            type: false,
+          });
+          navigation.navigate('Camera');
+          setAlerModalOpen((prev: any) => ({ ...prev, visible: false }));
+        },
+      });
+    },
+    [
+      AllDamageListReason,
+      itemsData,
+      navigation,
+      productDamageList,
+      selectDamageData,
+      setComment,
+      setDeliveyDataSave,
+      setToast,
+      t,
+    ],
+  );
+
+  const onDeliveryLabeledParcelReady = useCallback(
+    (ctx: DeliveryScanContinueContext) => {
+      pendingDeliveryContinueRef.current = ctx;
+
+      if (ctx.moreCount <= 0) {
+        openDeliveryCameraProof(ctx.sessionLabel, ctx.orderData);
+        return;
+      }
+
+      setSecondModal({
+        visible: true,
+        title: moreParcelsTitle(ctx.moreCount, t),
+        message: '',
+        color: Colors.transparant,
+        buttons: [
+          {
+            text: t('No'),
+            type: 'secondary',
+            backgroundColor: Colors.red,
+            onPress: () => deliveryMoreParcelsNoRef.current?.(),
+          },
+          {
+            text: t('Yes'),
+            type: 'primary',
+            backgroundColor: Colors.green,
+            onPress: () => deliveryMoreParcelsYesRef.current?.(),
+          },
+        ],
+      });
+    },
+    [openDeliveryCameraProof, t],
+  );
+
+  deliveryMoreParcelsYesRef.current = async () => {
+    const ctx = pendingDeliveryContinueRef.current;
+    deliveryMoreParcelsNoPathRef.current = false;
+    setSecondModal((prev: any) => ({ ...prev, visible: false }));
+    pendingDeliveryContinueRef.current = null;
+    if (!ctx?.data) return;
+    await statusUpdateFun(ctx.data, true, false, {
+      keepDeliveryLabel: true,
+      skipDamage: true,
+    });
+  };
+
+  deliveryMoreParcelsNoRef.current = () => {
+    const ctx = pendingDeliveryContinueRef.current;
+    deliveryMoreParcelsNoPathRef.current = true;
+    setSecondModal((prev: any) => ({ ...prev, visible: false }));
+    pendingDeliveryContinueRef.current = null;
+    openDeliveryCameraProof(ctx?.sessionLabel, ctx?.orderData ?? itemsData);
+  };
+
   const flowDeps = useMemo(
     () => ({
       userData: UserData,
@@ -548,6 +726,9 @@ export function useParcelVerifyFlow({
       setSelectPlace,
       setProductDamageList,
       setResponseOrderData,
+      onVerifyApiData: (verifyData: any) => {
+        lastVerifyApiDataRef.current = verifyData;
+      },
       setConformationModal,
       setToast,
       setEvetyTimeShowDeliveryLabelList,
@@ -565,6 +746,7 @@ export function useParcelVerifyFlow({
       getSessionDeliveryLabel,
       clearDeliveryLabelSelection: clearDeliveryLabelForNextParcel,
       unlockScanner,
+      onDeliveryLabeledParcelReady,
     }),
     [
       UserData,
@@ -593,6 +775,7 @@ export function useParcelVerifyFlow({
       getSessionDeliveryLabel,
       clearDeliveryLabelForNextParcel,
       unlockScanner,
+      onDeliveryLabeledParcelReady,
     ],
   );
 
@@ -738,77 +921,41 @@ export function useParcelVerifyFlow({
 
       persistDeliveryLabel(selectedLabel);
 
-      setAlerModalOpen({
-        visible: true,
-        title: t('Camera'),
-        Description: t('You have to take a picture for proof?'),
-        LButtonText: t('Cancel'),
-        RButtonText: t('Camera'),
-        Icon: Images.UploadPhoto,
-        RButtonStyle: Colors.primary,
-        RColor: Colors.white,
-        LButtonStyle: Colors.gray,
-        LColor: Colors.black,
-        onPress: () => {
-          deliveryTypeRef.current = false;
-          const labelForReturn = selectedLabel;
-          setActiveVerifyDeliveryLabel(labelForReturn);
-          lockParcelCameraCallback();
-          const setData = async (data: any[]) => {
-            try {
-              if (!data?.length) return;
-              setAllSelectImage(data);
-              const labelOnReturn =
-                getActiveVerifyDeliveryLabel() ??
-                labelForReturn ??
-                deliveryLabelSnapshotRef.current ??
-                getRememberedDeliveryLabel();
-              if (labelOnReturn != null) {
-                persistDeliveryLabel(labelOnReturn);
-              } else {
-                console.warn('[DirectFlow] camera return: label still null');
-              }
-              const damage = selectDamageDataRef.current ?? selectDamageData;
-              if (shouldSkipCommentAfterCamera(labelOnReturn, damage)) {
-                console.log('[DirectFlow] skip comment after camera', {
-                  labelId: labelOnReturn?.id,
-                  damageId: damage?.id,
-                });
-                setComment(false);
-              } else {
-                console.log('[DirectFlow] open comment (camera return)', {
-                  labelId:
-                    labelOnReturn?.id ?? getActiveVerifyDeliveryLabel()?.id,
-                  images: data?.length,
-                });
-                setComment(true);
-              }
-              setShowSig(false);
-            } finally {
-              unlockParcelCameraCallback();
-            }
-          };
-          setLatestDeliveryCameraSetData(setData);
-          setDeliveyDataSave({
-            Data: itemsData,
-            selectReason: selectedLabel,
-            setData,
-            type: false,
-          });
-          navigation.navigate('Camera');
-          setAlerModalOpen((prev: any) => ({ ...prev, visible: false }));
-        },
-      });
+      // Direct flow: use verify API remaining (scanner path already has this in runParcelVerifyFlow).
+      const moreCount =
+        selectPlace?.item_id != null
+          ? getMoreParcelsCountAfterScan(
+              itemsData,
+              lastVerifyApiDataRef.current,
+              selectPlace.item_id,
+            )
+          : 0;
+
+      const isDelivery =
+        isDeliveryOrder(itemsData) ||
+        getOrderTmsStatusId(itemsData) === DELIVERY_STATUS_ID;
+
+      if (isDelivery && selectPlace?.item_id != null && moreCount > 0) {
+        onDeliveryLabeledParcelReady({
+          data: selectPlace,
+          orderData: itemsData,
+          verifyData: lastVerifyApiDataRef.current,
+          sessionLabel: selectedLabel,
+          moreCount,
+        });
+        return;
+      }
+
+      openDeliveryCameraProof(selectedLabel, itemsData);
     },
     [
       itemsData,
       lockedDeliveryLabel,
-      navigation,
+      onDeliveryLabeledParcelReady,
+      openDeliveryCameraProof,
       parcelVerifySession.deliveryLabel,
       persistDeliveryLabel,
-      selectDamageData,
-      setComment,
-      setDeliveyDataSave,
+      selectPlace,
       setToast,
       t,
     ],
@@ -830,10 +977,16 @@ export function useParcelVerifyFlow({
   }, [allSelectImage, itemsData, selectPlace, setLocalImagesUploadbeforeData]);
 
   const addImageOrCommentFun = useCallback(
-    async (data: any[] = []) => {
+    async (
+      data: any[] = [],
+      options?: { skipClose?: boolean; manageLoader?: boolean },
+    ): Promise<boolean> => {
       const id = itemsData?.id || itemsData?.order_data?.id;
+      const manageLoader = options?.manageLoader !== false;
 
-      setCommentLoader(true);
+      if (manageLoader) {
+        setCommentLoader(true);
+      }
       try {
         const formData: any = new FormData();
 
@@ -873,16 +1026,20 @@ export function useParcelVerifyFlow({
           setPickUpDataSave([]);
           setDeliveyDataSave([]);
           setDescription('');
-          setComment(false);
-        } else {
-          setComment(true);
-          setToast({
-            top: 45,
-            text: t(res?.data?.message),
-            type: 'error',
-            visible: true,
-          });
+          if (!options?.skipClose) {
+            setComment(false);
+          }
+          return true;
         }
+
+        setComment(true);
+        setToast({
+          top: 45,
+          text: t(res?.data?.message),
+          type: 'error',
+          visible: true,
+        });
+        return false;
       } catch (error) {
         setComment(true);
         setToast({
@@ -891,8 +1048,11 @@ export function useParcelVerifyFlow({
           type: 'error',
           visible: true,
         });
+        return false;
       } finally {
-        setCommentLoader(false);
+        if (manageLoader) {
+          setCommentLoader(false);
+        }
       }
     },
     [
@@ -929,7 +1089,7 @@ export function useParcelVerifyFlow({
 
       setSignatureLoader(true);
       try {
-        const payload = {
+        const payload: any = {
           token: UserData?.user?.verify_token,
           role: UserData?.user?.role,
           relaties_id: UserData?.relaties?.id,
@@ -937,9 +1097,27 @@ export function useParcelVerifyFlow({
           name,
           signature,
           order_id: itemsData?.id,
-          is_damage: selectDamageData?.id,
-          damage_items: JSON.stringify(damageItems),
         };
+
+        // Signature top damage/undamage Change → send modified per-parcel list
+        // (same shape as status_update; do not send stale selectDamageData).
+        if (Array.isArray(damageItems) && damageItems.length > 0) {
+          const mapped = damageItems
+            .map((row: any) => ({
+              item_id: Number(row?.item ?? row?.item_id),
+              damage_id: Number(row?.is_damage ?? row?.damage_id),
+            }))
+            .filter(
+              (row) =>
+                Number.isFinite(row.item_id) && Number.isFinite(row.damage_id),
+            );
+          if (mapped.length > 0) {
+            payload.is_damage = mapped;
+            payload.damage_items = JSON.stringify(mapped);
+          }
+        } else if (selectDamageData?.id != null) {
+          payload.is_damage = selectDamageData.id;
+        }
 
         const res = await ApiService(apiConstants.store_customer_signature, {
           customData: payload,
@@ -970,6 +1148,18 @@ export function useParcelVerifyFlow({
             type: 'success',
             visible: true,
           });
+
+          if (deliveryMoreParcelsNoPathRef.current) {
+            deliveryMoreParcelsNoPathRef.current = false;
+            await onSuccess?.();
+            if (navigation?.canGoBack?.()) {
+              navigation.goBack();
+            } else {
+              handleGoToListPage();
+            }
+            return;
+          }
+
           setSecondModal({
             visible: true,
             title: t('All Parcels Scanned Successfully!'),
@@ -1016,6 +1206,7 @@ export function useParcelVerifyFlow({
       onSuccess,
       clearParcelVerifySession,
       GloblyTypeSlide,
+      navigation,
       t,
       setToast,
       ErrorHandle,
@@ -1026,6 +1217,10 @@ export function useParcelVerifyFlow({
     const effectiveType = slideType ?? GloblyTypeSlide;
     // Snapshot first — module store / fallback survive Filter focus clears.
     const activeDeliveryLabel = resolveDeliveryLabel();
+    const isDeliveryMultiDamage =
+      isDeliveryOrder(itemsData) &&
+      productDamageList?.length > 0 &&
+      Object.keys(parcelDamageSelections).length > 0;
     const commentOptionalNow = isDescriptionOptional(
       activeDeliveryLabel,
       selectDamageData ?? parcelVerifySession.damageData,
@@ -1036,10 +1231,24 @@ export function useParcelVerifyFlow({
       isDeliveryOrder(itemsData) &&
       activeDeliveryLabel &&
       activeDeliveryLabel?.damaged_required == 1 &&
+      !isDeliveryMultiDamage &&
       selectDamageData == null
     ) {
       setCommentError(t('Choose  Damaged'));
       return;
+    }
+
+    if (
+      isDeliveryMultiDamage &&
+      activeDeliveryLabel?.damaged_required == 1
+    ) {
+      const missing = productDamageList.some(
+        (parcel: any) => parcelDamageSelections[String(parcel?.id)] == null,
+      );
+      if (missing) {
+        setCommentError(t('Choose  Damaged'));
+        return;
+      }
     }
 
     setCommentLoader(true);
@@ -1059,6 +1268,18 @@ export function useParcelVerifyFlow({
         return;
       }
 
+      // Comment text → store_tms_comment first (images with comment log), then status_update.
+      const hadCommentText = Boolean(description.trim());
+      if (hadCommentText) {
+        const commentOk = await addImageOrCommentFun([], {
+          skipClose: true,
+          manageLoader: false,
+        });
+        if (!commentOk) {
+          return;
+        }
+      }
+
       const payload: any = {
         token: UserData?.user?.verify_token,
         role: UserData?.user?.role,
@@ -1074,7 +1295,9 @@ export function useParcelVerifyFlow({
         }),
       };
 
-      if (effectiveType === 'pickup_dropoff' && selectDamageData) {
+      if (isDeliveryMultiDamage) {
+        payload.is_damage = buildIsDamagePayload(parcelDamageSelections);
+      } else if (effectiveType === 'pickup_dropoff' && selectDamageData) {
         payload.is_damage = selectDamageData?.id;
       }
 
@@ -1082,6 +1305,7 @@ export function useParcelVerifyFlow({
         delivered_lable_id: payload.delivered_lable_id ?? null,
         signature_required: activeDeliveryLabel?.signature_required,
         sessionId: activeDeliveryLabel?.id ?? null,
+        is_damage: payload.is_damage,
       });
 
       const res = await ApiService(apiConstants.status_update, {
@@ -1131,8 +1355,30 @@ export function useParcelVerifyFlow({
       });
 
       const savedDamageId = selectDamageData?.id;
+      const damagePayload =
+        isDeliveryOrder(itemsData) &&
+        productDamageList?.length > 0 &&
+        Object.keys(parcelDamageSelections).length > 0
+          ? buildIsDamagePayload(parcelDamageSelections)
+          : null;
 
-      if (savedDamageId != null && selectPlace?.item_id != null) {
+      if (damagePayload?.length) {
+        setProductDamageList((prev) => {
+          if (!prev?.length) return prev;
+          return prev.map((el: any) => {
+            const match = damagePayload.find(
+              (row) => Number(row.item_id) === Number(el?.id),
+            );
+            if (!match) return el;
+            return {
+              ...el,
+              is_damaged_delivery: match.damage_id,
+              scan_qty: 1,
+            };
+          });
+        });
+        setParcelDamageSelections({});
+      } else if (savedDamageId != null && selectPlace?.item_id != null) {
         setProductDamageList((prev) => {
           if (!prev?.length) return prev;
 
@@ -1172,16 +1418,15 @@ export function useParcelVerifyFlow({
       }
 
       setComment(false);
-      if (description.trim()) {
-        await addImageOrCommentFun();
-      } else if (allSelectImage?.length > 0) {
+
+      if (!hadCommentText && allSelectImage?.length > 0) {
         queueProofImagesOnly();
         setAllSelectImage([]);
         setPickUpDataSave([]);
         setDeliveyDataSave([]);
         setDescription('');
         setCommentError('');
-      } else if (commentOptionalNow) {
+      } else if (!hadCommentText && commentOptionalNow) {
         setAllSelectImage([]);
         setPickUpDataSave([]);
         setDeliveyDataSave([]);
@@ -1215,6 +1460,15 @@ export function useParcelVerifyFlow({
       deliveryLabelModalPendingRef.current = false;
       setEvetyTimeShowDeliveryLabelList(false);
       setConformationModal((prev: any) => ({ ...prev, visible: false }));
+
+      // Yes/No → No: skip No Parcel / Open Scanner; open signature directly.
+      if (deliveryMoreParcelsNoPathRef.current) {
+        softClearDeliveryLabelUi();
+        await onSuccess?.();
+        setSecondModal((prev: any) => ({ ...prev, visible: false }));
+        setShowSig(true);
+        return;
+      }
 
       // Keep pin while signature is still needed; full wipe otherwise.
       if (isSignatureAllowed) {
@@ -1337,6 +1591,8 @@ export function useParcelVerifyFlow({
     parcelVerifySession.damageData,
     setSessionDeliveryLabel,
     itemsData,
+    productDamageList,
+    parcelDamageSelections,
     conformationModal?.ProductItem,
     allSelectImage,
     clearDeliveryLabelSelection,
@@ -1517,6 +1773,8 @@ export function useParcelVerifyFlow({
     selectDamageData,
     isCommentOptional,
     userData: UserData,
+    parcelDamageSelections,
+    setParcelDamageSelections,
     startVerify,
     closeConformationModal,
     handlePickupWithPhoto,

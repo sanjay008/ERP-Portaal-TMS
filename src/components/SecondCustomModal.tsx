@@ -135,9 +135,10 @@ const SecondCustomModal = ({
                   key={index}
                   style={{
                     backgroundColor:
-                      btn.type === "primary"
+                      btn.backgroundColor ||
+                      (btn.type === "primary"
                         ? "#007BFF"
-                        : "#E0E0E0",
+                        : "#E0E0E0"),
                     paddingVertical: 10,
                     paddingHorizontal: 20,
                     borderRadius: 8,
@@ -150,7 +151,7 @@ const SecondCustomModal = ({
                   <Text
                     style={{
                       color:
-                        btn.type === "primary"
+                        btn.type === "primary" || btn.backgroundColor
                           ? "#fff"
                           : "#000",
                       fontWeight: "500",

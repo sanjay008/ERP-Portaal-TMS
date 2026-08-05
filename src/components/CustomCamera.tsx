@@ -293,6 +293,8 @@ export default function CustomCamera({ navigation, route }: any) {
 
 
   const { Data, selectReason, maxDuration = 15 } = params;
+  const minPhotos = Number(params?.minPhotos) > 0 ? Number(params.minPhotos) : 3;
+  const photoOnly = Boolean(params?.photoOnly);
 
   const [permission, requestPermission] = useCameraPermissions();
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
@@ -327,15 +329,21 @@ export default function CustomCamera({ navigation, route }: any) {
     return `${m}:${s}`;
   };
 
-  const isDoneEnabled = videos.length >= 1 || photos.length >= 3;
+  const isDoneEnabled = photoOnly
+    ? photos.length >= minPhotos
+    : videos.length >= 1 || photos.length >= minPhotos;
 
   const validationHint = (() => {
-    if (videos.length >= 1 || photos.length >= 3) return null;
-    if (isVideoMode) {
+    if (isDoneEnabled) return null;
+    if (!photoOnly && isVideoMode) {
       return t("Please record at least 1 video");
     }
-    if (photos.length === 0) return t("Please take at least 3 photos");
-    return `${3 - photos.length} ${t("more photo(s) needed")}`;
+    if (photos.length === 0) {
+      return minPhotos === 1
+        ? t("Please take at least 1 photo")
+        : t("Please take at least 3 photos");
+    }
+    return `${minPhotos - photos.length} ${t("more photo(s) needed")}`;
   })();
 
   const toggleMode = useCallback(() => {
@@ -610,46 +618,48 @@ export default function CustomCamera({ navigation, route }: any) {
         />
       )}
 
-      <View style={[styles.switchContainer, { bottom: insets.bottom + 96 }]}>
-        <TouchableOpacity
-          onPress={toggleMode}
-          activeOpacity={0.9}
-          style={styles.switchTrack}
-          disabled={isRecording || isCameraSwitching}
-        >
-          <Animated.View style={[styles.switchThumb, animatedThumb]} />
-          <View style={styles.switchLabelLeft}>
-            <Ionicons
-              name="camera"
-              size={14}
-              color={isVideoMode ? "rgba(255,255,255,0.45)" : Colors.white}
-            />
-            <Text
-              style={[
-                styles.switchLabelText,
-                { color: isVideoMode ? "rgba(255,255,255,0.45)" : Colors.white },
-              ]}
-            >
-              {t("Photo")}
-            </Text>
-          </View>
-          <View style={styles.switchLabelRight}>
-            <Ionicons
-              name="videocam"
-              size={14}
-              color={!isVideoMode ? "rgba(255,255,255,0.45)" : Colors.white}
-            />
-            <Text
-              style={[
-                styles.switchLabelText,
-                { color: !isVideoMode ? "rgba(255,255,255,0.45)" : Colors.white },
-              ]}
-            >
-              {t("Video")}
-            </Text>
-          </View>
-        </TouchableOpacity>
-      </View>
+      {!photoOnly ? (
+        <View style={[styles.switchContainer, { bottom: insets.bottom + 96 }]}>
+          <TouchableOpacity
+            onPress={toggleMode}
+            activeOpacity={0.9}
+            style={styles.switchTrack}
+            disabled={isRecording || isCameraSwitching}
+          >
+            <Animated.View style={[styles.switchThumb, animatedThumb]} />
+            <View style={styles.switchLabelLeft}>
+              <Ionicons
+                name="camera"
+                size={14}
+                color={isVideoMode ? "rgba(255,255,255,0.45)" : Colors.white}
+              />
+              <Text
+                style={[
+                  styles.switchLabelText,
+                  { color: isVideoMode ? "rgba(255,255,255,0.45)" : Colors.white },
+                ]}
+              >
+                {t("Photo")}
+              </Text>
+            </View>
+            <View style={styles.switchLabelRight}>
+              <Ionicons
+                name="videocam"
+                size={14}
+                color={!isVideoMode ? "rgba(255,255,255,0.45)" : Colors.white}
+              />
+              <Text
+                style={[
+                  styles.switchLabelText,
+                  { color: !isVideoMode ? "rgba(255,255,255,0.45)" : Colors.white },
+                ]}
+              >
+                {t("Video")}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       <TouchableOpacity
         onPress={handleCapture}

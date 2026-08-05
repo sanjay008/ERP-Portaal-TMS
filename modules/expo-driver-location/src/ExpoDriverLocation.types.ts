@@ -28,6 +28,8 @@ export type NativeDriverCoordinate = {
   heading: number | null;
   speed: number | null;
   accuracy: number | null;
+  /** Epoch ms when the 15-min published fix was captured */
+  capturedAtMs?: number | null;
 };
 
 export type ShiftForceClosedEvent = {

@@ -183,17 +183,12 @@ const isCustomerCountryPrice = useCallback(
         product_id: productId,
       };
 
-      // DEBUG: log the exact payload being sent, to help diagnose the 422
-      // validation error from the backend. Does not change the flow.
       console.log('[ParcelBox] update_order_item_product request payload:', requestPayload);
 
       const res = await ApiService(apiConstants.update_order_item_product, {
         customData: requestPayload,
       });
 
-      // DEBUG: log the full raw response so the actual 422 validation
-      // message/field errors from the backend are visible in the logs.
-      console.log('[ParcelBox] update_order_item_product response:', JSON.stringify(res));
 
       if (res?.status || res?.status_code == 200) {
         setSavedTmsProduct(selectedTmsProduct);
@@ -214,9 +209,6 @@ const isCustomerCountryPrice = useCallback(
         visible: true,
       });
     } catch (error) {
-      // DEBUG: log the caught error too — some API clients throw with the
-      // 422 validation body attached to error.response instead of returning
-      // it as a normal result.
       console.log('[ParcelBox] update_order_item_product error:', error);
       setToast({ top: 45, text: t('Unable to save product change'), type: 'error', visible: true });
     } finally {

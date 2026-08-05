@@ -25,6 +25,7 @@ import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
 import { appendToLocalUploadQueue } from "@/src/utils/localUploadQueue";
 import { isDeliveryOrder, isPickupOrder } from "@/src/utils/orderStatus";
+import { setActiveVerifyDeliveryLabel } from "@/src/utils/parcelVerifyDeliveryLabelStore";
 import {
   lockParcelCameraCallback,
   unlockParcelCameraCallback,
@@ -1158,14 +1159,14 @@ export default function DetailsScreens({ navigation, route }: any) {
                         }
 
                       } else {
-
+                        setSelectCurrentDeliveryLabel(item);
+                        setActiveVerifyDeliveryLabel(item);
                         navigation.navigate("Scanner", {
                           fun: GetIdByOrderFun,
                           type: type,
                           restrictedOrderId:
                             ItemsData?.id || ItemsData?.order_data?.id,
-                        })
-                        setSelectCurrentDeliveryLabel(item)
+                        });
                       }
                     }
                     }

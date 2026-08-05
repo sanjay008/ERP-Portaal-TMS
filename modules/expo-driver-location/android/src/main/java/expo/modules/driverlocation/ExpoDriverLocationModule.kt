@@ -80,6 +80,7 @@ class ExpoDriverLocationModule : Module() {
         "heading" to (coord.heading ?: 0.0),
         "speed" to (coord.speed ?: 0.0),
         "accuracy" to (coord.accuracy ?: 0.0),
+        "capturedAtMs" to (coord.capturedAtMs ?: 0L),
       )
     }
 

@@ -118,8 +118,14 @@ export function itemNeedsDeliveryLabelSelection(
 
 /** API remaining count — prefer total_remaining_item_to_scan from verify/status_update */
 export function getRemainingParcelsFromApi(apiData: any): number | null {
+  if (apiData == null) return null;
   const raw =
-    apiData?.total_remaining_item_to_scan ?? apiData?.remaining_item;
+    apiData?.total_remaining_item_to_scan ??
+    apiData?.remaining_item_to_scan ??
+    apiData?.remaining_item ??
+    apiData?.data?.total_remaining_item_to_scan ??
+    apiData?.data?.remaining_item_to_scan ??
+    apiData?.data?.remaining_item;
   if (raw == null || raw === '') return null;
   const parsed = Number(raw);
   return Number.isFinite(parsed) ? parsed : null;
@@ -171,4 +177,72 @@ export function hasRemainingParcelsToDeliver(
   }
 
   return false;
+}
+
+/**
+ * How many parcels remain AFTER treating current scan as done.
+ * Backend verify still includes the just-scanned item (status_update not yet called),
+ * so show apiRemaining - 1 (e.g. backend 3 → popup "2 more parcel").
+ */
+export function getMoreParcelsCountAfterScan(
+  orderData: any,
+  apiData: any,
+  justScannedItemId: number | string,
+  noParcelItemIds: number[] = [],
+): number {
+  const apiRemaining = getRemainingParcelsFromApi(apiData);
+  if (apiRemaining != null) {
+    return Math.max(0, apiRemaining - 1);
+  }
+
+  return (
+    countRemainingDeliveryParcels(
+      orderData,
+      noParcelItemIds,
+      justScannedItemId,
+    ) ?? 0
+  );
+}
+
+/** Build / merge a ProductDamageList entry for a just-verified delivery parcel. */
+export function buildDeliveryDamageListEntry(
+  orderData: any,
+  itemId: number | string,
+  itemDataList?: any[],
+): any {
+  const numericId = Number(itemId);
+  if (Array.isArray(itemDataList)) {
+    const fromApi = itemDataList.find(
+      (el: any) => Number(el?.id) === numericId,
+    );
+    if (fromApi) return { ...fromApi, scan_qty: 1 };
+  }
+
+  const orderItems = orderData?.items ?? orderData?.order_data?.items ?? [];
+  const matched = Array.isArray(orderItems)
+    ? orderItems.find((el: any) => Number(el?.id) === numericId)
+    : null;
+
+  return {
+    id: numericId,
+    item_status_id: matched?.item_status_id ?? null,
+    scan_qty: 1,
+    delivery_label: matched?.delivery_label ?? null,
+    is_damaged_delivery: null,
+    is_damaged_pickup: matched?.is_damaged_pickup ?? null,
+    tms_product_name: matched?.tms_product_name ?? '',
+  };
+}
+
+export function mergeParcelIntoDamageList(
+  prev: any[] | null | undefined,
+  entry: any,
+): any[] {
+  const list = Array.isArray(prev) ? [...prev] : [];
+  const idx = list.findIndex((el) => Number(el?.id) === Number(entry?.id));
+  if (idx >= 0) {
+    list[idx] = { ...list[idx], ...entry };
+    return list;
+  }
+  return [...list, entry];
 }

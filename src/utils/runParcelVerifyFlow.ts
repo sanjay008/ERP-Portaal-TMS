@@ -19,8 +19,13 @@ import {
   setFallbackDeliveryLabelId,
 } from '@/src/utils/parcelVerifyDeliveryLabelStore';
 import {
+  buildDeliveryDamageListEntry,
+  DELIVERY_STATUS_ID,
+  getMoreParcelsCountAfterScan,
+  getOrderTmsStatusId,
   isDeliveryItemAlreadyScanned,
   itemNeedsDeliveryLabelSelection,
+  mergeParcelIntoDamageList,
   shouldOpenPickupPlannedModal,
 } from '@/src/utils/pickupPlanned';
 
@@ -29,6 +34,14 @@ export type ParcelVerifyScanPayload = {
   item_id: number | string;
   /** Tapped parcel from PickUpBox — used to seed delivery_label fallback. */
   item?: any;
+};
+
+export type DeliveryScanContinueContext = {
+  data: ParcelVerifyScanPayload;
+  orderData: any;
+  verifyData: any;
+  sessionLabel: any;
+  moreCount: number;
 };
 
 export type ParcelVerifyFlowDeps = {
@@ -55,8 +68,10 @@ export type ParcelVerifyFlowDeps = {
   setItemsData: (value: any) => void;
   setShowDeliveryLabelList: (value: any) => void;
   setSelectPlace: (value: any) => void;
-  setProductDamageList: (value: any[]) => void;
+  setProductDamageList: (value: any[] | ((prev: any[]) => any[])) => void;
   setResponseOrderData: (value: any) => void;
+  /** Direct-flow only: keep full verify payload for Yes/No moreCount (scanner omits). */
+  onVerifyApiData?: (verifyData: any) => void;
   setConformationModal: (value: any) => void;
   setToast: (value: any) => void;
   setEvetyTimeShowDeliveryLabelList: (value: boolean) => void;
@@ -73,6 +88,7 @@ export type ParcelVerifyFlowDeps = {
     data: ParcelVerifyScanPayload,
     scan?: boolean,
     is_driver_unloading?: boolean,
+    options?: { keepDeliveryLabel?: boolean; skipDamage?: boolean },
   ) => Promise<void>;
   reversParcelFun: (
     order_id: number | string | null,
@@ -81,6 +97,8 @@ export type ParcelVerifyFlowDeps = {
   getSessionDeliveryLabel: () => any;
   clearDeliveryLabelSelection?: () => void;
   unlockScanner?: () => void;
+  /** Delivery-only: after verify + label, Yes/No more parcels or camera. */
+  onDeliveryLabeledParcelReady?: (ctx: DeliveryScanContinueContext) => void;
 };
 
 export async function runParcelVerifyFlow(
@@ -199,6 +217,7 @@ export async function runParcelVerifyFlow(
     deps.setOrderDeliveryMapingLableOption(res?.data?.order_label_mapping || []);
     deps.setItemsData(res?.data?.order_data);
     deps.setResponseOrderData(res?.data?.order_data);
+    deps.onVerifyApiData?.(res?.data);
     deps.setShowDeliveryLabelList(res?.data?.delivery_btn || 0);
     deps.setSelectPlace({
       item_id: data?.item_id,
@@ -221,11 +240,24 @@ export async function runParcelVerifyFlow(
       setActiveVerifyDeliveryLabel(pinned);
     }
 
-    if (Number(res?.data?.total_remaining_item_to_scan) <= 1) {
+    const isStatus4 =
+      isDeliveryOrder(res?.data?.order_data) ||
+      getOrderTmsStatusId(res?.data?.order_data) === DELIVERY_STATUS_ID;
+
+    // Delivery: accumulate every scanned parcel for per-parcel damage on comment.
+    // Pickup: keep prior last-parcel-only seed.
+    if (isStatus4) {
+      const entry = buildDeliveryDamageListEntry(
+        res?.data?.order_data,
+        data?.item_id,
+        res?.data?.item_data_list,
+      );
+      deps.setProductDamageList((prev: any[]) =>
+        mergeParcelIntoDamageList(prev, entry),
+      );
+    } else if (Number(res?.data?.total_remaining_item_to_scan) <= 1) {
       deps.setProductDamageList(res?.data?.item_data_list || []);
     }
-
-    const isStatus4 = isDeliveryOrder(res?.data?.order_data);
     const questionText = res?.data?.quetion ?? res?.data?.question ?? '';
     const modalConfig: any = {
       visible: true,
@@ -265,7 +297,16 @@ export async function runParcelVerifyFlow(
         deps.source === 'scanner' ? deps.t('New scan') : undefined;
     }
 
-    if (isStatus4 && slideType === 'pickup_dropoff') {
+    const sessionDeliveryLabel = deps.isManualDirectVerify
+      ? null
+      : deps.getSessionDeliveryLabel();
+
+    // Yes/No + labeled continue — delivery (status 4) only.
+    // Do not use sessionDeliveryLabel alone (that hijacked pickup → planned sheet skipped).
+    if (
+      isStatus4 &&
+      (slideType === 'pickup_dropoff' || slideType === 'additional_address')
+    ) {
       const itemAlreadyScanned = isDeliveryItemAlreadyScanned(res?.data, data);
 
       if (itemAlreadyScanned || Boolean(res?.data?.error_key)) {
@@ -274,67 +315,92 @@ export async function runParcelVerifyFlow(
         return;
       }
 
-      const sessionDeliveryLabel = deps.isManualDirectVerify
-        ? null
-        : deps.getSessionDeliveryLabel();
-      const needsLabel = itemNeedsDeliveryLabelSelection(res?.data, data);
+      const resolvedLabel = sessionDeliveryLabel;
 
-      if (needsLabel) {
-        if (sessionDeliveryLabel == null) {
-          // Soft clear only — do not wipe pinned/remembered label mid Direct Flow.
-          // New tap in handleSelectDeliveryLabel overwrites the pin.
-          deps.clearDeliveryLabelSelection?.();
-          deps.deliveryLabelModalPendingRef.current = true;
-          deps.setEvetyTimeShowDeliveryLabelList(true);
-          return;
-        }
+      if (resolvedLabel == null) {
+        // Soft clear only — do not wipe pinned/remembered label mid Direct Flow.
+        deps.clearDeliveryLabelSelection?.();
+        deps.deliveryLabelModalPendingRef.current = true;
+        deps.setEvetyTimeShowDeliveryLabelList(true);
+        return;
+      }
 
-        deps.setAlerModalOpen({
-          visible: true,
-          title: deps.t('Camera'),
-          Description: deps.t('You have to take a picture for proof?'),
-          LButtonText: deps.t('Cancel'),
-          RButtonText: deps.t('Camera'),
-          Icon: Images.UploadPhoto,
-          RButtonStyle: Colors.primary,
-          RColor: Colors.white,
-          LButtonStyle: Colors.gray,
-          LColor: Colors.black,
-          onPress: () => {
-            deps.deliveryTypeRef.current = false;
-            lockParcelCameraCallback();
-            const setData = async (images: any[]) => {
-              try {
-                if (images?.length > 0) {
-                  deps.setAllSelectImage(images);
-                  if (
-                    shouldSkipCommentAfterCamera(
-                      sessionDeliveryLabel,
-                      deps.selectDamageData,
-                    )
-                  ) {
-                    deps.setComment(false);
-                  } else {
-                    deps.setComment(true);
-                  }
-                }
-              } finally {
-                unlockParcelCameraCallback();
-              }
-            };
-            setLatestDeliveryCameraSetData(setData);
-            deps.setDeliveyDataSave({
-              Data: res?.data?.order_data,
-              selectReason: sessionDeliveryLabel,
-              setData,
-              type: false,
-            });
-            deps.navigation.navigate('Camera');
-            deps.setAlerModalOpen((prev: any) => ({ ...prev, visible: false }));
-          },
+      const moreCount = getMoreParcelsCountAfterScan(
+        res?.data?.order_data,
+        res?.data,
+        data?.item_id,
+      );
+
+      console.log('[DeliveryContinue]', {
+        moreCount,
+        apiRemaining:
+          res?.data?.total_remaining_item_to_scan ??
+          res?.data?.remaining_item_to_scan ??
+          res?.data?.remaining_item ??
+          null,
+        itemId: data?.item_id,
+        orderId: data?.order_id,
+        labelId: resolvedLabel?.id ?? null,
+        isStatus4,
+      });
+
+      if (deps.onDeliveryLabeledParcelReady) {
+        deps.onDeliveryLabeledParcelReady({
+          data,
+          orderData: res?.data?.order_data,
+          verifyData: res?.data,
+          sessionLabel: resolvedLabel,
+          moreCount,
         });
         return;
       }
+
+      // Fallback: legacy camera proof if host did not wire continue choice.
+      deps.setAlerModalOpen({
+        visible: true,
+        title: deps.t('Camera'),
+        Description: deps.t('You have to take a picture for proof?'),
+        LButtonText: deps.t('Cancel'),
+        RButtonText: deps.t('Camera'),
+        Icon: Images.UploadPhoto,
+        RButtonStyle: Colors.primary,
+        RColor: Colors.white,
+        LButtonStyle: Colors.gray,
+        LColor: Colors.black,
+        onPress: () => {
+          deps.deliveryTypeRef.current = false;
+          lockParcelCameraCallback();
+          const setData = async (images: any[]) => {
+            try {
+              if (images?.length > 0) {
+                deps.setAllSelectImage(images);
+                if (
+                  shouldSkipCommentAfterCamera(
+                    resolvedLabel,
+                    deps.selectDamageData,
+                  )
+                ) {
+                  deps.setComment(false);
+                } else {
+                  deps.setComment(true);
+                }
+              }
+            } finally {
+              unlockParcelCameraCallback();
+            }
+          };
+          setLatestDeliveryCameraSetData(setData);
+          deps.setDeliveyDataSave({
+            Data: res?.data?.order_data,
+            selectReason: resolvedLabel,
+            setData,
+            type: false,
+          });
+          deps.navigation.navigate('Camera');
+          deps.setAlerModalOpen((prev: any) => ({ ...prev, visible: false }));
+        },
+      });
+      return;
     }
 
     const isPickupPlannedFlow = shouldOpenPickupPlannedModal(
@@ -371,7 +437,7 @@ export async function runParcelVerifyFlow(
         deps.setConformationModal(modalConfig);
         scanOverlayShown = true;
       }
-    } else if (!isDeliveryPendingItem) {
+    } else if (!isDeliveryPendingItem && !isStatus4) {
       deps.setAlerModalOpen({
         visible: true,
         title: deps.t('Camera'),

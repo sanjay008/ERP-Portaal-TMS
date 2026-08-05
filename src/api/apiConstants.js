@@ -44,6 +44,9 @@ module.exports = {
     revert_order_item_status:`${baseUrlnew}tms-driver/revert-order-item-status`,
     update_order_item_product:`${baseUrlnew}tms-driver/update-order-item-product`,
     update_order_data:`${baseUrlnew}tms-driver/update-order-data`,
+    get_add_product_categories:`${baseUrlnew}tms-driver/get-add-product-categories`,
+    get_add_product_prices:`${baseUrlnew}tms-driver/get-add-product-prices`,
+    add_product_to_order:`${baseUrlnew}tms-driver/add-product-to-order`,
 };
 
 

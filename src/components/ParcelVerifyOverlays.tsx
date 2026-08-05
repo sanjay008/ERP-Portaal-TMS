@@ -124,6 +124,9 @@ export default function ParcelVerifyOverlays({ flow, navigation }: Props) {
         commentError={flow.commentError}
         commentLoader={flow.commentLoader}
         isCommentOptional={flow.isCommentOptional}
+        productDamageList={flow.productDamageList}
+        parcelDamageSelections={flow.parcelDamageSelections}
+        setParcelDamageSelections={flow.setParcelDamageSelections}
         onSubmit={flow.commentFun}
         onClose={() => flow.setComment(false)}
       />

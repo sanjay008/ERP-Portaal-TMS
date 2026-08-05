@@ -26,6 +26,7 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 
 class DriverLocationService : Service() {
   companion object {
@@ -253,13 +254,13 @@ class DriverLocationService : Service() {
 
     val callback = object : LocationCallback() {
       override fun onLocationResult(result: LocationResult) {
-        val location = result.lastLocation ?: return
+        // Keep FusedLocation warm only. Do NOT overwrite the published API cache —
+        // that updates solely on 15-min / start fresh reads.
+        result.lastLocation ?: return
         if (!canTrackLocation()) {
           Log.w(TAG, "Location unavailable during location update — sending is_active=0")
           sendDeactivateAndStop(restartAllowed = false)
-          return
         }
-        saveLocation(location)
       }
     }
 
@@ -285,7 +286,7 @@ class DriverLocationService : Service() {
           return
         }
         val currentConfig = activeConfig ?: TrackingSessionStore.load(this@DriverLocationService) ?: return
-        sendActiveApiUpdate(currentConfig)
+        publishFreshAndSend(currentConfig)
         apiHandler.postDelayed(this, intervalMs)
       }
     }
@@ -300,27 +301,47 @@ class DriverLocationService : Service() {
   }
 
   private fun sendImmediateUpdate(config: TrackingConfig) {
+    publishFreshAndSend(config)
+  }
+
+  /**
+   * Forced fresh GPS → publish to API cache → POST.
+   * Scans reuse this published cache until the next 15-min tick.
+   */
+  private fun publishFreshAndSend(config: TrackingConfig) {
     try {
-      fusedClient.lastLocation.addOnSuccessListener { location ->
-        if (location != null) {
-          saveLocation(location)
+      val cts = CancellationTokenSource()
+      fusedClient
+        .getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, cts.token)
+        .addOnSuccessListener { location ->
+          if (location != null) {
+            savePublishedLocation(location)
+            Log.i(
+              TAG,
+              "Published fresh fix lat=${location.latitude} lon=${location.longitude}",
+            )
+          } else {
+            Log.w(TAG, "Fresh GPS null — falling back to last published cache")
+          }
+          sendActiveApiUpdate(config)
         }
-        sendActiveApiUpdate(config)
-      }.addOnFailureListener {
-        sendActiveApiUpdate(config)
-      }
+        .addOnFailureListener { error ->
+          Log.w(TAG, "Fresh GPS failed — falling back to last published cache: ${error.message}")
+          sendActiveApiUpdate(config)
+        }
     } catch (_: SecurityException) {
       sendActiveApiUpdate(config)
     }
   }
 
-  private fun saveLocation(location: Location) {
+  private fun savePublishedLocation(location: Location) {
     val coord = DriverCoordinate(
       latitude = location.latitude,
       longitude = location.longitude,
       heading = if (location.hasBearing()) location.bearing.toDouble() else null,
       speed = if (location.hasSpeed()) location.speed.toDouble() else null,
       accuracy = if (location.hasAccuracy()) location.accuracy.toDouble() else null,
+      capturedAtMs = location.time.takeIf { it > 0L } ?: System.currentTimeMillis(),
     )
     if (coord.latitude == 0.0 && coord.longitude == 0.0) {
       return
@@ -329,7 +350,10 @@ class DriverLocationService : Service() {
   }
 
   private fun sendActiveApiUpdate(config: TrackingConfig) {
-    val coord = TrackingSessionStore.getLastLocation(this) ?: return
+    val coord = TrackingSessionStore.getLastLocation(this) ?: run {
+      Log.w(TAG, "API skipped — no published location yet")
+      return
+    }
     if (coord.latitude == 0.0 && coord.longitude == 0.0) {
       return
     }

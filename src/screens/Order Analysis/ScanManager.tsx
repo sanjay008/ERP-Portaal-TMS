@@ -1,6 +1,7 @@
 import apiConstants from '@/src/api/apiConstants';
 import { Images } from '@/src/assets/images';
 import { useErrorHandle } from '@/src/components/ErrorHandle';
+import AddWarehouseProductModal from '@/src/components/AddWarehouseProductModal';
 import WarehouseOrderSheet from '@/src/components/WarehouseOrderSheet';
 import { goBackOrPopTo } from '@/src/components/goBackOrPopTo';
 import { GlobalContextData } from '@/src/context/GlobalContext';
@@ -44,6 +45,7 @@ export default function ScanManager({ route }: any) {
   const [sheetMode, setSheetMode] = useState<'scan' | 'saved'>('scan');
   const [orderData, setOrderData] = useState<any>(null);
   const [activeOrderId, setActiveOrderId] = useState<string | number | null>(null);
+  const [addProductVisible, setAddProductVisible] = useState(false);
 
   const {
     UserData,
@@ -61,6 +63,14 @@ export default function ScanManager({ route }: any) {
   const reopenSavedSheetRef = useRef(false);
   const sheetModeRef = useRef<'scan' | 'saved'>('scan');
   const activeOrderIdRef = useRef<string | number | null>(null);
+  const pendingAddProductRef = useRef<{
+    product_id: string | number;
+    quantity: number;
+    product_name?: string;
+    is_set_product_price?: boolean;
+    country_id?: string | number;
+    price?: string | number;
+  } | null>(null);
   const slideType = route?.params?.item?.type || route?.params?.type || WAREHOUSE_TYPE;
 
   useEffect(() => {
@@ -222,7 +232,10 @@ export default function ScanManager({ route }: any) {
   }, [handleEdit]);
 
   const uploadWarehouseMedia = useCallback(
-    async (media: any[]) => {
+    async (
+      media: any[],
+      options?: { minPhotos?: number; photoOnly?: boolean },
+    ): Promise<boolean> => {
       const orderId = activeOrderIdRef.current;
       const uris = (media || [])
         .map((item) => (typeof item === 'string' ? item : item?.uri))
@@ -230,14 +243,20 @@ export default function ScanManager({ route }: any) {
 
       const photos = uris.filter((uri) => !isVideoUri(uri));
       const videos = uris.filter((uri) => isVideoUri(uri));
-      // Same as CustomCamera: 3 photos OR 1 video
-      const hasRequiredMedia = videos.length >= 1 || photos.length >= 3;
+      const minPhotos = options?.minPhotos ?? 3;
+      const photoOnly = Boolean(options?.photoOnly);
+      const hasRequiredMedia = photoOnly
+        ? photos.length >= minPhotos
+        : videos.length >= 1 || photos.length >= minPhotos;
 
       if (!hasRequiredMedia) {
         setToast({
           top: 45,
-          text:
-            photos.length === 0
+          text: photoOnly
+            ? photos.length === 0
+              ? t('Please take at least 1 photo')
+              : `${minPhotos - photos.length} ${t('more photo(s) needed')}`
+            : photos.length === 0
               ? t('Please take at least 3 photos')
               : photos.length < 3
                 ? `${3 - photos.length} ${t('more photo(s) needed')}`
@@ -245,7 +264,7 @@ export default function ScanManager({ route }: any) {
           type: 'error',
           visible: true,
         });
-        return;
+        return false;
       }
 
       if (orderId == null) {
@@ -255,7 +274,7 @@ export default function ScanManager({ route }: any) {
           type: 'error',
           visible: true,
         });
-        return;
+        return false;
       }
 
       setSheetLoading(true);
@@ -265,7 +284,7 @@ export default function ScanManager({ route }: any) {
         formData.append('role', UserData?.user?.role);
         formData.append('relaties_id', UserData?.relaties?.id);
         formData.append('user_id', UserData?.user?.id);
-        formData.append('order_comment', '');
+        // formData.append('order_comment', '');
         formData.append('order_id', orderId);
 
         const res: any = await axios.post(apiConstants.store_tms_comment, formData, {
@@ -280,7 +299,7 @@ export default function ScanManager({ route }: any) {
             type: 'error',
             visible: true,
           });
-          return;
+          return false;
         }
 
         const orderLogId = res?.data?.data?.order_log_id;
@@ -301,6 +320,7 @@ export default function ScanManager({ route }: any) {
           type: 'success',
           visible: true,
         });
+        return true;
       } catch (error) {
         setToast({
           top: 45,
@@ -308,6 +328,7 @@ export default function ScanManager({ route }: any) {
           type: 'error',
           visible: true,
         });
+        return false;
       } finally {
         setSheetLoading(false);
         setWarehouseScanResume({
@@ -353,6 +374,115 @@ export default function ScanManager({ route }: any) {
     setWarehouseScanResume,
     uploadWarehouseMedia,
   ]);
+
+  const handleRequestAddProduct = useCallback(
+    (payload: {
+      product_id: string | number;
+      quantity: number;
+      product_name?: string;
+      is_set_product_price?: boolean;
+      country_id?: string | number;
+      price?: string | number;
+    }) => {
+      if (!activeOrderId) return;
+
+      pendingAddProductRef.current = payload;
+      setAddProductVisible(false);
+
+      const onMediaReady = async (media: any[]) => {
+        setLatestDeliveryCameraSetData(null);
+        const uploaded = await uploadWarehouseMedia(media, {
+          minPhotos: 1,
+          photoOnly: true,
+        });
+
+        const pending = pendingAddProductRef.current;
+        pendingAddProductRef.current = null;
+
+        if (!uploaded || !pending) return;
+
+        setSheetLoading(true);
+        try {
+          const res = await ApiService(apiConstants.add_product_to_order, {
+            customData: {
+              token: UserData?.user?.verify_token,
+              relaties_id: UserData?.relaties?.id,
+              role: UserData?.user?.role,
+              user_id: UserData?.user?.id,
+              order_id: activeOrderIdRef.current,
+              product_id: pending.product_id,
+              quantity: pending.quantity,
+              is_set_product_price: pending.is_set_product_price ?? false,
+              ...(pending.product_name ? { product_name: pending.product_name } : {}),
+              ...(pending.country_id != null ? { country_id: pending.country_id } : {}),
+              ...(pending.price != null && pending.price !== ''
+                ? { price: pending.price }
+                : {}),
+            },
+          });
+
+          if (res?.status) {
+            setToast({
+              top: 45,
+              text: t(res?.message) || t('Product added successfully'),
+              type: 'success',
+              visible: true,
+            });
+            const orderId = activeOrderIdRef.current;
+            if (orderId != null) {
+              await fetchOrderById(orderId);
+            }
+            return;
+          }
+
+          setToast({
+            top: 45,
+            text: t(res?.message) || t('something_went_wrong'),
+            type: 'error',
+            visible: true,
+          });
+        } catch (error) {
+          setToast({
+            top: 45,
+            text: ErrorHandle(error).message,
+            type: 'error',
+            visible: true,
+          });
+        } finally {
+          setSheetLoading(false);
+        }
+      };
+
+      setLatestDeliveryCameraSetData(onMediaReady);
+      setDeliveyDataSave({
+        setData: onMediaReady,
+      });
+
+      setWarehouseScanResume({
+        orderId: activeOrderId,
+        sheetMode: sheetModeRef.current,
+      });
+      hideSheet();
+      navigation.navigate('Camera', {
+        from: 'warehouse_change',
+        minPhotos: 1,
+        photoOnly: true,
+      });
+    },
+    [
+      activeOrderId,
+      uploadWarehouseMedia,
+      UserData,
+      setToast,
+      t,
+      ErrorHandle,
+      fetchOrderById,
+      setDeliveyDataSave,
+      setWarehouseScanResume,
+      hideSheet,
+      navigation,
+    ],
+  );
 
   const onBarcodeScanned = useCallback(
     ({ data }: { data: string }) => {
@@ -480,6 +610,21 @@ export default function ScanManager({ route }: any) {
         onEditAgain={handleEditAgain}
         onClose={handleNextScan}
         onAddImage={handleAddImage}
+        onAddProduct={() => setAddProductVisible(true)}
+      />
+
+      <AddWarehouseProductModal
+        visible={addProductVisible}
+        orderId={activeOrderId}
+        itemId={orderData?.items?.[0]?.id ?? orderData?.item_id ?? null}
+        type={slideType}
+        onClose={() => setAddProductVisible(false)}
+        onRequestAddProduct={handleRequestAddProduct}
+        onSuccess={() => {
+          if (activeOrderId != null) {
+            fetchOrderById(activeOrderId);
+          }
+        }}
       />
 
       {sheetVisible && (

@@ -12,6 +12,8 @@ export type DriverCoordinate = {
   heading: number | null;
   speed: number | null;
   accuracy: number | null;
+  /** Epoch ms when this fix was captured (from native 15-min publish). */
+  capturedAtMs?: number | null;
 };
 
 type UserDataShape = {
@@ -38,6 +40,7 @@ type ValidatedPayload = {
   accuracy: string;
   speed: string;
   is_active: number;
+  captured_at?: string;
 };
 
 type PayloadValidationResult =
@@ -139,6 +142,9 @@ export function buildAndValidateDriverPayload(
       accuracy: String(coord.accuracy ?? ''),
       speed: String(coord.speed ?? ''),
       is_active: isActive,
+      ...(coord.capturedAtMs
+        ? { captured_at: String(coord.capturedAtMs) }
+        : {}),
     },
   };
 }
@@ -213,6 +219,7 @@ export async function sendDriverLocationUpdate(
         console.log('[driverLocationApi] tracking on', {
           lat: coord.latitude,
           lon: coord.longitude,
+          captured_at: coord.capturedAtMs,
           region_id: result.payload.region_id,
           planning_date: result.payload.planning_date,
           order_id: orderId,
@@ -231,7 +238,7 @@ export async function sendDriverLocationUpdate(
 
 /**
  * Fire-and-forget: ping live location once (e.g. after successful Verify_status).
- * Does not replace the 15-min native tracking interval.
+ * Reuses the last 15-min published native cache — does not fetch a new GPS fix.
  */
 export async function pingDriverLiveLocation(
   userData?: UserDataShape | null,
@@ -243,41 +250,25 @@ export async function pingDriverLiveLocation(
     }
 
     const { getLastLocation } = await import('expo-driver-location');
-    const { getChauffeurLocation } = await import(
-      '@/src/utils/chauffeurLocationCache'
-    );
-
-    let latitude = 0;
-    let longitude = 0;
-    let heading: number | null = null;
-    let speed: number | null = null;
-    let accuracy: number | null = null;
-
     const last = await getLastLocation();
-    if (last?.latitude && last?.longitude) {
-      latitude = last.latitude;
-      longitude = last.longitude;
-      heading = last.heading ?? null;
-      speed = last.speed ?? null;
-      accuracy = last.accuracy ?? null;
-    } else {
-      const cached = getChauffeurLocation();
-      if (cached.latitude && cached.longitude) {
-        latitude = cached.latitude;
-        longitude = cached.longitude;
-      }
-    }
 
-    if (!latitude || !longitude) {
+    if (!last?.latitude || !last?.longitude) {
       console.warn(
-        '[driverLocationApi] live location ping skipped — no coords',
+        '[driverLocationApi] live location ping skipped — no published 15-min cache',
       );
       return;
     }
 
     const { region_id, planning_date } = await resolveTrackingContext();
     await sendDriverLocationUpdate(
-      { latitude, longitude, heading, speed, accuracy },
+      {
+        latitude: last.latitude,
+        longitude: last.longitude,
+        heading: last.heading ?? null,
+        speed: last.speed ?? null,
+        accuracy: last.accuracy ?? null,
+        capturedAtMs: last.capturedAtMs || null,
+      },
       resolvedUser,
       region_id,
       planning_date,

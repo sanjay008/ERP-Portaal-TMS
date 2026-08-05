@@ -1,11 +1,13 @@
 import { Images } from '@/src/assets/images';
 import { Colors } from '@/src/utils/colors';
-import { FONTS } from '@/src/utils/storeData';
+import { FONTS, height } from '@/src/utils/storeData';
 import {
   isDescriptionOptional,
   shouldShowDamageInCommentModal,
 } from '@/src/utils/parcelCommentRules';
+import { isDeliveryOrder } from '@/src/utils/orderStatus';
 import { GlobalContextData } from '@/src/context/GlobalContext';
+import type { ParcelDamageSelectionMap } from '@/src/utils/deliveryMultiParcel';
 import CheckBox from '@react-native-community/checkbox';
 import React, { useContext } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -15,6 +17,7 @@ import {
   Image,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -38,6 +41,13 @@ type Props = {
   commentError: string;
   commentLoader: boolean;
   isCommentOptional?: boolean;
+  productDamageList?: any[];
+  parcelDamageSelections?: ParcelDamageSelectionMap;
+  setParcelDamageSelections?: (
+    value:
+      | ParcelDamageSelectionMap
+      | ((prev: ParcelDamageSelectionMap) => ParcelDamageSelectionMap),
+  ) => void;
   onSubmit: () => void;
   onClose: () => void;
 };
@@ -55,6 +65,9 @@ export default function ParcelVerifyCommentModal({
   commentError,
   commentLoader,
   isCommentOptional: _isCommentOptionalProp,
+  productDamageList = [],
+  parcelDamageSelections = {},
+  setParcelDamageSelections,
   onSubmit,
   onClose,
 }: Props) {
@@ -78,6 +91,12 @@ export default function ParcelVerifyCommentModal({
     resolvedLabel ?? selectCurrentDeliveryLabel,
     itemsData,
   );
+
+  const showPerParcelDamage =
+    showDamageList &&
+    isDeliveryOrder(itemsData) &&
+    productDamageList?.length > 0 &&
+    typeof setParcelDamageSelections === 'function';
 
   const displayName =
     userData?.user?.username?.length > 0
@@ -119,7 +138,73 @@ export default function ParcelVerifyCommentModal({
               </View>
             </View>
 
-            {showDamageList && allDamageListReason?.length > 0 && (
+            {showPerParcelDamage ? (
+              <View style={styles.cardWhite}>
+                <View style={styles.parcelHeaderRow}>
+                  <Text style={[styles.labelText, { flex: 1 }]}>
+                    {t('Parcel')}
+                  </Text>
+                  {allDamageListReason?.map((reason: any) => (
+                    <Text
+                      key={`hdr-${reason.id}`}
+                      style={styles.reasonHeader}
+                      numberOfLines={2}
+                    >
+                      {t(reason?.title)}
+                    </Text>
+                  ))}
+                </View>
+                <ScrollView
+                  style={styles.parcelListScroll}
+                  nestedScrollEnabled
+                  showsVerticalScrollIndicator
+                  keyboardShouldPersistTaps="handled"
+                >
+                  {productDamageList.map((parcel: any) => {
+                    const parcelKey = String(parcel?.id);
+                    const selectedId = parcelDamageSelections[parcelKey];
+                    return (
+                      <View key={parcelKey} style={styles.parcelRow}>
+                        <Text style={styles.parcelName} numberOfLines={2}>
+                          {parcel?.tms_product_name ||
+                            `${t('Parcel')} ${parcel?.id}`}
+                        </Text>
+                        {allDamageListReason?.map((reason: any) => (
+                          <Pressable
+                            key={`${parcelKey}-${reason.id}`}
+                            onPress={() => {
+                              setParcelDamageSelections((prev) => ({
+                                ...prev,
+                                [parcelKey]: Number(reason.id),
+                              }));
+                            }}
+                            style={styles.reasonCell}
+                          >
+                            <CheckBox
+                              onValueChange={() => {
+                                setParcelDamageSelections((prev) => ({
+                                  ...prev,
+                                  [parcelKey]: Number(reason.id),
+                                }));
+                              }}
+                              value={Number(selectedId) === Number(reason.id)}
+                              tintColors={{
+                                true: reason?.color || Colors.primary,
+                                false: Colors.Boxgray,
+                              }}
+                              tintColor={Colors.Boxgray}
+                              onTintColor={reason?.color || Colors.primary}
+                              onCheckColor={Colors.white}
+                              onFillColor={reason?.color || Colors.primary}
+                            />
+                          </Pressable>
+                        ))}
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            ) : showDamageList && allDamageListReason?.length > 0 ? (
               <FlatList
                 data={allDamageListReason}
                 style={styles.cardWhite}
@@ -148,7 +233,7 @@ export default function ParcelVerifyCommentModal({
                   </Pressable>
                 )}
               />
-            )}
+            ) : null}
 
             <View style={styles.descriptionSection}>
               <Text style={styles.labelText}>
@@ -233,6 +318,39 @@ const styles = StyleSheet.create({
     marginTop: 10,
     borderRadius: 4,
     padding: 10,
+  },
+  parcelListScroll: {
+    maxHeight: height * 0.35,
+  },
+  parcelHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  reasonHeader: {
+    width: 72,
+    textAlign: 'center',
+    fontSize: 11,
+    fontFamily: FONTS.SemiBold,
+    color: Colors.black,
+  },
+  parcelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  parcelName: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: FONTS.Medium,
+    color: Colors.black,
+  },
+  reasonCell: {
+    width: 72,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   damageRow: {
     flexDirection: 'row',

@@ -14,6 +14,11 @@ import PickupPlannedSheet from "@/src/components/PickupPlannedSheet";
 import ScannerInfoModal from "@/src/components/ScannerInfoModal";
 import SignatureModal from "@/src/components/SignatureModal";
 import { GlobalContextData } from "@/src/context/GlobalContext";
+import {
+  getRememberedDeliveryLabel,
+  setLatestDeliveryCameraSetData,
+  setLatestPickupCameraSetData,
+} from "@/src/context/ParcelVerifySessionContext";
 import { DropboxContext } from "@/src/context/UploadProider";
 import {
   openAppSettings,
@@ -24,24 +29,35 @@ import {
 } from "@/src/hooks/useCameraPermission";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors.js";
-import { appendToLocalUploadQueue } from "@/src/utils/localUploadQueue";
 import {
-  setLatestDeliveryCameraSetData,
-  setLatestPickupCameraSetData,
-} from "@/src/context/ParcelVerifySessionContext";
+  buildIsDamagePayload,
+  initParcelDamageSelections,
+  moreParcelsTitle,
+  type ParcelDamageSelectionMap,
+} from "@/src/utils/deliveryMultiParcel";
+import { appendToLocalUploadQueue } from "@/src/utils/localUploadQueue";
+import { isDeliveryOrder } from "@/src/utils/orderStatus";
 import {
   shouldShowDamageInCommentModal,
   shouldSkipCommentAfterCamera,
 } from "@/src/utils/parcelCommentRules";
 import {
-  hasRemainingParcelsToDeliver,
-} from "@/src/utils/pickupPlanned";
-import {
   isParcelCameraCallbackLocked,
   lockParcelCameraCallback,
   unlockParcelCameraCallback,
 } from "@/src/utils/parcelVerifyCameraReturn";
-import { runParcelVerifyFlow } from "@/src/utils/runParcelVerifyFlow";
+import {
+  getActiveVerifyDeliveryLabel,
+  setActiveVerifyDeliveryLabel,
+} from "@/src/utils/parcelVerifyDeliveryLabelStore";
+import {
+  getMoreParcelsCountAfterScan,
+  hasRemainingParcelsToDeliver,
+} from "@/src/utils/pickupPlanned";
+import {
+  runParcelVerifyFlow,
+  type DeliveryScanContinueContext,
+} from "@/src/utils/runParcelVerifyFlow";
 import { isBlankSignatureData } from "@/src/utils/signatureValidation";
 import { FONTS, height, ScanPlatFormId, width } from "@/src/utils/storeData";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -74,6 +90,7 @@ import {
   Keyboard,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -128,6 +145,7 @@ export default function ScannerScreens({ navigation, route }: any) {
     buttons: {
       text: string;
       type?: "primary" | "secondary";
+      backgroundColor?: string;
       onPress?: () => void;
     }[];
     color?: string;
@@ -169,6 +187,16 @@ export default function ScannerScreens({ navigation, route }: any) {
   const pickupPlannedModalPendingRef = useRef(false);
   const pendingDeliveryLabelRef = useRef<any>(null);
   const deliveryLabelModalPendingRef = useRef(false);
+  const pendingDeliveryContinueRef = useRef<DeliveryScanContinueContext | null>(
+    null,
+  );
+  const deliveryMoreParcelsYesRef = useRef<(() => void) | null>(null);
+  const deliveryMoreParcelsNoRef = useRef<(() => void) | null>(null);
+  /** Yes/No "No" path — after comment → signature → goBack (skip No Parcel / Open Scanner). */
+  const deliveryMoreParcelsNoPathRef = useRef(false);
+  const [parcelDamageSelections, setParcelDamageSelections] =
+    useState<ParcelDamageSelectionMap>({});
+  const [deliveryContinuePending, setDeliveryContinuePending] = useState(false);
   const [showQRError, setShowQRError] = useState(false);
   const [qrErrorMessage, setQrErrorMessage] = useState<string | null>(null);
   const [manualEntryOpen, setManualEntryOpen] = useState(false);
@@ -262,15 +290,48 @@ export default function ScannerScreens({ navigation, route }: any) {
     selectCurrentDeliveryLabelRef.current = SelectCurrentDeliveryLabel;
   }, [SelectCurrentDeliveryLabel]);
 
+  // Keep module pin hot when Scanner opens with a pinned delivery label.
+  useEffect(() => {
+    const label =
+      SelectCurrentDeliveryLabel ??
+      PinnedDeliveryLabel ??
+      EffectiveDeliveryLabel;
+    if (label != null) {
+      setActiveVerifyDeliveryLabel(label);
+      pendingDeliveryLabelRef.current = label;
+      selectCurrentDeliveryLabelRef.current = label;
+    }
+  }, []);
+
   const isCommentOptional =
     Number(ItemsData?.tmsstatus?.id ?? ItemsData?.status) === 4 &&
     (EffectiveDeliveryLabel ?? PinnedDeliveryLabel ?? SelectCurrentDeliveryLabel)?.id === 21 &&
-    selectDamageData?.id === 34;
+    (selectDamageData?.id === 34 ||
+      (ProductDamageList?.length > 0 &&
+        ProductDamageList.every((parcel: any) => {
+          const id = parcelDamageSelections[String(parcel?.id)];
+          return Number(id) === 34;
+        })));
+
+  useEffect(() => {
+    if (!comment) return;
+    if (!isDeliveryOrder(ItemsData) || !ProductDamageList?.length) return;
+    setParcelDamageSelections((prev) =>
+      initParcelDamageSelections(ProductDamageList, AllDamageListReason, prev),
+    );
+  }, [comment, ProductDamageList, AllDamageListReason, ItemsData]);
 
   const getSessionDeliveryLabel = useCallback(
     () =>
-      pendingDeliveryLabelRef.current ?? selectCurrentDeliveryLabelRef.current,
-    [],
+      pendingDeliveryLabelRef.current ??
+      selectCurrentDeliveryLabelRef.current ??
+      getActiveVerifyDeliveryLabel() ??
+      EffectiveDeliveryLabel ??
+      PinnedDeliveryLabel ??
+      SelectCurrentDeliveryLabel ??
+      getRememberedDeliveryLabel() ??
+      null,
+    [EffectiveDeliveryLabel, PinnedDeliveryLabel, SelectCurrentDeliveryLabel],
   );
 
   const { t } = useTranslation();
@@ -337,7 +398,8 @@ export default function ScannerScreens({ navigation, route }: any) {
     NoParcelModalVisible ||
     AlertModalOpen?.visible ||
     EvetyTimeShowDeliveryLabelList ||
-    PickupPlannedSheetOpen?.visible;
+    PickupPlannedSheetOpen?.visible ||
+    deliveryContinuePending;
 
   const [isVerifyingScan, setIsVerifyingScan] = useState(false);
   const isVerifyingScanRef = useRef(false);
@@ -419,6 +481,119 @@ export default function ScannerScreens({ navigation, route }: any) {
     restartScannerPreview();
   }, [restartScannerPreview]);
 
+  const openDeliveryCameraProof = useCallback(
+    (sessionLabel?: any, orderData?: any) => {
+      const selectedLabel =
+        sessionLabel ??
+        pendingDeliveryLabelRef.current ??
+        selectCurrentDeliveryLabelRef.current ??
+        SelectCurrentDeliveryLabel;
+
+      setAlerModalOpen({
+        visible: true,
+        title: t("Camera"),
+        Description: t("You have to take a picture for proof?"),
+        LButtonText: t("Cancel"),
+        RButtonText: t("Camera"),
+        Icon: Images.UploadPhoto,
+        RButtonStyle: Colors.primary,
+        RColor: Colors.white,
+        LButtonStyle: Colors.gray,
+        LColor: Colors.black,
+        onPress: () => {
+          deliveryTypeRef.current = false;
+          lockParcelCameraCallback();
+          const setData = async (data: any[]) => {
+            try {
+              if (data?.length > 0) {
+                setAllSelectImage(data);
+                setParcelDamageSelections((prev) =>
+                  initParcelDamageSelections(
+                    ProductDamageList,
+                    AllDamageListReason,
+                    prev,
+                  ),
+                );
+                if (shouldSkipCommentAfterCamera(selectedLabel, selectDamageData)) {
+                  setComment(false);
+                } else {
+                  setComment(true);
+                }
+              }
+            } finally {
+              unlockParcelCameraCallback();
+            }
+          };
+          setLatestDeliveryCameraSetData(setData);
+          setDeliveyDataSave({
+            Data: orderData ?? ItemsData,
+            selectReason: selectedLabel,
+            setData,
+            type: false,
+          });
+          navigation.navigate("Camera");
+          setAlerModalOpen((prev) => ({ ...prev, visible: false }));
+        },
+      });
+    },
+    [
+      AllDamageListReason,
+      ItemsData,
+      ProductDamageList,
+      navigation,
+      SelectCurrentDeliveryLabel,
+      selectDamageData,
+      setDeliveyDataSave,
+      t,
+    ],
+  );
+
+  const showDeliveryMoreParcelsModal = useCallback(
+    (ctx: DeliveryScanContinueContext) => {
+      pendingDeliveryContinueRef.current = ctx;
+
+      if (ctx.moreCount <= 0) {
+        setDeliveryContinuePending(false);
+        openDeliveryCameraProof(ctx.sessionLabel, ctx.orderData);
+        return;
+      }
+
+      setDeliveryContinuePending(true);
+      setSecondModal({
+        visible: true,
+        title: moreParcelsTitle(ctx.moreCount, t),
+        message: "",
+        color: Colors.transparant,
+        buttons: [
+          {
+            text: t("No"),
+            type: "secondary",
+            backgroundColor: Colors.red,
+            onPress: () => {
+              deliveryMoreParcelsNoRef.current?.();
+            },
+          },
+          {
+            text: t("Yes"),
+            type: "primary",
+            backgroundColor: Colors.green,
+            onPress: () => {
+              deliveryMoreParcelsYesRef.current?.();
+            },
+          },
+        ],
+      });
+    },
+    [openDeliveryCameraProof, t],
+  );
+
+  const onDeliveryLabeledParcelReady = useCallback(
+    (ctx: DeliveryScanContinueContext) => {
+      showDeliveryMoreParcelsModal(ctx);
+    },
+    [showDeliveryMoreParcelsModal],
+  );
+
   const openCameraProofAfterLabelSelect = useCallback(() => {
     deliveryLabelModalPendingRef.current = false;
     setEvetyTimeShowDeliveryLabelList(false);
@@ -426,52 +601,35 @@ export default function ScannerScreens({ navigation, route }: any) {
       pendingDeliveryLabelRef.current ??
       selectCurrentDeliveryLabelRef.current ??
       SelectCurrentDeliveryLabel;
-    setAlerModalOpen({
-      visible: true,
-      title: t("Camera"),
-      Description: t("You have to take a picture for proof?"),
-      LButtonText: t("Cancel"),
-      RButtonText: t("Camera"),
-      Icon: Images.UploadPhoto,
-      RButtonStyle: Colors.primary,
-      RColor: Colors.white,
-      LButtonStyle: Colors.gray,
-      LColor: Colors.black,
-      onPress: () => {
-        deliveryTypeRef.current = false;
-        lockParcelCameraCallback();
-        const setData = async (data: any[]) => {
-          try {
-            if (data?.length > 0) {
-              setAllSelectImage(data);
-              if (shouldSkipCommentAfterCamera(selectedLabel, selectDamageData)) {
-                setComment(false);
-              } else {
-                setComment(true);
-              }
-            }
-          } finally {
-            unlockParcelCameraCallback();
-          }
-        };
-        setLatestDeliveryCameraSetData(setData);
-        setDeliveyDataSave({
-          Data: ItemsData,
-          selectReason: selectedLabel,
-          setData,
-          type: false,
-        });
-        navigation.navigate("Camera");
-        setAlerModalOpen((prev) => ({ ...prev, visible: false }));
-      },
-    });
+
+    const scanPayload = SelectPlace;
+    const moreCount =
+      scanPayload?.item_id != null
+        ? getMoreParcelsCountAfterScan(ItemsData, null, scanPayload.item_id)
+        : 0;
+
+    if (
+      isDeliveryOrder(ItemsData) &&
+      scanPayload?.item_id != null &&
+      moreCount > 0
+    ) {
+      showDeliveryMoreParcelsModal({
+        data: scanPayload,
+        orderData: ItemsData,
+        verifyData: null,
+        sessionLabel: selectedLabel,
+        moreCount,
+      });
+      return;
+    }
+
+    openDeliveryCameraProof(selectedLabel, ItemsData);
   }, [
     ItemsData,
-    navigation,
     SelectCurrentDeliveryLabel,
-    selectDamageData,
-    setDeliveyDataSave,
-    t,
+    SelectPlace,
+    openDeliveryCameraProof,
+    showDeliveryMoreParcelsModal,
   ]);
 
   useEffect(() => {
@@ -613,10 +771,6 @@ export default function ScannerScreens({ navigation, route }: any) {
     };
   }, []);
 
-
-  // Register Scanner camera callbacks while focused so CustomCamera does not
-  // call a stale Filter/Details latest* handler (which opens shared comment only
-  // after leaving Scanner).
   useEffect(() => {
     if (!Focused || isParcelCameraCallbackLocked()) {
       return;
@@ -814,6 +968,7 @@ export default function ScannerScreens({ navigation, route }: any) {
       getSessionDeliveryLabel,
       unlockScanner,
       selectRegionData,
+      onDeliveryLabeledParcelReady,
     });
   };
 
@@ -873,6 +1028,7 @@ export default function ScannerScreens({ navigation, route }: any) {
     data: any,
     scan = false,
     is_driver_unloading = false,
+    options?: { keepDeliveryLabel?: boolean; skipDamage?: boolean },
   ) => {
     if (!scan) return;
     setIsLoading(true);
@@ -897,10 +1053,13 @@ export default function ScannerScreens({ navigation, route }: any) {
         payload.is_driver_unloading = 1;
       }
 
-      if (GloblyTypeSlide === "pickup_dropoff" || GloblyTypeSlide === "additional_address" && selectDamageData) {
-        console.log("selectDamageData", selectDamageData,GloblyTypeSlide);
-        
-        payload.is_damage = selectDamageData?.id
+      if (
+        !options?.skipDamage &&
+        (GloblyTypeSlide === "pickup_dropoff" ||
+          GloblyTypeSlide === "additional_address") &&
+        selectDamageData
+      ) {
+        payload.is_damage = selectDamageData?.id;
       }
 
       if (!payload.item_id || !payload.order_id) {
@@ -918,9 +1077,11 @@ export default function ScannerScreens({ navigation, route }: any) {
       });
 
       if (res?.status) {
-        clearDeliveryLabelSelection();
-        deliveryLabelModalPendingRef.current = false;
-        setEvetyTimeShowDeliveryLabelList(false);
+        if (!options?.keepDeliveryLabel) {
+          clearDeliveryLabelSelection();
+          deliveryLabelModalPendingRef.current = false;
+          setEvetyTimeShowDeliveryLabelList(false);
+        }
         fun?.();
         setAllRecentScanData((prev) =>
           prev.includes(data?.order_id) ? prev : [...prev, data?.order_id]
@@ -952,6 +1113,31 @@ export default function ScannerScreens({ navigation, route }: any) {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  deliveryMoreParcelsYesRef.current = async () => {
+    const ctx = pendingDeliveryContinueRef.current;
+    deliveryMoreParcelsNoPathRef.current = false;
+    setSecondModal((prev) => ({ ...prev, visible: false }));
+    setDeliveryContinuePending(false);
+    pendingDeliveryContinueRef.current = null;
+    if (!ctx?.data) return;
+
+    await StatusUpdateFun(ctx.data, true, false, {
+      keepDeliveryLabel: true,
+      skipDamage: true,
+    });
+    unlockScanner();
+    restartScannerPreview();
+  };
+
+  deliveryMoreParcelsNoRef.current = () => {
+    const ctx = pendingDeliveryContinueRef.current;
+    deliveryMoreParcelsNoPathRef.current = true;
+    setSecondModal((prev) => ({ ...prev, visible: false }));
+    setDeliveryContinuePending(false);
+    pendingDeliveryContinueRef.current = null;
+    openDeliveryCameraProof(ctx?.sessionLabel, ctx?.orderData ?? ItemsData);
   };
 
   const handlePickupWithPhoto = useCallback(() => {
@@ -1101,10 +1287,14 @@ export default function ScannerScreens({ navigation, route }: any) {
   const AddImageOrCommentFun = async (
     comment: string = '',
     data: any[] = [],
-  ) => {
+    options?: { skipClose?: boolean; manageLoader?: boolean },
+  ): Promise<boolean> => {
     const id = ItemsData?.id || ItemsData?.order_data?.id;
+    const manageLoader = options?.manageLoader !== false;
 
-    setCommentLoader(true);
+    if (manageLoader) {
+      setCommentLoader(true);
+    }
 
     try {
       const formData: any = new FormData();
@@ -1113,7 +1303,7 @@ export default function ScannerScreens({ navigation, route }: any) {
       formData.append('role', UserData?.user?.role);
       formData.append('relaties_id', UserData?.relaties?.id);
       formData.append('user_id', UserData?.user?.id);
-      formData.append('order_comment', Description?.trim());
+      formData.append('order_comment', Description?.trim() || comment?.trim() || '');
       formData.append('order_id', id ? id : SelectPlace?.id);
       let image_data = Array.isArray(data) && data?.length > 0
         ? data
@@ -1158,7 +1348,10 @@ export default function ScannerScreens({ navigation, route }: any) {
         refreshCamera();
         await GetIdByOrderFun();
 
-        setComment(false);
+        if (!options?.skipClose) {
+          setComment(false);
+        }
+        return true;
       } else {
         setComment(true);
 
@@ -1168,6 +1361,7 @@ export default function ScannerScreens({ navigation, route }: any) {
           type: 'error',
           visible: true,
         });
+        return false;
       }
     } catch (error) {
       setComment(true);
@@ -1179,8 +1373,11 @@ export default function ScannerScreens({ navigation, route }: any) {
         type: 'error',
         visible: true,
       });
+      return false;
     } finally {
-      setCommentLoader(false);
+      if (manageLoader) {
+        setCommentLoader(false);
+      }
     }
   };
 
@@ -1198,7 +1395,7 @@ export default function ScannerScreens({ navigation, route }: any) {
     setSignatureLoader(true)
     try {
 
-      const payload = {
+      const payload: any = {
         token: UserData?.user?.verify_token,
         role: UserData?.user?.role,
         relaties_id: UserData?.relaties?.id,
@@ -1206,10 +1403,27 @@ export default function ScannerScreens({ navigation, route }: any) {
         name,
         signature,
         order_id: ItemsData?.id,
-        is_damage: selectDamageData?.id,
-        damage_items: JSON.stringify(damageItems),
       };
 
+      // Signature top damage/undamage Change → send modified per-parcel list
+      // (same shape as status_update; do not send stale selectDamageData).
+      if (Array.isArray(damageItems) && damageItems.length > 0) {
+        const mapped = damageItems
+          .map((row: any) => ({
+            item_id: Number(row?.item ?? row?.item_id),
+            damage_id: Number(row?.is_damage ?? row?.damage_id),
+          }))
+          .filter(
+            (row) =>
+              Number.isFinite(row.item_id) && Number.isFinite(row.damage_id),
+          );
+        if (mapped.length > 0) {
+          payload.is_damage = mapped;
+          payload.damage_items = JSON.stringify(mapped);
+        }
+      } else if (selectDamageData?.id != null) {
+        payload.is_damage = selectDamageData.id;
+      }
 
       const res = await ApiService(apiConstants.store_customer_signature, {
         customData: payload,
@@ -1238,6 +1452,15 @@ export default function ScannerScreens({ navigation, route }: any) {
           type: "success",
           visible: true,
         });
+
+        // Yes/No → No path: after signature, leave Scanner (no list / remaining popup).
+        if (deliveryMoreParcelsNoPathRef.current) {
+          deliveryMoreParcelsNoPathRef.current = false;
+          setNoParcelItemIds([]);
+          navigation.goBack();
+          return;
+        }
+
         const buttons: any[] = [];
         buttons.push({
           text: t("Go to List Page"),
@@ -1279,15 +1502,34 @@ export default function ScannerScreens({ navigation, route }: any) {
 
 
   const CommentFun = async () => {
+    const isDeliveryMultiDamage =
+      isDeliveryOrder(ItemsData) &&
+      ProductDamageList?.length > 0 &&
+      Object.keys(parcelDamageSelections).length > 0;
+
     if (
       Number(ItemsData?.tmsstatus?.id ?? ItemsData?.status) === 4 &&
       SelectCurrentDeliveryLabel &&
       SelectCurrentDeliveryLabel?.damaged_required == 1 &&
+      !isDeliveryMultiDamage &&
       selectDamageData == null
     ) {
       setCommentError(t("Choose  Damaged"));
 
       return
+    }
+
+    if (
+      isDeliveryMultiDamage &&
+      SelectCurrentDeliveryLabel?.damaged_required == 1
+    ) {
+      const missing = ProductDamageList.some(
+        (parcel: any) => parcelDamageSelections[String(parcel?.id)] == null,
+      );
+      if (missing) {
+        setCommentError(t("Choose  Damaged"));
+        return;
+      }
     }
     setCommentLoader(true);
     try {
@@ -1313,7 +1555,18 @@ export default function ScannerScreens({ navigation, route }: any) {
         return;
       }
 
-
+      // Comment text → store_tms_comment first (images go with comment log), then status_update.
+      // Optional + empty comment → direct status_update.
+      const hadCommentText = Boolean(Description.trim());
+      if (hadCommentText) {
+        const commentOk = await AddImageOrCommentFun("", [], {
+          skipClose: true,
+          manageLoader: false,
+        });
+        if (!commentOk) {
+          return;
+        }
+      }
 
       const payload: any = {
         token: UserData?.user?.verify_token,
@@ -1329,8 +1582,14 @@ export default function ScannerScreens({ navigation, route }: any) {
         }),
       };
 
-      if (GloblyTypeSlide === "pickup_dropoff" || GloblyTypeSlide === "additional_address" && selectDamageData) {
-        payload.is_damage = selectDamageData?.id
+      if (isDeliveryMultiDamage) {
+        payload.is_damage = buildIsDamagePayload(parcelDamageSelections);
+      } else if (
+        (GloblyTypeSlide === "pickup_dropoff" ||
+          GloblyTypeSlide === "additional_address") &&
+        selectDamageData
+      ) {
+        payload.is_damage = selectDamageData?.id;
       }
 
       const res = await ApiService(apiConstants.status_update, {
@@ -1340,8 +1599,22 @@ export default function ScannerScreens({ navigation, route }: any) {
       if (res?.status) {
         const savedDeliveryLabel = SelectCurrentDeliveryLabel;
         const savedDamageId = selectDamageData?.id;
+        const damagePayload = isDeliveryMultiDamage
+          ? buildIsDamagePayload(parcelDamageSelections)
+          : null;
 
-        if (savedDamageId != null && SelectPlace?.item_id != null) {
+        if (damagePayload?.length) {
+          setProductDamageList((prev) => {
+            if (!prev?.length) return prev;
+            return prev.map((el: any) => {
+              const match = damagePayload.find(
+                (row) => Number(row.item_id) === Number(el?.id),
+              );
+              if (!match) return el;
+              return { ...el, is_damaged_delivery: match.damage_id, scan_qty: 1 };
+            });
+          });
+        } else if (savedDamageId != null && SelectPlace?.item_id != null) {
           setProductDamageList((prev) => {
             if (!prev?.length) return prev;
 
@@ -1381,9 +1654,12 @@ export default function ScannerScreens({ navigation, route }: any) {
         }
 
         setComment(false);
-        if (Description.trim()) {
-          await AddImageOrCommentFun();
-        } else if (AllSelectImage?.length > 0) {
+        setParcelDamageSelections({});
+        // Keep ProductDamageList for SignatureModal damage/undamaged boxes.
+        // Cleared after signature success in CustomerSignatureFun.
+
+        // No comment text: proof images queue without comment log (old behavior).
+        if (!hadCommentText && AllSelectImage?.length > 0) {
           queueProofImagesOnly();
           setAllSelectImage([]);
           setPickUpDataSave([]);
@@ -1391,7 +1667,7 @@ export default function ScannerScreens({ navigation, route }: any) {
           setDescrition('');
           setCommentError('');
           refreshCamera();
-        } else if (isCommentOptional) {
+        } else if (!hadCommentText && isCommentOptional) {
           setAllSelectImage([]);
           setPickUpDataSave([]);
           setDeliveyDataSave([]);
@@ -1416,6 +1692,14 @@ export default function ScannerScreens({ navigation, route }: any) {
         clearDeliveryLabelSelection();
         deliveryLabelModalPendingRef.current = false;
         setEvetyTimeShowDeliveryLabelList(false);
+
+        // Yes/No → No: skip No Parcel / Open Scanner; open signature directly.
+        if (deliveryMoreParcelsNoPathRef.current) {
+          setSecondModal((p: any) => ({ ...p, visible: false }));
+          setShowSig(true);
+          return;
+        }
+
         if (!(GloblyTypeSlide == "outbound_scan")) {
           if (!parcelsStillRemaining) {
             const buttons: any[] = [];
@@ -1449,7 +1733,7 @@ export default function ScannerScreens({ navigation, route }: any) {
 
             });
           } else if (!(GloblyTypeSlide == "outbound_scan")) {
-            // Still items to scan
+            // Still items to scan — after No path with remaining parcels
             setSecondModal({
               visible: true,
               title: t("There are Parcels Remaining"),
@@ -2255,6 +2539,108 @@ export default function ScannerScreens({ navigation, route }: any) {
               </View>
               {
                 shouldShowDamageInCommentModal(SelectCurrentDeliveryLabel, ItemsData) &&
+                isDeliveryOrder(ItemsData) &&
+                ProductDamageList?.length > 0 ? (
+                  <View style={styles.CardWhite}>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        marginBottom: 8,
+                        paddingHorizontal: 4,
+                      }}
+                    >
+                      <Text style={[styles.Text, { flex: 1 }]}>{t("Parcel")}</Text>
+                      {AllDamageListReason?.map((reason: any) => (
+                        <Text
+                          key={`hdr-${reason.id}`}
+                          style={[
+                            styles.Text,
+                            {
+                              width: 72,
+                              textAlign: "center",
+                              fontSize: 11,
+                              color: Colors.black,
+                            },
+                          ]}
+                        >
+                          {t(reason?.title)}
+                        </Text>
+                      ))}
+                    </View>
+                    <ScrollView
+                      style={{ maxHeight: height * 0.35 }}
+                      nestedScrollEnabled
+                      showsVerticalScrollIndicator
+                      keyboardShouldPersistTaps="handled"
+                    >
+                      {ProductDamageList.map((parcel: any) => {
+                        const parcelKey = String(parcel?.id);
+                        const selectedId = parcelDamageSelections[parcelKey];
+                        return (
+                          <View
+                            key={parcelKey}
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              paddingVertical: 8,
+                              paddingHorizontal: 4,
+                              borderBottomWidth: 1,
+                              borderBottomColor: Colors.border,
+                            }}
+                          >
+                            <Text
+                              style={[
+                                styles.Text,
+                                { flex: 1, fontSize: 13 },
+                              ]}
+                              numberOfLines={2}
+                            >
+                              {parcel?.tms_product_name ||
+                                `${t("Parcel")} ${parcel?.id}`}
+                            </Text>
+                            {AllDamageListReason?.map((reason: any) => (
+                              <Pressable
+                                key={`${parcelKey}-${reason.id}`}
+                                onPress={() => {
+                                  setParcelDamageSelections((prev) => ({
+                                    ...prev,
+                                    [parcelKey]: Number(reason.id),
+                                  }));
+                                  setCommentError("");
+                                }}
+                                style={{
+                                  width: 72,
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                }}
+                              >
+                                <CheckBox
+                                  onValueChange={() => {
+                                    setParcelDamageSelections((prev) => ({
+                                      ...prev,
+                                      [parcelKey]: Number(reason.id),
+                                    }));
+                                    setCommentError("");
+                                  }}
+                                  value={Number(selectedId) === Number(reason.id)}
+                                  tintColors={{
+                                    true: reason?.color || Colors.primary,
+                                    false: Colors.Boxgray,
+                                  }}
+                                  tintColor={Colors.Boxgray}
+                                  onTintColor={reason?.color || Colors.primary}
+                                  onCheckColor={Colors.white}
+                                  onFillColor={reason?.color || Colors.primary}
+                                />
+                              </Pressable>
+                            ))}
+                          </View>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+                ) : shouldShowDamageInCommentModal(SelectCurrentDeliveryLabel, ItemsData) ? (
                 <FlatList
                   data={AllDamageListReason}
                   style={styles.CardWhite}
@@ -2304,6 +2690,7 @@ export default function ScannerScreens({ navigation, route }: any) {
                     </Pressable>
                   )}
                 />
+                ) : null
               }
 
               <View style={{ marginTop: 5 }}>
@@ -2435,7 +2822,14 @@ export default function ScannerScreens({ navigation, route }: any) {
                   key={index}
                   style={{
                     backgroundColor:
-                      btn.type === "primary" ? Colors.primary : "#E0E0E0",
+                      btn.backgroundColor ||
+                      (btn.type === "primary"
+                        ? deliveryContinuePending
+                          ? Colors.green
+                          : Colors.primary
+                        : deliveryContinuePending
+                          ? Colors.red
+                          : "#E0E0E0"),
                     paddingVertical: 15,
                     paddingHorizontal: 20,
                     borderRadius: 8,
@@ -2448,7 +2842,11 @@ export default function ScannerScreens({ navigation, route }: any) {
                   <Text
                     style={{
                       color:
-                        btn.type === "primary" ? Colors.white : Colors.black,
+                        btn.type === "primary" ||
+                        btn.backgroundColor ||
+                        deliveryContinuePending
+                          ? Colors.white
+                          : Colors.black,
                       fontFamily: FONTS.Medium,
                     }}
                   >

@@ -17,9 +17,12 @@ object TrackingSessionStore {
   private const val KEY_ORDER_ID = "order_id"
   private const val KEY_LAST_LAT = "last_lat"
   private const val KEY_LAST_LON = "last_lon"
+  private const val KEY_LAST_LAT_STR = "last_lat_str"
+  private const val KEY_LAST_LON_STR = "last_lon_str"
   private const val KEY_LAST_HEADING = "last_heading"
   private const val KEY_LAST_SPEED = "last_speed"
   private const val KEY_LAST_ACCURACY = "last_accuracy"
+  private const val KEY_CAPTURED_AT = "last_captured_at"
 
   fun save(context: Context, config: TrackingConfig) {
     context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
@@ -76,27 +79,36 @@ object TrackingSessionStore {
       .apply()
   }
 
+  /**
+   * Published API fix — only written on 15-min / start fresh reads.
+   * Scan + periodic API both read from here.
+   */
   fun saveLastLocation(context: Context, coord: DriverCoordinate) {
     context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+      .putString(KEY_LAST_LAT_STR, coord.latitude.toString())
+      .putString(KEY_LAST_LON_STR, coord.longitude.toString())
+      // Keep legacy float keys in sync for older readers.
       .putFloat(KEY_LAST_LAT, coord.latitude.toFloat())
       .putFloat(KEY_LAST_LON, coord.longitude.toFloat())
       .putFloat(KEY_LAST_HEADING, (coord.heading ?: 0.0).toFloat())
       .putFloat(KEY_LAST_SPEED, (coord.speed ?: 0.0).toFloat())
       .putFloat(KEY_LAST_ACCURACY, (coord.accuracy ?: 0.0).toFloat())
+      .putLong(KEY_CAPTURED_AT, coord.capturedAtMs ?: System.currentTimeMillis())
       .apply()
   }
 
   fun getLastLocation(context: Context): DriverCoordinate? {
     val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    if (!prefs.contains(KEY_LAST_LAT) || !prefs.contains(KEY_LAST_LON)) {
+    val lat = prefs.getString(KEY_LAST_LAT_STR, null)?.toDoubleOrNull()
+      ?: if (prefs.contains(KEY_LAST_LAT)) prefs.getFloat(KEY_LAST_LAT, 0f).toDouble() else null
+    val lon = prefs.getString(KEY_LAST_LON_STR, null)?.toDoubleOrNull()
+      ?: if (prefs.contains(KEY_LAST_LON)) prefs.getFloat(KEY_LAST_LON, 0f).toDouble() else null
+
+    if (lat == null || lon == null || (lat == 0.0 && lon == 0.0)) {
       return null
     }
 
-    val lat = prefs.getFloat(KEY_LAST_LAT, 0f).toDouble()
-    val lon = prefs.getFloat(KEY_LAST_LON, 0f).toDouble()
-    if (lat == 0.0 && lon == 0.0) {
-      return null
-    }
+    val capturedAt = prefs.getLong(KEY_CAPTURED_AT, 0L).takeIf { it > 0L }
 
     return DriverCoordinate(
       latitude = lat,
@@ -104,6 +116,7 @@ object TrackingSessionStore {
       heading = prefs.getFloat(KEY_LAST_HEADING, 0f).toDouble().takeIf { it != 0.0 },
       speed = prefs.getFloat(KEY_LAST_SPEED, 0f).toDouble().takeIf { it != 0.0 },
       accuracy = prefs.getFloat(KEY_LAST_ACCURACY, 0f).toDouble().takeIf { it != 0.0 },
+      capturedAtMs = capturedAt,
     )
   }
 
