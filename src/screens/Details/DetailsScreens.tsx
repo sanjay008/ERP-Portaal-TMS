@@ -760,7 +760,7 @@ console.log("AllDeliveyLabel",AllDeliveyLabel);
 
         if (Number(res?.data.remaining_item) == 0) {
           const buttons: any[] = [];
-          const isSignatureAllowed = Number(res?.data?.tms_current_status) === 5 && SelectCurrentDeliveryLabel?.signature_required == 1;
+          const isSignatureAllowed = Number(res?.data?.tms_current_status) === 5 && Number(SelectCurrentDeliveryLabel?.signature_required) === 1;
 
           if (isSignatureAllowed) {
             setShowSig(true);

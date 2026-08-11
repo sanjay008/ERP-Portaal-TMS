@@ -503,7 +503,6 @@ export default function CustomCamera({ navigation, route }: any) {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       if (switchLockRef.current) clearTimeout(switchLockRef.current);
-      // Camera cancelled / left without Done — release parcel-verify lock.
       unlockParcelCameraCallback();
     };
   }, []);

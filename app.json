@@ -2,7 +2,7 @@
   "expo": {
     "name": "ERP TMS Driver",
     "slug": "erp-portaal-tms-driver",
-    "version": "26.8.11",
+    "version": "26.8.6",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "erpportaaltmsdriver",
@@ -16,7 +16,8 @@
         "NSLocationAlwaysUsageDescription": "ERP TMS Driver uses your location to track delivery routes and verify attendance in the background.",
         "NSLocationWhenInUseUsageDescription": "ERP TMS Driver uses your location to detect your current store or workplace when the app is running.",
         "NSPhotoLibraryUsageDescription": "ERP TMS Driver uses your photo library so you can choose product images to upload.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "LSApplicationQueriesSchemes": ["itms-apps"]
       },
       "supportsTablet": false,
       "bundleIdentifier": "com.erptmsdriver.app",

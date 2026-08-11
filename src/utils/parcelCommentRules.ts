@@ -42,6 +42,11 @@ export function shouldSendDamageForDeliveryLabel(
   return false;
 }
 
+/** Delivery label must explicitly require a customer signature. */
+export function doesLabelRequireSignature(deliveryLabel: any): boolean {
+  return Number(deliveryLabel?.signature_required) === 1;
+}
+
 export function isSignatureRequiredAfterStatusUpdate(
   statusUpdateResponse: any,
   deliveryLabel: any,
@@ -49,9 +54,7 @@ export function isSignatureRequiredAfterStatusUpdate(
   const status =
     statusUpdateResponse?.tms_current_status ??
     statusUpdateResponse?.data?.tms_current_status;
-  return (
-    Number(status) === 5 && deliveryLabel?.signature_required == 1
-  );
+  return Number(status) === 5 && doesLabelRequireSignature(deliveryLabel);
 }
 
 

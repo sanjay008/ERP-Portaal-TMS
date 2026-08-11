@@ -1,0 +1,14 @@
+Saving Keystore to @erpportaal__erp-portaal-tms-driver.jks
+Type                JKS
+Key Alias           erp_tms_driver
+MD5 Fingerprint     0D:BC:A0:34:0D:80:2C:3A:BE:93:A4:AD:16:C6:90:B7
+SHA1 Fingerprint    CB:76:23:03:3C:AF:D0:D9:2B:BE:73:15:C3:EE:64:4B:13:3B:ED:06
+SHA256 Fingerprint  E0:C5:98:FD:51:7E:B6:E1:D4:69:00:A4:33:67:5E:05:B7:8C:35:47:91:46:A5:A3:2A:A9:A6:FC:2A:82:47:F7
+Updated             8 months ago
+
+Sensitive Keystore information:
+    Keystore password: Sanjay@1991!
+    Key alias:         erp_tms_driver
+    Key password:      Sanjay@1991!
+
+    Path to Keystore:  @erpportaal__erp-portaal-tms-driver.jks

@@ -38,6 +38,7 @@ import {
 import { appendToLocalUploadQueue } from "@/src/utils/localUploadQueue";
 import { isDeliveryOrder } from "@/src/utils/orderStatus";
 import {
+  doesLabelRequireSignature,
   shouldSendDamageForDeliveryLabel,
   shouldShowDamageInCommentModal,
   shouldSkipCommentAfterCamera,
@@ -1706,17 +1707,20 @@ export default function ScannerScreens({ navigation, route }: any) {
         );
         const isSignatureAllowed =
           Number(res?.tms_current_status) === 5 &&
-          savedDeliveryLabel?.signature_required == 1;
+          doesLabelRequireSignature(savedDeliveryLabel);
 
         clearDeliveryLabelSelection();
         deliveryLabelModalPendingRef.current = false;
         setEvetyTimeShowDeliveryLabelList(false);
 
-        // Yes/No → No: skip No Parcel / Open Scanner; open signature directly.
+        // Yes/No → No: skip remaining-parcel UI. Signature only if this label requires it.
         if (deliveryMoreParcelsNoPathRef.current) {
-          setSecondModal((p: any) => ({ ...p, visible: false }));
-          setShowSig(true);
-          return;
+          deliveryMoreParcelsNoPathRef.current = false;
+          if (doesLabelRequireSignature(savedDeliveryLabel)) {
+            setSecondModal((p: any) => ({ ...p, visible: false }));
+            setShowSig(true);
+            return;
+          }
         }
 
         if (!(GloblyTypeSlide == "outbound_scan")) {
@@ -1965,7 +1969,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         if (!backorderParcelsRemaining) {
           const buttons: any[] = [];
 
-          const isSignatureAllowed = Number(res?.data?.tms_current_status) === 5 && SelectCurrentDeliveryLabel?.signature_required == 1;
+          const isSignatureAllowed = Number(res?.data?.tms_current_status) === 5 && doesLabelRequireSignature(SelectCurrentDeliveryLabel);
 
           if (isSignatureAllowed) {
             buttons.push({

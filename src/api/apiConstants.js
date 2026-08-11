@@ -1,5 +1,12 @@
 
-const baseUrlnew = "https://app.erpportaal.nl/api/";
+const producation_base = "https://app.erpportaal.nl/api/";
+const development = "https://development.erpportaal.nl/api/";
+
+
+
+const isProductation = true
+
+const baseUrlnew = isProductation ? producation_base : development
 
 module.exports = {
 

@@ -54,6 +54,7 @@ import LayoutHeader from "@/src/components/_LayoutHeader";
 import GlobalContext from "@/src/context/GlobalContext";
 import { ParcelVerifySessionProvider } from "@/src/context/ParcelVerifySessionContext";
 import DropboxProvider from "@/src/context/UploadProider";
+import { StoreInAppUpdateGate } from "@/src/components/StoreUpdatePopup";
 import i18n from "@/src/screens/Translation/i18n";
 import * as Notifications from 'expo-notifications';
 import { Stack } from "expo-router";
@@ -104,6 +105,7 @@ export default function RootLayout() {
                     headerShown: false,
                   }}
                 />
+                <StoreInAppUpdateGate />
               </LayoutHeader>
             </ParcelVerifySessionProvider>
           </GlobalContext>

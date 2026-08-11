@@ -23,6 +23,7 @@ import { Colors } from '@/src/utils/colors';
 import { appendToLocalUploadQueue } from '@/src/utils/localUploadQueue';
 import { isDeliveryOrder } from '@/src/utils/orderStatus';
 import {
+  doesLabelRequireSignature,
   isDescriptionOptional,
   shouldSendDamageForDeliveryLabel,
   shouldSkipCommentAfterCamera,
@@ -866,7 +867,7 @@ export function useParcelVerifyFlow({
           fullLabel = { ...fromList, ...labelItem };
         }
       }
-      signatureRequiredRef.current = fullLabel?.signature_required == 1;
+      signatureRequiredRef.current = doesLabelRequireSignature(fullLabel);
       console.log('[DirectFlow] persistDeliveryLabel', {
         id: fullLabel?.id,
         signature_required: fullLabel?.signature_required,
@@ -1366,8 +1367,9 @@ export function useParcelVerifyFlow({
         res?.data?.data?.tms_current_status,
       );
       const labelNeedsSignature =
-        savedDeliveryLabel?.signature_required == 1 ||
-        signatureRequiredRef.current;
+        savedDeliveryLabel != null
+          ? doesLabelRequireSignature(savedDeliveryLabel)
+          : signatureRequiredRef.current === true;
 
       console.log('[DirectFlow] commentFun signature check', {
         savedDeliveryLabel: {
@@ -1488,13 +1490,16 @@ export function useParcelVerifyFlow({
       setEvetyTimeShowDeliveryLabelList(false);
       setConformationModal((prev: any) => ({ ...prev, visible: false }));
 
-      // Yes/No → No: skip No Parcel / Open Scanner; open signature directly.
+      // Yes/No → No: skip remaining-parcel UI. Signature only if this label requires it.
       if (deliveryMoreParcelsNoPathRef.current) {
-        softClearDeliveryLabelUi();
-        await onSuccess?.();
-        setSecondModal((prev: any) => ({ ...prev, visible: false }));
-        setShowSig(true);
-        return;
+        deliveryMoreParcelsNoPathRef.current = false;
+        if (labelNeedsSignature) {
+          softClearDeliveryLabelUi();
+          await onSuccess?.();
+          setSecondModal((prev: any) => ({ ...prev, visible: false }));
+          setShowSig(true);
+          return;
+        }
       }
 
       // Keep pin while signature is still needed; full wipe otherwise.
