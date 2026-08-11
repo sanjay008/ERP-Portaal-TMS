@@ -21,6 +21,7 @@ import {
     useParcelVerifySession,
 } from "../context/ParcelVerifySessionContext";
 import { Colors } from "../utils/colors";
+import { shouldSendDamageForDeliveryLabel } from "../utils/parcelCommentRules";
 import { setActiveVerifyDeliveryLabel } from "../utils/parcelVerifyDeliveryLabelStore";
 import { FONTS } from "../utils/storeData";
 import PickUpBox from "./PickUpBox";
@@ -139,11 +140,17 @@ export default function AnimatedModal({
         console.log('[AnimatedModal] select delivery label → global pin', {
             id: item?.id,
             title: item?.title,
+            damaged_required: item?.damaged_required,
         });
         setGlobalDeliveryLabel?.(item);
         setActiveVerifyDeliveryLabel(item);
         setSessionDeliveryLabel(item);
         setSelectCurrentDeliveryLabel?.(item);
+        // Deliver: damage only when this label requires it.
+        if (!shouldSendDamageForDeliveryLabel(item, ItemsData)) {
+            completeSelection(item);
+            return;
+        }
         if (!hasDamageList) {
             completeSelection(item);
             return;

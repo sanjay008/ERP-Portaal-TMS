@@ -49,6 +49,6 @@ data class DriverCoordinate(
   val heading: Double?,
   val speed: Double?,
   val accuracy: Double?,
-  /** Epoch ms when this fix was captured; set on 15-min published fresh reads. */
-  val capturedAtMs: Long? = null,
+  /** Epoch ms when this fix was published (15-min tick). */
+  val capturedAtMs: Double? = null,
 )

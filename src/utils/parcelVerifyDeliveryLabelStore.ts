@@ -45,10 +45,6 @@ export function clearActiveVerifyDeliveryLabel(): void {
   fallbackDeliveryLabelId = null;
 }
 
-/**
- * Resolve label for optional comment / status_update / signature.
- * Always prefers the module pin first.
- */
 export function resolveVerifyDeliveryLabel(opts?: {
   snapshot?: any;
   locked?: any;

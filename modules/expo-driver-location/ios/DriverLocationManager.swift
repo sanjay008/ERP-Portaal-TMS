@@ -11,8 +11,11 @@ final class DriverLocationManager: NSObject, CLLocationManagerDelegate {
   private(set) var isTracking = false
   private var userStopped = false
   private var gpsLocationDisabled = false
-  /// When true, the next location fix is published to the API cache and POSTed.
-  private var shouldPublishFix = false
+  private var pendingPublishCompletion: ((CLLocation?) -> Void)?
+  private var publishInFlight = false
+
+  private let maxLocationAgeSeconds: TimeInterval = 60
+  private let maxAccuracyMeters: CLLocationAccuracy = 100
 
   private override init() {
     super.init()
@@ -37,7 +40,7 @@ final class DriverLocationManager: NSObject, CLLocationManagerDelegate {
     TrackingSessionStore.save(config)
 
     if isTracking {
-      restartApiInterval(config: config)
+      // Keep existing timer — only refresh config (avoids interval double-start).
       return
     }
 
@@ -55,7 +58,8 @@ final class DriverLocationManager: NSObject, CLLocationManagerDelegate {
   func stopTracking(sendDeactivate: Bool) {
     userStopped = true
     gpsLocationDisabled = false
-    shouldPublishFix = false
+    pendingPublishCompletion = nil
+    publishInFlight = false
     sendDeactivateIfNeeded(sendDeactivate)
     stopLocationAndTimer()
     config = nil
@@ -74,26 +78,21 @@ final class DriverLocationManager: NSObject, CLLocationManagerDelegate {
 
     guard let location = locations.last else { return }
 
-    // Continuous fixes only keep CoreLocation warm — they must not overwrite
-    // the published 15-min API cache used by scans.
-    guard shouldPublishFix else { return }
+    if let completion = pendingPublishCompletion {
+      pendingPublishCompletion = nil
+      completion(location)
+      return
+    }
 
-    shouldPublishFix = false
-    savePublishedLocation(location)
-    print("[\(logTag)] Published fresh fix lat=\(location.coordinate.latitude) lon=\(location.coordinate.longitude)")
-
-    guard let config = config ?? TrackingSessionStore.load() else { return }
-    sendActiveApiUpdate(config: config)
+    // Continuous GPS only warms — does not overwrite published 15-min cache.
+    saveWarmLocation(location)
   }
 
   func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
     print("[\(logTag)] location error → \(error.localizedDescription)")
-    if shouldPublishFix {
-      shouldPublishFix = false
-      print("[\(logTag)] Fresh GPS failed — falling back to last published cache")
-      if let config = config ?? TrackingSessionStore.load() {
-        sendActiveApiUpdate(config: config)
-      }
+    if let completion = pendingPublishCompletion {
+      pendingPublishCompletion = nil
+      completion(nil)
     }
     if let clError = error as? CLError, clError.code == .denied {
       suspendTrackingForDisabledLocation(sendDeactivate: true)
@@ -135,7 +134,7 @@ final class DriverLocationManager: NSObject, CLLocationManagerDelegate {
     isTracking = true
     restartApiInterval(config: config)
     publishFreshAndSend(config: config)
-    print("[\(logTag)] tracking started — API every \(config.apiIntervalSeconds)s")
+    print("[\(logTag)] tracking started — API every \(config.apiIntervalSeconds)s (fresh GPS each tick)")
   }
 
   private func restartApiInterval(config: TrackingConfig) {
@@ -173,11 +172,80 @@ final class DriverLocationManager: NSObject, CLLocationManagerDelegate {
     publishFreshAndSend(config: config)
   }
 
-  /// Forced fresh GPS → publish to API cache → POST.
+  /**
+   * Force a fresh GPS fix, lock it as the published 15-min cache, then API.
+   */
   private func publishFreshAndSend(config: TrackingConfig) {
-    _ = config
-    shouldPublishFix = true
+    if publishInFlight {
+      print("[\(logTag)] publish skipped — already in flight")
+      return
+    }
+    publishInFlight = true
+
+    pendingPublishCompletion = { [weak self] location in
+      guard let self else { return }
+      defer { self.publishInFlight = false }
+
+      if let location, self.tryPublishLocation(location, source: "requestLocation") {
+        self.sendActiveApiUpdate(config: config)
+        return
+      }
+
+      if let cached = self.locationManager.location,
+         self.tryPublishLocation(cached, source: "manager.location") {
+        self.sendActiveApiUpdate(config: config)
+        return
+      }
+
+      self.tryPublishWarmOnlyIfNoPublished()
+      self.sendActiveApiUpdate(config: config)
+    }
     locationManager.requestLocation()
+  }
+
+  private func tryPublishWarmOnlyIfNoPublished() {
+    if TrackingSessionStore.getLastLocation() != nil {
+      print("[\(logTag)] Keeping existing published fix — warm/fallback not used")
+      return
+    }
+    guard let warm = TrackingSessionStore.getWarmLocation() else { return }
+    TrackingSessionStore.savePublishedLocation(
+      DriverCoordinate(
+        latitude: warm.latitude,
+        longitude: warm.longitude,
+        heading: warm.heading,
+        speed: warm.speed,
+        accuracy: warm.accuracy,
+        capturedAtMs: Date().timeIntervalSince1970 * 1000
+      )
+    )
+    print("[\(logTag)] Seeded published from warm (first fix) → lat=\(warm.latitude) lon=\(warm.longitude)")
+  }
+
+  @discardableResult
+  private func tryPublishLocation(_ location: CLLocation, source: String) -> Bool {
+    guard isAcceptableFix(location) else {
+      let age = abs(location.timestamp.timeIntervalSinceNow)
+      print("[\(logTag)] Rejected \(source) fix age=\(age)s accuracy=\(location.horizontalAccuracy)")
+      return false
+    }
+    publishLocation(location)
+    return true
+  }
+
+  private func isAcceptableFix(_ location: CLLocation) -> Bool {
+    let coord = location.coordinate
+    if coord.latitude == 0 && coord.longitude == 0 {
+      return false
+    }
+    let age = abs(location.timestamp.timeIntervalSinceNow)
+    if age > maxLocationAgeSeconds {
+      return false
+    }
+    if location.horizontalAccuracy < 0 || location.horizontalAccuracy > maxAccuracyMeters {
+      return false
+    }
+    return true
   }
 
   private func sendActiveApiUpdate(config: TrackingConfig) {
@@ -193,32 +261,49 @@ final class DriverLocationManager: NSObject, CLLocationManagerDelegate {
     LocationApiClient.sendLocationUpdate(config: config, coord: coord, isActive: 1) { _ in }
   }
 
-  private func savePublishedLocation(_ location: CLLocation) {
-    let capturedMs = location.timestamp.timeIntervalSince1970 * 1000
+  private func saveWarmLocation(_ location: CLLocation) {
+    guard let coord = locationToCoord(location) else { return }
+    TrackingSessionStore.saveWarmLocation(coord)
+  }
+
+  private func publishLocation(_ location: CLLocation) {
+    guard let base = locationToCoord(location) else { return }
+    let published = DriverCoordinate(
+      latitude: base.latitude,
+      longitude: base.longitude,
+      heading: base.heading,
+      speed: base.speed,
+      accuracy: base.accuracy,
+      capturedAtMs: Date().timeIntervalSince1970 * 1000
+    )
+    TrackingSessionStore.savePublishedLocation(published)
+    TrackingSessionStore.saveWarmLocation(published)
+    print("[\(logTag)] Published fresh fix → lat=\(published.latitude) lon=\(published.longitude)")
+  }
+
+  private func locationToCoord(_ location: CLLocation) -> DriverCoordinate? {
     let coord = DriverCoordinate(
       latitude: location.coordinate.latitude,
       longitude: location.coordinate.longitude,
       heading: location.course >= 0 ? location.course : nil,
       speed: location.speed >= 0 ? location.speed : nil,
-      accuracy: location.horizontalAccuracy >= 0 ? location.horizontalAccuracy : nil,
-      capturedAtMs: capturedMs
+      accuracy: location.horizontalAccuracy >= 0 ? location.horizontalAccuracy : nil
     )
-    guard coord.latitude != 0, coord.longitude != 0 else { return }
-    TrackingSessionStore.saveLastLocation(coord)
+    guard coord.latitude != 0, coord.longitude != 0 else { return nil }
+    return coord
   }
 
   private func suspendTrackingForDisabledLocation(sendDeactivate: Bool) {
     guard !gpsLocationDisabled else { return }
     print("[\(logTag)] GPS disabled — sending is_active=0 and pausing tracking")
     gpsLocationDisabled = true
-    shouldPublishFix = false
     sendDeactivateIfNeeded(sendDeactivate)
     stopLocationAndTimer()
   }
 
   private func sendDeactivateIfNeeded(_ sendDeactivate: Bool) {
     guard sendDeactivate, let config = config ?? TrackingSessionStore.load() else { return }
-    guard let coord = TrackingSessionStore.getLastLocation() else {
+    guard let coord = TrackingSessionStore.getLocationForApiOrDeactivate() else {
       print("[\(logTag)] Deactivate skipped — no last location for is_active=0")
       return
     }

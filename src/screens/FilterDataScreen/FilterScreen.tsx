@@ -445,101 +445,122 @@ export default function FilterScreen({ navigation, route }: any) {
     isShiftReadyForRegion,
     setActiveShift,
   ]);
+  console.log("AllDeliveyLabel", AllDeliveyLabel);
 
-const getFilterDataFun = useCallback(async () => {
-  try {
-    const payload = {
-      token: UserData?.user?.verify_token,
-      role: UserData?.user?.role,
-      relaties_id: UserData?.relaties?.id,
-      user_id: UserData?.user?.id,
-      date: SelectDate,
-      type: GloblyTypeSlide ?? item?.type ?? Type,
-    };
+  const getFilterDataFun = useCallback(async () => {
+    try {
+      const payload = {
+        token: UserData?.user?.verify_token,
+        role: UserData?.user?.role,
+        relaties_id: UserData?.relaties?.id,
+        user_id: UserData?.user?.id,
+        date: SelectDate,
+        type: GloblyTypeSlide ?? item?.type ?? Type,
+      };
 
-    const missingFields = [
-      !payload.token && "token",
-      !payload.role && "role",
-      payload.relaties_id == null && "relaties_id",
-      payload.user_id == null && "user_id",
-      !payload.date && "date",
-      !payload.type && "type",
-    ].filter(Boolean);
+      const missingFields = [
+        !payload.token && "token",
+        !payload.role && "role",
+        payload.relaties_id == null && "relaties_id",
+        payload.user_id == null && "user_id",
+        !payload.date && "date",
+        !payload.type && "type",
+      ].filter(Boolean);
 
-    if (missingFields.length > 0) {
-      console.warn("Invalid payload:", payload);
-      console.warn("Missing fields:", missingFields);
+      if (missingFields.length > 0) {
+        console.warn("Invalid payload:", payload);
+        console.warn("Missing fields:", missingFields);
 
-      setToast({
-        top: 45,
-        text: "Required data is missing. Please try again.",
-        type: "error",
-        visible: true,
-      });
-
-      return;
-    }
-console.log("payload",payload);
-
-    const response = await ApiService(apiConstants.getOrderByDriver, {
-      customData: payload,
-    });
-
-    if (response?.status) {
-      const newData = Array.isArray(response?.data) ? response.data : [];
-      setTemopryryDataStore(newData);
-      setAllFilterDataGet(newData);
-
-      if (newData.length === 0) {
-        setRegionOrderData([]);
-        if (selectRegionData?.id) {
-          await RegionDetailsDataFun(selectRegionData);
-        }
+        setToast({
+          top: 45,
+          text: "Required data is missing. Please try again.",
+          type: "error",
+          visible: true,
+        });
 
         return;
       }
+      console.log("payload", payload);
 
-      let selectedRegion: any = null;
-
-      // Prefer active shift region when Filter opens / refreshes
-      if (activeShift?.shiftActive && activeShift.region_id != null) {
-        const shiftRegion = newData.find(
-          (region: any) =>
-            String(region?.id) === String(activeShift.region_id),
-        );
-        if (shiftRegion) {
-          selectedRegion = shiftRegion;
-        }
-      }
-
-      if (!selectedRegion && selectRegionData?.id) {
-        const matchedRegion = newData.find(
-          (region: any) => String(region?.id) === String(selectRegionData.id),
-        );
-        selectedRegion = matchedRegion || newData[0] || null;
-      } else if (!selectedRegion) {
-        selectedRegion = newData[0] || null;
-      }
-
-      setTotalCountParcel({
-        pickup: selectedRegion?.pickup_orders?.length || 0,
-        dropoff: selectedRegion?.deliver_orders?.length || 0,
+      const response = await ApiService(apiConstants.getOrderByDriver, {
+        customData: payload,
       });
 
-      if (selectedRegion?.id && selectedRegion?.id !== selectRegionData?.id) {
-        setSelectRegionData(selectedRegion);
-      }
+      if (response?.status) {
+        const newData = Array.isArray(response?.data) ? response.data : [];
+        setTemopryryDataStore(newData);
+        setAllFilterDataGet(newData);
 
-      const regionForDetails = selectedRegion?.id
-        ? selectedRegion
-        : selectRegionData;
+        if (newData.length === 0) {
+          setRegionOrderData([]);
+          if (selectRegionData?.id) {
+            await RegionDetailsDataFun(selectRegionData);
+          }
 
-      if (regionForDetails?.id) {
-        await RegionDetailsDataFun(regionForDetails);
+          return;
+        }
+
+        let selectedRegion: any = null;
+
+        // Prefer active shift region when Filter opens / refreshes
+        if (activeShift?.shiftActive && activeShift.region_id != null) {
+          const shiftRegion = newData.find(
+            (region: any) =>
+              String(region?.id) === String(activeShift.region_id),
+          );
+          if (shiftRegion) {
+            selectedRegion = shiftRegion;
+          }
+        }
+
+        if (!selectedRegion && selectRegionData?.id) {
+          const matchedRegion = newData.find(
+            (region: any) => String(region?.id) === String(selectRegionData.id),
+          );
+          selectedRegion = matchedRegion || newData[0] || null;
+        } else if (!selectedRegion) {
+          selectedRegion = newData[0] || null;
+        }
+
+        setTotalCountParcel({
+          pickup: selectedRegion?.pickup_orders?.length || 0,
+          dropoff: selectedRegion?.deliver_orders?.length || 0,
+        });
+
+        if (selectedRegion?.id && selectedRegion?.id !== selectRegionData?.id) {
+          setSelectRegionData(selectedRegion);
+        }
+
+        const regionForDetails = selectedRegion?.id
+          ? selectedRegion
+          : selectRegionData;
+
+        if (regionForDetails?.id) {
+          await RegionDetailsDataFun(regionForDetails);
+        } else {
+          setRegionOrderData([]);
+        }
       } else {
+        setAllFilterDataGet([]);
+
+        if (!selectRegionData?.id) {
+          setSelectRegionData(null);
+        }
+
         setRegionOrderData([]);
+
+        if (response?.message && response?.message !== "No Data Found.") {
+          setToast({
+            top: 45,
+            text: response?.message || "Something went wrong",
+            type: "error",
+            visible: true,
+          });
+        }
       }
-    } else {
+    } catch (error: any) {
+      console.error("Get FilterWise Data Error:", error);
+
       setAllFilterDataGet([]);
 
       if (!selectRegionData?.id) {
@@ -548,43 +569,23 @@ console.log("payload",payload);
 
       setRegionOrderData([]);
 
-      if (response?.message && response?.message !== "No Data Found.") {
-        setToast({
-          top: 45,
-          text: response?.message || "Something went wrong",
-          type: "error",
-          visible: true,
-        });
-      }
+      setToast({
+        top: 45,
+        text: ErrorHandle(error)?.message || "Something went wrong",
+        type: "error",
+        visible: true,
+      });
     }
-  } catch (error: any) {
-    console.error("Get FilterWise Data Error:", error);
-
-    setAllFilterDataGet([]);
-
-    if (!selectRegionData?.id) {
-      setSelectRegionData(null);
-    }
-
-    setRegionOrderData([]);
-
-    setToast({
-      top: 45,
-      text: ErrorHandle(error)?.message || "Something went wrong",
-      type: "error",
-      visible: true,
-    });
-  }
-}, [
-  SelectDate,
-  UserData,
-  GloblyTypeSlide,
-  item?.type,
-  Type,
-  selectRegionData?.id,
-  activeShift?.shiftActive,
-  activeShift?.region_id,
-]);
+  }, [
+    SelectDate,
+    UserData,
+    GloblyTypeSlide,
+    item?.type,
+    Type,
+    selectRegionData?.id,
+    activeShift?.shiftActive,
+    activeShift?.region_id,
+  ]);
 
   const parcelVerifyFlow = useParcelVerifyFlow({
     slideType: SlideType ?? GloblyTypeSlide ?? item?.type ?? Type,
@@ -699,8 +700,8 @@ console.log("payload",payload);
       };
 
 
-      console.log("Request Data Planing",payload);
-      
+      console.log("Request Data Planing", payload);
+
       const response = await ApiService(
         apiConstants.get_tms_orders_flat_by_region,
         {
@@ -712,11 +713,9 @@ console.log("payload",payload);
         if (AllDamageListReason?.length == 0) {
           setAllDamageListReason(response?.damaged_parcel || [])
         }
-        if (AllDeliveyLabel?.length == 0) {
-          console.log("response?.delivery_label_title_map",response?.delivery_label_title_map);
-          
+    
           setAllDeliveyLabel(response?.delivery_label_title_map || []);
-        }
+      
         setRegionOrderData(
           Array.isArray(response?.data)
             ? response.data
@@ -845,42 +844,42 @@ console.log("payload",payload);
     ],
   );
 
-const FilterData = useMemo(() => {
-  const q = search?.trim().toLowerCase();
-  if (!q) return RegionOrderData ?? [];
+  const FilterData = useMemo(() => {
+    const q = search?.trim().toLowerCase();
+    if (!q) return RegionOrderData ?? [];
 
-  const cleaned = q.startsWith('#') ? q.slice(1) : q;
-  const parts = cleaned.split(/\s+/);
-  const idPart = parts[0];
-  const namePart = parts.slice(1).join(' ').trim();
+    const cleaned = q.startsWith('#') ? q.slice(1) : q;
+    const parts = cleaned.split(/\s+/);
+    const idPart = parts[0];
+    const namePart = parts.slice(1).join(' ').trim();
 
-  return (RegionOrderData ?? []).filter((item: any) => {
-    const isAdditionalStop = item?.row_type === 'additional_address';
-    const itemId = item?.id?.toString().toLowerCase() ?? '';
-    const itemName = isAdditionalStop
-      ? (item?.name?.toLowerCase() ?? '')
-      : (item?.display_name?.toLowerCase() ?? '');
-    const itemExtId = item?.external_order_id?.toString().toLowerCase() ?? '';
-    const itemAddress = isAdditionalStop
-      ? (item?.address?.toLowerCase() ?? '')
-      : '';
-    const itemRoute = isAdditionalStop
-      ? (item?.route_name?.toLowerCase() ?? '')
-      : '';
+    return (RegionOrderData ?? []).filter((item: any) => {
+      const isAdditionalStop = item?.row_type === 'additional_address';
+      const itemId = item?.id?.toString().toLowerCase() ?? '';
+      const itemName = isAdditionalStop
+        ? (item?.name?.toLowerCase() ?? '')
+        : (item?.display_name?.toLowerCase() ?? '');
+      const itemExtId = item?.external_order_id?.toString().toLowerCase() ?? '';
+      const itemAddress = isAdditionalStop
+        ? (item?.address?.toLowerCase() ?? '')
+        : '';
+      const itemRoute = isAdditionalStop
+        ? (item?.route_name?.toLowerCase() ?? '')
+        : '';
 
-    if (namePart) {
-      return itemId.includes(idPart) && itemName.includes(namePart);
-    }
+      if (namePart) {
+        return itemId.includes(idPart) && itemName.includes(namePart);
+      }
 
-    return (
-      itemId.includes(cleaned) ||
-      itemName.includes(cleaned) ||
-      itemExtId.includes(cleaned) ||
-      itemAddress.includes(cleaned) ||
-      itemRoute.includes(cleaned)
-    );
-  });
-}, [search, RegionOrderData]);
+      return (
+        itemId.includes(cleaned) ||
+        itemName.includes(cleaned) ||
+        itemExtId.includes(cleaned) ||
+        itemAddress.includes(cleaned) ||
+        itemRoute.includes(cleaned)
+      );
+    });
+  }, [search, RegionOrderData]);
 
   const ReversParcelFun = async (order_id = null, item_id = null) => {
     try {
@@ -892,7 +891,7 @@ const FilterData = useMemo(() => {
         user_id: UserData?.user?.id,
         item_id: item_id,
         order_id: order_id,
-        type:  GloblyTypeSlide,
+        type: GloblyTypeSlide,
       };
       const res = await ApiService(apiConstants.revert_order_item_status, {
         customData: payload,
@@ -906,9 +905,9 @@ const FilterData = useMemo(() => {
           type: "success",
           visible: true,
         });
-        
 
-      
+
+
       } else {
         setToast({
           top: 45,
@@ -1003,7 +1002,7 @@ const FilterData = useMemo(() => {
               onlyIcon={true}
               Icon={Images.Scan}
               tintColor={Colors.black}
-              style={{ width: 46, height: 46,backgroundColor:Colors.yellow }}
+              style={{ width: 46, height: 46, backgroundColor: Colors.yellow }}
               onPress={async () => {
                 if (isPickupDropoffChauffeur && !isRouteReady) {
                   if (!isDeviceLocationReady) {
@@ -1034,12 +1033,12 @@ const FilterData = useMemo(() => {
               setValue={setSearch}
               suggestions={RegionOrderData}
               placeholder={t("Search by ID or name") + "..."}
-              onSelect={() => {}}
+              onSelect={() => { }}
               containerStyle={{
                 flex:
                   isPickupDropoffChauffeur &&
-                  selectRegionData?.id &&
-                  !isShiftReadyForRegion
+                    selectRegionData?.id &&
+                    !isShiftReadyForRegion
                     ? 1 / 1.05
                     : 1,
               }}
@@ -1047,35 +1046,35 @@ const FilterData = useMemo(() => {
             {isPickupDropoffChauffeur &&
               selectRegionData?.id &&
               !isShiftReadyForRegion && (
-              <TouchableOpacity
-                style={[
-                  styles.button,
-                  {
-                    backgroundColor: Colors.red,
-                    opacity: isGpsPermissionLoading ? 0.6 : 1,
-                  },
-                ]}
-                onPress={
-                  isDeviceLocationReady
-                    ? handleShiftIconPress
-                    : handleLocationIconPress
-                }
-                activeOpacity={0.8}
-                disabled={isGpsPermissionLoading}
-              >
-                <Ionicons
-                  name={isDeviceLocationReady ? 'car-sport' : 'location'}
-                  size={22}
-                  color={Colors.white}
-                />
-              </TouchableOpacity>
-            )}
+                <TouchableOpacity
+                  style={[
+                    styles.button,
+                    {
+                      backgroundColor: Colors.red,
+                      opacity: isGpsPermissionLoading ? 0.6 : 1,
+                    },
+                  ]}
+                  onPress={
+                    isDeviceLocationReady
+                      ? handleShiftIconPress
+                      : handleLocationIconPress
+                  }
+                  activeOpacity={0.8}
+                  disabled={isGpsPermissionLoading}
+                >
+                  <Ionicons
+                    name={isDeviceLocationReady ? 'car-sport' : 'location'}
+                    size={22}
+                    color={Colors.white}
+                  />
+                </TouchableOpacity>
+              )}
           </View>
-            <View style={styles.CountContainer}>
-              <Text style={styles.CountContainerText}>
-                {`${t("Pick")} (${TotalCountParcel.pickup}) - ${t("Drop")} (${TotalCountParcel.dropoff})`}
-              </Text>
-            </View>
+          <View style={styles.CountContainer}>
+            <Text style={styles.CountContainerText}>
+              {`${t("Pick")} (${TotalCountParcel.pickup}) - ${t("Drop")} (${TotalCountParcel.dropoff})`}
+            </Text>
+          </View>
 
           {selectRegionData && AllFilterData?.length > 0 ? (
             <FlatList
@@ -1125,14 +1124,14 @@ const FilterData = useMemo(() => {
                     LableBackground={item?.tmsstatus?.color}
                     additional_cost_label={item?.additional_cost_label}
                     onPress={() => {
-                      if(GloblyTypeSlide === "additional_address"){
-                      navigation.navigate("Details", { item, type: SlideType });
+                      if (GloblyTypeSlide === "additional_address") {
+                        navigation.navigate("Details", { item, type: SlideType });
 
                         return
                       }
                       if (
                         ScanBTNAvailble ||
-                        (isPickupDropoffChauffeur && !isRouteReady )
+                        (isPickupDropoffChauffeur && !isRouteReady)
                       ) {
                         if (isPickupDropoffChauffeur && !isRouteReady) {
                           if (!isDeviceLocationReady) {
@@ -1189,7 +1188,7 @@ const FilterData = useMemo(() => {
         onClose={() => setGpsStartPopupVisible(false)}
         onConfirm={handleGpsStartConfirm}
       />
-{/* 
+      {/* 
       <GpsPermissionSheet
         visible={gpsPermissionSheet.visible}
         reason={gpsPermissionSheet.reason}

@@ -25,11 +25,11 @@ import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
 import { appendToLocalUploadQueue } from "@/src/utils/localUploadQueue";
 import { isDeliveryOrder, isPickupOrder } from "@/src/utils/orderStatus";
-import { setActiveVerifyDeliveryLabel } from "@/src/utils/parcelVerifyDeliveryLabelStore";
 import {
   lockParcelCameraCallback,
   unlockParcelCameraCallback,
 } from "@/src/utils/parcelVerifyCameraReturn";
+import { setActiveVerifyDeliveryLabel } from "@/src/utils/parcelVerifyDeliveryLabelStore";
 import { isBlankSignatureData } from "@/src/utils/signatureValidation";
 import { FONTS, ScanPlatFormId, Stop_PickupType } from "@/src/utils/storeData";
 import { useIsFocused } from "@react-navigation/native";
@@ -145,6 +145,7 @@ export default function DetailsScreens({ navigation, route }: any) {
     onPress: "",
   });
   const [DropBoxUploadImageData, setDropBoxUploadImageData] = useState<any[]>([]);
+console.log("AllDeliveyLabel",AllDeliveyLabel);
 
   const [SecondModal, setSecondModal] = useState<{
     visible: boolean;
@@ -690,7 +691,6 @@ export default function DetailsScreens({ navigation, route }: any) {
         const data = res?.data || [];
 
         setAllSlideData(data);
-        // navigation.navigate("FilterScreen", { Type: type || GloblyTypeSlide });
         goBackOrPopTo(navigation, "FilterScreen", { Type: type || GloblyTypeSlide })
 
       } else {
@@ -860,7 +860,7 @@ export default function DetailsScreens({ navigation, route }: any) {
     }
   };
   const getTextColor = (bgColor: string) => {
-    if (!bgColor) return "#000";
+    if (!bgColor) return Colors.black;
 
     const color = bgColor.replace("#", "");
 
@@ -868,10 +868,9 @@ export default function DetailsScreens({ navigation, route }: any) {
     const g = parseInt(color.substring(2, 4), 16);
     const b = parseInt(color.substring(4, 6), 16);
 
-    // Brightness formula
     const brightness = (r * 299 + g * 587 + b * 114) / 1000;
 
-    return brightness > 128 ? "#000" : "#FFF";
+    return brightness > 128 ? Colors.black : Colors.white;
   };
   const CustomerSignatureFun = async (signature: string | null = null, name: string | null = null,) => {
     if (isBlankSignatureData(signature)) {
@@ -954,14 +953,11 @@ export default function DetailsScreens({ navigation, route }: any) {
         type: type ?? GloblyTypeSlide,
         is_customer_not_at_home: 1,
       };
-      console.log("StatusUpdateFun", payload);
       const res = await ApiService(apiConstants.status_update, {
         customData: payload,
       });
 
       if (res?.status) {
-        console.log("res", res);
-
         setToast({
           top: 45,
           text: t(res?.message),

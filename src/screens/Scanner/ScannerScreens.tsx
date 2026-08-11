@@ -38,6 +38,7 @@ import {
 import { appendToLocalUploadQueue } from "@/src/utils/localUploadQueue";
 import { isDeliveryOrder } from "@/src/utils/orderStatus";
 import {
+  shouldSendDamageForDeliveryLabel,
   shouldShowDamageInCommentModal,
   shouldSkipCommentAfterCamera,
 } from "@/src/utils/parcelCommentRules";
@@ -58,6 +59,7 @@ import {
   runParcelVerifyFlow,
   type DeliveryScanContinueContext,
 } from "@/src/utils/runParcelVerifyFlow";
+import { attachScanFreshCoordsToPayload } from "@/src/utils/scanFreshLocation";
 import { isBlankSignatureData } from "@/src/utils/signatureValidation";
 import { FONTS, height, ScanPlatFormId, width } from "@/src/utils/storeData";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -1057,7 +1059,8 @@ export default function ScannerScreens({ navigation, route }: any) {
         !options?.skipDamage &&
         (GloblyTypeSlide === "pickup_dropoff" ||
           GloblyTypeSlide === "additional_address") &&
-        selectDamageData
+        selectDamageData &&
+        shouldSendDamageForDeliveryLabel(SelectCurrentDeliveryLabel, ItemsData)
       ) {
         payload.is_damage = selectDamageData?.id;
       }
@@ -1071,6 +1074,8 @@ export default function ScannerScreens({ navigation, route }: any) {
         });
         return;
       }
+
+      await attachScanFreshCoordsToPayload(payload);
 
       const res = await ApiService(apiConstants.status_update, {
         customData: payload,
@@ -1407,7 +1412,11 @@ export default function ScannerScreens({ navigation, route }: any) {
 
       // Signature top damage/undamage Change → send modified per-parcel list
       // (same shape as status_update; do not send stale selectDamageData).
-      if (Array.isArray(damageItems) && damageItems.length > 0) {
+      const canSendDeliveryDamage = shouldSendDamageForDeliveryLabel(
+        SelectCurrentDeliveryLabel,
+        ItemsData,
+      );
+      if (canSendDeliveryDamage && Array.isArray(damageItems) && damageItems.length > 0) {
         const mapped = damageItems
           .map((row: any) => ({
             item_id: Number(row?.item ?? row?.item_id),
@@ -1421,7 +1430,7 @@ export default function ScannerScreens({ navigation, route }: any) {
           payload.is_damage = mapped;
           payload.damage_items = JSON.stringify(mapped);
         }
-      } else if (selectDamageData?.id != null) {
+      } else if (canSendDeliveryDamage && selectDamageData?.id != null) {
         payload.is_damage = selectDamageData.id;
       }
 
@@ -1582,9 +1591,14 @@ export default function ScannerScreens({ navigation, route }: any) {
         }),
       };
 
-      if (isDeliveryMultiDamage) {
+      const canSendDeliveryDamage = shouldSendDamageForDeliveryLabel(
+        SelectCurrentDeliveryLabel,
+        ItemsData,
+      );
+      if (isDeliveryMultiDamage && canSendDeliveryDamage) {
         payload.is_damage = buildIsDamagePayload(parcelDamageSelections);
       } else if (
+        canSendDeliveryDamage &&
         (GloblyTypeSlide === "pickup_dropoff" ||
           GloblyTypeSlide === "additional_address") &&
         selectDamageData
@@ -1592,16 +1606,21 @@ export default function ScannerScreens({ navigation, route }: any) {
         payload.is_damage = selectDamageData?.id;
       }
 
+      await attachScanFreshCoordsToPayload(payload);
+
       const res = await ApiService(apiConstants.status_update, {
         customData: payload,
       });
 
       if (res?.status) {
         const savedDeliveryLabel = SelectCurrentDeliveryLabel;
-        const savedDamageId = selectDamageData?.id;
-        const damagePayload = isDeliveryMultiDamage
-          ? buildIsDamagePayload(parcelDamageSelections)
-          : null;
+        const savedDamageId = canSendDeliveryDamage
+          ? selectDamageData?.id
+          : undefined;
+        const damagePayload =
+          isDeliveryMultiDamage && canSendDeliveryDamage
+            ? buildIsDamagePayload(parcelDamageSelections)
+            : null;
 
         if (damagePayload?.length) {
           setProductDamageList((prev) => {

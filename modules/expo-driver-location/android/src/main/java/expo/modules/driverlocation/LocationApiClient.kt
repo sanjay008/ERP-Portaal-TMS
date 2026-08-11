@@ -54,8 +54,8 @@ object LocationApiClient {
       .addFormDataPart("speed", coord.speed?.toString() ?: "")
       .addFormDataPart("is_active", isActive.toString())
 
-    coord.capturedAtMs?.let {
-      multipartBuilder.addFormDataPart("captured_at", it.toString())
+    if (coord.capturedAtMs != null) {
+      multipartBuilder.addFormDataPart("captured_at", coord.capturedAtMs.toLong().toString())
     }
 
     if (!config.orderId.isNullOrBlank()) {
@@ -126,8 +126,8 @@ object LocationApiClient {
       .addFormDataPart("speed", coord.speed?.toString() ?: "")
       .addFormDataPart("is_active", isActive.toString())
 
-    coord.capturedAtMs?.let {
-      multipartBuilder.addFormDataPart("captured_at", it.toString())
+    if (coord.capturedAtMs != null) {
+      multipartBuilder.addFormDataPart("captured_at", coord.capturedAtMs.toLong().toString())
     }
 
     if (!config.orderId.isNullOrBlank()) {

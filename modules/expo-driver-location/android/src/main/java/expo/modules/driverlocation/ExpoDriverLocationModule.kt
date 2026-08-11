@@ -1,6 +1,7 @@
 package expo.modules.driverlocation
 
 import android.content.Context
+import expo.modules.kotlin.Promise
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
@@ -80,8 +81,33 @@ class ExpoDriverLocationModule : Module() {
         "heading" to (coord.heading ?: 0.0),
         "speed" to (coord.speed ?: 0.0),
         "accuracy" to (coord.accuracy ?: 0.0),
-        "capturedAtMs" to (coord.capturedAtMs ?: 0L),
+        "capturedAtMs" to (coord.capturedAtMs ?: 0.0),
       )
+    }
+
+    // Scan → status_update: fresh GPS + replace published 15-min cache (no live-location POST).
+    AsyncFunction("getFreshLocationAndPublish") { promise: Promise ->
+      val context = resolveContext()
+      if (context == null) {
+        promise.resolve(null)
+        return@AsyncFunction
+      }
+      FreshLocationHelper.request(context) { coord ->
+        if (coord == null || (coord.latitude == 0.0 && coord.longitude == 0.0)) {
+          promise.resolve(null)
+          return@request
+        }
+        promise.resolve(
+          mapOf(
+            "latitude" to coord.latitude,
+            "longitude" to coord.longitude,
+            "heading" to (coord.heading ?: 0.0),
+            "speed" to (coord.speed ?: 0.0),
+            "accuracy" to (coord.accuracy ?: 0.0),
+            "capturedAtMs" to (coord.capturedAtMs ?: 0.0),
+          ),
+        )
+      }
     }
 
     AsyncFunction("enableShiftLocationGuard") { config: Map<String, Any?> ->

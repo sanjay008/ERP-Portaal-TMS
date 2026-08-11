@@ -7,6 +7,7 @@ import { Colors } from '@/src/utils/colors';
 import { pingDriverLiveLocation } from '@/src/utils/driverLocationApi';
 import { setLastScannedOrderId } from '@/src/utils/lastScannedOrderId';
 import { syncNativeDriverTracking } from '@/src/utils/nativeDriverLocation';
+import { prefetchScanFreshLocation } from '@/src/utils/scanFreshLocation';
 import { isDeliveryOrder, isPickupOrder } from '@/src/utils/orderStatus';
 import { shouldSkipCommentAfterCamera } from '@/src/utils/parcelCommentRules';
 import {
@@ -169,6 +170,7 @@ export async function runParcelVerifyFlow(
     }
 
     await setLastScannedOrderId(data?.order_id);
+    prefetchScanFreshLocation();
     void pingDriverLiveLocation(deps.userData);
     void syncNativeDriverTracking(deps.userData);
 

@@ -1,0 +1,18 @@
+<lint-module
+    format="1"
+    dir="/Users/dreamworld/Documents/Tushar_develop/modules/expo-driver-location/android"
+    name=":expo-driver-location"
+    type="LIBRARY"
+    maven="host.exp.exponent:expo-driver-location:1.0.0"
+    agpVersion="8.11.0"
+    buildFolder="build"
+    bootClassPath="/Users/dreamworld/Library/Android/sdk/platforms/android-36/android.jar:/Users/dreamworld/Library/Android/sdk/build-tools/35.0.0/core-lambda-stubs.jar"
+    javaSourceLevel="17"
+    compileTarget="android-36"
+    neverShrinking="true">
+  <lintOptions
+      absolutePaths="true"
+      checkReleaseBuilds="true"
+      explainIssues="true"/>
+  <variant name="release"/>
+</lint-module>

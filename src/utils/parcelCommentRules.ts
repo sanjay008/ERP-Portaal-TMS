@@ -13,18 +13,35 @@ export function shouldShowDamageInCommentModal(
   deliveryLabel: any,
   order: any,
 ): boolean {
-  // Pickup: always show damage list (no label flag check).
+
   if (isPickupPlannedOrder(order)) {
     return true;
   }
-  // Delivery / drop: only when label says damaged_required == 1.
+
   if (isDeliveryOrder(order)) {
     return deliveryLabel?.damaged_required == 1;
   }
   return false;
 }
 
-/** Signature after last parcel — same rules as ScannerScreens CommentFun. */
+/** Deliver status_update / payload: send is_damage only when label requires it. Pickup-planned keeps damage. */
+export function shouldSendDamageForDeliveryLabel(
+  deliveryLabel: any,
+  order?: any,
+): boolean {
+  if (order != null && isPickupPlannedOrder(order)) {
+    return true;
+  }
+  if (order != null && isDeliveryOrder(order)) {
+    return deliveryLabel?.damaged_required == 1;
+  }
+  // No order context (or non-delivery): only send if label explicitly requires damage.
+  if (deliveryLabel != null) {
+    return deliveryLabel?.damaged_required == 1;
+  }
+  return false;
+}
+
 export function isSignatureRequiredAfterStatusUpdate(
   statusUpdateResponse: any,
   deliveryLabel: any,
@@ -53,9 +70,6 @@ export function isDescriptionOptional(
   );
 }
 
-/**
- * Skip comment modal after camera proof — same rule as ScannerScreens camera setData.
- */
 export function shouldSkipCommentAfterCamera(
   deliveryLabel: any,
   damageData: any,

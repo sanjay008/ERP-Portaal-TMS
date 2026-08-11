@@ -43,8 +43,32 @@ public final class ExpoDriverLocationModule: Module {
         "heading": coord.heading as Any,
         "speed": coord.speed as Any,
         "accuracy": coord.accuracy as Any,
-        "capturedAtMs": (coord.capturedAtMs ?? 0) as Any,
+        "capturedAtMs": coord.capturedAtMs as Any,
       ]
+    }
+
+    // Scan → status_update: fresh GPS + replace published 15-min cache (no live-location POST).
+    AsyncFunction("getFreshLocationAndPublish") { (promise: Promise) in
+      ScanFreshLocationFetcher.shared.fetch { location in
+        var published: DriverCoordinate? = nil
+        if let location {
+          published = ScanFreshLocationFetcher.shared.publishIfAcceptable(location)
+        }
+        // If fresh rejected, still return current published cache for status_update fallback.
+        let coord = published ?? TrackingSessionStore.getLastLocation()
+        guard let coord, coord.latitude != 0, coord.longitude != 0 else {
+          promise.resolve(nil)
+          return
+        }
+        promise.resolve([
+          "latitude": coord.latitude,
+          "longitude": coord.longitude,
+          "heading": coord.heading as Any,
+          "speed": coord.speed as Any,
+          "accuracy": coord.accuracy as Any,
+          "capturedAtMs": coord.capturedAtMs as Any,
+        ])
+      }
     }
 
     AsyncFunction("enableShiftLocationGuard") { (config: [String: Any]) in

@@ -1,0 +1,6 @@
+[
+    {
+        "merged": "expo.modules.driverlocation.expo-driver-location-release-7:/drawable-v21/notification_action_background.xml",
+        "source": "expo.modules.driverlocation.expo-driver-location-core-1.2.0-3:/drawable-v21/notification_action_background.xml"
+    }
+]

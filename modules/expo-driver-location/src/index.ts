@@ -37,6 +37,11 @@ export async function getLastLocation(): Promise<NativeDriverCoordinate | null> 
   return ExpoDriverLocation.getLastLocation();
 }
 
+/** Fresh GPS for scan → status_update; also replaces the published 15-min cache. */
+export async function getFreshLocationAndPublish(): Promise<NativeDriverCoordinate | null> {
+  return ExpoDriverLocation.getFreshLocationAndPublish();
+}
+
 export async function enableShiftLocationGuard(
   config: NativeShiftLocationGuardConfig,
 ): Promise<void> {

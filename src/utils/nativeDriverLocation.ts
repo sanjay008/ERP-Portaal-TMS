@@ -17,7 +17,6 @@ import {
 } from 'expo-driver-location';
 
 export const API_INTERVAL_SECONDS = 15 * 60;
-// export const API_INTERVAL_SECONDS = 60; // 1 minute — testing only
 
 type UserDataShape = {
   user?: {

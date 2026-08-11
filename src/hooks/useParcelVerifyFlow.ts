@@ -24,6 +24,7 @@ import { appendToLocalUploadQueue } from '@/src/utils/localUploadQueue';
 import { isDeliveryOrder } from '@/src/utils/orderStatus';
 import {
   isDescriptionOptional,
+  shouldSendDamageForDeliveryLabel,
   shouldSkipCommentAfterCamera,
 } from '@/src/utils/parcelCommentRules';
 import {
@@ -38,6 +39,7 @@ import {
   getOrderTmsStatusId,
   hasRemainingParcelsToDeliver,
 } from '@/src/utils/pickupPlanned';
+import { attachScanFreshCoordsToPayload } from '@/src/utils/scanFreshLocation';
 import {
   type DeliveryScanContinueContext,
   type ParcelVerifyScanPayload,
@@ -416,10 +418,16 @@ export function useParcelVerifyFlow({
           !options?.skipDamage &&
           (GloblyTypeSlide === 'pickup_dropoff' ||
             GloblyTypeSlide === 'additional_address') &&
-          selectDamageData
+          selectDamageData &&
+          shouldSendDamageForDeliveryLabel(
+            labelForStatus,
+            itemsData,
+          )
         ) {
           payload.is_damage = selectDamageData?.id;
         }
+
+        await attachScanFreshCoordsToPayload(payload);
 
         const res = await ApiService(apiConstants.status_update, {
           customData: payload,
@@ -1101,7 +1109,13 @@ export function useParcelVerifyFlow({
 
         // Signature top damage/undamage Change → send modified per-parcel list
         // (same shape as status_update; do not send stale selectDamageData).
-        if (Array.isArray(damageItems) && damageItems.length > 0) {
+        const canSendDeliveryDamage = shouldSendDamageForDeliveryLabel(
+          EffectiveDeliveryLabel ??
+            PinnedDeliveryLabel ??
+            SelectCurrentDeliveryLabel,
+          itemsData,
+        );
+        if (canSendDeliveryDamage && Array.isArray(damageItems) && damageItems.length > 0) {
           const mapped = damageItems
             .map((row: any) => ({
               item_id: Number(row?.item ?? row?.item_id),
@@ -1115,7 +1129,7 @@ export function useParcelVerifyFlow({
             payload.is_damage = mapped;
             payload.damage_items = JSON.stringify(mapped);
           }
-        } else if (selectDamageData?.id != null) {
+        } else if (canSendDeliveryDamage && selectDamageData?.id != null) {
           payload.is_damage = selectDamageData.id;
         }
 
@@ -1295,9 +1309,17 @@ export function useParcelVerifyFlow({
         }),
       };
 
-      if (isDeliveryMultiDamage) {
+      const canSendDeliveryDamage = shouldSendDamageForDeliveryLabel(
+        activeDeliveryLabel,
+        itemsData,
+      );
+      if (isDeliveryMultiDamage && canSendDeliveryDamage) {
         payload.is_damage = buildIsDamagePayload(parcelDamageSelections);
-      } else if (effectiveType === 'pickup_dropoff' && selectDamageData) {
+      } else if (
+        canSendDeliveryDamage &&
+        effectiveType === 'pickup_dropoff' &&
+        selectDamageData
+      ) {
         payload.is_damage = selectDamageData?.id;
       }
 
@@ -1307,6 +1329,8 @@ export function useParcelVerifyFlow({
         sessionId: activeDeliveryLabel?.id ?? null,
         is_damage: payload.is_damage,
       });
+
+      await attachScanFreshCoordsToPayload(payload);
 
       const res = await ApiService(apiConstants.status_update, {
         customData: payload,
@@ -1354,8 +1378,11 @@ export function useParcelVerifyFlow({
         tms_current_status: statusForSignature,
       });
 
-      const savedDamageId = selectDamageData?.id;
+      const savedDamageId = canSendDeliveryDamage
+        ? selectDamageData?.id
+        : undefined;
       const damagePayload =
+        canSendDeliveryDamage &&
         isDeliveryOrder(itemsData) &&
         productDamageList?.length > 0 &&
         Object.keys(parcelDamageSelections).length > 0
