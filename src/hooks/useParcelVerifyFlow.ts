@@ -24,6 +24,8 @@ import { appendToLocalUploadQueue } from '@/src/utils/localUploadQueue';
 import { isDeliveryOrder } from '@/src/utils/orderStatus';
 import {
   doesLabelRequireSignature,
+  getSignatureIsDelivery,
+  isSignatureAllowedAfterStatusUpdate,
   isDescriptionOptional,
   shouldSendDamageForDeliveryLabel,
   shouldSkipCommentAfterCamera,
@@ -211,6 +213,27 @@ export function useParcelVerifyFlow({
   const signatureReopenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Locked at label select — survives stub overwrites so signature button still shows. */
   const signatureRequiredRef = useRef(false);
+  const signatureLabelRef = useRef<any>(null);
+
+  const openSignatureFlow = useCallback((label: any) => {
+    let fullLabel = label;
+    if (label?.id != null && AllDeliveyLabel?.length) {
+      const fromList = AllDeliveyLabel.find(
+        (item: any) => Number(item?.id) === Number(label.id),
+      );
+      if (fromList) {
+        fullLabel = {
+          ...fromList,
+          ...label,
+          signature_required: label?.signature_required ?? fromList?.signature_required,
+          signature_rejected: label?.signature_rejected ?? fromList?.signature_rejected,
+        };
+      }
+    }
+    if (!doesLabelRequireSignature(fullLabel)) return;
+    signatureLabelRef.current = fullLabel ?? null;
+    setShowSig(true);
+  }, [AllDeliveyLabel]);
 
   useEffect(() => {
     selectCurrentDeliveryLabelRef.current = SelectCurrentDeliveryLabel;
@@ -871,6 +894,7 @@ export function useParcelVerifyFlow({
       console.log('[DirectFlow] persistDeliveryLabel', {
         id: fullLabel?.id,
         signature_required: fullLabel?.signature_required,
+        signature_rejected: fullLabel?.signature_rejected,
         signatureRequiredRef: signatureRequiredRef.current,
       });
       // Global pin first (survives soft null). Then module store + local refs.
@@ -890,6 +914,7 @@ export function useParcelVerifyFlow({
       console.log('[DirectFlow] handleSelectDeliveryLabel', {
         id: labelItem?.id,
         signature_required: labelItem?.signature_required,
+        signature_rejected: labelItem?.signature_rejected,
       });
       persistDeliveryLabel(labelItem);
     },
@@ -1098,6 +1123,12 @@ export function useParcelVerifyFlow({
 
       setSignatureLoader(true);
       try {
+        const labelForSig =
+          signatureLabelRef.current ??
+          EffectiveDeliveryLabel ??
+          PinnedDeliveryLabel ??
+          SelectCurrentDeliveryLabel;
+
         const payload: any = {
           token: UserData?.user?.verify_token,
           role: UserData?.user?.role,
@@ -1106,12 +1137,14 @@ export function useParcelVerifyFlow({
           name,
           signature,
           order_id: itemsData?.id,
+          is_delivery: getSignatureIsDelivery(labelForSig),
         };
 
         // Signature top damage/undamage Change → send modified per-parcel list
         // (same shape as status_update; do not send stale selectDamageData).
         const canSendDeliveryDamage = shouldSendDamageForDeliveryLabel(
-          EffectiveDeliveryLabel ??
+          labelForSig ??
+            EffectiveDeliveryLabel ??
             PinnedDeliveryLabel ??
             SelectCurrentDeliveryLabel,
           itemsData,
@@ -1139,6 +1172,7 @@ export function useParcelVerifyFlow({
         });
 
         if (res?.status) {
+          signatureLabelRef.current = null;
           setProductDamageList([]);
           if (allSelectImage?.length > 0 && CommentId != null) {
             const orderId =
@@ -1225,6 +1259,10 @@ export function useParcelVerifyFlow({
       t,
       setToast,
       ErrorHandle,
+      EffectiveDeliveryLabel,
+      PinnedDeliveryLabel,
+      SelectCurrentDeliveryLabel,
+      setProductDamageList,
     ],
   );
 
@@ -1327,6 +1365,7 @@ export function useParcelVerifyFlow({
       console.log('[DirectFlow] status_update payload delivery label', {
         delivered_lable_id: payload.delivered_lable_id ?? null,
         signature_required: activeDeliveryLabel?.signature_required,
+        signature_rejected: activeDeliveryLabel?.signature_rejected,
         sessionId: activeDeliveryLabel?.id ?? null,
         is_damage: payload.is_damage,
       });
@@ -1357,7 +1396,16 @@ export function useParcelVerifyFlow({
           (item: any) => Number(item?.id) === Number(savedDeliveryLabel.id),
         );
         if (fromList) {
-          savedDeliveryLabel = { ...savedDeliveryLabel, ...fromList };
+          savedDeliveryLabel = {
+            ...fromList,
+            ...savedDeliveryLabel,
+            signature_required:
+              savedDeliveryLabel?.signature_required ??
+              fromList?.signature_required,
+            signature_rejected:
+              savedDeliveryLabel?.signature_rejected ??
+              fromList?.signature_rejected,
+          };
         }
       }
 
@@ -1370,11 +1418,19 @@ export function useParcelVerifyFlow({
         savedDeliveryLabel != null
           ? doesLabelRequireSignature(savedDeliveryLabel)
           : signatureRequiredRef.current === true;
+      const isSignatureAllowed = isSignatureAllowedAfterStatusUpdate(
+        res,
+        savedDeliveryLabel ??
+          (signatureRequiredRef.current
+            ? { signature_required: 1, signature_rejected: 0 }
+            : null),
+      );
 
       console.log('[DirectFlow] commentFun signature check', {
         savedDeliveryLabel: {
           id: savedDeliveryLabel?.id ?? null,
           signature_required: savedDeliveryLabel?.signature_required,
+          signature_rejected: savedDeliveryLabel?.signature_rejected,
         },
         signatureRequiredRef: signatureRequiredRef.current,
         tms_current_status: statusForSignature,
@@ -1471,9 +1527,6 @@ export function useParcelVerifyFlow({
         [],
         selectPlace?.item_id,
       );
-      // Same rule as ScannerScreens CommentFun — plus locked ref if pin was stubbed.
-      const isSignatureAllowed =
-        statusForSignature === 5 && labelNeedsSignature;
 
       console.log('[DirectFlow] commentFun button decision', {
         parcelsStillRemaining,
@@ -1482,6 +1535,7 @@ export function useParcelVerifyFlow({
         check: {
           statusForSignature,
           signature_required_eq_1: savedDeliveryLabel?.signature_required == 1,
+          signature_rejected_eq_1: savedDeliveryLabel?.signature_rejected == 1,
           signatureRequiredRef: signatureRequiredRef.current,
         },
       });
@@ -1497,7 +1551,7 @@ export function useParcelVerifyFlow({
           softClearDeliveryLabelUi();
           await onSuccess?.();
           setSecondModal((prev: any) => ({ ...prev, visible: false }));
-          setShowSig(true);
+          openSignatureFlow(savedDeliveryLabel);
           return;
         }
       }
@@ -1521,7 +1575,7 @@ export function useParcelVerifyFlow({
               type: 'primary',
               onPress: () => {
                 setSecondModal((prev: any) => ({ ...prev, visible: false }));
-                setShowSig(true);
+                openSignatureFlow(savedDeliveryLabel);
               },
             });
           } else {
@@ -1588,7 +1642,7 @@ export function useParcelVerifyFlow({
               type: 'primary',
               onPress: () => {
                 setSecondModal((prev: any) => ({ ...prev, visible: false }));
-                setShowSig(true);
+                openSignatureFlow(savedDeliveryLabel);
               },
             },
           ],
@@ -1641,6 +1695,7 @@ export function useParcelVerifyFlow({
     ErrorHandle,
     setDeliveyDataSave,
     setPickUpDataSave,
+    openSignatureFlow,
   ]);
 
   const handleSignatureCameraPress = useCallback(() => {

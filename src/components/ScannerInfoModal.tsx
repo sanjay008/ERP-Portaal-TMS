@@ -140,6 +140,7 @@ export default function ScannerInfoModal({
     { id: 5, label: t("Wrong address") },
     { id: 6, label: t("Rejected") },
   ];
+  
   const getTextColor = (bgColor: string) => {
     if (!bgColor) return "#000";
 
@@ -149,18 +150,14 @@ export default function ScannerInfoModal({
     const g = parseInt(color.substring(2, 4), 16);
     const b = parseInt(color.substring(4, 6), 16);
 
-    // Brightness formula
     const brightness = (r * 299 + g * 587 + b * 114) / 1000;
 
-    return brightness > 128 ? "#000" : "#FFF";
+    return brightness > 128 ? Colors.black : Colors.white;
   };
-  // --- EFFECT: log whenever modal visibility changes ---
+  
 
   const handleOptionSelect = (item: any) => {
     setSelectCurrentDeliveryLabel(item)
-    // setSelectDeliveryReson(item)
-    // setShowReasonList(false);
-    // setShowDeliveredAtList(false);
 
     setAlerModalOpen({
       visible: true,
@@ -206,8 +203,7 @@ export default function ScannerInfoModal({
     stopData !== undefined &&
     stopData !== "";
 
-  // Unauthorized / invalid-scan popup only (red backdrop from verify fail).
-  // Reuse PickUpBox here — do not change PickUpBox itself or other modal types.
+
   const pickupOrderData =
     OrderData?.order_data ??
     (personData && !Array.isArray(personData) && personData?.id

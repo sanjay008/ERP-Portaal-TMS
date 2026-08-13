@@ -3,8 +3,8 @@ import { Images } from "@/src/assets/images";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import { DropboxContext } from "@/src/context/UploadProider";
 import ApiService from "@/src/utils/Apiservice";
-import { getData } from "@/src/utils/storeData";
 import { bootstrapAppDateTime } from "@/src/utils/appDateTime";
+import { getData } from "@/src/utils/storeData";
 import * as Font from "expo-font";
 import React, { useContext, useEffect } from "react";
 import { Image, StyleSheet, View } from "react-native";
@@ -46,7 +46,7 @@ export default function SplashScreens({ navigation }: any) {
         setAllLanguage(data?.data || []);
       }
     } catch (err) {
-      // language fetch failed — continue startup
+      console.log('language fetch failed — continue startup', err);
     }
   };
 

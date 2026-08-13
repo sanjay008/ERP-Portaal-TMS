@@ -628,7 +628,7 @@ export default function AddWarehouseProductModal({
                     placeholder="1"
                     placeholderTextColor={Colors.gray}
                   />
-                  <Pressable
+                  {/* <Pressable
                     style={({ pressed }) => [
                       styles.qtyAddBtn,
                       !selectedProductId && styles.qtyAddBtnDisabled,
@@ -638,7 +638,7 @@ export default function AddWarehouseProductModal({
                     disabled={!selectedProductId}
                   >
                     <Text style={styles.qtyAddText}>+</Text>
-                  </Pressable>
+                  </Pressable> */}
                 </View>
 
                 {selectedProductId ? (

@@ -61,6 +61,7 @@ export interface LocalUploadItem {
   commentId: number | null;
   folder?: string;
   batchId?: string;
+  qr_data?: string | null;
 }
 
 export interface DropboxQueueItem {
@@ -69,6 +70,7 @@ export interface DropboxQueueItem {
   item_id: number | null;
   commentId: number | null;
   batchId?: string;
+  qr_data?: string | null;
 }
 
 const createBatchId = (): string =>
@@ -570,6 +572,7 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         formData.append("user_id", String(UserData.user.id ?? ""));
         formData.append("order_id", String(item.order_id ?? ""));
         formData.append("order_log_id", String(item.commentId ?? ""));
+        // formData.append("qr_data", item.qr_data ?? "null");
 
         if (item.item_id !== null && item.item_id !== undefined) {
           formData.append("item_id", String(item.item_id));
@@ -583,6 +586,8 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
           formData.append(`images[${index}][shared_link]`, image?.shared_link ?? "");
         });
 
+        console.log("formData dropbox upload", formData);
+        
         const response = await axios.post(apiConstants.store_tms_comment_img_new, formData, {
           headers: { "Content-Type": "multipart/form-data" },
           transformRequest: (data) => data,
@@ -611,6 +616,7 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
       order_log_id: number | null;
       error: string;
       file: string;
+      qr_data?: string | null;
     }): Promise<{ success: boolean; message?: string }> => {
       if (!UserData?.user?.verify_token) {
         return { success: false, message: "User data not available" };
@@ -627,6 +633,7 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         formData.append("order_log_id", String(params.order_log_id ?? ""));
         formData.append("error", params.error);
         formData.append("file", params.file);
+        formData.append("qr_data", params.qr_data ?? "null");
 
         if (params.item_id !== null && params.item_id !== undefined) {
           formData.append("item_id", String(params.item_id));
@@ -841,6 +848,7 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
                 order_log_id: batchItem.commentId,
                 error: result.error,
                 file: result.file,
+                qr_data: batchItem.qr_data ?? null,
               }),
             );
           } else {
@@ -886,6 +894,7 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
           item_id: batchItem.item_id,
           commentId: batchItem.commentId,
           batchId: batchItem.batchId,
+          qr_data: batchItem.qr_data ?? null,
         });
 
         const doneKey = getQueueItemKey(doneItem);

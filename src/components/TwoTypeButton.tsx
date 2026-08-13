@@ -28,7 +28,11 @@ export default function TwoTypeButton({
   return (
     <TouchableOpacity style={[styles.container, style]} onPress={onPress}>
       <Image source={Icon} style={[styles.Icon, IconStyle, { tintColor: tintColor }]} />
-      {!onlyIcon && <Text style={[styles.Title, TitleStyle]}>{title}</Text>}
+      {!onlyIcon && (
+        <Text style={[styles.Title, TitleStyle]} numberOfLines={2}>
+          {title}
+        </Text>
+      )}
     </TouchableOpacity>
   );
 }
@@ -36,7 +40,9 @@ export default function TwoTypeButton({
 const styles = StyleSheet.create({
   container: {
     width: "48%",
-    height: 45,
+    minHeight: 45,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
     backgroundColor: Colors.primary,
     borderRadius: 4,
     flexDirection: "row",
@@ -45,9 +51,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   Title: {
+    flexShrink: 1,
     fontSize: 15,
     fontFamily: FONTS.Medium,
     color: Colors.white,
+    textAlign: "center",
   },
   Icon: {
     width: '60%',

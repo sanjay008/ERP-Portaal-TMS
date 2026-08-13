@@ -7,7 +7,6 @@ import { Colors } from '@/src/utils/colors';
 import { pingDriverLiveLocation } from '@/src/utils/driverLocationApi';
 import { setLastScannedOrderId } from '@/src/utils/lastScannedOrderId';
 import { syncNativeDriverTracking } from '@/src/utils/nativeDriverLocation';
-import { prefetchScanFreshLocation } from '@/src/utils/scanFreshLocation';
 import { isDeliveryOrder, isPickupOrder } from '@/src/utils/orderStatus';
 import { shouldSkipCommentAfterCamera } from '@/src/utils/parcelCommentRules';
 import {
@@ -29,6 +28,7 @@ import {
   mergeParcelIntoDamageList,
   shouldOpenPickupPlannedModal,
 } from '@/src/utils/pickupPlanned';
+import { prefetchScanFreshLocation } from '@/src/utils/scanFreshLocation';
 
 export type ParcelVerifyScanPayload = {
   order_id: number | string;
@@ -117,12 +117,14 @@ export async function runParcelVerifyFlow(
       item_id: data?.item_id,
       order_id: data?.order_id,
       region_id:deps?.selectRegionData?.id,
+      qr_data: JSON.stringify(data ?? null),
       date:
         deps.globlyTypeSlide === 'outbound_scan'
           ? ApiFormatDate(new Date())
           : ApiFormatDate(deps.selectCurrentDate),
       type: slideType,
     };
+
 
     if (!payload.item_id || !payload.order_id) {
       deps.setToast({
@@ -137,7 +139,7 @@ export async function runParcelVerifyFlow(
     const res = await ApiService(apiConstants.Verify_status, {
       customData: payload,
     });
-
+    console.log("payload", res);
     if (!Boolean(res?.status)) {
       const orderData = res?.data?.order_data || null;
       const productItems =
@@ -289,7 +291,7 @@ export async function runParcelVerifyFlow(
 
     if (
       slideType === 'driver_loading' &&
-      res?.data?.order_data?.items[0]?.tmsstatus?.id === 11
+      res?.data?.order_data?.items?.[0]?.tmsstatus?.id === 11
     ) {
       // modalConfig.UnloadingText = deps.t('Unloading');
       // modalConfig.onUnloadingPress = async () => {
@@ -430,10 +432,15 @@ export async function runParcelVerifyFlow(
       isStatus4 &&
       slideType === 'pickup_dropoff' &&
       itemNeedsDeliveryLabelSelection(res?.data, data);
+    const isWarehouseUnload = slideType === 'driver_warehouse_unload';
 
     let scanOverlayShown = false;
 
-    if (sessionLabelForCamera == null || Boolean(res?.data?.error_key)) {
+    if (
+      isWarehouseUnload ||
+      sessionLabelForCamera == null ||
+      Boolean(res?.data?.error_key)
+    ) {
       if (!isDeliveryPendingItem) {
         deps.setResponseOrderData(res?.data?.order_data);
         deps.setConformationModal(modalConfig);

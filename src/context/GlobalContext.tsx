@@ -50,6 +50,7 @@ export default function GlobalContext({ children }: any) {
       id: label?.id ?? null,
       title: label?.title ?? label?.name ?? null,
       signature_required: label?.signature_required,
+      signature_rejected: label?.signature_rejected,
       isNull: label == null,
     });
     if (label != null) {

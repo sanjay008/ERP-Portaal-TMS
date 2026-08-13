@@ -39,6 +39,8 @@ import { appendToLocalUploadQueue } from "@/src/utils/localUploadQueue";
 import { isDeliveryOrder } from "@/src/utils/orderStatus";
 import {
   doesLabelRequireSignature,
+  getSignatureIsDelivery,
+  isSignatureAllowedAfterStatusUpdate,
   shouldSendDamageForDeliveryLabel,
   shouldShowDamageInCommentModal,
   shouldSkipCommentAfterCamera,
@@ -345,7 +347,7 @@ export default function ScannerScreens({ navigation, route }: any) {
   const [ShowDeliveryLabelList, setShowDeliveryLabelList] = useState(0);
   const [DropBoxUploadImageData, setDropBoxUploadImageData] = useState<any[]>([]);
   const [ImageStoreLoader, setImageStoreLoader] = useState<boolean>(false);
-
+  const [QRData,setQRData] = useState<any>(null);
   const [CommentStep, setCommentStep] = useState<number>(1);
   const [ReposonseOrderData, setResponseOrderData] = useState<any>(null);
   const [AlertModalOpen, setAlerModalOpen] = useState<AlertModalType>({
@@ -368,6 +370,27 @@ export default function ScannerScreens({ navigation, route }: any) {
 
   const deliveryTypeRef = useRef(false);
   const signatureReopenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const signatureLabelRef = useRef<any>(null);
+
+  const openSignatureFlow = useCallback((label: any) => {
+    let fullLabel = label;
+    if (label?.id != null && AllDeliveyLabel?.length) {
+      const fromList = AllDeliveyLabel.find(
+        (item: any) => Number(item?.id) === Number(label.id),
+      );
+      if (fromList) {
+        fullLabel = {
+          ...fromList,
+          ...label,
+          signature_required: label?.signature_required ?? fromList?.signature_required,
+          signature_rejected: label?.signature_rejected ?? fromList?.signature_rejected,
+        };
+      }
+    }
+    if (!doesLabelRequireSignature(fullLabel)) return;
+    signatureLabelRef.current = fullLabel ?? null;
+    setShowSig(true);
+  }, [AllDeliveyLabel]);
 
   const reopenSignatureAfterCamera = useCallback((data: any[]) => {
     if (!data?.length) return;
@@ -836,9 +859,13 @@ export default function ScannerScreens({ navigation, route }: any) {
       setIsVerifyingScan(true);
 
       try {
+      
         let parsedData: any;
+        
         try {
           parsedData = JSON.parse(data);
+          console.log("QRDATa",parsedData);
+          setQRData(parsedData)
         } catch (err) {
           setQrErrorMessage(null);
           setShowQRError(true);
@@ -986,6 +1013,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         item_id: item_id,
         order_id: order_id,
         type: type ?? GloblyTypeSlide,
+        qr_data: JSON.stringify(QRData),
       };
       const res = await ApiService(apiConstants.revert_order_item_status, {
         customData: payload,
@@ -1045,11 +1073,13 @@ export default function ScannerScreens({ navigation, route }: any) {
         item_id: data?.item_id,
         order_id: data?.order_id,
         platform:ScanPlatFormId,
+        qr_data: JSON.stringify(QRData),
         type: type ?? GloblyTypeSlide,
         ...(SelectCurrentDeliveryLabel != null && GloblyTypeSlide == "pickup_dropoff" && {
           delivered_lable_id: SelectCurrentDeliveryLabel?.id,
         }),
       };
+     
       console.log("StatusUpdateFun", payload);
 
       if (is_driver_unloading) {
@@ -1185,6 +1215,7 @@ export default function ScannerScreens({ navigation, route }: any) {
     formData.append("user_id", UserData?.user?.id);
     formData.append("role", UserData?.user?.role);
     formData.append("relaties_id", UserData?.relaties?.id);
+    formData.append("qr_data", JSON.stringify(QRData));
 
     data.forEach((id: any) => {
 
@@ -1239,6 +1270,7 @@ export default function ScannerScreens({ navigation, route }: any) {
           role: UserData?.user?.role,
           relaties_id: UserData?.relaties?.id,
           user_id: UserData?.user?.id,
+          qr_data: JSON.stringify(QRData),
         },
       });
 
@@ -1287,6 +1319,7 @@ export default function ScannerScreens({ navigation, route }: any) {
       image_data: [...AllSelectImage],
       item_id: SelectPlace?.item_id || null,
       commentId: null,
+      qr_data: JSON.stringify(QRData),
     });
   };
 
@@ -1304,11 +1337,11 @@ export default function ScannerScreens({ navigation, route }: any) {
 
     try {
       const formData: any = new FormData();
-
       formData.append('token', UserData?.user?.verify_token);
       formData.append('role', UserData?.user?.role);
       formData.append('relaties_id', UserData?.relaties?.id);
       formData.append('user_id', UserData?.user?.id);
+      formData.append('qr_data', JSON.stringify(QRData));
       formData.append('order_comment', Description?.trim() || comment?.trim() || '');
       formData.append('order_id', id ? id : SelectPlace?.id);
       let image_data = Array.isArray(data) && data?.length > 0
@@ -1339,6 +1372,7 @@ export default function ScannerScreens({ navigation, route }: any) {
             image_data: [...image_data],
             item_id: SelectPlace?.item_id || null,
             commentId: orderLogId,
+            qr_data: JSON.stringify(QRData),
           });
         }
         setAllSelectImage([]);
@@ -1400,6 +1434,10 @@ export default function ScannerScreens({ navigation, route }: any) {
     }
     setSignatureLoader(true)
     try {
+      const labelForSig =
+        signatureLabelRef.current ??
+        SelectCurrentDeliveryLabel ??
+        getSessionDeliveryLabel();
 
       const payload: any = {
         token: UserData?.user?.verify_token,
@@ -1409,12 +1447,13 @@ export default function ScannerScreens({ navigation, route }: any) {
         name,
         signature,
         order_id: ItemsData?.id,
+        is_delivery: getSignatureIsDelivery(labelForSig),
       };
-
-      // Signature top damage/undamage Change → send modified per-parcel list
-      // (same shape as status_update; do not send stale selectDamageData).
+      if(SelectCurrentDeliveryLabel?.id !== 26){
+        payload.qr_data =  JSON.stringify(QRData);
+      }
       const canSendDeliveryDamage = shouldSendDamageForDeliveryLabel(
-        SelectCurrentDeliveryLabel,
+        labelForSig ?? SelectCurrentDeliveryLabel,
         ItemsData,
       );
       if (canSendDeliveryDamage && Array.isArray(damageItems) && damageItems.length > 0) {
@@ -1440,6 +1479,7 @@ export default function ScannerScreens({ navigation, route }: any) {
       });
 
       if (res?.status) {
+        signatureLabelRef.current = null;
         setProductDamageList([]);
         if (AllSelectImage?.length > 0 && CommentId != null) {
           const orderId = SelectPlace?.order_id ?? ItemsData?.id ?? ItemsData?.order_data?.id;
@@ -1449,6 +1489,7 @@ export default function ScannerScreens({ navigation, route }: any) {
               image_data: [...AllSelectImage],
               item_id: SelectPlace?.item_id || null,
               commentId: CommentId,
+              qr_data: JSON.stringify(QRData),
             });
           }
         }
@@ -1578,6 +1619,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         }
       }
 
+      const sessionDeliveryLabel = getSessionDeliveryLabel();
       const payload: any = {
         token: UserData?.user?.verify_token,
         role: UserData?.user?.role,
@@ -1587,13 +1629,14 @@ export default function ScannerScreens({ navigation, route }: any) {
         order_id: SelectPlace?.order_id,
         type: GloblyTypeSlide,
         platform:ScanPlatFormId,
-        ...(SelectCurrentDeliveryLabel !== null && GloblyTypeSlide == "pickup_dropoff" && {
-          delivered_lable_id: SelectCurrentDeliveryLabel?.id,
+        qr_data: JSON.stringify(QRData),
+        ...(sessionDeliveryLabel != null && GloblyTypeSlide == "pickup_dropoff" && {
+          delivered_lable_id: sessionDeliveryLabel?.id,
         }),
       };
 
       const canSendDeliveryDamage = shouldSendDamageForDeliveryLabel(
-        SelectCurrentDeliveryLabel,
+        sessionDeliveryLabel,
         ItemsData,
       );
       if (isDeliveryMultiDamage && canSendDeliveryDamage) {
@@ -1614,7 +1657,28 @@ export default function ScannerScreens({ navigation, route }: any) {
       });
 
       if (res?.status) {
-        const savedDeliveryLabel = SelectCurrentDeliveryLabel;
+        let savedDeliveryLabel =
+          sessionDeliveryLabel ??
+          SelectCurrentDeliveryLabel ??
+          getSessionDeliveryLabel();
+        if (savedDeliveryLabel?.id != null && AllDeliveyLabel?.length) {
+          const fromList = AllDeliveyLabel.find(
+            (item: any) => Number(item?.id) === Number(savedDeliveryLabel.id),
+          );
+          if (fromList) {
+            // Keep selected flags if list entry is stale/missing them.
+            savedDeliveryLabel = {
+              ...fromList,
+              ...savedDeliveryLabel,
+              signature_required:
+                savedDeliveryLabel?.signature_required ??
+                fromList?.signature_required,
+              signature_rejected:
+                savedDeliveryLabel?.signature_rejected ??
+                fromList?.signature_rejected,
+            };
+          }
+        }
         const savedDamageId = canSendDeliveryDamage
           ? selectDamageData?.id
           : undefined;
@@ -1705,9 +1769,10 @@ export default function ScannerScreens({ navigation, route }: any) {
           NoParcelItemIds,
           SelectPlace?.item_id,
         );
-        const isSignatureAllowed =
-          Number(res?.tms_current_status) === 5 &&
-          doesLabelRequireSignature(savedDeliveryLabel);
+        const isSignatureAllowed = isSignatureAllowedAfterStatusUpdate(
+          res,
+          savedDeliveryLabel,
+        );
 
         clearDeliveryLabelSelection();
         deliveryLabelModalPendingRef.current = false;
@@ -1718,7 +1783,7 @@ export default function ScannerScreens({ navigation, route }: any) {
           deliveryMoreParcelsNoPathRef.current = false;
           if (doesLabelRequireSignature(savedDeliveryLabel)) {
             setSecondModal((p: any) => ({ ...p, visible: false }));
-            setShowSig(true);
+            openSignatureFlow(savedDeliveryLabel);
             return;
           }
         }
@@ -1732,7 +1797,7 @@ export default function ScannerScreens({ navigation, route }: any) {
                 text: t("Signature"),
                 type: "primary",
                 onPress: () => {
-                  setShowSig(true);
+                  openSignatureFlow(savedDeliveryLabel);
                 },
               });
             } else {
@@ -1799,7 +1864,7 @@ export default function ScannerScreens({ navigation, route }: any) {
             text: t("Signature"),
             type: "primary",
             onPress: () => {
-              setShowSig(true);
+              openSignatureFlow(savedDeliveryLabel);
             },
           }]
 
@@ -1851,6 +1916,7 @@ export default function ScannerScreens({ navigation, route }: any) {
           user_id: UserData?.user?.id,
           order_id: id,
           type: type,
+          qr_data: JSON.stringify(QRData),
         },
       });
 
@@ -1932,6 +1998,7 @@ export default function ScannerScreens({ navigation, route }: any) {
       formData.append("role", UserData?.user?.role);
       formData.append("relaties_id", UserData?.relaties?.id);
       formData.append("user_id", UserData?.user?.id);
+      formData.append("qr_data", JSON.stringify(QRData));
 
       // ✅ Use SelectPlace.order_id (from scanned QR)
       formData.append("order_id", SelectPlace.order_id);
@@ -1969,14 +2036,17 @@ export default function ScannerScreens({ navigation, route }: any) {
         if (!backorderParcelsRemaining) {
           const buttons: any[] = [];
 
-          const isSignatureAllowed = Number(res?.data?.tms_current_status) === 5 && doesLabelRequireSignature(SelectCurrentDeliveryLabel);
+          const isSignatureAllowed = isSignatureAllowedAfterStatusUpdate(
+            res?.data,
+            SelectCurrentDeliveryLabel ?? getSessionDeliveryLabel(),
+          );
 
           if (isSignatureAllowed) {
             buttons.push({
               text: t("Signature"),
               type: "primary",
               onPress: () => {
-                setShowSig(true);
+                openSignatureFlow(SelectCurrentDeliveryLabel);
               },
             });
           } else {
@@ -2137,6 +2207,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         // ignore audio errors
       }
 
+      setQRData({ order_id: orderId, item_id: itemId });
       await QuestiongetApi({
         order_id: orderId,
         item_id: itemId,
@@ -2899,6 +2970,7 @@ export default function ScannerScreens({ navigation, route }: any) {
     </GestureHandlerRootView>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {

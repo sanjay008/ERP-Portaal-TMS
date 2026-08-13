@@ -7,7 +7,10 @@ export function getOrderTmsStatusId(order: any): number {
   if (!order) return NaN;
 
   
-  const raw = order?.items[0]?.tmsstatus?.id ?? order?.tmsstatus?.id ?? order?.tms_status_id;
+  const raw =
+    order?.items?.[0]?.tmsstatus?.id ??
+    order?.tmsstatus?.id ??
+    order?.tms_status_id;
   const parsed = Number(raw);
   return Number.isFinite(parsed) ? parsed : NaN;
 }

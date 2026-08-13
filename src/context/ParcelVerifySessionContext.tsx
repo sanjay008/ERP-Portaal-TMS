@@ -96,6 +96,7 @@ export function rememberDeliveryLabel(label: any) {
   console.log('[rememberDeliveryLabel]', {
     id: label?.id,
     signature_required: label?.signature_required,
+    signature_rejected: label?.signature_rejected,
     title: label?.title,
   });
 }
@@ -130,6 +131,7 @@ export function ParcelVerifySessionProvider({
     console.log('[ParcelVerifySession] setSessionDeliveryLabel', {
       id: label?.id ?? null,
       signature_required: label?.signature_required,
+      signature_rejected: label?.signature_rejected,
       isNull: label == null,
       full: label,
     });

@@ -252,31 +252,37 @@ export default function WarehouseOrderSheet({
               </View>
             </>
           )}
-          {!!onAddImage && (
-            <Pressable
-              style={({ pressed }) => [
-                styles.btn,
-                styles.addImageBtn,
-                pressed && styles.pressed,
-              ]}
-              onPress={onAddImage}
-              disabled={loading || !orderData}
-            >
-              <Text style={styles.addImageBtnText}>{t('Take picture')}</Text>
-            </Pressable>
-          )}
-          {!!onAddProduct && (
-            <Pressable
-              style={({ pressed }) => [
-                styles.btn,
-                styles.addProductBtn,
-                pressed && styles.pressed,
-              ]}
-              onPress={onAddProduct}
-              disabled={loading || !orderData}
-            >
-              <Text style={styles.addProductBtnText}>{t('Add Product')}</Text>
-            </Pressable>
+          {(!!onAddImage || !!onAddProduct) && (
+            <View style={styles.mediaActionsRow}>
+              {!!onAddImage && (
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.btn,
+                    styles.addImageBtn,
+                    styles.mediaActionBtn,
+                    pressed && styles.pressed,
+                  ]}
+                  onPress={onAddImage}
+                  disabled={loading || !orderData}
+                >
+                  <Text style={styles.addImageBtnText}>{t('Take picture')}</Text>
+                </Pressable>
+              )}
+              {!!onAddProduct && (
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.btn,
+                    styles.addProductBtn,
+                    styles.mediaActionBtn,
+                    pressed && styles.pressed,
+                  ]}
+                  onPress={onAddProduct}
+                  disabled={loading || !orderData}
+                >
+                  <Text style={styles.addProductBtnText}>{t('Add Product')}</Text>
+                </Pressable>
+              )}
+            </View>
           )}
         </View>
 
@@ -422,6 +428,14 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontSize: 16,
     fontFamily: FONTS.SemiBold,
+  },
+  mediaActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  mediaActionBtn: {
+    width: '48%',
   },
   pressed: {
     opacity: 0.88,

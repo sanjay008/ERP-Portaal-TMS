@@ -8,6 +8,7 @@ export type LocalUploadQueueItem = {
   item_id: number | null;
   commentId: number | null;
   batchId?: string;
+  qr_data?: string | null;
 };
 
 const createBatchId = (): string =>
@@ -31,6 +32,7 @@ export const appendToLocalUploadQueue = (
     item_id: item.item_id ?? null,
     commentId,
     batchId: item.batchId || createBatchId(),
+    qr_data: item.qr_data ?? null,
   };
 
   setLocalImagesUploadbeforeData((prev: LocalUploadQueueItem[]) => {

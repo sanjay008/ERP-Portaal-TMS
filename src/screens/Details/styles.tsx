@@ -15,25 +15,30 @@ export const styles = StyleSheet.create({
   NoParcelButton: {
     width: "100%",
     backgroundColor: Colors.no_parcel,
-    marginTop:15
+    marginTop: 15,
+    minHeight: 50,
+    paddingVertical: 10,
   },
-    DriverBG:{
-    backgroundColor:"#595959",
-    padding:5,
-    borderRadius:4
-
+  DriverBG: {
+    backgroundColor: "#595959",
+    padding: 5,
+    borderRadius: 4,
   },
   OpenCameraButton: {
     width: "100%",
     backgroundColor: Colors.green,
+    minHeight: 50,
+    paddingVertical: 10,
   },
-  LabelBtn:{
-    width:"100%",
-    marginVertical:5,
-    height:50,
-    borderRadius:4,
-    justifyContent:"center",
-    alignItems:"center"
+  LabelBtn: {
+    width: "100%",
+    marginVertical: 5,
+    minHeight: 50,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+    justifyContent: "center",
+    alignItems: "center",
   },
   LoaderContainer:{
     flex:1,

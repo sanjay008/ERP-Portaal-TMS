@@ -445,7 +445,7 @@ export default function FilterScreen({ navigation, route }: any) {
     isShiftReadyForRegion,
     setActiveShift,
   ]);
-  console.log("AllDeliveyLabel", AllDeliveyLabel);
+
 
   const getFilterDataFun = useCallback(async () => {
     try {
@@ -629,20 +629,6 @@ export default function FilterScreen({ navigation, route }: any) {
   );
 
   useEffect(() => {
-    console.log('[FilterScreen] focus clear → setSelectCurrentDeliveryLabel(null)', {
-      Focused,
-      SelectDate,
-      Type,
-      commentOpen: parcelVerifyFlow.comment,
-      sigOpen: parcelVerifyFlow.showSig,
-      labelModal: parcelVerifyFlow.evetyTimeShowDeliveryLabelList,
-      alertOpen: parcelVerifyFlow.alertModalOpen?.visible,
-      pinnedId: PinnedDeliveryLabel?.id ?? null,
-      effectiveId: EffectiveDeliveryLabel?.id ?? null,
-      storeId: getActiveVerifyDeliveryLabel()?.id ?? null,
-    });
-    // Keep Direct Flow label while label picker / camera proof / comment / signature
-    // is active, OR while global pin still holds the selected label.
     const keepLabel =
       EffectiveDeliveryLabel != null ||
       PinnedDeliveryLabel != null ||
@@ -698,9 +684,6 @@ export default function FilterScreen({ navigation, route }: any) {
         type: GloblyTypeSlide ?? item?.type ?? Type,
         region_id: selectRegion?.id,
       };
-
-
-      console.log("Request Data Planing", payload);
 
       const response = await ApiService(
         apiConstants.get_tms_orders_flat_by_region,
@@ -949,6 +932,7 @@ export default function FilterScreen({ navigation, route }: any) {
     deviceLocationStatus,
     syncTrackingFlag,
   ]);
+
 
   return (
     <SafeAreaView style={styles.container}>

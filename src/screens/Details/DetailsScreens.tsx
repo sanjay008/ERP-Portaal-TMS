@@ -26,6 +26,11 @@ import { Colors } from "@/src/utils/colors";
 import { appendToLocalUploadQueue } from "@/src/utils/localUploadQueue";
 import { isDeliveryOrder, isPickupOrder } from "@/src/utils/orderStatus";
 import {
+  doesLabelRequireSignature,
+  getSignatureIsDelivery,
+  isSignatureAllowedAfterStatusUpdate,
+} from "@/src/utils/parcelCommentRules";
+import {
   lockParcelCameraCallback,
   unlockParcelCameraCallback,
 } from "@/src/utils/parcelVerifyCameraReturn";
@@ -37,7 +42,7 @@ import axios from "axios";
 import * as ImagePicker from "expo-image-picker";
 import * as IntentLauncher from "expo-intent-launcher";
 import { StatusBar } from "expo-status-bar";
-import React, { useCallback, useContext, useEffect, useState } from "react";
+import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Alert,
@@ -101,6 +106,27 @@ export default function DetailsScreens({ navigation, route }: any) {
   const [showSig, setShowSig] = useState<boolean>(false);
   const [SignatureLoader, setSignatureLoader] = useState<boolean>(false);
   const [LocationDataMessage, setLocationDataMessage] = useState<string | null>(null);
+  const signatureLabelRef = useRef<any>(null);
+
+  const openSignatureFlow = useCallback((label: any) => {
+    let fullLabel = label;
+    if (label?.id != null && AllDeliveyLabel?.length) {
+      const fromList = AllDeliveyLabel.find(
+        (item: any) => Number(item?.id) === Number(label.id),
+      );
+      if (fromList) {
+        fullLabel = {
+          ...fromList,
+          ...label,
+          signature_required: label?.signature_required ?? fromList?.signature_required,
+          signature_rejected: label?.signature_rejected ?? fromList?.signature_rejected,
+        };
+      }
+    }
+    if (!doesLabelRequireSignature(fullLabel)) return;
+    signatureLabelRef.current = fullLabel ?? null;
+    setShowSig(true);
+  }, [AllDeliveyLabel]);
 
 
   const [AllDestinationRegionData, setAllDestinationRegionData] = useState<
@@ -145,7 +171,7 @@ export default function DetailsScreens({ navigation, route }: any) {
     onPress: "",
   });
   const [DropBoxUploadImageData, setDropBoxUploadImageData] = useState<any[]>([]);
-console.log("AllDeliveyLabel",AllDeliveyLabel);
+
 
   const [SecondModal, setSecondModal] = useState<{
     visible: boolean;
@@ -760,10 +786,13 @@ console.log("AllDeliveyLabel",AllDeliveyLabel);
 
         if (Number(res?.data.remaining_item) == 0) {
           const buttons: any[] = [];
-          const isSignatureAllowed = Number(res?.data?.tms_current_status) === 5 && Number(SelectCurrentDeliveryLabel?.signature_required) === 1;
+          const isSignatureAllowed = isSignatureAllowedAfterStatusUpdate(
+            res?.data,
+            SelectCurrentDeliveryLabel,
+          );
 
           if (isSignatureAllowed) {
-            setShowSig(true);
+            openSignatureFlow(SelectCurrentDeliveryLabel);
             setNoParcelItemIds([]);
           } else {
             buttons.push({
@@ -884,6 +913,8 @@ console.log("AllDeliveyLabel",AllDeliveyLabel);
     }
     setSignatureLoader(true)
     try {
+      const labelForSig =
+        signatureLabelRef.current ?? SelectCurrentDeliveryLabel;
 
       const payload = {
         token: UserData?.user?.verify_token,
@@ -892,14 +923,15 @@ console.log("AllDeliveyLabel",AllDeliveyLabel);
         user_id: UserData?.user?.id,
         name,
         signature,
-        order_id: ItemsData?.id
+        order_id: ItemsData?.id,
+        is_delivery: getSignatureIsDelivery(labelForSig),
       };
       const res = await ApiService(apiConstants.store_customer_signature, {
         customData: payload,
       });
 
       if (res?.status) {
-
+        signatureLabelRef.current = null;
         setShowSig(false);
         setSecondModal(p => ({ ...p, visible: false }));
         setToast({
@@ -1080,7 +1112,7 @@ console.log("AllDeliveyLabel",AllDeliveyLabel);
               />
 
               <TwoTypeButton
-                title={t("No Parcel")}
+                title={t("Geen pakket of geweigerd Order sluiten")}
                 Icon={Images.NoParcel}
                 style={styles.NoParcelButton}
                 IconStyle={{ width: 22, height: 22 }}
@@ -1104,7 +1136,7 @@ console.log("AllDeliveyLabel",AllDeliveyLabel);
                 ) &&
                 ItemsData?.tms_order_type === Stop_PickupType &&
                 <TwoTypeButton
-                  title={t("Customer is not at home")}
+                  title={t("Geen pakket of Niet Thuis Nieuwe afspraak")}
                   Icon={Images.NoHomeIcon}
                   style={[styles.NoParcelButton, { backgroundColor: Colors.red }]}
                   IconStyle={{ width: 22, height: 22 }}
@@ -1175,9 +1207,14 @@ console.log("AllDeliveyLabel",AllDeliveyLabel);
                     ]}
                   >
                     <Text
-                      style={[styles.Text, {
-                        color: Colors.white,
-                      },]}
+                      numberOfLines={2}
+                      style={[
+                        styles.Text,
+                        {
+                          color: Colors.white,
+                          textAlign: "center",
+                        },
+                      ]}
                     >
                       {t(item?.title)}
                     </Text>

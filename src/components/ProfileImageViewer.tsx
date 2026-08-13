@@ -1,20 +1,22 @@
 import React, { useCallback, useState } from 'react';
 import {
-    Dimensions,
-    ImageStyle,
-    Modal,
-    Pressable,
-    StatusBar,
-    StyleSheet,
-    TouchableOpacity,
+  Dimensions,
+  ImageStyle,
+  Modal,
+  Pressable,
+  StatusBar,
+  StyleSheet,
+  TouchableOpacity,
 } from 'react-native';
 import Animated, {
-    runOnJS,
-    useAnimatedStyle,
-    useSharedValue,
-    withSpring,
-    withTiming,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
 } from 'react-native-reanimated';
+import { Images } from '../assets/images';
+
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const IMAGE_SIZE = SCREEN_WIDTH - 40;
@@ -27,6 +29,7 @@ const ProfileImageViewer = ({
   imageStyle?: ImageStyle;
 }) => {
   const [visible, setVisible] = useState(false);
+  const [hasError, setHasError] = useState(false);
 
   const scale = useSharedValue(0);
   const opacity = useSharedValue(0);
@@ -42,11 +45,12 @@ const ProfileImageViewer = ({
   }));
 
   const openImage = useCallback(() => {
+    if (hasError || !imageUri) return;
     setVisible(true);
     scale.value = withSpring(1, { damping: 100, stiffness: 200 });
     opacity.value = withTiming(1, { duration: 220 });
     backdropOpacity.value = withTiming(1, { duration: 220 });
-  }, []);
+  }, [hasError, imageUri]);
 
   const closeImage = useCallback(() => {
     scale.value = withSpring(0.1, { damping: 100, stiffness: 200 });
@@ -56,12 +60,16 @@ const ProfileImageViewer = ({
     });
   }, []);
 
+  const imageSource =
+    hasError || !imageUri ? Images.userblanck : { uri: imageUri };
+
   return (
     <>
       <TouchableOpacity activeOpacity={0.85} onPress={openImage}>
         <Animated.Image
-          source={{ uri: imageUri }}
+          source={imageSource}
           style={[styles.userImage, imageStyle]}
+          onError={() => setHasError(true)}
         />
       </TouchableOpacity>
 
@@ -79,7 +87,7 @@ const ProfileImageViewer = ({
 
           <Pressable>
             <Animated.Image
-              source={{ uri: imageUri }}
+              source={imageSource}
               style={[styles.fullImage, animatedImageStyle]}
               resizeMode="cover"
             />

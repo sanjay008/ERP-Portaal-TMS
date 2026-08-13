@@ -2,6 +2,7 @@ import { Image } from 'expo-image';
 import React, { useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  ActivityIndicator,
   FlatList,
   Linking,
   Pressable,
@@ -10,12 +11,15 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import apiConstants from '../api/apiConstants';
 import { Images } from "../assets/images";
 import { GlobalContextData } from "../context/GlobalContext";
+import ApiService from '../utils/Apiservice';
 import { Colors } from "../utils/colors";
 import { isDeliveryPhaseOrder } from "../utils/orderStatus";
 import { FONTS, SimpleFlex } from "../utils/storeData";
 import CustomCollapsible from "./CustomCollapsible";
+import { useErrorHandle } from "./ErrorHandle";
 import ParcelBox from "./ParcelBox";
 import PickupPogressMap from "./PickupPogressMap";
 
@@ -53,11 +57,13 @@ function PickUpBox({
   onParcelManualVerify,
 }: any) {
   const { t } = useTranslation();
+  const { ErrorHandle } = useErrorHandle();
   const [isCollapsed, setisCollapsed] = useState<boolean>(AllisCollapsed !== null ? AllisCollapsed : true);
   const pickup: boolean = false;
   const collapsibleRef = useRef<any>(null);
-  const { setToast } = useContext(GlobalContextData);
+  const { setToast, UserData } = useContext(GlobalContextData);
   const cleanedDriverNote = stripHtmlTags(driver_note);
+  const [whatsappLoading, setWhatsappLoading] = useState(false);
 
   const getDirectDropboxLink = (sharedLink: string) => {
     if (!sharedLink) return "";
@@ -79,46 +85,61 @@ function PickUpBox({
     return mobile;
   };
 
-  const WhatsaapRedirectFun = async (type: number) => {
-    try {
-      const phoneNumber = getPhoneNumber();
+  const WhatsaapRedirectFun = async (_type: number) => {
+    if (whatsappLoading) return;
 
-      if (!phoneNumber) {
-        setToast({
-          top: 45,
-          text: t("Phone number not found."),
-          type: "error",
-          visible: true,
-        });
-        return;
-      }
+    const phoneNumber = getPhoneNumber();
 
-      const message = ItemData?.driver_whatsapp_message || "";
-      let url = "";
-
-      if (type === 1) {
-        url = `https://api.whatsapp.com/send/?phone=${phoneNumber}&type=phone_number&app_absent=0`;
-      } else if (type === 2) {
-        const encodedMsg = encodeURIComponent(message);
-        url = `https://api.whatsapp.com/send/?phone=${phoneNumber}&text=${encodedMsg}&type=phone_number&app_absent=0`;
-      } else {
-        setToast({
-          top: 45,
-          text: t("Invalid type — please pass 1 or 2 only."),
-          type: "error",
-          visible: true,
-        });
-        return;
-      }
-
-      await Linking.openURL(url);
-    } catch (error) {
+    if (!phoneNumber) {
       setToast({
         top: 45,
-        text: t("Something went wrong while opening WhatsApp."),
+        text: t("Phone number not found."),
         type: "error",
         visible: true,
       });
+      return;
+    }
+
+    setWhatsappLoading(true);
+    try {
+      const response = await ApiService(
+        apiConstants.send_driver_whatsapp_message,
+        {
+          customData: {
+            token: UserData?.user?.verify_token,
+            role: UserData?.user?.role,
+            relaties_id: UserData?.relaties?.id,
+            user_id: UserData?.user?.id,
+            phone: phoneNumber?.trim(),
+            order_id: ItemData?.id,
+          },
+        },
+      );
+      if (response?.status) {
+        setToast({
+          top: 45,
+          text: response?.message || t("WhatsApp message sent successfully."),
+          type: "success",
+          visible: true,
+        });
+      } else {
+        setToast({
+          top: 45,
+          text: response?.message || t("Something went wrong while sending WhatsApp message."),
+          type: "error",
+          visible: true,
+        });
+      }
+
+    } catch (error: any) {
+      setToast({
+        top: 45,
+        text: ErrorHandle(error)?.message || "Something went wrong",
+        type: "error",
+        visible: true,
+      });
+    } finally {
+      setWhatsappLoading(false);
     }
   };
 
@@ -141,7 +162,7 @@ function PickUpBox({
       style={[styles.container, pickup && styles.BorderOrBg]}
       onPress={onPress}
     >
-      <View style={[styles.Flex,{marginTop:0,marginBottom:10}]}>
+      <View style={[styles.Flex, { marginTop: 0, marginBottom: 10 }]}>
         <Text
           style={[styles.OrderIdTextBig, pickup && { color: Colors.black }]}
           numberOfLines={1}
@@ -302,15 +323,15 @@ function PickUpBox({
                   backOrder={backOrder ? item?.item_label !== null : false}
                   showManualVerify={canManualVerify}
                   onManualVerify={() =>
-               
-                    
+
+
                     onParcelManualVerify({
                       order_id: item?.tms_order_id,
                       item_id: item?.id,
                       item,
                     })}
-                  
-                  
+
+
                 />
               );
             }}
@@ -342,8 +363,16 @@ function PickUpBox({
             <TouchableOpacity activeOpacity={0.85} onPress={handleCall}>
               <Text style={styles.Text}>{getPhoneNumber()}</Text>
             </TouchableOpacity>
-            <TouchableOpacity activeOpacity={0.85} onPress={() => WhatsaapRedirectFun(2)}>
-              <Image source={Images.WhatsApp} style={styles.Icon} />
+            <TouchableOpacity
+              activeOpacity={0.85}
+              disabled={whatsappLoading}
+              onPress={() => WhatsaapRedirectFun(2)}
+            >
+              {whatsappLoading ? (
+                <ActivityIndicator size="small" color={Colors.green} />
+              ) : (
+                <Image source={Images.WhatsApp} style={styles.Icon} />
+              )}
             </TouchableOpacity>
           </View>
         </View>

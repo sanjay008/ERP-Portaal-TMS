@@ -18,6 +18,7 @@ export function setActiveVerifyDeliveryLabel(label: any): void {
   console.log('[DeliveryLabelStore] SET', {
     id: label?.id ?? null,
     signature_required: label?.signature_required,
+    signature_rejected: label?.signature_rejected,
     title: label?.title ?? label?.name ?? null,
   });
 }

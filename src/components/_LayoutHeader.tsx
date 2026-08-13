@@ -13,7 +13,6 @@ interface LayoutHeaderProps {
 export default function LayoutHeader({ children }: LayoutHeaderProps) {
   const { Toast, setToast, UserData } = useContext(GlobalContextData);
   const { t } = useTranslation();
- 
 
   return (
     <View style={styles.container}>

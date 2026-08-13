@@ -54,6 +54,7 @@ module.exports = {
     get_add_product_categories:`${baseUrlnew}tms-driver/get-add-product-categories`,
     get_add_product_prices:`${baseUrlnew}tms-driver/get-add-product-prices`,
     add_product_to_order:`${baseUrlnew}tms-driver/add-product-to-order`,
+    send_driver_whatsapp_message:`${baseUrlnew}tms-driver/send-driver-whatsapp-message`,
 };
 
 

@@ -10,21 +10,24 @@ import { DropboxContext } from '@/src/context/UploadProider';
 import ApiService from '@/src/utils/Apiservice';
 import { Colors } from '@/src/utils/colors';
 import { appendToLocalUploadQueue } from '@/src/utils/localUploadQueue';
-import { height, width } from '@/src/utils/storeData';
+import { FONTS, height, width } from '@/src/utils/storeData';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useIsFocused, useNavigation } from '@react-navigation/native';
-import axios from 'axios';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Image } from 'expo-image';
 import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
+  Keyboard,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import ReAnimated, { FadeIn } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const WAREHOUSE_TYPE = 'warehouse_change';
 
@@ -46,6 +49,13 @@ export default function ScanManager({ route }: any) {
   const [orderData, setOrderData] = useState<any>(null);
   const [activeOrderId, setActiveOrderId] = useState<string | number | null>(null);
   const [addProductVisible, setAddProductVisible] = useState(false);
+  const [manualEntryOpen, setManualEntryOpen] = useState(false);
+  const [manualOrderId, setManualOrderId] = useState('');
+  const [manualItemId, setManualItemId] = useState('');
+  const [isVerifyingManual, setIsVerifyingManual] = useState(false);
+  const [preferredItemId, setPreferredItemId] = useState<string | number | null>(
+    null,
+  );
 
   const {
     UserData,
@@ -56,6 +66,7 @@ export default function ScanManager({ route }: any) {
     setDeliveyDataSave,
   } = useContext(GlobalContextData);
   const { setLocalImagesUploadbeforeData } = useContext(DropboxContext);
+  const { top } = useSafeAreaInsets();
 
   const lastScannedRef = useRef('');
   const isVerifyingScanRef = useRef(false);
@@ -199,6 +210,7 @@ export default function ScanManager({ route }: any) {
 
   const handleNextScan = useCallback(() => {
     closeSheet();
+    setPreferredItemId(null);
     unlockScanner();
   }, [closeSheet, unlockScanner]);
 
@@ -279,44 +291,17 @@ export default function ScanManager({ route }: any) {
 
       setSheetLoading(true);
       try {
-        const formData: any = new FormData();
-        formData.append('token', UserData?.user?.verify_token);
-        formData.append('role', UserData?.user?.role);
-        formData.append('relaties_id', UserData?.relaties?.id);
-        formData.append('user_id', UserData?.user?.id);
-        // formData.append('order_comment', '');
-        formData.append('order_id', orderId);
-
-        const res: any = await axios.post(apiConstants.store_tms_comment, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-          transformRequest: (fd) => fd,
+        // Proof photos only — do NOT call store_tms_comment (avoids empty notes).
+        appendToLocalUploadQueue(setLocalImagesUploadbeforeData, {
+          order_id: orderId,
+          image_data: uris,
+          item_id: preferredItemId ?? null,
+          commentId: null,
         });
-
-        if (!Boolean(res?.data?.status)) {
-          setToast({
-            top: 45,
-            text: t(res?.data?.message) || t('something_went_wrong'),
-            type: 'error',
-            visible: true,
-          });
-          return false;
-        }
-
-        const orderLogId = res?.data?.data?.order_log_id;
-        const resolvedOrderId = res?.data?.data?.order_id ?? orderId;
-
-        if (uris.length > 0 && orderLogId != null && resolvedOrderId != null) {
-          appendToLocalUploadQueue(setLocalImagesUploadbeforeData, {
-            order_id: resolvedOrderId,
-            image_data: uris,
-            item_id: null,
-            commentId: orderLogId,
-          });
-        }
 
         setToast({
           top: 45,
-          text: t(res?.data?.message) || t('Image uploaded successfully'),
+          text: t('Image uploaded successfully'),
           type: 'success',
           visible: true,
         });
@@ -338,12 +323,12 @@ export default function ScanManager({ route }: any) {
       }
     },
     [
-      UserData,
       setToast,
       t,
       ErrorHandle,
       setLocalImagesUploadbeforeData,
       setWarehouseScanResume,
+      preferredItemId,
     ],
   );
 
@@ -490,6 +475,7 @@ export default function ScanManager({ route }: any) {
         !data ||
         isVerifyingScanRef.current ||
         sheetVisibleRef.current ||
+        manualEntryOpen ||
         !cameraReady ||
         !isFocused
       ) {
@@ -528,6 +514,8 @@ export default function ScanManager({ route }: any) {
         return;
       }
 
+      setPreferredItemId(parsed?.item_id ?? null);
+      setManualEntryOpen(false);
       setSheetMode('scan');
       setSheetVisible(true);
 
@@ -538,8 +526,77 @@ export default function ScanManager({ route }: any) {
         }
       });
     },
-    [cameraReady, isFocused, fetchOrderById, setToast, t, unlockScanner],
+    [
+      cameraReady,
+      isFocused,
+      manualEntryOpen,
+      fetchOrderById,
+      setToast,
+      t,
+      unlockScanner,
+    ],
   );
+
+  const submitManualEntry = useCallback(async () => {
+    const orderId = manualOrderId.trim();
+    const itemId = manualItemId.trim();
+
+    if (!orderId || !itemId) {
+      setToast({
+        top: 45,
+        text: t('Please enter Order ID and Item ID'),
+        type: 'error',
+        visible: true,
+      });
+      return;
+    }
+
+    if (isVerifyingScanRef.current || isVerifyingManual) {
+      return;
+    }
+
+    Keyboard.dismiss();
+    isVerifyingScanRef.current = true;
+    setIsVerifyingManual(true);
+
+    try {
+      setPreferredItemId(itemId);
+      setSheetMode('scan');
+      setSheetVisible(true);
+
+      const ok = await fetchOrderById(orderId);
+      if (!ok) {
+        setSheetVisible(false);
+        setPreferredItemId(null);
+        unlockScanner();
+        return;
+      }
+
+      setManualEntryOpen(false);
+      setManualItemId('');
+    } catch (error) {
+      setSheetVisible(false);
+      setPreferredItemId(null);
+      setToast({
+        top: 45,
+        text: ErrorHandle(error).message || t('Something went wrong'),
+        type: 'error',
+        visible: true,
+      });
+      unlockScanner();
+    } finally {
+      setIsVerifyingManual(false);
+    }
+  }, [
+    manualOrderId,
+    manualItemId,
+    isVerifyingManual,
+    fetchOrderById,
+    unlockScanner,
+    setToast,
+    t,
+    ErrorHandle,
+  ]);
 
   const canScan =
     isFocused &&
@@ -547,7 +604,9 @@ export default function ScanManager({ route }: any) {
     cameraReady &&
     !sheetVisible &&
     !sheetLoading &&
-    !isVerifyingScanRef.current;
+    !manualEntryOpen &&
+    !isVerifyingScanRef.current &&
+    !isVerifyingManual;
 
   if (!permission) {
     return (
@@ -616,7 +675,12 @@ export default function ScanManager({ route }: any) {
       <AddWarehouseProductModal
         visible={addProductVisible}
         orderId={activeOrderId}
-        itemId={orderData?.items?.[0]?.id ?? orderData?.item_id ?? null}
+        itemId={
+          preferredItemId ??
+          orderData?.items?.[0]?.id ??
+          orderData?.item_id ??
+          null
+        }
         type={slideType}
         onClose={() => setAddProductVisible(false)}
         onRequestAddProduct={handleRequestAddProduct}
@@ -640,7 +704,7 @@ export default function ScanManager({ route }: any) {
       )}
 
       {!sheetVisible && (
-        <View style={styles.topIcon}>
+        <View style={[styles.topIcon, { top: top ? top * 1.2 : 40 }]}>
           <TouchableOpacity
             activeOpacity={0.85}
             style={styles.iconButton}
@@ -653,6 +717,19 @@ export default function ScanManager({ route }: any) {
             />
           </TouchableOpacity>
 
+          {!manualEntryOpen ? (
+            <TouchableOpacity
+              style={styles.manualEntryChip}
+              activeOpacity={0.85}
+              onPress={() => setManualEntryOpen(true)}
+            >
+              <Ionicons name="keypad-outline" size={16} color={Colors.white} />
+              <Text style={styles.manualEntryChipText}>{t('Enter code')}</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={{ width: 1 }} />
+          )}
+
           <TouchableOpacity
             activeOpacity={0.85}
             style={styles.iconButton}
@@ -662,6 +739,85 @@ export default function ScanManager({ route }: any) {
           </TouchableOpacity>
         </View>
       )}
+
+      {manualEntryOpen && !sheetVisible ? (
+        <ReAnimated.View
+          entering={FadeIn.duration(180)}
+          style={[
+            styles.manualEntryPanel,
+            { top: (top ? top * 1.2 : 40) + 56 },
+          ]}
+        >
+          <View style={styles.manualEntryHeader}>
+            <Text style={styles.manualEntryTitle}>{t('Enter QR details')}</Text>
+            <TouchableOpacity
+              hitSlop={10}
+              onPress={() => {
+                Keyboard.dismiss();
+                setManualEntryOpen(false);
+              }}
+            >
+              <Ionicons name="chevron-up" size={20} color={Colors.white} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.manualEntryFields}>
+            <View style={styles.manualEntryField}>
+              <Text style={styles.manualEntryLabel}>{t('Order ID')}</Text>
+              <TextInput
+                style={styles.manualEntryInput}
+                value={manualOrderId}
+                onChangeText={setManualOrderId}
+                placeholder="24687"
+                placeholderTextColor="rgba(255,255,255,0.35)"
+                keyboardType="number-pad"
+                returnKeyType="next"
+                selectTextOnFocus
+              />
+            </View>
+            <View style={styles.manualEntryField}>
+              <Text style={styles.manualEntryLabel}>{t('Item ID')}</Text>
+              <TextInput
+                style={styles.manualEntryInput}
+                value={manualItemId}
+                onChangeText={setManualItemId}
+                placeholder="26489"
+                placeholderTextColor="rgba(255,255,255,0.35)"
+                keyboardType="number-pad"
+                returnKeyType="done"
+                onSubmitEditing={submitManualEntry}
+                selectTextOnFocus
+              />
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={[
+              styles.manualEntrySubmit,
+              (!manualOrderId.trim() ||
+                !manualItemId.trim() ||
+                isVerifyingManual) &&
+                styles.manualEntrySubmitDisabled,
+            ]}
+            activeOpacity={0.85}
+            disabled={
+              !manualOrderId.trim() ||
+              !manualItemId.trim() ||
+              isVerifyingManual
+            }
+            onPress={submitManualEntry}
+          >
+            {isVerifyingManual ? (
+              <ActivityIndicator size="small" color={Colors.white} />
+            ) : (
+              <>
+                <Text style={styles.manualEntrySubmitText}>{t('Continue')}</Text>
+                <Ionicons name="arrow-forward" size={16} color={Colors.white} />
+              </>
+            )}
+          </TouchableOpacity>
+        </ReAnimated.View>
+      ) : null}
     </View>
   );
 }
@@ -716,8 +872,10 @@ const styles = StyleSheet.create({
     top: 40,
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     width: '100%',
     paddingHorizontal: 20,
+    zIndex: 20,
   },
   topIconAboveSheet: {
     position: 'absolute',
@@ -743,5 +901,87 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     tintColor: Colors.white,
+  },
+  manualEntryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.22)',
+  },
+  manualEntryChipText: {
+    fontSize: 13,
+    fontFamily: FONTS.Medium,
+    color: Colors.white,
+  },
+  manualEntryPanel: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    zIndex: 25,
+    borderRadius: 16,
+    padding: 14,
+    backgroundColor: 'rgba(12,12,14,0.88)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.16)',
+    gap: 12,
+  },
+  manualEntryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  manualEntryTitle: {
+    fontSize: 13,
+    fontFamily: FONTS.Medium,
+    color: 'rgba(255,255,255,0.72)',
+    letterSpacing: 0.2,
+  },
+  manualEntryFields: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  manualEntryField: {
+    flex: 1,
+    gap: 6,
+  },
+  manualEntryLabel: {
+    fontSize: 11,
+    fontFamily: FONTS.Medium,
+    color: 'rgba(255,255,255,0.5)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  manualEntryInput: {
+    height: 44,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    fontSize: 16,
+    fontFamily: FONTS.Medium,
+    color: Colors.white,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.14)',
+  },
+  manualEntrySubmit: {
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: Colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  manualEntrySubmitDisabled: {
+    opacity: 0.45,
+  },
+  manualEntrySubmitText: {
+    fontSize: 14,
+    fontFamily: FONTS.Medium,
+    color: Colors.white,
   },
 });
