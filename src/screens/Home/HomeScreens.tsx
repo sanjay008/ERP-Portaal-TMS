@@ -17,87 +17,171 @@ import { Colors } from "@/src/utils/colors";
 import { getData } from "@/src/utils/storeData";
 import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AppState, FlatList, Image, Pressable, Text, View } from "react-native";
+import { AppState, FlatList, Image, Pressable, RefreshControl, Text, View } from "react-native";
 import { styles } from "./styles";
+
+const SlideItem = React.memo(
+  function SlideItem({ item, onPress }: { item: any; onPress: (item: any) => void }) {
+    const { t } = useTranslation();
+
+    const handlePress = useCallback(() => {
+      onPress(item);
+    }, [item, onPress]);
+
+    return (
+      <Pressable
+        style={[
+          styles.SlideContainer,
+          { backgroundColor: item?.color_code || Colors.Boxgray },
+        ]}
+        onPress={handlePress}
+      >
+        <Image
+          source={item?.item_image ? { uri: item?.item_image } : Images.userblanck}
+          style={styles.Icon}
+        />
+        <Text style={styles.Text}>{t(item?.item_title)}</Text>
+      </Pressable>
+    );
+  },
+  (prevProps, nextProps) =>
+    prevProps.item?.id === nextProps.item?.id &&
+    prevProps.item?.color_code === nextProps.item?.color_code &&
+    prevProps.item?.item_image === nextProps.item?.item_image &&
+    prevProps.item?.item_title === nextProps.item?.item_title &&
+    prevProps.item?.type === nextProps.item?.type,
+);
 
 export default function HomeScreens({ navigation, route }: any) {
   const { refresh } = route?.params || {};
-  const [AllSlideData, setAllSlideData] = useState([]);
+  const [AllSlideData, setAllSlideData] = useState<any[]>([]);
   const [IsLoading, setIsLoading] = useState(false);
+  const [IsRefreshing, setIsRefreshing] = useState(false);
   const [isGpsPermissionLoading, setIsGpsPermissionLoading] = useState(false);
   const [gpsPermissionSheet, setGpsPermissionSheet] = useState<{
     visible: boolean;
     reason: LocationAccessStatus | null;
   }>({ visible: false, reason: null });
   const pendingFilterItemRef = useRef<any>(null);
+  const isMountedRef = useRef(true);
+  const hasFetchedRef = useRef(false);
   const { t } = useTranslation();
   const {
     UserData,
     setToast,
     setGloblyTypeSlide,
-    TimeZone,
     setTimeZone,
     SelectActiveDate,
     setSelectActiveDate,
   } = useContext(GlobalContextData);
   const { ErrorHandle } = useErrorHandle();
-  const getSliderDataFun = async () => {
-    setIsLoading(true);
-    const CompanyLogin = await getData("COMPANYDATA");
-    bootstrapAppDateTime(
-      CompanyLogin?.default_company?.timezone,
-      setTimeZone,
-      setSelectActiveDate,
-      SelectActiveDate,
-    );
 
+  const userId = UserData?.user?.id;
+  const verifyToken = UserData?.user?.verify_token;
+  const userRole = UserData?.user?.role;
+  const relatiesId = UserData?.relaties?.id;
 
-    try {
-      let res = await ApiService(apiConstants.get_AllSlideDataApi, {
-        customData: {
-          token: UserData?.user?.verify_token,
-          role: UserData?.user?.role,
-          relaties_id: UserData?.relaties?.id,
-          user_id: UserData?.user?.id,
-        },
-      });
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
-      console.log("apiConstants.get_AllSlideDataApi", apiConstants.get_AllSlideDataApi, {
-        token: UserData?.user?.verify_token,
-        role: UserData?.user?.role,
-        relaties_id: UserData?.relaties?.id,
-        user_id: UserData?.user?.id,
-      });
-
-
-      if (Boolean(res.status)) {
-        setAllSlideData(res?.data || []);
+  const getSliderDataFun = useCallback(
+    async (isPullToRefresh = false) => {
+      if (isPullToRefresh) {
+        setIsRefreshing(true);
       } else {
+        setIsLoading(true);
+      }
+
+      try {
+        const CompanyLogin = await getData("COMPANYDATA");
+        bootstrapAppDateTime(
+          CompanyLogin?.default_company?.timezone,
+          setTimeZone,
+          setSelectActiveDate,
+          SelectActiveDate,
+        );
+
+        const res = await ApiService(apiConstants.get_AllSlideDataApi, {
+          customData: {
+            token: verifyToken,
+            role: userRole,
+            relaties_id: relatiesId,
+            user_id: userId,
+          },
+        });
+
+        if (!isMountedRef.current) return;
+
+        if (Boolean(res?.status)) {
+          const rawList = Array.isArray(res?.data) ? res.data : [];
+          const limitedList = rawList.slice(0, 30);
+          const seenIds = new Set<string>();
+          const uniqueList = limitedList.map((slideItem: any, idx: number) => {
+            let safeId = slideItem?.id != null ? String(slideItem.id) : `idx-${idx}`;
+            if (seenIds.has(safeId)) {
+              safeId = `${safeId}-${idx}`;
+            }
+            seenIds.add(safeId);
+            return { ...slideItem, id: safeId };
+          });
+          setAllSlideData(uniqueList);
+        } else {
+          setToast({
+            top: 45,
+            text: t(res?.message),
+            type: "error",
+            visible: true,
+          });
+        }
+      } catch (error: any) {
+        if (!isMountedRef.current) return;
         setToast({
           top: 45,
-          text: t(res?.message),
+          text: ErrorHandle(error)?.message,
           type: "error",
           visible: true,
         });
+      } finally {
+        if (isMountedRef.current) {
+          setIsLoading(false);
+          setIsRefreshing(false);
+        }
       }
-    } catch (error: any) {
-      console.error("Get All Slide Data Error:-", error?.response.data);
-      setToast({
-        top: 45,
-        text: ErrorHandle(error)?.message,
-        type: "error",
-        visible: true,
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    },
+    [
+      userId,
+      verifyToken,
+      userRole,
+      relatiesId,
+      SelectActiveDate,
+      setTimeZone,
+      setSelectActiveDate,
+      setToast,
+      t,
+      ErrorHandle,
+    ],
+  );
 
   useEffect(() => {
-    if (UserData !== null) {
-      getSliderDataFun();
+    if (userId != null && !hasFetchedRef.current) {
+      hasFetchedRef.current = true;
+      getSliderDataFun(false);
     }
-  }, [UserData, refresh]);
+  }, [userId, getSliderDataFun]);
+
+  useEffect(() => {
+    if (refresh && hasFetchedRef.current) {
+      getSliderDataFun(false);
+    }
+  }, [refresh]);
+
+  const handlePullToRefresh = useCallback(() => {
+    getSliderDataFun(true);
+  }, [getSliderDataFun]);
 
   const navigateToFilterScreen = useCallback(
     (slideItem: any) => {
@@ -130,9 +214,12 @@ export default function HomeScreens({ navigation, route }: any) {
       setIsGpsPermissionLoading(true);
       try {
         const status = await resolveLocationAccess();
+        if (!isMountedRef.current) return;
         handleGpsPermissionResult(status);
       } finally {
-        setIsGpsPermissionLoading(false);
+        if (isMountedRef.current) {
+          setIsGpsPermissionLoading(false);
+        }
       }
     },
     [handleGpsPermissionResult],
@@ -146,13 +233,16 @@ export default function HomeScreens({ navigation, route }: any) {
     try {
       if (reason === "denied" || reason === "services_disabled") {
         const status = await retryLocationPermission();
+        if (!isMountedRef.current) return;
         handleGpsPermissionResult(status);
         return;
       }
 
       await openAppSettings();
     } finally {
-      setIsGpsPermissionLoading(false);
+      if (isMountedRef.current) {
+        setIsGpsPermissionLoading(false);
+      }
     }
   }, [gpsPermissionSheet.reason, handleGpsPermissionResult]);
 
@@ -163,6 +253,7 @@ export default function HomeScreens({ navigation, route }: any) {
       if (nextState !== "active") return;
 
       const status = await recheckLocationAccess();
+      if (!isMountedRef.current) return;
       handleGpsPermissionResult(status);
     });
 
@@ -182,59 +273,62 @@ export default function HomeScreens({ navigation, route }: any) {
         navigation.navigate("FilterScreen", { item: slideItem });
       }
     },
-    [handlePickupDropoffPress, navigation, setGloblyTypeSlide],
+    [navigation, setGloblyTypeSlide],
   );
+
+  const keyExtractor = useCallback((item: any) => item?.id, []);
+
+  const renderItem = useCallback(
+    ({ item }: any) => <SlideItem item={item} onPress={handleSlidePress} />,
+    [handleSlidePress],
+  );
+
+  const ListEmptyComponent = useCallback(() => {
+    if (IsLoading) return null;
+    return (
+      <View style={styles.EmptyComponents}>
+        <Text>{t("No Data Found")}</Text>
+      </View>
+    );
+  }, [IsLoading, t]);
+
+  const ListFooterComponent = useCallback(() => {
+    if (!IsLoading) return null;
+    return (
+      <View style={styles.EmptyComponents}>
+        <Loader />
+      </View>
+    );
+  }, [IsLoading]);
+
+  const handleGpsSheetClose = useCallback(() => {
+    pendingFilterItemRef.current = null;
+    setGpsPermissionSheet({ visible: false, reason: null });
+  }, []);
 
   return (
     <View style={styles.container}>
       <FlatList
         data={AllSlideData}
-        ListEmptyComponent={() =>
-          !IsLoading && (
-            <View style={styles.EmptyComponents}>
-              <Text>{t("No Data Found")}</Text>
-            </View>
-          )
-        }
-        ListFooterComponent={() =>
-          IsLoading && (
-            <View style={styles.EmptyComponents}>
-              <Loader />
-            </View>
-          )
-        }
+        ListEmptyComponent={ListEmptyComponent}
+        ListFooterComponent={ListFooterComponent}
+        keyExtractor={keyExtractor}
         contentContainerStyle={styles.ContentContainerStyle}
-        renderItem={({ item, index }: any) => {
-          return (
-            <Pressable
-              key={item?.id}
-              style={[
-                styles.SlideContainer,
-                { backgroundColor: item?.color_code || Colors.Boxgray },
-              ]}
-              onPress={() => handleSlidePress(item)}
-            >
-              <Image
-                source={
-                  item?.item_image
-                    ? { uri: item?.item_image }
-                    : Images.userblanck
-                }
-                style={styles.Icon}
-              />
-              <Text style={styles.Text}>{t(item?.item_title)}</Text>
-            </Pressable>
-          );
-        }}
+        renderItem={renderItem}
+        removeClippedSubviews={true}
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={7}
+        updateCellsBatchingPeriod={50}
+        refreshControl={
+          <RefreshControl refreshing={IsRefreshing} onRefresh={handlePullToRefresh} />
+        }
       />
       <GpsPermissionSheet
         visible={gpsPermissionSheet.visible}
         reason={gpsPermissionSheet.reason}
         loading={isGpsPermissionLoading}
-        onClose={() => {
-          pendingFilterItemRef.current = null;
-          setGpsPermissionSheet({ visible: false, reason: null });
-        }}
+        onClose={handleGpsSheetClose}
         onPrimaryAction={handleGpsSheetPrimaryAction}
       />
     </View>

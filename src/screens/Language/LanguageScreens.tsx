@@ -32,7 +32,7 @@ export default function LanguageScreens() {
     setIsLoading(true)
     try {
       const data = await ApiService(apiConstants.langauge, {});
-
+// console.log("data", data?.data[1]?.data);
       if (data?.status && Array.isArray(data?.data)) {
         setAllLanguage(data?.data || []);
       }

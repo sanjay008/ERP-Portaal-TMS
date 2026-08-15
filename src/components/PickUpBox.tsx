@@ -11,10 +11,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import apiConstants from '../api/apiConstants';
 import { Images } from "../assets/images";
 import { GlobalContextData } from "../context/GlobalContext";
-import ApiService from '../utils/Apiservice';
 import { Colors } from "../utils/colors";
 import { isDeliveryPhaseOrder } from "../utils/orderStatus";
 import { FONTS, SimpleFlex } from "../utils/storeData";
@@ -85,63 +83,106 @@ function PickUpBox({
     return mobile;
   };
 
-  const WhatsaapRedirectFun = async (_type: number) => {
-    if (whatsappLoading) return;
-
-    const phoneNumber = getPhoneNumber();
-
-    if (!phoneNumber) {
-      setToast({
-        top: 45,
-        text: t("Phone number not found."),
-        type: "error",
-        visible: true,
-      });
-      return;
-    }
-
-    setWhatsappLoading(true);
+  const WhatsaapRedirectFun = async (type: number) => {
     try {
-      const response = await ApiService(
-        apiConstants.send_driver_whatsapp_message,
-        {
-          customData: {
-            token: UserData?.user?.verify_token,
-            role: UserData?.user?.role,
-            relaties_id: UserData?.relaties?.id,
-            user_id: UserData?.user?.id,
-            phone: phoneNumber?.trim(),
-            order_id: ItemData?.id,
-          },
-        },
-      );
-      if (response?.status) {
+      const phoneNumber = getPhoneNumber();
+
+      if (!phoneNumber) {
         setToast({
           top: 45,
-          text: response?.message || t("WhatsApp message sent successfully."),
-          type: "success",
-          visible: true,
-        });
-      } else {
-        setToast({
-          top: 45,
-          text: response?.message || t("Something went wrong while sending WhatsApp message."),
+          text: t("Phone number not found."),
           type: "error",
           visible: true,
         });
+        return;
       }
 
-    } catch (error: any) {
+      const message = ItemData?.driver_whatsapp_message || "";
+      let url = "";
+
+      if (type === 1) {
+        url = `https://api.whatsapp.com/send/?phone=${phoneNumber}&type=phone_number&app_absent=0`;
+      } else if (type === 2) {
+        const encodedMsg = encodeURIComponent(message);
+        url = `https://api.whatsapp.com/send/?phone=${phoneNumber}&text=${encodedMsg}&type=phone_number&app_absent=0`;
+      } else {
+        setToast({
+          top: 45,
+          text: t("Invalid type — please pass 1 or 2 only."),
+          type: "error",
+          visible: true,
+        });
+        return;
+      }
+
+      await Linking.openURL(url);
+    } catch (error) {
       setToast({
         top: 45,
-        text: ErrorHandle(error)?.message || "Something went wrong",
+        text: t("Something went wrong while opening WhatsApp."),
         type: "error",
         visible: true,
       });
-    } finally {
-      setWhatsappLoading(false);
     }
   };
+
+  // const WhatsaapRedirectFun = async (_type: number) => {
+  //   if (whatsappLoading) return;
+
+  //   const phoneNumber = getPhoneNumber();
+
+  //   if (!phoneNumber) {
+  //     setToast({
+  //       top: 45,
+  //       text: t("Phone number not found."),
+  //       type: "error",
+  //       visible: true,
+  //     });
+  //     return;
+  //   }
+
+  //   setWhatsappLoading(true);
+  //   try {
+  //     const response = await ApiService(
+  //       apiConstants.send_driver_whatsapp_message,
+  //       {
+  //         customData: {
+  //           token: UserData?.user?.verify_token,
+  //           role: UserData?.user?.role,
+  //           relaties_id: UserData?.relaties?.id,
+  //           user_id: UserData?.user?.id,
+  //           phone: phoneNumber?.trim(),
+  //           order_id: ItemData?.id,
+  //         },
+  //       },
+  //     );
+  //     if (response?.status) {
+  //       setToast({
+  //         top: 45,
+  //         text: response?.message || t("WhatsApp message sent successfully."),
+  //         type: "success",
+  //         visible: true,
+  //       });
+  //     } else {
+  //       setToast({
+  //         top: 45,
+  //         text: response?.message || t("Something went wrong while sending WhatsApp message."),
+  //         type: "error",
+  //         visible: true,
+  //       });
+  //     }
+
+  //   } catch (error: any) {
+  //     setToast({
+  //       top: 45,
+  //       text: ErrorHandle(error)?.message || "Something went wrong",
+  //       type: "error",
+  //       visible: true,
+  //     });
+  //   } finally {
+  //     setWhatsappLoading(false);
+  //   }
+  // };
 
   const handleCall = async () => {
     const phoneNumber = ItemData?.calling_number;

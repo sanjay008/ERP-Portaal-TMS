@@ -41,7 +41,6 @@ export default function SplashScreens({ navigation }: any) {
   const fetchLanguages = async () => {
     try {
       const data = await ApiService(apiConstants.langauge, {});
-
       if (data?.status && Array.isArray(data?.data)) {
         setAllLanguage(data?.data || []);
       }

@@ -107,6 +107,7 @@ export default function DetailsScreens({ navigation, route }: any) {
   const [SignatureLoader, setSignatureLoader] = useState<boolean>(false);
   const [LocationDataMessage, setLocationDataMessage] = useState<string | null>(null);
   const signatureLabelRef = useRef<any>(null);
+  const notAtHomeFlowRef = useRef(false);
 
   const openSignatureFlow = useCallback((label: any) => {
     let fullLabel = label;
@@ -282,6 +283,26 @@ export default function DetailsScreens({ navigation, route }: any) {
     setLatestPickupCameraSetData(setData);
     setPickUpDataSave({ setData });
     navigation.navigate('Camera', { from: 'Pickup' });
+  }, [navigation, setPickUpDataSave]);
+
+  const openNotAtHomePickupCamera = useCallback(() => {
+    lockParcelCameraCallback();
+    const setData = async (data: any[]) => {
+      try {
+        if (data?.length > 0) {
+          setAllSelectImage(data);
+          notAtHomeFlowRef.current = true;
+          setComment(true);
+        } else {
+          notAtHomeFlowRef.current = false;
+        }
+      } finally {
+        unlockParcelCameraCallback();
+      }
+    };
+    setLatestPickupCameraSetData(setData);
+    setPickUpDataSave({ setData });
+    navigation.navigate("Camera", { from: "Pickup" });
   }, [navigation, setPickUpDataSave]);
 
   const openCamera = async () => {
@@ -517,6 +538,7 @@ export default function DetailsScreens({ navigation, route }: any) {
           visible: true,
         });
         await GetIdByOrderFun();
+        return true;
       } else {
         setToast({
           top: 45,
@@ -524,6 +546,7 @@ export default function DetailsScreens({ navigation, route }: any) {
           type: "error",
           visible: true,
         });
+        return false;
       }
     } catch (error) {
       setToast({
@@ -532,6 +555,7 @@ export default function DetailsScreens({ navigation, route }: any) {
         type: "error",
         visible: true,
       });
+      return false;
     } finally {
       setIsLoading(false);
     }
@@ -965,7 +989,6 @@ export default function DetailsScreens({ navigation, route }: any) {
     if (!url) return false;
     return /\.(mp4|mov|avi|mkv|webm|3gp)(\?.*)?$/i.test(url);
   };
-
   const hasOrderPreview = Boolean(
     item?.id || ItemsData?.id || ItemsData?.order_data?.id,
   );
@@ -1110,7 +1133,6 @@ export default function DetailsScreens({ navigation, route }: any) {
                 }
                 IconStyle={{ width: 22, height: 22 }}
               />
-
               <TwoTypeButton
                 title={t("Geen pakket of geweigerd Order sluiten")}
                 Icon={Images.NoParcel}
@@ -1153,7 +1175,7 @@ export default function DetailsScreens({ navigation, route }: any) {
                       RButtonStyle: Colors.red,
                       RColor: Colors.white,
                       onPress: () => {
-                        StatusUpdateFun();
+                        openNotAtHomePickupCamera();
                       },
                     });
                   }}
@@ -1367,8 +1389,32 @@ export default function DetailsScreens({ navigation, route }: any) {
       )}
       <AddCommentModal
         IsVisible={comment}
-        setIsVisible={setComment}
+        setIsVisible={(visible) => {
+          if (!visible) {
+            notAtHomeFlowRef.current = false;
+          }
+          setComment(visible);
+        }}
         fun={(commentText: string) => {
+          if (notAtHomeFlowRef.current) {
+            (async () => {
+              if (!AllSelectImage?.length) {
+                setToast({
+                  top: 45,
+                  text: t("Please take a photo"),
+                  type: "error",
+                  visible: true,
+                });
+                return;
+              }
+              const commentOk = await AddImageOrCommentFun(commentText);
+              if (commentOk) {
+                await StatusUpdateFun();
+              }
+            })();
+            return;
+          }
+
           const itemsToSend = SelectedNoParcelItems?.length
             ? [...SelectedNoParcelItems]
             : [];

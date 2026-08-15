@@ -6,11 +6,11 @@ export const styles = StyleSheet.create({
     container:{
         flex:1,
         backgroundColor:Colors.background,
-        padding:15
     },
     ContentContainerStyle:{
         paddingBottom:50,
-        gap:15
+        gap:15,
+        padding:15
     },
     EmptyComponents:{
         width:'100%',
