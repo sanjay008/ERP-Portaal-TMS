@@ -38,9 +38,9 @@ const SlideItem = React.memo(
       >
         <Image
           source={item?.item_image ? { uri: item?.item_image } : Images.userblanck}
-          style={styles.Icon}
+          style={[styles.Icon,item?.type == "driver_photos" && { tintColor: Colors.black }]}
         />
-        <Text style={styles.Text}>{t(item?.item_title)}</Text>
+        <Text style={[styles.Text,item?.type == "driver_photos" && { color: Colors.Black }]}>{t(item?.item_title)}</Text>
       </Pressable>
     );
   },
@@ -265,6 +265,11 @@ export default function HomeScreens({ navigation, route }: any) {
       setGloblyTypeSlide(slideItem?.type);
       if (slideItem?.type == "outbound_scan") {
         navigation.navigate("Scanner", { item: slideItem });
+      } else if (slideItem?.type == "driver_photos") {
+        navigation.navigate("DriverPhotosScanner", {
+          type: "driver_photos",
+          item: slideItem,
+        });
       } else if (slideItem?.type == "AllOrder") {
         navigation.navigate("ScanDetails", { Type: slideItem?.type });
       } else if (slideItem?.type == "warehouse_change") {

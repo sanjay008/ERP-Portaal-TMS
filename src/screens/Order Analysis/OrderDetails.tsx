@@ -131,7 +131,6 @@ export default function OrderDetails({ navigation, route }: any) {
             });
             if (res?.status) {
                 setEasyTransLink(res?.easytrans_link || null)
-                console.log("res?.statusres?.status", res);
                 setItemsData(res?.data);
             } else {
                 setToast({
@@ -184,7 +183,7 @@ export default function OrderDetails({ navigation, route }: any) {
     const handleOpenEasyTransOrder = async () => {
         const url = EasyTransLink;
 
-
+console.log("url",url);
         if (!url) {
             setToast({
                 top: 45,
@@ -206,6 +205,7 @@ export default function OrderDetails({ navigation, route }: any) {
             });
         }
     };
+    
     
     return (
         <SafeAreaView style={styles.container}>
@@ -257,7 +257,7 @@ export default function OrderDetails({ navigation, route }: any) {
                             </Text>
                         )}
 
-                        {!!ItemsData?.external_order_id && (
+                        {ItemsData?.external_order_id!==null && (
                             <Text style={styles.metaLine}>
                                 <Text style={styles.metaLabel}>{t("EasyTrans ordernr")} : </Text>
                                 <TouchableOpacity
@@ -265,7 +265,7 @@ export default function OrderDetails({ navigation, route }: any) {
                                     onPress={handleOpenEasyTransOrder}
                                 >
                                     <Text style={styles.metaLink}>
-                                        {ItemsData.external_order_id}
+                                        {ItemsData?.external_order_id}
                                     </Text>
                                 </TouchableOpacity>
                             </Text>

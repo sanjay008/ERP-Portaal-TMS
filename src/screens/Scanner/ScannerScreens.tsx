@@ -1422,134 +1422,218 @@ export default function ScannerScreens({ navigation, route }: any) {
   };
 
 
-  const CustomerSignatureFun = async (signature: string | null = null, name: string | null = null, damageItems: any[] = []) => {
-    if (isBlankSignatureData(signature)) {
-      setToast({
-        top: 45,
-        text: t("Signature is required"),
-        type: "error",
-        visible: true,
-      });
-      return
-    }
-    setSignatureLoader(true)
-    try {
-      const labelForSig =
-        signatureLabelRef.current ??
-        SelectCurrentDeliveryLabel ??
-        getSessionDeliveryLabel();
+const CustomerSignatureFun = async (
+  signature: string | null = null,
+  name: string | null = null,
+  damageItems: any[] = [],
+) => {
+  if (isBlankSignatureData(signature)) {
+    setToast({
+      top: 45,
+      text: t("Signature is required"),
+      type: "error",
+      visible: true,
+    });
+    return;
+  }
 
-      const payload: any = {
-        token: UserData?.user?.verify_token,
-        role: UserData?.user?.role,
-        relaties_id: UserData?.relaties?.id,
-        user_id: UserData?.user?.id,
-        name,
-        signature,
-        order_id: ItemsData?.id,
-        is_delivery: getSignatureIsDelivery(labelForSig),
-      };
-      if(SelectCurrentDeliveryLabel?.id !== 26){
-        payload.qr_data =  JSON.stringify(QRData);
-      }
-      const canSendDeliveryDamage = shouldSendDamageForDeliveryLabel(
-        labelForSig ?? SelectCurrentDeliveryLabel,
-        ItemsData,
-      );
-      if (canSendDeliveryDamage && Array.isArray(damageItems) && damageItems.length > 0) {
-        const mapped = damageItems
-          .map((row: any) => ({
-            item_id: Number(row?.item ?? row?.item_id),
-            damage_id: Number(row?.is_damage ?? row?.damage_id),
-          }))
+  const token = UserData?.user?.verify_token;
+  const role = UserData?.user?.role;
+  const relatiesId = UserData?.relaties?.id;
+  const userId = UserData?.user?.id;
+  const orderId = ItemsData?.id;
+
+  if (!token || !role || relatiesId == null || userId == null || orderId == null) {
+    setToast({
+      top: 45,
+      text: t("Something went wrong. Please try again."),
+      type: "error",
+      visible: true,
+    });
+    return;
+  }
+
+  setSignatureLoader(true);
+
+  try {
+    const labelForSig =
+      signatureLabelRef.current ??
+      SelectCurrentDeliveryLabel ??
+      getSessionDeliveryLabel();
+
+    const normalizedSignature =
+      typeof signature === "string" ? signature.trim() : signature;
+
+    const normalizedName =
+      typeof name === "string" ? name.trim() : name;
+
+    const payload: Record<string, any> = {
+      token,
+      role,
+      relaties_id: relatiesId,
+      user_id: userId,
+      name: normalizedName,
+      signature: normalizedSignature,
+      order_id: orderId,
+      is_delivery: getSignatureIsDelivery(labelForSig),
+    };
+
+    if (SelectCurrentDeliveryLabel?.id != 26) {
+     
+        payload.qr_data = JSON.stringify(QRData ?? {});
+     
+    }
+
+    const canSendDeliveryDamage = shouldSendDamageForDeliveryLabel(
+      labelForSig ?? SelectCurrentDeliveryLabel,
+      ItemsData,
+    );
+
+    if (canSendDeliveryDamage) {
+      if (Array.isArray(damageItems) && damageItems.length > 0) {
+        const mappedDamage = damageItems
+          .map((row: any) => {
+            const itemId = Number(row?.item ?? row?.item_id);
+            const damageId = Number(row?.is_damage ?? row?.damage_id);
+
+            return {
+              item_id: itemId,
+              damage_id: damageId,
+            };
+          })
           .filter(
             (row) =>
-              Number.isFinite(row.item_id) && Number.isFinite(row.damage_id),
+              Number.isFinite(row.item_id) &&
+              row.item_id > 0 &&
+              Number.isFinite(row.damage_id) &&
+              row.damage_id > 0,
           );
-        if (mapped.length > 0) {
-          payload.is_damage = mapped;
-          payload.damage_items = JSON.stringify(mapped);
+
+        const uniqueDamage = Array.from(
+          new Map(
+            mappedDamage.map((row) => [
+              `${row.item_id}-${row.damage_id}`,
+              row,
+            ]),
+          ).values(),
+        );
+
+        if (uniqueDamage.length > 0) {
+          payload.is_damage = uniqueDamage;
+          payload.damage_items = JSON.stringify(uniqueDamage);
         }
-      } else if (canSendDeliveryDamage && selectDamageData?.id != null) {
-        payload.is_damage = selectDamageData.id;
+      } else if (selectDamageData?.id != null) {
+        const damageId = Number(selectDamageData.id);
+
+        if (Number.isFinite(damageId) && damageId > 0) {
+          payload.is_damage = damageId;
+        }
       }
+    }
 
-      const res = await ApiService(apiConstants.store_customer_signature, {
-        customData: payload,
-      });
+    const res = await ApiService(apiConstants.store_customer_signature, {
+      customData: payload,
+    });
 
-      if (res?.status) {
-        signatureLabelRef.current = null;
-        setProductDamageList([]);
-        if (AllSelectImage?.length > 0 && CommentId != null) {
-          const orderId = SelectPlace?.order_id ?? ItemsData?.id ?? ItemsData?.order_data?.id;
-          if (orderId != null) {
-            appendToLocalUploadQueue(setLocalImagesUploadbeforeData, {
-              order_id: orderId,
-              image_data: [...AllSelectImage],
-              item_id: SelectPlace?.item_id || null,
-              commentId: CommentId,
-              qr_data: JSON.stringify(QRData),
-            });
-          }
-        }
-        setAllSelectImage([]);
-        deliveryTypeRef.current = false;
-        setShowSig(false);
-        setSecondModal(p => ({ ...p, visible: false }));
-        setToast({
-          top: 45,
-          text: res?.message,
-          type: "success",
-          visible: true,
-        });
-
-        // Yes/No → No path: after signature, leave Scanner (no list / remaining popup).
-        if (deliveryMoreParcelsNoPathRef.current) {
-          deliveryMoreParcelsNoPathRef.current = false;
-          setNoParcelItemIds([]);
-          navigation.goBack();
-          return;
-        }
-
-        const buttons: any[] = [];
-        buttons.push({
-          text: t("Go to List Page"),
-          type: "primary",
-          onPress: () => {
-            setSecondModal(p => ({ ...p, visible: false }));
-            setNoParcelItemIds([]);
-            getSliderDataFun();
-          },
-        },)
-        setSecondModal({
-          visible: true,
-          title: t("All Parcels Scanned Successfully!"),
-          message: t(res?.remaining_item_message) || "",
-          buttons: buttons,
-          color: GloblyTypeSlide == "outbound_scan" ? Colors.primary : Colors.green
-
-        });
-      } else {
-        setToast({
-          top: 45,
-          text: res?.message,
-          type: "error",
-          visible: true,
-        });
-      }
-    } catch (error) {
+    if (!res?.status) {
       setToast({
         top: 45,
-        text: ErrorHandle(error).message,
+        text:
+          res?.message ||
+          t("Something went wrong. Please try again."),
         type: "error",
         visible: true,
       });
+      return;
     }
-    finally {
-      setSignatureLoader(false);
+
+    signatureLabelRef.current = null;
+    setProductDamageList([]);
+
+    if (Array.isArray(AllSelectImage) && AllSelectImage.length > 0 && CommentId != null) {
+      const uploadOrderId =
+        SelectPlace?.order_id ??
+        ItemsData?.id ??
+        ItemsData?.order_data?.id;
+
+      if (uploadOrderId != null) {
+        appendToLocalUploadQueue(
+          setLocalImagesUploadbeforeData,
+          {
+            order_id: uploadOrderId,
+            image_data: [...AllSelectImage],
+            item_id: SelectPlace?.item_id ?? null,
+            commentId: CommentId,
+            qr_data: JSON.stringify(QRData ?? {}),
+          },
+        );
+      }
     }
+
+    setAllSelectImage([]);
+    deliveryTypeRef.current = false;
+    setShowSig(false);
+    setSecondModal((prev) => ({
+      ...prev,
+      visible: false,
+    }));
+
+    setToast({
+      top: 45,
+      text: res?.message || t("Success"),
+      type: "success",
+      visible: true,
+    });
+
+    if (deliveryMoreParcelsNoPathRef.current) {
+      deliveryMoreParcelsNoPathRef.current = false;
+      setNoParcelItemIds([]);
+      navigation.goBack();
+      return;
+    }
+
+    const buttons: any[] = [
+      {
+        text: t("Go to List Page"),
+        type: "primary",
+        onPress: () => {
+          setSecondModal((prev) => ({
+            ...prev,
+            visible: false,
+          }));
+          setNoParcelItemIds([]);
+          getSliderDataFun();
+        },
+      },
+    ];
+
+    setSecondModal({
+      visible: true,
+      title: t("All Parcels Scanned Successfully!"),
+      message: res?.remaining_item_message
+        ? t(res.remaining_item_message)
+        : "",
+      buttons,
+      color:
+        GloblyTypeSlide === "outbound_scan"
+          ? Colors.primary
+          : Colors.green,
+    });
+  } catch (error) {
+    const handledError = ErrorHandle(error);
+
+    setToast({
+      top: 45,
+      text:
+        handledError?.message ||
+        t("Something went wrong. Please try again."),
+      type: "error",
+      visible: true,
+    });
+  } finally {
+    setSignatureLoader(false);
   }
+};
 
 
   const CommentFun = async () => {

@@ -1134,7 +1134,7 @@ export default function DetailsScreens({ navigation, route }: any) {
                 IconStyle={{ width: 22, height: 22 }}
               />
               <TwoTypeButton
-                title={t("Geen pakket of geweigerd Order sluiten")}
+                title={t("Geweigerd Order Sluiten")}
                 Icon={Images.NoParcel}
                 style={styles.NoParcelButton}
                 IconStyle={{ width: 22, height: 22 }}
@@ -1158,7 +1158,7 @@ export default function DetailsScreens({ navigation, route }: any) {
                 ) &&
                 ItemsData?.tms_order_type === Stop_PickupType &&
                 <TwoTypeButton
-                  title={t("Geen pakket of Niet Thuis Nieuwe afspraak")}
+                  title={t("Niet Thuis Nieuwe Afspraak")}
                   Icon={Images.NoHomeIcon}
                   style={[styles.NoParcelButton, { backgroundColor: Colors.red }]}
                   IconStyle={{ width: 22, height: 22 }}
@@ -1530,7 +1530,7 @@ export default function DetailsScreens({ navigation, route }: any) {
           setScannerModalOpen((prev) => ({ ...prev, visible: false }))
         }
         delivery_btn={ScannerModalOpen.delivery_btn}
-      />{" "}
+      />
       <SecondCustomModal SecondModal={SecondModal} />
       <ParcelVerifyOverlays flow={parcelVerifyFlow} navigation={navigation} />
       <LoadingModal

@@ -399,10 +399,7 @@ export default function FilterScreen({ navigation, route }: any) {
     SelectDate,
   ]);
 
-  // Sync filter calendar → active shift planning_date only while focused.
-  // Depend on primitives (not the whole activeShift object) so setActiveShift
-  // cannot re-trigger this effect. Unfocused stacked Filter screens must not
-  // fight over the shared shift session (that caused [Shift] saved loops).
+
   useEffect(() => {
     if (
       !Focused ||

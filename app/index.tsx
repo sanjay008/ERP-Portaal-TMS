@@ -22,6 +22,7 @@ import ScanManager from "@/src/screens/Order Analysis/ScanManager";
 import WarehouseOrderEdit from "@/src/screens/Order Analysis/WarehouseOrderEdit";
 import Parcel from "@/src/screens/Parcel/Parcel";
 import Profile from "@/src/screens/Profile/Profile";
+import DriverPhotosScanner from "@/src/screens/Scanner/DriverPhotosScanner";
 import ScannerScreens from "@/src/screens/Scanner/ScannerScreens";
 import SelectLanguage from "@/src/screens/selectionLan/Selectionlan";
 import SplashScreens from "@/src/screens/SplashScreens/SplashScreens";
@@ -119,6 +120,11 @@ export default function index() {
                   name="Scanner"
                   options={{ statusBarAnimation: "slide",gestureEnabled: false, }}
                   component={withLayoutHeader(ScannerScreens)}
+                />
+                <Stack.Screen
+                  name="DriverPhotosScanner"
+                  options={{ statusBarAnimation: "slide", gestureEnabled: false }}
+                  component={withLayoutHeader(DriverPhotosScanner)}
                 />
                 <Stack.Screen
                   name="Select"
