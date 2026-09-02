@@ -100,9 +100,15 @@ const isCustomerCountryPrice = useCallback(
     return encodeURI(url);
   };
 
+  const isAddon = Number(data?.is_addon) === 1;
   const visibleTitle = savedTmsProduct?.product_name || title;
+  const titleWithAddon = isAddon
+    ? `${visibleTitle}${visibleTitle.toLowerCase().includes('(addon)') ? '' : ` (${t('addon')})`}`
+    : visibleTitle;
   const displayTitle =
-    visibleTitle.length > 70 ? visibleTitle.slice(0, 67).trim() + '...' : visibleTitle;
+    titleWithAddon.length > 70
+      ? titleWithAddon.slice(0, 67).trim() + '...'
+      : titleWithAddon;
 
   const isShiftBlocked =
     UserData?.user?.role === 'chauffeur' &&
@@ -218,8 +224,8 @@ const isCustomerCountryPrice = useCallback(
 
   return (
     <>
-      <Pressable style={styles.container}>
-        <View style={styles.LeftSection}>
+      <Pressable style={[styles.container, isAddon && styles.addonContainer]}>
+        <View style={[styles.LeftSection, isAddon && styles.addonLeftSection]}>
           <View style={styles.NumberBox}>
             <Text style={styles.Text}>{index + 1}</Text>
           </View>
@@ -229,7 +235,8 @@ const isCustomerCountryPrice = useCallback(
             style={[
               styles.Text,
               styles.TitleText,
-              { fontSize: visibleTitle.length > 40 ? 12 : 13 },
+              isAddon && styles.addonTitleText,
+              { fontSize: titleWithAddon.length > 40 ? 12 : 13 },
             ]}
           >
             {displayTitle}
@@ -453,6 +460,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  addonContainer: {
+    backgroundColor: Colors.litegray1,
+    borderColor: Colors.litegray,
+  },
+  addonLeftSection: {
+    paddingLeft: 4,
+  },
   RightSection: {
     flex: 0.3,
     flexDirection: 'row',
@@ -477,6 +491,9 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     flexShrink: 1,
     flexWrap: 'wrap',
+  },
+  addonTitleText: {
+    color: Colors.darkText,
   },
   LabelText: {
     fontSize: 10,

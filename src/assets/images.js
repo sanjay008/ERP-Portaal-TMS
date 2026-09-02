@@ -102,6 +102,7 @@ export const Images = {
 // Audio
 
   ScannerSound: require("./image/ScannerSound.mp3"),
+  ErrorSound: require("./image/ErrorSound.mp3"),
 
 
   // Animations

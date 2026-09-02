@@ -197,6 +197,7 @@ export default function ScannerInfoModal({
   if (!visible) return null;
 
   const isUnloadingMode = !!onUnloadingPress;
+  const isErrorScreen = bgColor === Colors.red;
   const showStopData =
     GloblyTypeSlide === "driver_loading" &&
     stopData !== null &&
@@ -269,12 +270,22 @@ export default function ScannerInfoModal({
     <>
       <View style={styles.AbsoluteWrapper}>
         <TouchableOpacity
-          style={[styles.Backdrop, isUnloadingMode && styles.UnloadingBackdrop]}
+          style={[
+            styles.Backdrop,
+            (isUnloadingMode || isErrorScreen) && styles.UnloadingBackdrop,
+          ]}
           activeOpacity={1}
           onPress={onClose}
         />
 
-        <View style={[styles.container, style, bgColor && { backgroundColor: bgColor }]}>
+        <View
+          style={[
+            styles.container,
+            style,
+            isErrorScreen && styles.errorScreenContainer,
+            bgColor && { backgroundColor: bgColor },
+          ]}
+        >
           <View
             style={[
               styles.ContentView,
@@ -756,6 +767,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.red,
   },
   container: { flexGrow: 1, justifyContent: "center", alignItems: "center", margin: 0, padding: 15 },
+  errorScreenContainer: {
+    ...StyleSheet.absoluteFillObject,
+    margin: 0,
+  },
   ContentView: {
     width: width * 0.9,
     maxHeight: Dimensions.get("window").height * 0.82,

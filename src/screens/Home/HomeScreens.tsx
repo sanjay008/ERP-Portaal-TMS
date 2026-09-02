@@ -38,9 +38,9 @@ const SlideItem = React.memo(
       >
         <Image
           source={item?.item_image ? { uri: item?.item_image } : Images.userblanck}
-          style={[styles.Icon,item?.type == "driver_photos" && { tintColor: Colors.black }]}
+          style={[styles.Icon]}
         />
-        <Text style={[styles.Text,item?.type == "driver_photos" && { color: Colors.Black }]}>{t(item?.item_title)}</Text>
+        <Text style={[styles.Text]}>{t(item?.item_title)}</Text>
       </Pressable>
     );
   },

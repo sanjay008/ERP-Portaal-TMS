@@ -1111,6 +1111,7 @@ export default function ScannerScreens({ navigation, route }: any) {
       const res = await ApiService(apiConstants.status_update, {
         customData: payload,
       });
+      console.log("StatusUpdateFun", res);
 
       if (res?.status) {
         if (!options?.keepDeliveryLabel) {

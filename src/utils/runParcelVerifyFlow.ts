@@ -28,7 +28,19 @@ import {
   mergeParcelIntoDamageList,
   shouldOpenPickupPlannedModal,
 } from '@/src/utils/pickupPlanned';
+import { playErrorSound } from '@/src/utils/playScanSound';
 import { prefetchScanFreshLocation } from '@/src/utils/scanFreshLocation';
+
+const REGION_MISMATCH_QUESTION =
+  'this parcel is not for your region';
+
+function isRegionMismatchQuestion(question?: string | null): boolean {
+  const normalized = String(question ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+  return normalized.includes(REGION_MISMATCH_QUESTION);
+}
 
 export type ParcelVerifyScanPayload = {
   order_id: number | string;
@@ -141,6 +153,7 @@ export async function runParcelVerifyFlow(
     });
     console.log("payload", res);
     if (!Boolean(res?.status)) {
+      void playErrorSound();
       const orderData = res?.data?.order_data || null;
       const productItems =
         (Array.isArray(orderData?.items) && orderData.items.length > 0
@@ -203,11 +216,12 @@ export async function runParcelVerifyFlow(
         title: deps.t(
           'This parcel cannot be scanned. Only pickup parcels are allowed for scanning.',
         ),
-        Icon: Images.OrderIconFull,
+        Icon: Images.InValidScanner,
         LButtonText: deps.t('Cancel'),
         RButtonText: '',
         RButtonStyle: Colors.primary,
         RColor: Colors.white,
+        bgColor: Colors.red,
         personData: res?.data?.order_data || [],
         ProductItem: res?.data?.order_data?.items || [],
         order_id: data?.order_id,
@@ -263,6 +277,12 @@ export async function runParcelVerifyFlow(
       deps.setProductDamageList(res?.data?.item_data_list || []);
     }
     const questionText = res?.data?.quetion ?? res?.data?.question ?? '';
+    if (
+      Boolean(res?.data?.error_key) ||
+      isRegionMismatchQuestion(questionText)
+    ) {
+      void playErrorSound();
+    }
     const modalConfig: any = {
       visible: true,
       title: questionText ? deps.t(questionText) : deps.t('Order Delivery Info'),
@@ -299,6 +319,12 @@ export async function runParcelVerifyFlow(
       // };
       modalConfig.NewScanText =
         deps.source === 'scanner' ? deps.t('New scan') : undefined;
+    }
+
+    if (Boolean(res?.data?.error_key)) {
+      modalConfig.bgColor = Colors.red;
+      modalConfig.Icon = Images.InValidScanner;
+      modalConfig.RColor = Colors.white;
     }
 
     const sessionDeliveryLabel = deps.isManualDirectVerify
@@ -499,6 +525,7 @@ export async function runParcelVerifyFlow(
       deps.setConformationModal(modalConfig);
     }
   } catch (error) {
+    void playErrorSound();
     deps.unlockScanner?.();
     deps.setToast({
       top: 45,
