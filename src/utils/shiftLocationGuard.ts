@@ -8,6 +8,7 @@ import {
   resolveTrackingContext,
   sendDriverLocationUpdate,
 } from '@/src/utils/driverLocationApi';
+import { driverLocLog, driverLocWarn } from '@/src/utils/driverLocLog';
 import { getLastScannedOrderId } from '@/src/utils/lastScannedOrderId';
 import { recheckLocationAccess } from '@/src/hooks/useUserGPS';
 import {
@@ -81,13 +82,13 @@ async function sendSilentIsActiveOn(
       longitude = position.coords.longitude;
       setChauffeurLocation(latitude, longitude, true);
     } catch (error) {
-      console.warn('[Shift] ON is_active=1 location fetch failed', error);
+      driverLocWarn('guard_on', { phase: 'is_active=1', ok: 0, reason: 'location_fetch', err: String(error) });
       return;
     }
   }
 
   if (!latitude || !longitude) {
-    console.warn('[Shift] ON is_active=1 skipped — no location');
+    driverLocWarn('guard_on', { phase: 'is_active=1', ok: 0, reason: 'no_location' });
     return;
   }
 
@@ -105,20 +106,21 @@ async function sendSilentIsActiveOn(
       planningDate,
       1,
     );
-    console.log('[Shift] ON is_active=1', {
-      ok,
+    driverLocLog('guard_on', {
+      phase: 'is_active=1',
+      ok: ok ? 1 : 0,
       region_id: regionId,
       lat: latitude,
       lon: longitude,
     });
   } catch (error) {
-    console.warn('[Shift] ON is_active=1 failed', error);
+    driverLocWarn('guard_on', { phase: 'is_active=1', ok: 0, reason: String(error) });
   }
 }
 
 /**
  * Enable native shift location guard (Android + iOS).
- * On enable: silent is_active=1. On location off / app kill: is_active=0 + end-region-trip.
+ * On enable: silent is_active=1. On location off: is_active=0 + end-region-trip.
  */
 export async function enableShiftLocationGuard(
   userData: UserDataShape | null | undefined,
@@ -133,7 +135,7 @@ export async function enableShiftLocationGuard(
 
   const access = await recheckLocationAccess();
   if (access !== 'granted') {
-    console.warn('[Shift] ON guard skip — location not granted');
+    driverLocWarn('guard_on', { ok: 0, reason: 'location_not_granted' });
     return false;
   }
 
@@ -193,7 +195,7 @@ export async function enableShiftLocationGuard(
         ...(orderId ? { orderId } : {}),
       });
       enabledGuardKey = guardKey;
-      console.log('[Shift] ON guard enabled', {
+      driverLocLog('guard_on', {
         region_id,
         planning_date: resolvedPlanningDate,
         user_id: userId,
@@ -205,7 +207,7 @@ export async function enableShiftLocationGuard(
       );
       return true;
     } catch (error) {
-      console.warn('[Shift] ON guard enable failed', error);
+      driverLocWarn('guard_on', { ok: 0, reason: String(error) });
       return false;
     } finally {
       enableInFlight = null;
@@ -221,9 +223,9 @@ export async function disableShiftLocationGuard(): Promise<void> {
   clearEnabledGuardState();
   try {
     await nativeDisableShiftLocationGuard();
-    console.log('[Shift] guard disabled (manual)');
+    driverLocLog('guard_off', { source: 'manual' });
   } catch (error) {
-    console.warn('[Shift] guard disable failed', error);
+    driverLocWarn('guard_off', { ok: 0, reason: String(error) });
   }
 }
 
@@ -257,10 +259,10 @@ export async function closeActiveShiftSilent(
         0,
       );
     } catch (error) {
-      console.warn('[Shift] silent is_active=0 failed', error);
+      driverLocWarn('api', { is_active: 0, source: 'js_silent', ok: 0, reason: String(error) });
     }
   } else {
-    console.warn('[Shift] silent is_active=0 skipped — no location');
+    driverLocWarn('api', { is_active: 0, source: 'js_silent', ok: 0, reason: 'no_location' });
   }
 
   try {
@@ -273,7 +275,7 @@ export async function closeActiveShiftSilent(
       ended_at,
     });
   } catch (error) {
-    console.warn('[Shift] silent end-region-trip failed', error);
+    driverLocWarn('end_trip', { source: 'js_silent', ok: 0, reason: String(error) });
   }
 
   await disableShiftLocationGuard();
@@ -285,14 +287,14 @@ export async function applyForceClosedShiftCleanup(
 ): Promise<void> {
   const reason = event?.reason ?? 'unknown';
   const regionId = event?.regionId;
-  console.log('[Shift] CLOSE cleanup start', { reason, regionId });
+  driverLocLog('trip_close', { phase: 'cleanup_start', reason, regionId: regionId ?? '-' });
   clearEnabledGuardState();
   await wipeShiftLocalData(regionId, reason);
   setActiveShift(null);
-  console.log('[Shift] CLOSE cleanup done', { reason, regionId });
+  driverLocLog('trip_close', { phase: 'cleanup_done', reason, regionId: regionId ?? '-' });
 }
 
-/** Consume pending close from native (app kill) and wipe JS shift storage. */
+/** Consume pending close from native (location off) and wipe JS shift storage. */
 export async function consumeAndWipePendingShiftClose(
   setActiveShift: (value: any) => void,
 ): Promise<boolean> {
@@ -304,7 +306,7 @@ export async function consumeAndWipePendingShiftClose(
     await applyForceClosedShiftCleanup(setActiveShift, { reason });
     return true;
   } catch (error) {
-    console.warn('[Shift] CLOSE pending consume failed', error);
+    driverLocWarn('trip_close', { phase: 'pending_consume', ok: 0, reason: String(error) });
     return false;
   }
 }

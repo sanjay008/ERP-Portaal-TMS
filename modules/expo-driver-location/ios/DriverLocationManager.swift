@@ -134,7 +134,10 @@ final class DriverLocationManager: NSObject, CLLocationManagerDelegate {
     isTracking = true
     restartApiInterval(config: config)
     publishFreshAndSend(config: config)
-    print("[\(logTag)] tracking started — API every \(config.apiIntervalSeconds)s (fresh GPS each tick)")
+    DriverLocLog.i(
+      "tracking_on",
+      "intervalSec=\(config.apiIntervalSeconds) region=\(config.regionId) planning=\(config.planningDate) order=\(config.orderId ?? "-") user=\(config.userId)"
+    )
   }
 
   private func restartApiInterval(config: TrackingConfig) {
@@ -145,6 +148,14 @@ final class DriverLocationManager: NSObject, CLLocationManagerDelegate {
     }
     apiTimer = timer
     RunLoop.main.add(timer, forMode: .common)
+  }
+
+  /// After scan publishes a fresh fix, restart the 15-min API clock from now.
+  func rescheduleApiIntervalAfterScanPublish() {
+    guard isTracking, !userStopped, !gpsLocationDisabled else { return }
+    guard let config = config ?? TrackingSessionStore.load() else { return }
+    restartApiInterval(config: config)
+    DriverLocLog.i("timer_reset", "source=scan intervalSec=\(config.apiIntervalSeconds)")
   }
 
   private func stopApiInterval() {
@@ -278,7 +289,10 @@ final class DriverLocationManager: NSObject, CLLocationManagerDelegate {
     )
     TrackingSessionStore.savePublishedLocation(published)
     TrackingSessionStore.saveWarmLocation(published)
-    print("[\(logTag)] Published fresh fix → lat=\(published.latitude) lon=\(published.longitude)")
+    DriverLocLog.i(
+      "publish",
+      "source=interval \(DriverLocLog.coord(lat: published.latitude, lon: published.longitude, accuracy: published.accuracy, capturedAtMs: published.capturedAtMs))"
+    )
   }
 
   private func locationToCoord(_ location: CLLocation) -> DriverCoordinate? {
@@ -295,7 +309,7 @@ final class DriverLocationManager: NSObject, CLLocationManagerDelegate {
 
   private func suspendTrackingForDisabledLocation(sendDeactivate: Bool) {
     guard !gpsLocationDisabled else { return }
-    print("[\(logTag)] GPS disabled — sending is_active=0 and pausing tracking")
+    DriverLocLog.w("location_off", "action=deactivate source=ios_tracking")
     gpsLocationDisabled = true
     sendDeactivateIfNeeded(sendDeactivate)
     stopLocationAndTimer()
@@ -304,15 +318,18 @@ final class DriverLocationManager: NSObject, CLLocationManagerDelegate {
   private func sendDeactivateIfNeeded(_ sendDeactivate: Bool) {
     guard sendDeactivate, let config = config ?? TrackingSessionStore.load() else { return }
     guard let coord = TrackingSessionStore.getLocationForApiOrDeactivate() else {
-      print("[\(logTag)] Deactivate skipped — no last location for is_active=0")
+      DriverLocLog.w("api", "ok=false is_active=0 reason=no_location")
       return
     }
     guard coord.latitude != 0, coord.longitude != 0 else {
-      print("[\(logTag)] Deactivate skipped — invalid last location (0,0)")
+      DriverLocLog.w("api", "ok=false is_active=0 reason=invalid_coords")
       return
     }
 
-    print("[\(logTag)] Sending deactivate API — is_active=0")
+    DriverLocLog.i(
+      "api",
+      "phase=request is_active=0 action=deactivate \(DriverLocLog.coord(lat: coord.latitude, lon: coord.longitude, accuracy: coord.accuracy, capturedAtMs: coord.capturedAtMs)) region=\(config.regionId)"
+    )
     let semaphore = DispatchSemaphore(value: 0)
     var success = false
     DispatchQueue.global(qos: .userInitiated).async {
@@ -321,7 +338,7 @@ final class DriverLocationManager: NSObject, CLLocationManagerDelegate {
     }
     _ = semaphore.wait(timeout: .now() + 30)
     if !success {
-      print("[\(logTag)] Deactivate API failed — is_active=0")
+      DriverLocLog.w("api", "ok=false is_active=0 action=deactivate")
     }
   }
 

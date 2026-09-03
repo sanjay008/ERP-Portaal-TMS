@@ -29,7 +29,7 @@ import {
   shouldOpenPickupPlannedModal,
 } from '@/src/utils/pickupPlanned';
 import { playErrorSound } from '@/src/utils/playScanSound';
-import { prefetchScanFreshLocation } from '@/src/utils/scanFreshLocation';
+import { resolveScanLocation } from '@/src/utils/scanFreshLocation';
 
 const REGION_MISMATCH_QUESTION =
   'this parcel is not for your region';
@@ -184,8 +184,9 @@ export async function runParcelVerifyFlow(
       return;
     }
 
+    // Resolve scan GPS first (age / same-order rules), then pin order + ping published cache.
+    await resolveScanLocation(data?.order_id);
     await setLastScannedOrderId(data?.order_id);
-    prefetchScanFreshLocation();
     void pingDriverLiveLocation(deps.userData);
     void syncNativeDriverTracking(deps.userData);
 
@@ -361,18 +362,7 @@ export async function runParcelVerifyFlow(
         data?.item_id,
       );
 
-      console.log('[DeliveryContinue]', {
-        moreCount,
-        apiRemaining:
-          res?.data?.total_remaining_item_to_scan ??
-          res?.data?.remaining_item_to_scan ??
-          res?.data?.remaining_item ??
-          null,
-        itemId: data?.item_id,
-        orderId: data?.order_id,
-        labelId: resolvedLabel?.id ?? null,
-        isStatus4,
-      });
+  
 
       if (deps.onDeliveryLabeledParcelReady) {
         deps.onDeliveryLabeledParcelReady({
@@ -458,7 +448,7 @@ export async function runParcelVerifyFlow(
       isStatus4 &&
       slideType === 'pickup_dropoff' &&
       itemNeedsDeliveryLabelSelection(res?.data, data);
-    const isWarehouseUnload = slideType === 'driver_warehouse_unload';
+    const isWarehouseUnload = slideType === 'driver_warehouse_unload' || slideType === 'driver_warehouse_loading';
 
     let scanOverlayShown = false;
 

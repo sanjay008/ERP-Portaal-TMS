@@ -12,7 +12,7 @@ import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 object ShiftTripApiClient {
-  private const val TAG = "ShiftLocationGuard"
+  private const val TAG = DriverLocLog.TAG
 
   private val client = OkHttpClient.Builder()
     .connectTimeout(30, TimeUnit.SECONDS)
@@ -22,15 +22,14 @@ object ShiftTripApiClient {
 
   fun sendEndRegionTripBlocking(config: TrackingConfig, endTripApiUrl: String?): Boolean {
     if (endTripApiUrl.isNullOrBlank()) {
-      Log.w(TAG, "[Shift] CLOSE skipped end-region-trip — missing url")
+      DriverLocLog.w("end_trip", "ok=false reason=missing_url")
       return false
     }
 
     val endedAt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
-    Log.i(
-      TAG,
-      "[Shift] CLOSE end-region-trip request region=${config.regionId} " +
-        "planning=${config.planningDate} ended_at=$endedAt user=${config.userId}",
+    DriverLocLog.i(
+      "end_trip",
+      "phase=request region=${config.regionId} planning=${config.planningDate} ended_at=$endedAt user=${config.userId}",
     )
 
     val multipart = MultipartBody.Builder()
@@ -54,17 +53,17 @@ object ShiftTripApiClient {
         val body = response.body?.string().orEmpty()
         val ok = response.isSuccessful
         if (ok) {
-          Log.i(TAG, "[Shift] CLOSE end-region-trip success status=${response.code}")
+          DriverLocLog.i("end_trip", "ok=true status=${response.code} region=${config.regionId}")
         } else {
-          Log.w(
-            TAG,
-            "[Shift] CLOSE end-region-trip failed status=${response.code} body=${body.take(200)}",
+          DriverLocLog.w(
+            "end_trip",
+            "ok=false status=${response.code} region=${config.regionId} body=${body.take(120)}",
           )
         }
         ok
       }
     } catch (e: IOException) {
-      Log.e(TAG, "[Shift] CLOSE end-region-trip network error: ${e.message}", e)
+      DriverLocLog.e("end_trip", "ok=false phase=network err=${e.message}", e)
       false
     }
   }
@@ -113,13 +112,13 @@ object ShiftGuardSessionStore {
       }
       .remove(KEY_PENDING_CLOSE_REASON)
       .apply()
-    Log.i(
-      TAG,
-      "[Shift] ON guard saved region=${config.regionId} planning=${config.planningDate} user=${config.userId}",
+    DriverLocLog.i(
+      "guard_on",
+      "phase=saved region=${config.regionId} planning=${config.planningDate} user=${config.userId}",
     )
   }
 
-  private const val TAG = "ShiftLocationGuard"
+  private const val TAG = DriverLocLog.TAG
 
   fun load(context: Context): TrackingConfig? {
     val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -191,14 +190,14 @@ object ShiftGuardSessionStore {
       .putString(KEY_PENDING_CLOSE_REASON, reason)
       .putBoolean(KEY_ENABLED, false)
       .apply()
-    Log.i(TAG, "[Shift] CLOSE pending local wipe reason=$reason")
+    DriverLocLog.i("trip_close", "phase=pending_wipe reason=$reason")
   }
 
   fun consumePendingCloseReason(context: Context): String? {
     val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     val reason = prefs.getString(KEY_PENDING_CLOSE_REASON, null) ?: return null
     prefs.edit().remove(KEY_PENDING_CLOSE_REASON).apply()
-    Log.i(TAG, "[Shift] CLOSE pending consumed reason=$reason")
+    DriverLocLog.i("trip_close", "phase=pending_consumed reason=$reason")
     return reason
   }
 

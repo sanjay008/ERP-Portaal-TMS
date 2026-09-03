@@ -249,20 +249,20 @@ enum LocationApiClient {
 
   static func sendLocationUpdate(config: TrackingConfig, coord: DriverCoordinate, isActive: Int, completion: ((Bool) -> Void)? = nil) {
     guard coord.latitude != 0, coord.longitude != 0 else {
-      print("[\(logTag)] API skipped — invalid coordinates (0,0) is_active=\(isActive)")
+      DriverLocLog.w("api", "ok=false reason=invalid_coords is_active=\(isActive)")
       completion?(false)
       return
     }
 
     guard let url = URL(string: config.apiUrl) else {
-      print("[\(logTag)] API skipped — invalid apiUrl is_active=\(isActive)")
+      DriverLocLog.w("api", "ok=false reason=invalid_url is_active=\(isActive)")
       completion?(false)
       return
     }
 
-    print(
-      "[\(logTag)] API request → is_active=\(isActive) lat=\(coord.latitude) lon=\(coord.longitude) " +
-        "region=\(config.regionId) user=\(config.userId) planning=\(config.planningDate) order=\(config.orderId ?? "nil")"
+    DriverLocLog.i(
+      "api",
+      "phase=request is_active=\(isActive) \(DriverLocLog.coord(lat: coord.latitude, lon: coord.longitude, accuracy: coord.accuracy, capturedAtMs: coord.capturedAtMs)) region=\(config.regionId) planning=\(config.planningDate) order=\(config.orderId ?? "-") user=\(config.userId)"
     )
 
     var request = URLRequest(url: url)
@@ -314,7 +314,7 @@ enum LocationApiClient {
       }
 
       if let error {
-        print("[\(logTag)] API failed → network error is_active=\(isActive): \(error.localizedDescription)")
+        DriverLocLog.e("api", "ok=false phase=network is_active=\(isActive) err=\(error.localizedDescription)")
         completion?(false)
         return
       }
@@ -322,13 +322,13 @@ enum LocationApiClient {
       let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
       let success = (200...299).contains(statusCode)
       if success {
-        print(
-          "[\(logTag)] API success → status=\(statusCode) is_active=\(isActive) " +
-            "lat=\(coord.latitude) lon=\(coord.longitude)"
+        DriverLocLog.i(
+          "api",
+          "ok=true status=\(statusCode) is_active=\(isActive) \(DriverLocLog.coord(lat: coord.latitude, lon: coord.longitude, accuracy: coord.accuracy, capturedAtMs: coord.capturedAtMs)) region=\(config.regionId) order=\(config.orderId ?? "-")"
         )
       } else {
         let body = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
-        print("[\(logTag)] API error → status=\(statusCode) is_active=\(isActive) body=\(body.prefix(200))")
+        DriverLocLog.w("api", "ok=false status=\(statusCode) is_active=\(isActive) body=\(body.prefix(120))")
       }
       completion?(success)
     }.resume()

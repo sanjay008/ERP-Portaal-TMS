@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * Writes the published 15-min cache; does not POST live-location (periodic timer owns that).
  */
 object FreshLocationHelper {
-  private const val TAG = "ExpoDriverLocation"
+  private const val TAG = DriverLocLog.TAG
   private const val MAX_LOCATION_AGE_MS = 60_000L
   private const val MAX_ACCURACY_METERS = 100f
 
@@ -33,7 +33,7 @@ object FreshLocationHelper {
 
     val appContext = context.applicationContext
     if (!hasLocationPermission(appContext)) {
-      Log.w(TAG, "Scan fresh GPS skipped — no location permission")
+      DriverLocLog.w("scan_fresh", "ok=false reason=no_permission")
       finish(null)
       return
     }
@@ -73,10 +73,10 @@ object FreshLocationHelper {
             }
         }
     } catch (e: SecurityException) {
-      Log.w(TAG, "Scan fresh GPS security error: ${e.message}")
+      DriverLocLog.w("scan_fresh", "ok=false reason=security err=${e.message}")
       finish(TrackingSessionStore.getLastLocation(appContext))
     } catch (e: Exception) {
-      Log.w(TAG, "Scan fresh GPS failed: ${e.message}")
+      DriverLocLog.w("scan_fresh", "ok=false reason=failed err=${e.message}")
       finish(TrackingSessionStore.getLastLocation(appContext))
     }
   }
@@ -100,7 +100,7 @@ object FreshLocationHelper {
     if (!isAcceptableFix(location)) {
       val ageMs = System.currentTimeMillis() - location.time
       val accuracy = if (location.hasAccuracy()) location.accuracy else -1f
-      Log.w(TAG, "Scan rejected $source fix ageMs=$ageMs accuracy=$accuracy")
+      DriverLocLog.w("scan_fresh", "ok=false reason=rejected source=$source ageMs=$ageMs accuracy=$accuracy")
       return false
     }
 
@@ -118,9 +118,10 @@ object FreshLocationHelper {
 
     TrackingSessionStore.savePublishedLocation(context, published)
     TrackingSessionStore.saveWarmLocation(context, published)
-    Log.i(
-      TAG,
-      "Scan published fresh fix → lat=${published.latitude} lon=${published.longitude} at=${published.capturedAtMs}",
+    DriverLocationService.rescheduleApiInterval(context)
+    DriverLocLog.i(
+      "scan_fresh",
+      "ok=true timerReset=1 ${DriverLocLog.coord(published.latitude, published.longitude, published.accuracy, published.capturedAtMs)}",
     )
     return true
   }

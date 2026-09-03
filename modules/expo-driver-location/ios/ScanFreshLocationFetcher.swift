@@ -73,7 +73,11 @@ final class ScanFreshLocationFetcher: NSObject, CLLocationManagerDelegate {
 
     TrackingSessionStore.savePublishedLocation(published)
     TrackingSessionStore.saveWarmLocation(published)
-    print("[\(logTag)] Scan published fresh fix → lat=\(published.latitude) lon=\(published.longitude)")
+    DriverLocationManager.shared.rescheduleApiIntervalAfterScanPublish()
+    DriverLocLog.i(
+      "scan_fresh",
+      "ok=true timerReset=1 \(DriverLocLog.coord(lat: published.latitude, lon: published.longitude, accuracy: published.accuracy, capturedAtMs: published.capturedAtMs))"
+    )
     return published
   }
 

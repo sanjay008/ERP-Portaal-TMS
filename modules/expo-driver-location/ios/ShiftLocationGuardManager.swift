@@ -4,7 +4,8 @@ import UIKit
 
 /**
  * Lightweight shift guard — caches current location only.
- * On GPS off / app kill: is_active=0 + end-region-trip, then pending local wipe.
+ * On GPS/location off: is_active=0 + end-region-trip, then pending local wipe.
+ * App kill does NOT close the trip — tracking continues in background.
  * Does NOT send periodic is_active=1 updates.
  */
 final class ShiftLocationGuardManager: NSObject, CLLocationManagerDelegate {
@@ -66,7 +67,10 @@ final class ShiftLocationGuardManager: NSObject, CLLocationManagerDelegate {
       locationManager.requestWhenInUseAuthorization()
     }
 
-    print("[\(logTag)] [Shift] ON guard running region=\(config.regionId) planning=\(config.planningDate)")
+    DriverLocLog.i(
+      "guard_on",
+      "region=\(config.regionId) planning=\(config.planningDate) order=\(config.orderId ?? "-")"
+    )
   }
 
   func disable() {
@@ -143,14 +147,9 @@ final class ShiftLocationGuardManager: NSObject, CLLocationManagerDelegate {
   }
 
   private func registerLifecycleObservers() {
+    // Intentionally empty: app terminate must not end the trip.
+    // Location-off is handled via CLLocationManager / authorization callbacks.
     removeLifecycleObservers()
-    terminateObserver = NotificationCenter.default.addObserver(
-      forName: UIApplication.willTerminateNotification,
-      object: nil,
-      queue: .main
-    ) { [weak self] _ in
-      self?.sendDeactivateAndDisable(reason: "app_kill")
-    }
   }
 
   private func removeLifecycleObservers() {
@@ -168,9 +167,9 @@ final class ShiftLocationGuardManager: NSObject, CLLocationManagerDelegate {
     let lastCoord = ShiftGuardSessionStore.getLastLocation()
     let endUrl = endTripApiUrl ?? ShiftGuardSessionStore.getEndTripApiUrl()
 
-    print(
-      "[\(logTag)] [Shift] CLOSE start reason=\(reason) region=\(activeConfig?.regionId ?? "") " +
-        "lat=\(lastCoord?.latitude ?? 0) lon=\(lastCoord?.longitude ?? 0)"
+    DriverLocLog.i(
+      "trip_close",
+      "phase=start reason=\(reason) region=\(activeConfig?.regionId ?? "-") \(DriverLocLog.coord(lat: lastCoord?.latitude, lon: lastCoord?.longitude))"
     )
 
     stopLocationCache()
@@ -188,24 +187,26 @@ final class ShiftLocationGuardManager: NSObject, CLLocationManagerDelegate {
       return
     }
 
-    let tag = logTag
     let semaphore = DispatchSemaphore(value: 0)
     DispatchQueue.global(qos: .userInitiated).async {
       if let lastCoord, lastCoord.latitude != 0, lastCoord.longitude != 0 {
-        print("[\(tag)] [Shift] CLOSE is_active=0 lat=\(lastCoord.latitude) lon=\(lastCoord.longitude)")
+        DriverLocLog.i(
+          "api",
+          "is_active=0 source=shift_guard \(DriverLocLog.coord(lat: lastCoord.latitude, lon: lastCoord.longitude))"
+        )
         let ok = LocationApiClient.sendLocationUpdateBlocking(
           config: activeConfig,
           coord: lastCoord,
           isActive: 0
         )
-        print("[\(tag)] [Shift] CLOSE is_active=0 \(ok ? "success" : "failed")")
+        DriverLocLog.i("api", "ok=\(ok ? 1 : 0) is_active=0 source=shift_guard")
       } else {
-        print("[\(tag)] [Shift] CLOSE is_active=0 skipped — no current location")
+        DriverLocLog.w("api", "ok=false is_active=0 source=shift_guard reason=no_location")
       }
 
       let tripOk = Self.sendEndRegionTripBlocking(config: activeConfig, endTripApiUrl: endUrl)
-      print("[\(tag)] [Shift] CLOSE end-region-trip \(tripOk ? "success" : "failed")")
-      print("[\(tag)] [Shift] CLOSE finished reason=\(reason)")
+      DriverLocLog.i("end_trip", "ok=\(tripOk ? 1 : 0) reason=\(reason)")
+      DriverLocLog.i("trip_close", "phase=finished reason=\(reason) ok=true")
       semaphore.signal()
     }
     _ = semaphore.wait(timeout: .now() + 35)

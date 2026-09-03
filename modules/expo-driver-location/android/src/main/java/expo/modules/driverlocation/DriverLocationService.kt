@@ -33,7 +33,9 @@ class DriverLocationService : Service() {
     const val ACTION_START = "expo.modules.driverlocation.START"
     const val ACTION_UPDATE = "expo.modules.driverlocation.UPDATE"
     const val ACTION_STOP = "expo.modules.driverlocation.STOP"
-    private const val TAG = "ExpoDriverLocation"
+    /** Restart the 15-min publish timer after a scan fresh GPS publish. */
+    const val ACTION_RESCHEDULE_INTERVAL = "expo.modules.driverlocation.RESCHEDULE_INTERVAL"
+    private const val TAG = DriverLocLog.TAG
     private const val CHANNEL_ID = "driver_location_tracking"
     private const val NOTIFICATION_ID = 481516
     /** Reject fallback fixes older than this. */
@@ -80,6 +82,18 @@ class DriverLocationService : Service() {
         return
       }
       ContextCompat.startForegroundService(context, intent)
+    }
+
+    /** After scan publishes a fresh fix, reset the 15-min API clock. */
+    fun rescheduleApiInterval(context: Context) {
+      if (!isRunning) {
+        return
+      }
+      try {
+        context.startService(startServiceIntent(context, ACTION_RESCHEDULE_INTERVAL))
+      } catch (e: Exception) {
+        DriverLocLog.w("timer_reset", "ok=false err=${e.message}")
+      }
     }
 
     fun updateNotification(context: Context, title: String, body: String) {
@@ -150,7 +164,7 @@ class DriverLocationService : Service() {
         return
       }
       if (!canTrackLocation()) {
-        Log.w(TAG, "Location unavailable — sending is_active=0 and stopping tracking")
+        DriverLocLog.w("location_off", "action=deactivate source=provider_receiver")
         sendDeactivateAndStop(restartAllowed = false)
       }
     }
@@ -176,6 +190,14 @@ class DriverLocationService : Service() {
         sendDeactivateAndStop(restartAllowed = false)
         return START_NOT_STICKY
       }
+      ACTION_RESCHEDULE_INTERVAL -> {
+        val config = activeConfig ?: TrackingSessionStore.load(this)
+        if (config != null && isRunning && !userStopped) {
+          startApiInterval(config)
+          DriverLocLog.i("timer_reset", "source=scan intervalSec=${config.apiIntervalSeconds}")
+        }
+        return START_STICKY
+      }
       ACTION_UPDATE -> {
         userStopped = false
         val config = TrackingSessionStore.load(this) ?: run {
@@ -187,7 +209,7 @@ class DriverLocationService : Service() {
           return START_NOT_STICKY
         }
         refreshTracking(config)
-        return START_NOT_STICKY
+        return START_STICKY
       }
       ACTION_START, null -> {
         userStopped = false
@@ -204,16 +226,19 @@ class DriverLocationService : Service() {
         } else {
           startForegroundTracking(config)
         }
-        return START_NOT_STICKY
+        return START_STICKY
       }
       else -> return START_NOT_STICKY
     }
   }
 
   override fun onTaskRemoved(rootIntent: Intent?) {
-    Log.i(TAG, "App task removed — stopping driver location tracking")
-    userStopped = true
-    sendDeactivateAndStop(restartAllowed = false)
+    // Trip ON + location ON: keep 15-min tracking after app swipe/kill.
+    // Only location-off / explicit stop should deactivate.
+    DriverLocLog.i(
+      "app_kill",
+      "action=continue tracking=1 source=DriverLocationService",
+    )
     super.onTaskRemoved(rootIntent)
   }
 
@@ -232,6 +257,10 @@ class DriverLocationService : Service() {
       requestLocationUpdates()
       startApiInterval(config)
       sendImmediateUpdate(config)
+      DriverLocLog.i(
+        "tracking_on",
+        "intervalSec=${config.apiIntervalSeconds} region=${config.regionId} planning=${config.planningDate} order=${config.orderId ?: "-"} user=${config.userId}",
+      )
     } catch (_: Exception) {
       isRunning = false
       stopSelf()
@@ -266,7 +295,7 @@ class DriverLocationService : Service() {
       override fun onLocationResult(result: LocationResult) {
         val location = result.lastLocation ?: return
         if (!canTrackLocation()) {
-          Log.w(TAG, "Location unavailable during location update — sending is_active=0")
+          DriverLocLog.w("location_off", "action=deactivate source=location_update")
           sendDeactivateAndStop(restartAllowed = false)
           return
         }
@@ -292,7 +321,7 @@ class DriverLocationService : Service() {
           return
         }
         if (!canTrackLocation()) {
-          Log.w(TAG, "Location unavailable during API interval — sending is_active=0")
+          DriverLocLog.w("location_off", "action=deactivate source=api_interval")
           sendDeactivateAndStop(restartAllowed = false)
           return
         }
@@ -305,7 +334,10 @@ class DriverLocationService : Service() {
     }
     apiIntervalRunnable = runnable
     apiHandler.postDelayed(runnable, intervalMs)
-    Log.i(TAG, "API interval started — every ${config.apiIntervalSeconds}s (fresh GPS each tick) gen=$generation")
+    DriverLocLog.i(
+      "timer_start",
+      "intervalSec=${config.apiIntervalSeconds} gen=$generation region=${config.regionId} order=${config.orderId ?: "-"}",
+    )
   }
 
   private fun stopApiInterval() {
@@ -432,9 +464,9 @@ class DriverLocationService : Service() {
     val published = coord.copy(capturedAtMs = System.currentTimeMillis().toDouble())
     TrackingSessionStore.savePublishedLocation(this, published)
     TrackingSessionStore.saveWarmLocation(this, published)
-    Log.i(
-      TAG,
-      "Published fresh fix → lat=${published.latitude} lon=${published.longitude} at=${published.capturedAtMs}",
+    DriverLocLog.i(
+      "publish",
+      "source=interval ${DriverLocLog.coord(published.latitude, published.longitude, published.accuracy, published.capturedAtMs)}",
     )
   }
 
@@ -486,22 +518,25 @@ class DriverLocationService : Service() {
 
   private fun sendDeactivateApi(config: TrackingConfig?, lastCoord: DriverCoordinate?) {
     if (config == null) {
-      Log.w(TAG, "Deactivate skipped — missing tracking config")
+      DriverLocLog.w("api", "ok=false is_active=0 reason=missing_config")
       return
     }
     val coord = lastCoord ?: run {
-      Log.w(TAG, "Deactivate skipped — no last location for is_active=0")
+      DriverLocLog.w("api", "ok=false is_active=0 reason=no_location")
       return
     }
     if (coord.latitude == 0.0 && coord.longitude == 0.0) {
-      Log.w(TAG, "Deactivate skipped — invalid last location (0,0)")
+      DriverLocLog.w("api", "ok=false is_active=0 reason=invalid_coords")
       return
     }
 
-    Log.i(TAG, "Sending deactivate API — is_active=0")
+    DriverLocLog.i(
+      "api",
+      "phase=request is_active=0 action=deactivate ${DriverLocLog.coord(coord.latitude, coord.longitude, coord.accuracy, coord.capturedAtMs)} region=${config.regionId}",
+    )
     val success = LocationApiClient.sendLocationUpdateBlocking(config, coord, 0)
     if (!success) {
-      Log.w(TAG, "Deactivate API failed — is_active=0")
+      DriverLocLog.w("api", "ok=false is_active=0 action=deactivate")
     }
   }
 

@@ -26,7 +26,6 @@ module.exports = {
     langauge: `${baseUrlnew}get_language`,
     country: `${baseUrlnew}get_country`,
     countryList: `${baseUrlnew}country/list`,
-    
 
     // TMS API MODE ON
     getOrderByDriver: `${baseUrlnew}tms-driver/get-tms-order-by-region`,

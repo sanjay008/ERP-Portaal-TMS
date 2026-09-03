@@ -28,14 +28,15 @@ import com.google.android.gms.location.Priority
 
 /**
  * Lightweight shift guard — caches current location only.
- * Sends update_driver_live_location with is_active=0 when GPS is turned off or app is killed.
+ * On location off: update_driver_live_location (is_active=0) + end-region-trip.
+ * App kill does NOT close the trip — guard keeps running while possible.
  * Does NOT send periodic is_active=1 updates.
  */
 class ShiftLocationGuardService : Service() {
   companion object {
     const val ACTION_ENABLE = "expo.modules.driverlocation.SHIFT_GUARD_ENABLE"
     const val ACTION_DISABLE = "expo.modules.driverlocation.SHIFT_GUARD_DISABLE"
-    private const val TAG = "ShiftLocationGuard"
+    private const val TAG = DriverLocLog.TAG
     private const val CHANNEL_ID = "shift_location_guard"
     private const val NOTIFICATION_ID = 481517
 
@@ -131,7 +132,7 @@ class ShiftLocationGuardService : Service() {
         return
       }
       if (!canUseLocation()) {
-        Log.w(TAG, "[Shift] CLOSE trigger reason=location_off")
+        DriverLocLog.w("location_off", "action=close_trip source=provider_receiver")
         sendDeactivateAndStop("location_off")
       }
     }
@@ -176,18 +177,9 @@ class ShiftLocationGuardService : Service() {
   }
 
   override fun onTaskRemoved(rootIntent: Intent?) {
-    Log.i(TAG, "[Shift] CLOSE trigger reason=app_kill")
-    // Wait for APIs to finish before process dies (async Thread alone gets killed).
-    val closer = Thread(
-      { sendDeactivateAndStop("app_kill", blocking = true) },
-      "ShiftGuardAppKillClose",
-    )
-    closer.start()
-    try {
-      closer.join(45_000L)
-    } catch (_: InterruptedException) {
-      // ignore
-    }
+    // App kill must NOT end the trip — only location_off closes.
+    // Keep caching last coords so a later GPS-off can still deactivate cleanly.
+    DriverLocLog.i("app_kill", "action=continue tracking=1 source=ShiftLocationGuard")
     super.onTaskRemoved(rootIntent)
   }
 
@@ -196,20 +188,6 @@ class ShiftLocationGuardService : Service() {
       unregisterReceiver(providerReceiver)
     } catch (_: IllegalArgumentException) {
       // already unregistered
-    }
-    // Last chance if task-kill skipped onTaskRemoved (some OEMs).
-    if (isRunning && !isDeactivating && ShiftGuardSessionStore.load(this) != null) {
-      Log.i(TAG, "[Shift] CLOSE trigger reason=app_kill (onDestroy)")
-      val closer = Thread(
-        { sendDeactivateAndStop("app_kill", blocking = true) },
-        "ShiftGuardDestroyClose",
-      )
-      closer.start()
-      try {
-        closer.join(20_000L)
-      } catch (_: InterruptedException) {
-        // ignore
-      }
     }
     locationCallback?.let { fusedClient.removeLocationUpdates(it) }
     locationCallback = null
@@ -237,7 +215,7 @@ class ShiftLocationGuardService : Service() {
       isRunning = true
       seedLastLocation()
       requestLocationUpdates()
-      Log.i(TAG, "[Shift] ON guard running (no periodic live API)")
+      DriverLocLog.i("guard_on", "region=${config.regionId} planning=${config.planningDate} order=${config.orderId ?: "-"}")
     } catch (e: SecurityException) {
       Log.e(TAG, "SecurityException starting shift guard — permission missing?", e)
       isRunning = false
@@ -274,7 +252,7 @@ class ShiftLocationGuardService : Service() {
       override fun onLocationResult(result: LocationResult) {
         val location = result.lastLocation ?: return
         if (!canUseLocation()) {
-          Log.w(TAG, "[Shift] CLOSE trigger reason=location_off (during update)")
+          DriverLocLog.w("location_off", "action=close_trip source=location_update")
           sendDeactivateAndStop("location_off")
           return
         }
@@ -286,7 +264,7 @@ class ShiftLocationGuardService : Service() {
     try {
       fusedClient.requestLocationUpdates(request, callback, Looper.getMainLooper())
     } catch (_: SecurityException) {
-      Log.w(TAG, "[Shift] CLOSE trigger reason=location_off (security)")
+      DriverLocLog.w("location_off", "action=close_trip source=security")
       sendDeactivateAndStop("location_off")
     }
   }
@@ -315,10 +293,9 @@ class ShiftLocationGuardService : Service() {
     val lastCoord = ShiftGuardSessionStore.getLastLocation(this)
     val endTripUrl = ShiftGuardSessionStore.getEndTripApiUrl(this)
 
-    Log.i(
-      TAG,
-      "[Shift] CLOSE start reason=$reason blocking=$blocking region=${config?.regionId} " +
-        "lat=${lastCoord?.latitude} lon=${lastCoord?.longitude}",
+    DriverLocLog.i(
+      "trip_close",
+      "phase=start reason=$reason blocking=$blocking region=${config?.regionId ?: "-"} ${DriverLocLog.coord(lastCoord?.latitude, lastCoord?.longitude)}",
     )
 
     stopGuardInternal(clearSession = false)
@@ -331,7 +308,7 @@ class ShiftLocationGuardService : Service() {
         if (config != null) {
           ShiftTripApiClient.sendEndRegionTripBlocking(config, endTripUrl)
         }
-        Log.i(TAG, "[Shift] CLOSE finished reason=$reason")
+        DriverLocLog.i("trip_close", "phase=finished reason=$reason ok=true")
         try {
           eventSink?.invoke(
             "onShiftForceClosed",
@@ -378,12 +355,12 @@ class ShiftLocationGuardService : Service() {
       return
     }
 
-    Log.i(TAG, "[Shift] CLOSE is_active=0 lat=${coord.latitude} lon=${coord.longitude}")
+    DriverLocLog.i("api", "is_active=0 source=shift_guard ${DriverLocLog.coord(coord.latitude, coord.longitude)}")
     val success = LocationApiClient.sendLocationUpdateBlocking(config, coord, 0)
     if (!success) {
-      Log.w(TAG, "[Shift] CLOSE is_active=0 API failed")
+      DriverLocLog.w("api", "ok=false is_active=0 source=shift_guard")
     } else {
-      Log.i(TAG, "[Shift] CLOSE is_active=0 API success")
+      DriverLocLog.i("api", "ok=true is_active=0 source=shift_guard")
     }
   }
 

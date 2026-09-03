@@ -39,5 +39,26 @@ export const styles = StyleSheet.create({
         color:Colors.white,
         fontFamily:FONTS.Medium,
       
-    }
+    },
+    TripOffFooter: {
+        paddingHorizontal: 15,
+        paddingTop: 10,
+        paddingBottom: 16,
+        backgroundColor: Colors.background,
+        borderTopWidth: 1,
+        borderTopColor: Colors.border,
+    },
+    TripOffButton: {
+        width: '100%',
+        paddingVertical: 14,
+        borderRadius: 6,
+        backgroundColor: Colors.red,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    TripOffButtonText: {
+        fontSize: 15,
+        color: Colors.white,
+        fontFamily: FONTS.Medium,
+    },
 });

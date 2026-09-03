@@ -1,5 +1,6 @@
 import apiConstants from '@/src/api/apiConstants';
 import ApiService from '@/src/utils/Apiservice';
+import { driverLocLog, driverLocWarn } from '@/src/utils/driverLocLog';
 import { getLastScannedOrderId } from '@/src/utils/lastScannedOrderId';
 import { ACTIVE_SHIFT_KEY, type ActiveShiftSession, loadTrackingRegion } from '@/src/utils/shiftSession';
 import { getData } from '@/src/utils/storeData';
@@ -199,7 +200,7 @@ export async function sendDriverLocationUpdate(
   );
 
   if (result.valid === false) {
-    console.warn(`[driverLocationApi] API call skipped — ${result.reason}`);
+    driverLocWarn('api', { ok: 0, reason: result.reason, is_active: isActive });
     return false;
   }
 
@@ -215,30 +216,31 @@ export async function sendDriverLocationUpdate(
     });
 
     if (res?.status) {
-      if (isActive === 1) {
-        console.log('[driverLocationApi] tracking on', {
-          lat: coord.latitude,
-          lon: coord.longitude,
-          captured_at: coord.capturedAtMs,
-          region_id: result.payload.region_id,
-          planning_date: result.payload.planning_date,
-          order_id: orderId,
-        });
-      }
+      driverLocLog('api', {
+        ok: 1,
+        source: 'js',
+        is_active: isActive,
+        lat: coord.latitude,
+        lon: coord.longitude,
+        captured_at: coord.capturedAtMs ?? '-',
+        region_id: result.payload.region_id,
+        planning_date: result.payload.planning_date,
+        order_id: orderId ?? '-',
+      });
       return true;
     }
 
-    console.warn('[driverLocationApi] API responded with failure status');
+    driverLocWarn('api', { ok: 0, source: 'js', is_active: isActive, reason: 'status_false' });
     return false;
   } catch (error) {
-    console.error('[driverLocationApi] Failed to send location:', error);
+    driverLocWarn('api', { ok: 0, source: 'js', is_active: isActive, reason: String(error) });
     return false;
   }
 }
 
 /**
  * Fire-and-forget: ping live location once (e.g. after successful Verify_status).
- * Reuses the last 15-min published native cache — does not fetch a new GPS fix.
+ * Uses the published native cache (15-min or last scan fresh) — does not fetch GPS again.
  */
 export async function pingDriverLiveLocation(
   userData?: UserDataShape | null,
@@ -253,13 +255,18 @@ export async function pingDriverLiveLocation(
     const last = await getLastLocation();
 
     if (!last?.latitude || !last?.longitude) {
-      console.warn(
-        '[driverLocationApi] live location ping skipped — no published 15-min cache',
-      );
+      driverLocWarn('ping', { ok: 0, reason: 'no_published_cache' });
       return;
     }
 
     const { region_id, planning_date } = await resolveTrackingContext();
+    driverLocLog('ping', {
+      lat: last.latitude,
+      lon: last.longitude,
+      capturedAt: last.capturedAtMs ?? '-',
+      region_id,
+      planning_date,
+    });
     await sendDriverLocationUpdate(
       {
         latitude: last.latitude,
@@ -275,6 +282,6 @@ export async function pingDriverLiveLocation(
       1,
     );
   } catch (error) {
-    console.warn('[driverLocationApi] live location ping failed', error);
+    driverLocWarn('ping', { ok: 0, reason: String(error) });
   }
 }
