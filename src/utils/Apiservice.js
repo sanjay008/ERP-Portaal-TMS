@@ -73,6 +73,12 @@ const ApiService = async (endpoint, options = {}) => {
                 String(row.product_id),
               );
             }
+            if (row?.item_id != null) {
+              requestData.append(
+                `is_parcel_damage_accept[${index}][item_id]`,
+                String(row.item_id),
+              );
+            }
             if (row?.damage != null) {
               requestData.append(
                 `is_parcel_damage_accept[${index}][damage]`,
@@ -103,6 +109,15 @@ const ApiService = async (endpoint, options = {}) => {
               name: file.name || `file_${index + 1}.jpg`,
               type: file.type || "image/jpeg",
             });
+          });
+          return;
+        }
+
+        // Primitive arrays (e.g. item_ids for rejection close)
+        if (Array.isArray(value)) {
+          value.forEach((item, index) => {
+            if (item == null) return;
+            requestData.append(`${key}[${index}]`, String(item));
           });
           return;
         }

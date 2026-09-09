@@ -2238,7 +2238,6 @@ const CustomerSignatureFun = async (
                       SelectPlace?.order_id
                     );
 
-                    // ✅ Filter out already marked items
                     const filteredItems = missingItems.filter(
                       (item: any) => !NoParcelItemIds.includes(item.id)
                     );

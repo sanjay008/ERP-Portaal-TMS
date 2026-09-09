@@ -29,3 +29,10 @@ export function isDeliveryPhaseOrder(order: any): boolean {
   const id = getOrderStatusId(order);
   return id === 4 || id === 5;
 }
+
+/** Rejection allowed original statuses: 2 / 4 / 5 only (status 3 is NOT allowed). */
+export function isRejectionAllowedOrder(order: any): boolean {
+  if (!order || isPickupOrder(order)) return false;
+  const id = getOrderStatusId(order);
+  return id === 2 || id === 4 || id === 5;
+}

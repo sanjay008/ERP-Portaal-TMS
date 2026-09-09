@@ -12,7 +12,10 @@ import {
   resolveLocationAccess,
   retryLocationPermission,
 } from "@/src/hooks/useUserGPS";
-import { REJECTION_SLIDE_TYPE } from "@/src/screens/Rejection/rejectionSession";
+import {
+  REJECTION_SLIDE_TYPE,
+  resetRejectionSession,
+} from "@/src/screens/Rejection/rejectionSession";
 import ApiService from "@/src/utils/Apiservice";
 import { bootstrapAppDateTime } from "@/src/utils/appDateTime";
 import { getChauffeurLocation } from "@/src/utils/chauffeurLocationCache";
@@ -313,6 +316,8 @@ export default function HomeScreens({ navigation, route }: any) {
       if (slideItem?.type == "outbound_scan") {
         navigation.navigate("Scanner", { item: slideItem });
       } else if (slideItem?.type == REJECTION_SLIDE_TYPE) {
+        setGloblyTypeSlide(REJECTION_SLIDE_TYPE);
+        resetRejectionSession();
         navigation.navigate("RejectionScanner", {
           item: slideItem,
           type: REJECTION_SLIDE_TYPE,
@@ -361,7 +366,6 @@ export default function HomeScreens({ navigation, route }: any) {
           return;
         }
 
-        // Same as location-off close: last loc + is_active=0, then wipe local + stop tracking.
         const cached = getChauffeurLocation();
         if (cached.latitude && cached.longitude) {
           await sendDriverLocationUpdate(

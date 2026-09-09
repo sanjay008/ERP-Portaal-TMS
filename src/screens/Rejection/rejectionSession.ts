@@ -1,4 +1,4 @@
-export const REJECTION_SLIDE_TYPE = "rejection";
+export const REJECTION_SLIDE_TYPE = "driver_rejection_tms";
 
 export type RejectionParcel = {
   itemId: number;
@@ -18,6 +18,15 @@ export type RejectionSession = {
   signature: string | null;
   signerName: string;
   damageReasons: any[];
+  damageQuestion: string;
+  photoSaved: boolean;
+  commentSaved: boolean;
+  signatureSaved: boolean;
+  /**
+   * Frozen at first scan — API remaining does not drop on damage updates
+   * (unlike Delivery status change). moreCount = sessionTotalRemaining - parcels.length
+   */
+  sessionTotalRemaining: number | null;
 };
 
 const emptySession = (): RejectionSession => ({
@@ -30,6 +39,11 @@ const emptySession = (): RejectionSession => ({
   signature: null,
   signerName: "",
   damageReasons: [],
+  damageQuestion: "",
+  photoSaved: false,
+  commentSaved: false,
+  signatureSaved: false,
+  sessionTotalRemaining: null,
 });
 
 let session: RejectionSession = emptySession();
@@ -63,6 +77,16 @@ export function addRejectionParcel(parcel: RejectionParcel) {
     return;
   }
   session = { ...session, parcels: [...session.parcels, parcel] };
+}
+
+export function removeRejectionParcel(itemId: number) {
+  session = {
+    ...session,
+    parcels: session.parcels.filter(
+      (row) => String(row.itemId) !== String(itemId),
+    ),
+  };
+  return session;
 }
 
 export function getRejectionParcelName(item: any, itemId: number): string {
