@@ -9,6 +9,7 @@ import { setLatestDeliveryCameraSetData } from '@/src/context/ParcelVerifySessio
 import { DropboxContext } from '@/src/context/UploadProider';
 import ApiService from '@/src/utils/Apiservice';
 import { Colors } from '@/src/utils/colors';
+import { isProductActionLockedForRole } from '@/src/utils/orderStatus';
 import { appendToLocalUploadQueue } from '@/src/utils/localUploadQueue';
 import { FONTS, height, width } from '@/src/utils/storeData';
 import { Ionicons } from '@expo/vector-icons';
@@ -221,14 +222,19 @@ export default function ScanManager({ route }: any) {
   }, [closeSheet, unlockScanner, navigation]);
 
   const handleEdit = useCallback(() => {
-    if (!activeOrderId) return;
+    if (
+      !activeOrderId ||
+      isProductActionLockedForRole(orderData, UserData?.user?.role)
+    ) {
+      return;
+    }
     hideSheet();
     navigation.navigate('WarehouseOrderEdit', {
       order_id: activeOrderId,
       type: slideType,
       orderData,
     });
-  }, [activeOrderId, hideSheet, navigation, slideType, orderData]);
+  }, [activeOrderId, hideSheet, navigation, slideType, orderData, UserData?.user?.role]);
 
   const handleScannerClose = useCallback(() => {
     if (sheetVisible) {
@@ -669,7 +675,10 @@ export default function ScanManager({ route }: any) {
         onEditAgain={handleEditAgain}
         onClose={handleNextScan}
         onAddImage={handleAddImage}
-        onAddProduct={() => setAddProductVisible(true)}
+        onAddProduct={() => {
+          if (isProductActionLockedForRole(orderData, UserData?.user?.role)) return;
+          setAddProductVisible(true);
+        }}
       />
 
       <AddWarehouseProductModal

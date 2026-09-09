@@ -94,10 +94,10 @@ export const Images = {
   UpSideArrow: require("./image/UpSideArrow.png"),
   deliveryILabelcon: require("./image/deliveryILabelcon.png"),
   CheckSlotIcon: require("./image/CheckSlotIcon.png"),
-
-  
-
-
+  DriverConfirmCustomerImage: require("./image/GoToCustomerImage.png"),
+  CustomerAfterCondirmImage: require("./image/GoToDriverimage.png"),
+  wine_glass_crack_solid: require("./image/wine_glass_crack_solid.png"),
+  wine_glass_empty_solid: require("./image/wine_glass_empty_solid.png"),
 
 // Audio
 

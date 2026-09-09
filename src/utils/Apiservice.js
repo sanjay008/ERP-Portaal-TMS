@@ -59,6 +59,36 @@ const ApiService = async (endpoint, options = {}) => {
           return;
         }
 
+        if (
+          key === "is_parcel_damage_accept" &&
+          Array.isArray(value) &&
+          value.length > 0 &&
+          typeof value[0] === "object" &&
+          value[0] !== null
+        ) {
+          value.forEach((row, index) => {
+            if (row?.product_id != null) {
+              requestData.append(
+                `is_parcel_damage_accept[${index}][product_id]`,
+                String(row.product_id),
+              );
+            }
+            if (row?.damage != null) {
+              requestData.append(
+                `is_parcel_damage_accept[${index}][damage]`,
+                String(row.damage),
+              );
+            }
+            if (row?.accept != null) {
+              requestData.append(
+                `is_parcel_damage_accept[${index}][accept]`,
+                String(row.accept),
+              );
+            }
+          });
+          return;
+        }
+
         requestData.append(key, value);
       });
     }

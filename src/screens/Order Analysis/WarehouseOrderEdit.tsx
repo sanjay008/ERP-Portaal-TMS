@@ -10,6 +10,7 @@ import StatusSelectSheet from '@/src/components/StatusSelectSheet';
 import { GlobalContextData } from '@/src/context/GlobalContext';
 import ApiService from '@/src/utils/Apiservice';
 import { Colors } from '@/src/utils/colors';
+import { isProductActionLockedForRole } from '@/src/utils/orderStatus';
 import { FONTS, ScanPlatFormId } from '@/src/utils/storeData';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
@@ -189,6 +190,10 @@ const {top,bottom} = useSafeAreaInsets();
   const statusList = useMemo(
     () => (AllTmsStatusList?.length ? AllTmsStatusList : []),
     [AllTmsStatusList],
+  );
+  const isEditLocked = isProductActionLockedForRole(
+    orderData,
+    UserData?.user?.role,
   );
 
   const applyOrderToForm = useCallback((order: any) => {
@@ -380,6 +385,7 @@ const {top,bottom} = useSafeAreaInsets();
   };
 
   const handleSave = async () => {
+    if (isEditLocked) return;
     if (!validateForm()) return;
 
     const resolvedOrderId = Number(order_id ?? orderData?.id);
@@ -503,7 +509,10 @@ console.log("payloadpayloadpayloadpayloadpayloadpayload",payload);
             />
           )}
 
-          <View style={styles.formCard}>
+          <View
+            style={[styles.formCard, isEditLocked && styles.formLocked]}
+            pointerEvents={isEditLocked ? 'none' : 'auto'}
+          >
             <Text style={styles.label}>{t('Pickup date')}</Text>
             <CalenderDate date={pickupDate} setDate={setPickupDate} />
 
@@ -515,7 +524,7 @@ console.log("payloadpayloadpayloadpayloadpayloadpayload",payload);
               placeholder="Select pickup route"
               labelFieldKey="name"
               valueFieldKey="id"
-              disbled={regionsLoading}
+              disbled={regionsLoading || isEditLocked}
               ContainerStyle={styles.routeDropdown}
             />
 
@@ -530,15 +539,19 @@ console.log("payloadpayloadpayloadpayloadpayloadpayload",payload);
               placeholder="Select delivery route"
               labelFieldKey="name"
               valueFieldKey="id"
-              disbled={regionsLoading}
+              disbled={regionsLoading || isEditLocked}
               dropdownPosition="top"
               ContainerStyle={styles.routeDropdown}
             />
 
             <Text style={styles.label}>{t('Status')}</Text>
             <Pressable
-              style={styles.statusField}
-              onPress={() => setStatusSheetVisible(true)}
+              style={[styles.statusField, isEditLocked && styles.btnDisabled]}
+              onPress={() => {
+                if (isEditLocked) return;
+                setStatusSheetVisible(true);
+              }}
+              disabled={isEditLocked}
             >
               <Text
                 style={[
@@ -564,9 +577,9 @@ console.log("payloadpayloadpayloadpayloadpayloadpayload",payload);
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.saveBtn, saving && styles.btnDisabled]}
+              style={[styles.saveBtn, (saving || isEditLocked) && styles.btnDisabled]}
               activeOpacity={0.85}
-              disabled={saving}
+              disabled={saving || isEditLocked}
               onPress={handleSave}
             >
               {saving ? (
@@ -585,6 +598,7 @@ console.log("payloadpayloadpayloadpayloadpayloadpayload",payload);
         selected={selectedStatus}
         onClose={() => setStatusSheetVisible(false)}
         onConfirm={(item) => {
+          if (isEditLocked) return;
           setSelectedStatus(item);
           setStatusSheetVisible(false);
         }}
@@ -620,6 +634,9 @@ const styles = StyleSheet.create({
     borderColor: Colors.litegray,
     overflow: 'visible',
     zIndex: 1,
+  },
+  formLocked: {
+    opacity: 0.55,
   },
   routeDropdown: {
     zIndex: 20,

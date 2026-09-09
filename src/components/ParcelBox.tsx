@@ -17,6 +17,7 @@ import { Images } from '../assets/images';
 import { GlobalContextData } from '../context/GlobalContext';
 import ApiService from '../utils/Apiservice';
 import { Colors } from '../utils/colors';
+import { isProductActionLockedForRole } from '../utils/orderStatus';
 import { FONTS } from '../utils/storeData';
 
 type Props = {
@@ -54,6 +55,10 @@ export default function ParcelBox({
 }: Props) {
   const { t } = useTranslation();
   const { UserData, isGpsTracking, GloblyTypeSlide, setToast } = useContext(GlobalContextData);
+  const isProductActionLocked = isProductActionLockedForRole(
+    orderData,
+    UserData?.user?.role,
+  );
   const manualVerifyRef = useRef<View>(null);
   const [tooltip, setTooltip] = useState<TooltipState>({
     visible: false,
@@ -139,6 +144,7 @@ const isCustomerCountryPrice = useCallback(
   }, [isShiftBlocked, onManualVerify]);
 
   const openProductModal = useCallback(() => {
+    if (isProductActionLocked) return;
     // Prefer the product that was actually saved last (savedTmsProduct) so the
     // dropdown re-opens showing the current selection instead of resetting to
     // tmsProductList[0]. Only fall back to matching against the original
@@ -161,7 +167,7 @@ const isCustomerCountryPrice = useCallback(
 
     setSelectedTmsProduct(currentProduct);
     setIsProductModalOpen(true);
-  }, [data?.tms_product_id, data?.tms_product_name, savedTmsProduct, tmsProductList]);
+  }, [data?.tms_product_id, data?.tms_product_name, isProductActionLocked, savedTmsProduct, tmsProductList]);
 
   const closeProductModal = useCallback(() => {
     setIsProductModalOpen(false);
@@ -171,6 +177,8 @@ const isCustomerCountryPrice = useCallback(
     const itemId = data?.id ?? data?.item_id;
     const orderId = data?.tms_order_id ?? data?.order_id ?? orderData?.id ?? orderData?.order_data?.id;
     const productId = selectedTmsProduct?.id;
+
+    if (isProductActionLocked) return;
 
     if (!itemId || !orderId || !productId || isSavingProduct) {
       setToast({ top: 45, text: t('Unable to save product change'), type: 'error', visible: true });
@@ -220,7 +228,7 @@ const isCustomerCountryPrice = useCallback(
     } finally {
       setIsSavingProduct(false);
     }
-  }, [UserData, closeProductModal, data, isSavingProduct, orderData, selectedTmsProduct, setToast, t]);
+  }, [UserData, closeProductModal, data, isProductActionLocked, isSavingProduct, orderData, selectedTmsProduct, setToast, t]);
 
   return (
     <>
@@ -247,8 +255,13 @@ const isCustomerCountryPrice = useCallback(
           {
             data?.can_update_tms_product == 1 &&
             <Pressable
-              style={[styles.itemLable,{backgroundColor:Colors.primary}]}
+              style={[
+                styles.itemLable,
+                { backgroundColor: Colors.primary },
+                isProductActionLocked && styles.disabledAction,
+              ]}
               onPress={openProductModal}
+              disabled={isProductActionLocked}
               accessibilityRole="button"
               accessibilityLabel={t('Update Product')}
             >

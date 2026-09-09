@@ -1,17 +1,20 @@
-import { Ionicons } from "@expo/vector-icons";
+import { FontAwesome5, Ionicons } from "@expo/vector-icons";
 import CheckBox from "@react-native-community/checkbox";
-import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Dimensions,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import Animated, {
   Easing,
@@ -25,6 +28,16 @@ import SignatureCanvas, {
   SignatureViewRef,
 } from "react-native-signature-canvas";
 import { GlobalContextData } from "../context/GlobalContext";
+import {
+  AcceptanceParcelState,
+  buildAcceptanceDamagePayload,
+  buildCustomerAcceptanceComment,
+  buildParcelDamageAcceptPayload,
+  getParcelDisplayName,
+  initAcceptanceParcels,
+  isAcceptanceCommentRequired,
+  resolveDamageIdForFlags,
+} from "../utils/parcelAcceptanceFlow";
 import { isBlankSignatureData } from "../utils/signatureValidation";
 import { Colors } from "../utils/colors";
 import { FONTS } from "../utils/storeData";
@@ -47,10 +60,24 @@ export type DamageItemPayload = {
   is_damage: number;
 };
 
+type FlowStep = "overview" | "comment" | "signature";
+
+export type ParcelDamageAcceptPayload = {
+  product_id: number;
+  damage: 0 | 1;
+  accept: 0 | 1;
+};
+
 export interface SignatureModalProps {
   visible: boolean;
   onClose: () => void;
-  onSave: (base64: string, name?: string, damageItems?: DamageItemPayload[]) => void;
+  onSave: (
+    base64: string,
+    name?: string,
+    damageItems?: DamageItemPayload[],
+    acceptanceComment?: string,
+    parcelDamageAccept?: ParcelDamageAcceptPayload[],
+  ) => void;
   onClear?: () => void;
   onPress?: () => void;
   title?: string;
@@ -61,15 +88,6 @@ export interface SignatureModalProps {
   defaultName?: string | null;
   ProductDamageList?: any[];
 }
-
-type LocalParcelItem = {
-  id: number;
-  is_damaged_delivery: number | null;
-  delivery_label?: string | null;
-  scan_qty?: number;
-  item_status_id?: number;
-  tms_product_name?: string | null;
-};
 
 const SignatureModal: React.FC<SignatureModalProps> = ({
   visible,
@@ -82,31 +100,40 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
   showNameField = true,
   IsLoading = false,
   defaultName = "",
-  onPress,
   ProductDamageList = [],
 }) => {
   const { t } = useTranslation();
   const signatureRef = useRef<SignatureViewRef>(null);
   const hasDrawnRef = useRef(false);
   const isReadingSignatureRef = useRef(false);
+  const pendingNameRef = useRef<string>("");
+  const pendingAcceptanceCommentRef = useRef<string>("");
+
   const [rendered, setRendered] = useState(visible);
   const [mountCanvas, setMountCanvas] = useState(false);
   const [name, setName] = useState(defaultName ?? "");
   const [nameError, setNameError] = useState(false);
   const [signatureError, setSignatureError] = useState(false);
   const [canvasReady, setCanvasReady] = useState(false);
-  const pendingNameRef = useRef<string>("");
   const [canvasKey, setCanvasKey] = useState(0);
   const opacity = useSharedValue(0);
-  const { AllDamageListReason, selectDamageData } = useContext(GlobalContextData);
-
-  const [localItems, setLocalItems] = useState<LocalParcelItem[]>([]);
-  const [expandedTypeId, setExpandedTypeId] = useState<number | null>(null);
-  const [changeTargetItem, setChangeTargetItem] = useState<LocalParcelItem | null>(null);
-  const [changeSelection, setChangeSelection] = useState<any>(null);
+  const { AllDamageListReason, selectDamageData, TimeZone } =
+    useContext(GlobalContextData);
 
   const hasParcelDamageList = ProductDamageList.length > 0;
   const damageTypes = AllDamageListReason ?? [];
+
+  const [step, setStep] = useState<FlowStep>("signature");
+  const [acceptanceParcels, setAcceptanceParcels] = useState<
+    AcceptanceParcelState[]
+  >([]);
+  const [editTarget, setEditTarget] = useState<AcceptanceParcelState | null>(
+    null,
+  );
+  const [editDamaged, setEditDamaged] = useState(false);
+  const [editAccepted, setEditAccepted] = useState(true);
+  const [acceptanceComment, setAcceptanceComment] = useState("");
+  const [commentError, setCommentError] = useState(false);
 
   const backdropStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
 
@@ -131,29 +158,6 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
     return brightness > 128 ? "#000" : "#FFF";
   };
 
-  const getDamageField = (item: any) =>
-    item?.is_damaged_delivery ?? item?.is_damaged_pickup ?? null;
-
-  const initLocalItems = useCallback(() => {
-    if (!ProductDamageList?.length) {
-      setLocalItems([]);
-      return;
-    }
-    setLocalItems(
-      ProductDamageList.map((item: any) => ({
-        id: item.id,
-        is_damaged_delivery: getDamageField(item),
-        delivery_label: item.delivery_label,
-        scan_qty: item.scan_qty,
-        item_status_id: item.item_status_id,
-        tms_product_name: item.tms_product_name,
-      })),
-    );
-    setExpandedTypeId(null);
-    setChangeTargetItem(null);
-    setChangeSelection(null);
-  }, [ProductDamageList]);
-
   const handleUnmount = useCallback(() => setRendered(false), []);
 
   useEffect(() => {
@@ -167,67 +171,52 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
       setMountCanvas(false);
       resetStrokeState();
       pendingNameRef.current = "";
-      opacity.value = withTiming(1, { duration: DURATION, easing: Easing.out(Easing.cubic) });
+      pendingAcceptanceCommentRef.current = "";
+      setAcceptanceComment("");
+      setCommentError(false);
+      setEditTarget(null);
+
+      if (ProductDamageList?.length) {
+        setAcceptanceParcels(
+          initAcceptanceParcels(ProductDamageList, AllDamageListReason ?? []),
+        );
+        setStep("overview");
+      } else {
+        setAcceptanceParcels([]);
+        setStep("signature");
+      }
+
+      opacity.value = withTiming(1, {
+        duration: DURATION,
+        easing: Easing.out(Easing.cubic),
+      });
     } else {
       setMountCanvas(false);
       setCanvasReady(false);
       resetStrokeState();
-      opacity.value = withTiming(0, { duration: DURATION, easing: Easing.in(Easing.cubic) }, (done) => {
-        if (done) runOnJS(handleUnmount)();
-      });
+      opacity.value = withTiming(
+        0,
+        { duration: DURATION, easing: Easing.in(Easing.cubic) },
+        (done) => {
+          if (done) runOnJS(handleUnmount)();
+        },
+      );
     }
-  }, [visible, resetStrokeState]);
+    // Re-init only when the modal opens or closes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
 
   useEffect(() => {
-    if (visible) {
-      initLocalItems();
-    }
-  }, [visible, initLocalItems]);
-
-  useEffect(() => {
-    if (!visible || !rendered) {
+    if (!visible || !rendered || step !== "signature") {
       setMountCanvas(false);
       return;
     }
 
     setMountCanvas(false);
+    setCanvasReady(false);
     const timer = setTimeout(() => setMountCanvas(true), DURATION + 40);
     return () => clearTimeout(timer);
-  }, [visible, rendered, canvasKey]);
-
-  const countByType = useMemo(() => {
-    const counts: Record<number, number> = {};
-    damageTypes.forEach((type: any) => {
-      counts[type.id] = 0;
-    });
-    localItems.forEach((item) => {
-      const typeId = Number(item.is_damaged_delivery);
-      if (!Number.isNaN(typeId)) {
-        counts[typeId] = (counts[typeId] ?? 0) + 1;
-      }
-    });
-    return counts;
-  }, [localItems, damageTypes]);
-
-  const expandedItems = useMemo(() => {
-    if (expandedTypeId == null) return [];
-    return localItems.filter(
-      (item) => Number(item.is_damaged_delivery) === Number(expandedTypeId),
-    );
-  }, [localItems, expandedTypeId]);
-
-  const changeOptions = useMemo(() => {
-    if (!changeTargetItem) return [];
-    const currentId = Number(changeTargetItem.is_damaged_delivery);
-    return damageTypes.filter((type: any) => Number(type.id) !== currentId);
-  }, [changeTargetItem, damageTypes]);
-
-  const buildDamagePayload = useCallback((): DamageItemPayload[] => {
-    return localItems.map((item) => ({
-      item: item.id,
-      is_damage: Number(item.is_damaged_delivery),
-    }));
-  }, [localItems]);
+  }, [visible, rendered, canvasKey, step]);
 
   if (!rendered) return null;
 
@@ -284,13 +273,24 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
     }
 
     const damageItems =
-      hasParcelDamageList && localItems.length > 0
-        ? buildDamagePayload()
+      hasParcelDamageList && acceptanceParcels.length > 0
+        ? buildAcceptanceDamagePayload(acceptanceParcels)
         : undefined;
+
+    const parcelDamageAccept =
+      hasParcelDamageList && acceptanceParcels.length > 0
+        ? buildParcelDamageAcceptPayload(acceptanceParcels)
+        : undefined;
+
+    const acceptanceCommentText =
+      pendingAcceptanceCommentRef.current.trim() || undefined;
+
     onSave(
       base64,
       showNameField ? pendingNameRef.current : undefined,
       damageItems,
+      acceptanceCommentText,
+      parcelDamageAccept,
     );
   };
 
@@ -301,44 +301,69 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
     signatureRef.current?.clearSignature();
   };
 
-  const toggleExpand = (typeId: number) => {
-    setExpandedTypeId((prev) => (prev === typeId ? null : typeId));
+  const openEditPopup = (parcel: AcceptanceParcelState) => {
+    setEditTarget(parcel);
+    setEditDamaged(parcel.damaged);
+    setEditAccepted(parcel.accepted);
   };
 
-  const openChangePopup = (item: LocalParcelItem) => {
-    setChangeTargetItem(item);
-    setChangeSelection(null);
+  const closeEditPopup = () => {
+    setEditTarget(null);
   };
 
-  const closeChangePopup = () => {
-    setChangeTargetItem(null);
-    setChangeSelection(null);
+  const confirmEditPopup = () => {
+    if (!editTarget) return;
+    setAcceptanceParcels((prev) =>
+      prev.map((parcel) => {
+        if (parcel.id !== editTarget.id) return parcel;
+        return {
+          ...parcel,
+          damaged: editDamaged,
+          accepted: editAccepted,
+          damage_id: resolveDamageIdForFlags(
+            editDamaged,
+            damageTypes,
+            parcel.damage_id,
+          ),
+        };
+      }),
+    );
+    closeEditPopup();
   };
-const confirmChange = () => {
-  if (!changeTargetItem || !changeSelection) return;
-  setLocalItems((prev) =>
-    prev.map((item) =>
-      item.id === changeTargetItem.id
-        ? { ...item, is_damaged_delivery: changeSelection.id }
-        : item,
-    ),
-  );
-  setExpandedTypeId(null);
-  closeChangePopup();
-};
 
-  const getParcelLabel = (item: LocalParcelItem) => {
-    if (item.tms_product_name?.trim()) {
-      return item.tms_product_name.trim();
+  const goToSignatureStep = (commentText?: string) => {
+    pendingAcceptanceCommentRef.current = (commentText || "").trim();
+    setCanvasKey((k) => k + 1);
+    setCanvasReady(false);
+    setMountCanvas(false);
+    resetStrokeState();
+    setSignatureError(false);
+    setStep("signature");
+  };
+
+  const handleOverviewContinue = () => {
+    if (isAcceptanceCommentRequired(acceptanceParcels)) {
+      const generated = buildCustomerAcceptanceComment({
+        customerName: (defaultName ?? name ?? "").toString(),
+        parcels: acceptanceParcels,
+        timeZone: TimeZone,
+      });
+      setAcceptanceComment(generated);
+      setCommentError(false);
+      setStep("comment");
+      return;
     }
-    if (item.delivery_label) {
-      return `${t("Parcel")} ${item.delivery_label}`;
-    }
-    return `${t("Parcel")} #${item.id}`;
+    goToSignatureStep("");
   };
 
-  const getTypeById = (typeId: number | null) =>
-    damageTypes.find((type: any) => Number(type.id) === Number(typeId));
+  const handleCommentContinue = () => {
+    const text = acceptanceComment.trim();
+    if (!text) {
+      setCommentError(true);
+      return;
+    }
+    goToSignatureStep(text);
+  };
 
   const webStyle = `
     * { box-sizing: border-box; touch-action: none; -webkit-user-select: none; user-select: none; }
@@ -371,288 +396,387 @@ const confirmChange = () => {
     .m-signature-pad--footer { display: none !important; }
   `;
 
+  const yesNoLabel = (value: boolean) => (value ? t("yes") : t("no"));
+
+  const renderOverview = () => (
+    <View style={styles.overviewWrap}>
+      <Text style={styles.overviewTitle}>{t("Parcel Overview")}</Text>
+      <Text style={styles.overviewSubtitle}>
+        {t("Confirm damage and acceptance for each parcel")}
+      </Text>
+
+      <ScrollView
+        style={styles.overviewScroll}
+        contentContainerStyle={styles.overviewScrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {acceptanceParcels.map((parcel) => {
+          const statusLabel = parcel.damaged ? t("Damaged") : t("No damage");
+          const statusBg = parcel.damaged ? Colors.diclinelite : Colors.litegreen;
+          const statusFg = parcel.damaged ? Colors.red : Colors.green;
+
+          return (
+            <View key={parcel.id} style={styles.parcelCard}>
+              <Pressable
+                onPress={() => openEditPopup(parcel)}
+                style={[
+                  styles.glassIconWrap,
+                  {
+                    backgroundColor: parcel.damaged
+                      ? Colors.diclinelite
+                      : Colors.litegreen,
+                  },
+                ]}
+                hitSlop={8}
+              >
+                <FontAwesome5
+                  name={parcel.damaged ? "wine-glass" : "wine-glass-alt"}
+                  size={22}
+                  color={parcel.damaged ? Colors.red : Colors.green}
+                />
+              </Pressable>
+              <View style={styles.parcelCardBody}>
+                <Text style={styles.parcelName} numberOfLines={2}>
+                  {getParcelDisplayName(parcel)}
+                </Text>
+                <View style={[styles.statusBadge, { backgroundColor: statusBg }]}>
+                  <Text style={[styles.statusBadgeText, { color: statusFg }]}>
+                    {statusLabel}
+                  </Text>
+                </View>
+              </View>
+              <Pressable
+                onPress={() => openEditPopup(parcel)}
+                style={({ pressed }) => [
+                  styles.acceptParcelBtn,
+                  parcel.accepted
+                    ? styles.acceptParcelBtnYes
+                    : styles.acceptParcelBtnNo,
+                  pressed && styles.changeBtnPressed,
+                ]}
+              >
+                <Ionicons
+                  name={parcel.accepted ? "checkmark" : "close"}
+                  size={16}
+                  color={Colors.white}
+                />
+                <Text style={styles.acceptParcelBtnText}>
+                  {t("Accept parcel")}
+                </Text>
+              </Pressable>
+            </View>
+          );
+        })}
+      </ScrollView>
+
+      <TouchableOpacity
+        style={styles.overviewCta}
+        onPress={handleOverviewContinue}
+        activeOpacity={0.85}
+      >
+        <Text style={styles.overviewCtaText}>
+          {t("Approved and receive all parcels")}
+        </Text>
+        <Text style={styles.overviewCtaSub}>{t("Signature")}</Text>
+      </TouchableOpacity>
+
+      <Text style={styles.overviewHint}>{t("GIVE SCANNER TO CUSTOMER")}</Text>
+    </View>
+  );
+
+  const renderCommentStep = () => (
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      style={styles.commentWrap}
+    >
+      <View style={styles.commentCard}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.closeBtn}
+            onPress={() => setStep("overview")}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="arrow-back" size={20} color={Colors.darkText} />
+          </TouchableOpacity>
+          <Text style={styles.titleText} numberOfLines={1}>
+            {t("Comment")}
+          </Text>
+          <View style={{ width: 34 }} />
+        </View>
+        <View style={styles.divider} />
+        <Text style={styles.commentHint}>
+          {t("Please add a comment for damaged parcels / rejected parcels")}
+        </Text>
+        <TextInput
+          style={[styles.commentInput, commentError && styles.nameInputError]}
+          value={acceptanceComment}
+          onChangeText={(val) => {
+            setAcceptanceComment(val);
+            if (val.trim()) setCommentError(false);
+          }}
+          multiline
+          textAlignVertical="top"
+          placeholder={t("Type here...")}
+          placeholderTextColor={Colors.inActive}
+        />
+        {commentError ? (
+          <Text style={styles.nameErrorText}>{t("Comment is required")}</Text>
+        ) : null}
+      </View>
+      <TouchableOpacity
+        style={styles.saveBtn}
+        onPress={handleCommentContinue}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="checkmark" size={16} color={Colors.white} />
+        <Text style={styles.saveBtnText}>
+          {t("save comment and go to signature")}
+        </Text>
+      </TouchableOpacity>
+    </KeyboardAvoidingView>
+  );
+
+  const renderSignatureStep = () => {
+    const acceptedCount = acceptanceParcels.filter((p) => p.accepted).length;
+    const rejectedCount = acceptanceParcels.filter((p) => !p.accepted).length;
+    const summaryTitle = hasParcelDamageList
+      ? `${rejectedCount} ${t("rejected")}  ·  ${acceptedCount} ${t("accepted")}`
+      : title !== ""
+        ? title
+        : t("Signature");
+
+    return (
+    <>
+      {!hasParcelDamageList && selectDamageData && (
+        <Pressable
+          style={[
+            styles.selectedDamageRow,
+            { backgroundColor: selectDamageData?.color || Colors.Boxgray },
+          ]}
+        >
+          <CheckBox
+            value={true}
+            tintColors={{ true: Colors.white, false: Colors.white }}
+            tintColor={Colors.white}
+            onTintColor={Colors.white}
+            onCheckColor={Colors.white}
+            onFillColor={selectDamageData?.color || Colors.Boxgray}
+          />
+          <Text
+            style={[
+              styles.selectedDamageText,
+              {
+                color: getTextColor(selectDamageData?.color) || Colors.black,
+              },
+            ]}
+          >
+            {selectDamageData?.title}
+          </Text>
+        </Pressable>
+      )}
+
+      {hasParcelDamageList ? (
+        <TouchableOpacity
+          style={styles.backToOverview}
+          onPress={() =>
+            setStep(
+              isAcceptanceCommentRequired(acceptanceParcels)
+                ? "comment"
+                : "overview",
+            )
+          }
+          activeOpacity={0.8}
+        >
+          <Ionicons name="arrow-back" size={16} color={Colors.white} />
+          <Text style={styles.backToOverviewText}>{t("Parcel overview")}</Text>
+        </TouchableOpacity>
+      ) : null}
+
+      <View style={styles.card}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.closeBtn}
+            onPress={onClose}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="close" size={20} color={Colors.darkText} />
+          </TouchableOpacity>
+
+          <Text style={styles.titleText} numberOfLines={1}>
+            {summaryTitle}
+          </Text>
+
+          <View style={styles.headerRight}>
+            <TouchableOpacity
+              style={styles.clearBtn}
+              onPress={handleClear}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name="trash-outline"
+                size={19}
+                color={Colors.darkText}
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.divider} />
+
+        {showNameField && (
+          <View style={styles.nameFieldWrapper}>
+            <Text style={styles.nameLabel}>{t("Name")}</Text>
+            <TextInput
+              style={[styles.nameInput, nameError && styles.nameInputError]}
+              value={name}
+              onChangeText={(val) => {
+                setName(val);
+                if (val.trim() !== "") setNameError(false);
+              }}
+              placeholder={t("Enter name")}
+              placeholderTextColor={Colors.inActive}
+              returnKeyType="done"
+              autoCorrect={false}
+              autoCapitalize="words"
+              maxLength={80}
+            />
+            {nameError ? (
+              <Text style={styles.nameErrorText}>{t("Name is required")}</Text>
+            ) : null}
+          </View>
+        )}
+
+        <View style={styles.canvasWrapper} collapsable={false}>
+          <View style={styles.canvasBorder} collapsable={false}>
+            {mountCanvas ? (
+              <SignatureCanvas
+                key={canvasKey}
+                ref={signatureRef}
+                onOK={handleSignatureOK}
+                onEmpty={handleSignatureEmpty}
+                onBegin={handleStrokeStart}
+                onEnd={handleStrokeEnd}
+                onLoadEnd={handleCanvasLoadEnd}
+                descriptionText=""
+                clearText=""
+                confirmText=""
+                webStyle={webStyle}
+                autoClear={false}
+                imageType="image/png"
+                penColor={penColor}
+                backgroundColor={backgroundColor}
+                style={styles.canvas}
+                scrollable={false}
+              />
+            ) : null}
+            {(!canvasReady || !mountCanvas) && (
+              <View style={styles.canvasLoading} pointerEvents="none">
+                <ActivityIndicator size="small" color={Colors.primary} />
+              </View>
+            )}
+          </View>
+          {signatureError ? (
+            <Text style={styles.nameErrorText}>
+              {t("Signature is required")}
+            </Text>
+          ) : null}
+        </View>
+      </View>
+
+      <TouchableOpacity
+        style={styles.saveBtn}
+        onPress={handleSave}
+        activeOpacity={0.8}
+        disabled={IsLoading}
+      >
+        {IsLoading ? (
+          <ActivityIndicator size={"small"} color={Colors.white} />
+        ) : (
+          <>
+            <Ionicons name="checkmark" size={16} color={Colors.white} />
+            <Text style={styles.saveBtnText}>{t("Save")}</Text>
+          </>
+        )}
+      </TouchableOpacity>
+    </>
+    );
+  };
+
   return (
-    <View style={[StyleSheet.absoluteFill, styles.root]} pointerEvents="box-none">
+    <View
+      style={[StyleSheet.absoluteFill, styles.root]}
+      pointerEvents="box-none"
+    >
       <Animated.View
         style={[StyleSheet.absoluteFill, styles.backdrop, backdropStyle]}
         pointerEvents="none"
       />
 
       <View style={styles.centerContainer} pointerEvents="box-none">
-        {hasParcelDamageList && damageTypes.length > 0 && (
-          <View style={styles.damageSection}>
-            <View style={styles.hintRow}>
-              <Text style={styles.hintText}>{t("Signature")}</Text>
-            </View>
-
-            <View style={styles.typeBoxRow}>
-              {damageTypes.map((type: any) => {
-                const isExpanded = expandedTypeId === type.id;
-                const count = countByType[type.id] ?? 0;
-                const textColor = getTextColor(type.color);
-
-                return (
-                  <Pressable
-                    key={type.id}
-                    onPress={() => toggleExpand(type.id)}
-                    style={({ pressed }) => [
-                      styles.typeBox,
-                      {
-                        backgroundColor: type.color || Colors.Boxgray,
-                        opacity: pressed ? 0.9 : 1,
-                        borderWidth: isExpanded ? 2.5 : 0,
-                        borderColor: Colors.white,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[styles.typeBoxTitle, { color: textColor }]}
-                      numberOfLines={2}
-                    >
-                      {t(type.title)}
-                    </Text>
-                    <View style={styles.typeBoxCountRow}>
-                      <Text style={[styles.typeBoxCount, { color: textColor }]}>
-                        {count}
-                      </Text>
-                      <Ionicons
-                        name={isExpanded ? "chevron-up" : "chevron-down"}
-                        size={16}
-                        color={textColor}
-                      />
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            {expandedTypeId != null && (
-              <Animated.View
-                entering={FadeInDown.duration(220)}
-                style={styles.expandedList}
-              >
-                {expandedItems.length > 0 ? (
-                  expandedItems.map((item) => {
-                    const typeInfo = getTypeById(item.is_damaged_delivery);
-                    return (
-                      <View key={item.id} style={styles.parcelRow}>
-                        <View style={styles.parcelRowLeft}>
-                          <View
-                            style={[
-                              styles.parcelDot,
-                              { backgroundColor: typeInfo?.color || Colors.Boxgray },
-                            ]}
-                          />
-                          <Text style={styles.parcelLabel} numberOfLines={1}>
-                            {getParcelLabel(item)}
-                          </Text>
-                        </View>
-                        <Pressable
-                          onPress={() => openChangePopup(item)}
-                          style={({ pressed }) => [
-                            styles.changeBtn,
-                            pressed && styles.changeBtnPressed,
-                          ]}
-                        >
-                          <Text style={styles.changeBtnText}>{t("Change")}</Text>
-                        </Pressable>
-                      </View>
-                    );
-                  })
-                ) : (
-                  <View style={styles.emptyExpanded}>
-                    <Text style={styles.emptyExpandedText}>
-                      {t("No parcels in this category")}
-                    </Text>
-                  </View>
-                )}
-              </Animated.View>
-            )}
-          </View>
-        )}
-
-        {!hasParcelDamageList && selectDamageData && (
-          <Pressable
-            style={[
-              styles.selectedDamageRow,
-              { backgroundColor: selectDamageData?.color || Colors.Boxgray },
-            ]}
-          >
-            <CheckBox
-              value={true}
-              tintColors={{ true: Colors.white, false: Colors.white }}
-              tintColor={Colors.white}
-              onTintColor={Colors.white}
-              onCheckColor={Colors.white}
-              onFillColor={selectDamageData?.color || Colors.Boxgray}
-            />
-            <Text
-              style={[
-                styles.selectedDamageText,
-                { color: getTextColor(selectDamageData?.color) || Colors.black },
-              ]}
-            >
-              {selectDamageData?.title}
-            </Text>
-          </Pressable>
-        )}
-
-        <View style={styles.card}>
-          <View style={styles.header}>
-            <TouchableOpacity
-              style={styles.closeBtn}
-              onPress={onClose}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="close" size={20} color={Colors.darkText} />
-            </TouchableOpacity>
-
-            {title !== "" && (
-              <Text style={styles.titleText} numberOfLines={1}>
-                {title}
-              </Text>
-            )}
-
-            <View style={styles.headerRight}>
-              <TouchableOpacity
-                style={styles.clearBtn}
-                onPress={handleClear}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="trash-outline" size={19} color={Colors.darkText} />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.divider} />
-
-          {showNameField && (
-            <View style={styles.nameFieldWrapper}>
-              <Text style={styles.nameLabel}>{t("Name")}</Text>
-              <TextInput
-                style={[styles.nameInput, nameError && styles.nameInputError]}
-                value={name}
-                onChangeText={(val) => {
-                  setName(val);
-                  if (val.trim() !== "") setNameError(false);
-                }}
-                placeholder={t("Enter name")}
-                placeholderTextColor={Colors.inActive}
-                returnKeyType="done"
-                autoCorrect={false}
-                autoCapitalize="words"
-                maxLength={80}
-              />
-              {nameError && (
-                <Text style={styles.nameErrorText}>{t("Name is required")}</Text>
-              )}
-            </View>
-          )}
-
-          <View style={styles.canvasWrapper} collapsable={false}>
-            <View style={styles.canvasBorder} collapsable={false}>
-              {mountCanvas ? (
-                <SignatureCanvas
-                  key={canvasKey}
-                  ref={signatureRef}
-                  onOK={handleSignatureOK}
-                  onEmpty={handleSignatureEmpty}
-                  onBegin={handleStrokeStart}
-                  onEnd={handleStrokeEnd}
-                  onLoadEnd={handleCanvasLoadEnd}
-                  descriptionText=""
-                  clearText=""
-                  confirmText=""
-                  webStyle={webStyle}
-                  autoClear={false}
-                  imageType="image/png"
-                  penColor={penColor}
-                  backgroundColor={backgroundColor}
-                  style={styles.canvas}
-                  scrollable={false}
-                />
-              ) : null}
-              {(!canvasReady || !mountCanvas) && (
-                <View style={styles.canvasLoading} pointerEvents="none">
-                  <ActivityIndicator size="small" color={Colors.primary} />
-                </View>
-              )}
-            </View>
-            {signatureError && (
-              <Text style={styles.nameErrorText}>{t("Signature is required")}</Text>
-            )}
-          </View>
-          </View>
-
-        <TouchableOpacity
-          style={styles.saveBtn}
-          onPress={handleSave}
-          activeOpacity={0.8}
-          disabled={IsLoading}
-        >
-          {IsLoading ? (
-            <ActivityIndicator size={"small"} color={Colors.white} />
-          ) : (
-            <>
-              <Ionicons name="checkmark" size={16} color={Colors.white} />
-              <Text style={styles.saveBtnText}>{t("Save")}</Text>
-            </>
-          )}
-        </TouchableOpacity>
+        {step === "overview" && hasParcelDamageList && renderOverview()}
+        {step === "comment" && hasParcelDamageList && renderCommentStep()}
+        {step === "signature" && renderSignatureStep()}
       </View>
 
-      {changeTargetItem != null && (
+      {editTarget != null && (
         <View style={styles.changeOverlay}>
-          <Pressable style={styles.changeBackdrop} onPress={closeChangePopup} />
+          <Pressable style={styles.changeBackdrop} onPress={closeEditPopup} />
           <Animated.View
             entering={FadeInDown.duration(200)}
             style={styles.changeSheet}
           >
-            <Text style={styles.changeSheetTitle}>{t("Change parcel condition")}</Text>
-            <Text style={styles.changeSheetSubtitle} numberOfLines={1}>
-              {getParcelLabel(changeTargetItem)}
+            <Text style={styles.changeSheetTitle} numberOfLines={2}>
+              {getParcelDisplayName(editTarget)}
             </Text>
 
-            <View style={styles.changeOptionsList}>
-              {changeOptions.map((option: any) => (
-                <Pressable
-                  key={option.id}
-                  onPress={() => setChangeSelection(option)}
+            <View style={styles.toggleRow}>
+              <Text style={styles.toggleLabel}>{t("Damage")}</Text>
+              <View style={styles.toggleValueWrap}>
+                <Text
                   style={[
-                    styles.changeOption,
-                    {
-                      backgroundColor: option.color || Colors.Boxgray,
-                      borderWidth: changeSelection?.id === option.id ? 2.5 : 0,
-                      borderColor: Colors.white,
-                    },
+                    styles.toggleValueText,
+                    { color: editDamaged ? Colors.green : Colors.red },
                   ]}
                 >
-                  <CheckBox
-                    value={changeSelection?.id === option.id}
-                    onValueChange={() => setChangeSelection(option)}
-                    tintColors={{ true: Colors.white, false: Colors.white }}
-                    tintColor={Colors.white}
-                    onTintColor={Colors.white}
-                    onCheckColor={Colors.white}
-                    onFillColor={option.color || Colors.Boxgray}
-                  />
-                  <Text
-                    style={[
-                      styles.changeOptionText,
-                      { color: getTextColor(option.color) },
-                    ]}
-                  >
-                    {t(option.title)}
-                  </Text>
-                </Pressable>
-              ))}
+                  {yesNoLabel(editDamaged)}
+                </Text>
+                <Switch
+                  value={editDamaged}
+                  onValueChange={setEditDamaged}
+                  trackColor={{ false: Colors.red, true: Colors.green }}
+                  thumbColor={Colors.white}
+                  ios_backgroundColor={Colors.red}
+                />
+              </View>
+            </View>
+
+            <View style={styles.toggleRow}>
+              <Text style={styles.toggleLabel}>{t("Accept")}</Text>
+              <View style={styles.toggleValueWrap}>
+                <Text
+                  style={[
+                    styles.toggleValueText,
+                    { color: editAccepted ? Colors.green : Colors.red },
+                  ]}
+                >
+                  {yesNoLabel(editAccepted)}
+                </Text>
+                <Switch
+                  value={editAccepted}
+                  onValueChange={setEditAccepted}
+                  trackColor={{ false: Colors.red, true: Colors.green }}
+                  thumbColor={Colors.white}
+                  ios_backgroundColor={Colors.red}
+                />
+              </View>
             </View>
 
             <View style={styles.changeSheetActions}>
               <Pressable
-                onPress={closeChangePopup}
+                onPress={closeEditPopup}
                 style={({ pressed }) => [
                   styles.changeCancelBtn,
                   pressed && styles.changeBtnPressed,
@@ -661,12 +785,10 @@ const confirmChange = () => {
                 <Text style={styles.changeCancelText}>{t("Cancel")}</Text>
               </Pressable>
               <Pressable
-                onPress={confirmChange}
-                disabled={!changeSelection}
+                onPress={confirmEditPopup}
                 style={({ pressed }) => [
                   styles.changeSaveBtn,
-                  !changeSelection && styles.changeSaveBtnDisabled,
-                  pressed && changeSelection && styles.changeBtnPressed,
+                  pressed && styles.changeBtnPressed,
                 ]}
               >
                 <Text style={styles.changeSaveText}>{t("Save")}</Text>
@@ -697,101 +819,164 @@ const styles = StyleSheet.create({
   backdrop: {
     backgroundColor: Colors.transparant,
   },
-  damageSection: {
+  overviewWrap: {
     width: MODAL_W,
-    marginBottom: IS_SMALL ? 8 : 12,
+    maxHeight: SCREEN_H * 0.88,
+    flexGrow: 0,
   },
-  typeBoxRow: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  typeBox: {
-    flex: 1,
-    borderRadius: 8,
-    paddingVertical: IS_SMALL ? 10 : 12,
-    paddingHorizontal: 10,
-    minHeight: IS_SMALL ? 64 : 72,
-    justifyContent: "space-between",
-  },
-  typeBoxTitle: {
-    fontSize: 12,
-    fontFamily: FONTS.SemiBold,
-    lineHeight: 16,
-  },
-  typeBoxCountRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 6,
-  },
-  typeBoxCount: {
+  overviewTitle: {
     fontSize: 22,
     fontFamily: FONTS.SemiBold,
+    color: Colors.white,
+    textAlign: "center",
+    marginBottom: 4,
   },
-  expandedList: {
-    marginTop: 8,
-    backgroundColor: Colors.white,
-    borderRadius: 8,
-    overflow: "hidden",
-    ...Platform.select({
-      ios: {
-        shadowColor: Colors.black,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 10,
-      },
-      android: { elevation: 12 },
-    }),
-  },
-  parcelRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.Boxgray,
-  },
-  parcelRowLeft: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginRight: 10,
-  },
-  parcelDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  parcelLabel: {
-    flex: 1,
+  overviewSubtitle: {
     fontSize: 13,
-    fontFamily: FONTS.Medium,
-    color: Colors.black,
+    fontFamily: FONTS.Regular,
+    color: "rgba(255,255,255,0.86)",
+    textAlign: "center",
+    marginBottom: 14,
   },
-  changeBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: Colors.primary,
-  },
-  changeBtnPressed: {
-    opacity: 0.85,
-  },
-  changeBtnText: {
+  overviewHint: {
+    marginTop: 12,
     fontSize: 12,
     fontFamily: FONTS.SemiBold,
     color: Colors.white,
+    textAlign: "center",
+    letterSpacing: 0.7,
   },
-  emptyExpanded: {
+  overviewScroll: {
+    maxHeight: SCREEN_H * 0.5,
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+  },
+  overviewScrollContent: {
     padding: 12,
+    gap: 10,
+  },
+  parcelCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.BtnBg,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    gap: 10,
+  },
+  glassIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  parcelCardBody: {
+    flex: 1,
+    gap: 4,
+  },
+  parcelName: {
+    fontSize: 14,
+    fontFamily: FONTS.SemiBold,
+    color: Colors.black,
+  },
+  statusBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontFamily: FONTS.Medium,
+  },
+  acceptParcelBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 6,
+    maxWidth: 118,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+  },
+  acceptParcelBtnYes: {
+    backgroundColor: Colors.green,
+  },
+  acceptParcelBtnNo: {
+    backgroundColor: Colors.red,
+  },
+  acceptParcelBtnText: {
+    fontSize: 11,
+    fontFamily: FONTS.SemiBold,
+    color: Colors.white,
+    textAlign: "center",
+  },
+  overviewCta: {
+    marginTop: 14,
+    backgroundColor: Colors.borderColor,
+    borderRadius: 14,
+    paddingVertical: IS_SMALL ? 12 : 14,
+    paddingHorizontal: 14,
     alignItems: "center",
   },
-  emptyExpandedText: {
+  overviewCtaText: {
+    fontSize: 13,
+    fontFamily: FONTS.SemiBold,
+    color: Colors.white,
+    textAlign: "center",
+  },
+  overviewCtaSub: {
     fontSize: 12,
     fontFamily: FONTS.Medium,
-    color: Colors.orderdark,
+    color: Colors.white,
+    marginTop: 2,
+  },
+  commentWrap: {
+    width: MODAL_W,
+    alignItems: "center",
+  },
+  commentCard: {
+    width: "100%",
+    backgroundColor: Colors.white,
+    borderRadius: 8,
+    paddingBottom: 12,
+    overflow: "hidden",
+  },
+  commentHint: {
+    fontSize: 12,
+    fontFamily: FONTS.Regular,
+    color: Colors.darkText,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    marginBottom: 6,
+  },
+  commentInput: {
+    minHeight: 160,
+    marginHorizontal: 14,
+    borderWidth: 1.5,
+    borderColor: Colors.Boxgray,
+    borderRadius: 6,
+    paddingHorizontal: 11,
+    paddingVertical: 10,
+    fontSize: 13,
+    fontFamily: FONTS.Regular,
+    color: Colors.black,
+    backgroundColor: Colors.BtnBg,
+  },
+  backToOverview: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 10,
+    width: MODAL_W,
+  },
+  backToOverviewText: {
+    fontSize: 13,
+    fontFamily: FONTS.Medium,
+    color: Colors.white,
+  },
+  changeBtnPressed: {
+    opacity: 0.85,
   },
   changeOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -806,7 +991,7 @@ const styles = StyleSheet.create({
   changeSheet: {
     width: Math.min(SCREEN_W * 0.88, 400),
     backgroundColor: Colors.white,
-    borderRadius: 12,
+    borderRadius: 18,
     padding: 18,
     zIndex: 999,
     ...Platform.select({
@@ -823,34 +1008,36 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: FONTS.SemiBold,
     color: Colors.black,
-    marginBottom: 4,
-  },
-  changeSheetSubtitle: {
-    fontSize: 13,
-    fontFamily: FONTS.Medium,
-    color: Colors.orderdark,
-    marginBottom: 14,
-  },
-  changeOptionsList: {
-    gap: 8,
     marginBottom: 16,
   },
-  changeOption: {
+  toggleRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 8,
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.Boxgray,
   },
-  changeOptionText: {
-    fontSize: 14,
+  toggleLabel: {
+    fontSize: 15,
     fontFamily: FONTS.Medium,
-    flex: 1,
+    color: Colors.black,
+  },
+  toggleValueWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  toggleValueText: {
+    fontSize: 14,
+    fontFamily: FONTS.SemiBold,
+    minWidth: 28,
+    textAlign: "right",
   },
   changeSheetActions: {
     flexDirection: "row",
     gap: 10,
+    marginTop: 18,
   },
   changeCancelBtn: {
     flex: 1,
@@ -875,9 +1062,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: Colors.primary,
   },
-  changeSaveBtnDisabled: {
-    opacity: 0.45,
-  },
   changeSaveText: {
     fontSize: 14,
     fontFamily: FONTS.SemiBold,
@@ -887,7 +1071,7 @@ const styles = StyleSheet.create({
     width: MODAL_W,
     height: MODAL_H,
     backgroundColor: Colors.white,
-    borderRadius: 7,
+    borderRadius: 16,
     overflow: "hidden",
     ...Platform.select({
       ios: {
@@ -943,10 +1127,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 14,
-    height: IS_SMALL ? 44 : 50,
+    minHeight: IS_SMALL ? 48 : 52,
+    paddingVertical: 10,
     width: MODAL_W,
     justifyContent: "center",
-    borderRadius: 4,
+    borderRadius: 14,
     backgroundColor: Colors.borderColor,
     gap: 5,
     marginTop: IS_SMALL ? 8 : 12,
@@ -956,6 +1141,8 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.SemiBold,
     color: Colors.white,
     letterSpacing: 0.2,
+    textAlign: "center",
+    flexShrink: 1,
   },
   divider: {
     height: 1,
@@ -994,6 +1181,7 @@ const styles = StyleSheet.create({
     color: Colors.red ?? "#E53935",
     marginTop: 3,
     letterSpacing: 0.15,
+    paddingHorizontal: 14,
   },
   canvasWrapper: {
     flex: 1,
@@ -1032,29 +1220,6 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.Regular,
     color: Colors.white,
     letterSpacing: 0.25,
-  },
-  Box: {
-    width: 30,
-    height: 30,
-    borderRadius: 4,
-    backgroundColor: Colors.white,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  ResetButton: {
-    marginBottom: IS_SMALL ? 6 : 10,
-    width: "90%",
-    padding: IS_SMALL ? 7 : 10,
-    backgroundColor: Colors.lightGreen,
-    borderRadius: 4,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  resetLabel: {
-    fontSize: 14,
-    fontFamily: FONTS.Medium,
-    color: Colors.red,
   },
   selectedDamageRow: {
     width: MODAL_W,

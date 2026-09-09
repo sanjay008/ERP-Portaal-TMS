@@ -16,7 +16,7 @@ import { Images } from "../assets/images";
 import { GlobalContextData } from "../context/GlobalContext";
 import ApiService from "../utils/Apiservice";
 import { Colors } from "../utils/colors";
-import { isDeliveryPhaseOrder } from "../utils/orderStatus";
+import { isDeliveryPhaseOrder, isProductActionLockedForRole } from "../utils/orderStatus";
 import { FONTS, SimpleFlex } from "../utils/storeData";
 import CustomCollapsible from "./CustomCollapsible";
 import { useErrorHandle } from "./ErrorHandle";
@@ -64,6 +64,10 @@ function PickUpBox({
   const { setToast, UserData } = useContext(GlobalContextData);
   const cleanedDriverNote = stripHtmlTags(driver_note);
   const [whatsappLoading, setWhatsappLoading] = useState(false);
+  const isWhatsAppLocked = isProductActionLockedForRole(
+    ItemData,
+    UserData?.user?.role,
+  );
 
   const getDirectDropboxLink = (sharedLink: string) => {
     if (!sharedLink) return "";
@@ -129,7 +133,7 @@ function PickUpBox({
   // };
 
   const WhatsaapRedirectFun = async (_type: number) => {
-    if (whatsappLoading) return;
+    if (whatsappLoading || isWhatsAppLocked) return;
 
     const phoneNumber = getPhoneNumber();
 
@@ -417,8 +421,9 @@ function PickUpBox({
             </TouchableOpacity>
             <TouchableOpacity
               activeOpacity={0.85}
-              disabled={whatsappLoading}
+              disabled={whatsappLoading || isWhatsAppLocked}
               onPress={() => WhatsaapRedirectFun(2)}
+              style={isWhatsAppLocked ? { opacity: 0.4 } : undefined}
             >
               {whatsappLoading ? (
                 <ActivityIndicator size="small" color={Colors.green} />

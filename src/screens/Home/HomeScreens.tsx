@@ -12,6 +12,7 @@ import {
   resolveLocationAccess,
   retryLocationPermission,
 } from "@/src/hooks/useUserGPS";
+import { REJECTION_SLIDE_TYPE } from "@/src/screens/Rejection/rejectionSession";
 import ApiService from "@/src/utils/Apiservice";
 import { bootstrapAppDateTime } from "@/src/utils/appDateTime";
 import { getChauffeurLocation } from "@/src/utils/chauffeurLocationCache";
@@ -33,6 +34,7 @@ import {
   wipeShiftLocalData,
 } from "@/src/utils/shiftSession";
 import { getData } from "@/src/utils/storeData";
+import Constants from "expo-constants";
 import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -94,6 +96,7 @@ export default function HomeScreens({ navigation, route }: any) {
   const pendingFilterItemRef = useRef<any>(null);
   const isMountedRef = useRef(true);
   const hasFetchedRef = useRef(false);
+  const [CurrentVersion, setCurrentVersion] = useState<string>("1");
   const { t } = useTranslation();
   const {
     UserData,
@@ -200,6 +203,16 @@ export default function HomeScreens({ navigation, route }: any) {
     ],
   );
 
+  const retrieveAppVersion = async () => {
+    try {
+      const version = Constants.expoConfig?.version || "Beta";
+      const versionCode = Constants.expoConfig?.android?.versionCode ?? 0;
+      setCurrentVersion(`${t("Version")} ${version} ${t("Build")} ${versionCode}`);
+    } catch (error) {
+      console.error("Error retrieving app version:", error);
+    }
+  };
+
   useEffect(() => {
     if (userId != null && !hasFetchedRef.current) {
       hasFetchedRef.current = true;
@@ -281,6 +294,7 @@ export default function HomeScreens({ navigation, route }: any) {
   }, [gpsPermissionSheet.reason, handleGpsPermissionResult]);
 
   useEffect(() => {
+    retrieveAppVersion();
     if (!gpsPermissionSheet.visible) return;
 
     const subscription = AppState.addEventListener("change", async (nextState) => {
@@ -299,6 +313,11 @@ export default function HomeScreens({ navigation, route }: any) {
       setGloblyTypeSlide(slideItem?.type);
       if (slideItem?.type == "outbound_scan") {
         navigation.navigate("Scanner", { item: slideItem });
+      } else if (slideItem?.type == REJECTION_SLIDE_TYPE) {
+        navigation.navigate("RejectionScanner", {
+          item: slideItem,
+          type: REJECTION_SLIDE_TYPE,
+        });
       } else if (slideItem?.type == "driver_photos") {
         navigation.navigate("DriverPhotosScanner", {
           type: "driver_photos",
@@ -415,7 +434,9 @@ export default function HomeScreens({ navigation, route }: any) {
   }, [IsLoading, t]);
 
   const ListFooterComponent = useCallback(() => {
-    if (!IsLoading) return null;
+    if (!IsLoading) return  <Text
+    style={[styles.Text, { textAlign: "center", marginTop: 15, color: Colors.black   }]}
+  >{`${CurrentVersion}`}</Text>;
     return (
       <View style={styles.EmptyComponents}>
         <Loader />

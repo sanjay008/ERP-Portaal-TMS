@@ -2,7 +2,7 @@
   "expo": {
     "name": "ERP TMS Driver",
     "slug": "erp-portaal-tms-driver",
-    "version": "26.8.26",
+    "version": "26.9.4",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "erpportaaltmsdriver",
@@ -25,7 +25,7 @@
     },
     "android": {
       "allowBackup": false,
-      "versionCode": 22,
+      "versionCode": 24,
       "edgeToEdgeEnabled": true,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",

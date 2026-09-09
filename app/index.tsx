@@ -1,7 +1,7 @@
 import BottomTabs from "@/src/bottomTabs/BottomTabs";
 import LayoutHeader from "@/src/components/_LayoutHeader";
-import CustomCamera from "@/src/components/CustomCamera";
 import ChauffeurLocationBootstrap from "@/src/components/ChauffeurLocationBootstrap";
+import CustomCamera from "@/src/components/CustomCamera";
 import DriverGPSTraking from "@/src/components/DriverGPSTraking";
 import DropboxUploadRunner from "@/src/components/DropboxUploadRunner";
 import GlobalContext from "@/src/context/GlobalContext";
@@ -22,6 +22,8 @@ import ScanManager from "@/src/screens/Order Analysis/ScanManager";
 import WarehouseOrderEdit from "@/src/screens/Order Analysis/WarehouseOrderEdit";
 import Parcel from "@/src/screens/Parcel/Parcel";
 import Profile from "@/src/screens/Profile/Profile";
+import RejectionReview from "@/src/screens/Rejection/RejectionReview";
+import RejectionScanner from "@/src/screens/Rejection/RejectionScanner";
 import DriverPhotosScanner from "@/src/screens/Scanner/DriverPhotosScanner";
 import ScannerScreens from "@/src/screens/Scanner/ScannerScreens";
 import SelectLanguage from "@/src/screens/selectionLan/Selectionlan";
@@ -33,6 +35,7 @@ import NetInfo from "@react-native-community/netinfo";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import React, { useEffect, useState } from "react";
 import { I18nextProvider } from "react-i18next";
+import { StatusBar } from "react-native";
 import changeNavigationBarColor from 'react-native-navigation-bar-color';
 import { MenuProvider } from "react-native-popup-menu";
 import OnBoarding from "../src/screens/onbording";
@@ -73,6 +76,7 @@ export default function index() {
     <>
       <I18nextProvider i18n={i18n}>
         <MenuProvider>
+          <StatusBar barStyle='dark-content'/>
           <GlobalContext>
             <DropboxUploadRunner />
             <ChauffeurLocationBootstrap />
@@ -120,6 +124,16 @@ export default function index() {
                   name="Scanner"
                   options={{ statusBarAnimation: "slide",gestureEnabled: false, }}
                   component={withLayoutHeader(ScannerScreens)}
+                />
+                <Stack.Screen
+                  name="RejectionScanner"
+                  options={{ statusBarAnimation: "slide", gestureEnabled: false }}
+                  component={withLayoutHeader(RejectionScanner)}
+                />
+                <Stack.Screen
+                  name="RejectionReview"
+                  options={{ statusBarAnimation: "slide", gestureEnabled: false }}
+                  component={withLayoutHeader(RejectionReview)}
                 />
                 <Stack.Screen
                   name="DriverPhotosScanner"

@@ -1,5 +1,20 @@
+export const LOCKED_ADD_PRODUCT_STATUS_ID = 31;
+export const SUPERADMIN_ROLE = 'superadmin';
+
 export function getOrderStatusId(order: any): number {
   return Number(order?.tmsstatus?.id ?? order?.status ?? 0);
+}
+
+export function isSuperAdminRole(role?: string | null): boolean {
+  return String(role || '').toLowerCase() === SUPERADMIN_ROLE;
+}
+
+/** Status 31 locks add/update product for everyone except superadmin. */
+export function isProductActionLockedForRole(
+  order: any,
+  role?: string | null,
+): boolean {
+  return getOrderStatusId(order) === LOCKED_ADD_PRODUCT_STATUS_ID && !isSuperAdminRole(role);
 }
 
 export function isPickupOrder(order: any): boolean {

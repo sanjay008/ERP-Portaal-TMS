@@ -1,9 +1,11 @@
 import PickUpBox from '@/src/components/PickUpBox';
 import Loader from '@/src/components/loading';
+import { GlobalContextData } from '@/src/context/GlobalContext';
 import { Colors } from '@/src/utils/colors';
+import { isProductActionLockedForRole } from '@/src/utils/orderStatus';
 import { FONTS, height } from '@/src/utils/storeData';
 import { Ionicons } from '@expo/vector-icons';
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
@@ -56,8 +58,13 @@ export default function WarehouseOrderSheet({
 }: Props) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const { UserData } = useContext(GlobalContextData);
   const progress = useSharedValue(0);
   const [mounted, setMounted] = useState(false);
+  const isProductActionLocked = isProductActionLockedForRole(
+    orderData,
+    UserData?.user?.role,
+  );
 
   useEffect(() => {
     if (visible) {
@@ -202,10 +209,11 @@ export default function WarehouseOrderSheet({
                     styles.btn,
                     styles.editBtn,
                     styles.halfBtn,
-                    pressed && styles.pressed,
+                    (loading || !orderData || isProductActionLocked) && styles.disabledBtn,
+                    pressed && !isProductActionLocked && styles.pressed,
                   ]}
                   onPress={onEdit}
-                  disabled={loading || !orderData}
+                  disabled={loading || !orderData || isProductActionLocked}
                 >
                   <Text style={styles.editBtnText}>{t('Bewerken')}</Text>
                 </Pressable>
@@ -230,10 +238,11 @@ export default function WarehouseOrderSheet({
                     styles.btn,
                     styles.editBtn,
                     styles.halfBtn,
-                    pressed && styles.pressed,
+                    (loading || !orderData || isProductActionLocked) && styles.disabledBtn,
+                    pressed && !isProductActionLocked && styles.pressed,
                   ]}
                   onPress={onEditAgain}
-                  disabled={loading || !orderData}
+                  disabled={loading || !orderData || isProductActionLocked}
                 >
                   <Text style={styles.editBtnText}>{t('Edit again')}</Text>
                 </Pressable>
@@ -274,10 +283,11 @@ export default function WarehouseOrderSheet({
                     styles.btn,
                     styles.addProductBtn,
                     styles.mediaActionBtn,
-                    pressed && styles.pressed,
+                    (loading || !orderData || isProductActionLocked) && styles.disabledBtn,
+                    pressed && !isProductActionLocked && styles.pressed,
                   ]}
                   onPress={onAddProduct}
-                  disabled={loading || !orderData}
+                  disabled={loading || !orderData || isProductActionLocked}
                 >
                   <Text style={styles.addProductBtnText}>{t('Add Product')}</Text>
                 </Pressable>
@@ -439,6 +449,9 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.88,
+  },
+  disabledBtn: {
+    opacity: 0.45,
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,

@@ -12,6 +12,7 @@ import NoParcelModal from "@/src/components/NoParcelModal";
 import PickUpBox from "@/src/components/PickUpBox";
 import PickupPlannedSheet from "@/src/components/PickupPlannedSheet";
 import ScannerInfoModal from "@/src/components/ScannerInfoModal";
+import SecondCustomModal from "@/src/components/SecondCustomModal";
 import SignatureModal from "@/src/components/SignatureModal";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import {
@@ -37,6 +38,10 @@ import {
 } from "@/src/utils/deliveryMultiParcel";
 import { appendToLocalUploadQueue } from "@/src/utils/localUploadQueue";
 import { isDeliveryOrder } from "@/src/utils/orderStatus";
+import {
+  buildAcceptanceSummaryModal,
+  buildGiveScannerToDriverModal,
+} from "@/src/utils/parcelAcceptanceFlow";
 import {
   doesLabelRequireSignature,
   getSignatureIsDelivery,
@@ -106,7 +111,7 @@ import {
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import Modal from "react-native-modal";
-import ReAnimated, { FadeIn, FadeInDown } from "react-native-reanimated";
+import ReAnimated, { FadeIn } from "react-native-reanimated";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 export default function ScannerScreens({ navigation, route }: any) {
   const {
@@ -154,6 +159,8 @@ export default function ScannerScreens({ navigation, route }: any) {
       onPress?: () => void;
     }[];
     color?: string;
+    hint?: string;
+    image?: any;
   }>({
     visible: false,
     title: "",
@@ -927,7 +934,6 @@ export default function ScannerScreens({ navigation, route }: any) {
           });
         }
       } finally {
-        // Defer unlock so setState modals (confirm/alert) can commit before scanner re-arms
         requestAnimationFrame(() => {
           if (
             !isScannerBlockedByModalRef.current &&
@@ -1343,7 +1349,7 @@ export default function ScannerScreens({ navigation, route }: any) {
       formData.append('relaties_id', UserData?.relaties?.id);
       formData.append('user_id', UserData?.user?.id);
       formData.append('qr_data', JSON.stringify(QRData));
-      formData.append('order_comment', Description?.trim() || comment?.trim() || '');
+      formData.append('order_comment', comment?.trim() || Description?.trim() || '');
       formData.append('order_id', id ? id : SelectPlace?.id);
       let image_data = Array.isArray(data) && data?.length > 0
         ? data
@@ -1394,7 +1400,9 @@ export default function ScannerScreens({ navigation, route }: any) {
         }
         return true;
       } else {
-        setComment(true);
+        if (!options?.skipClose) {
+          setComment(true);
+        }
 
         setToast({
           top: 45,
@@ -1405,7 +1413,9 @@ export default function ScannerScreens({ navigation, route }: any) {
         return false;
       }
     } catch (error) {
-      setComment(true);
+      if (!options?.skipClose) {
+        setComment(true);
+      }
 
 
       setToast({
@@ -1427,6 +1437,8 @@ const CustomerSignatureFun = async (
   signature: string | null = null,
   name: string | null = null,
   damageItems: any[] = [],
+  acceptanceComment: string = "",
+  parcelDamageAccept: any[] = [],
 ) => {
   if (isBlankSignatureData(signature)) {
     setToast({
@@ -1457,6 +1469,19 @@ const CustomerSignatureFun = async (
   setSignatureLoader(true);
 
   try {
+    const trimmedAcceptanceComment =
+      typeof acceptanceComment === "string" ? acceptanceComment.trim() : "";
+
+    if (trimmedAcceptanceComment) {
+      const commentOk = await AddImageOrCommentFun(trimmedAcceptanceComment, [], {
+        skipClose: true,
+        manageLoader: false,
+      });
+      if (!commentOk) {
+        return;
+      }
+    }
+
     const labelForSig =
       signatureLabelRef.current ??
       SelectCurrentDeliveryLabel ??
@@ -1478,6 +1503,22 @@ const CustomerSignatureFun = async (
       order_id: orderId,
       is_delivery: getSignatureIsDelivery(labelForSig),
     };
+
+    if (
+      Array.isArray(parcelDamageAccept) &&
+      parcelDamageAccept.length > 0
+    ) {
+      const mappedAccept = parcelDamageAccept
+        .map((row: any) => ({
+          product_id: Number(row?.product_id),
+          damage: Number(row?.damage) === 1 ? 1 : 0,
+          accept: Number(row?.accept) === 1 ? 1 : 0,
+        }))
+        .filter((row) => Number.isFinite(row.product_id) && row.product_id > 0);
+      if (mappedAccept.length > 0) {
+        payload.is_parcel_damage_accept = mappedAccept;
+      }
+    }
 
     if (SelectCurrentDeliveryLabel?.id != 26) {
      
@@ -1593,33 +1634,43 @@ const CustomerSignatureFun = async (
       return;
     }
 
-    const buttons: any[] = [
-      {
-        text: t("Go to List Page"),
-        type: "primary",
-        onPress: () => {
-          setSecondModal((prev) => ({
-            ...prev,
-            visible: false,
-          }));
-          setNoParcelItemIds([]);
-          getSliderDataFun();
-        },
-      },
-    ];
-
-    setSecondModal({
-      visible: true,
-      title: t("All Parcels Scanned Successfully!"),
-      message: res?.remaining_item_message
-        ? t(res.remaining_item_message)
+    const summaryMessage = [
+      res?.remaining_item_message ? t(res.remaining_item_message) : "",
+      trimmedAcceptanceComment
+        ? `${t("Comments")}\n\n${trimmedAcceptanceComment}`
         : "",
-      buttons,
-      color:
-        GloblyTypeSlide === "outbound_scan"
-          ? Colors.primary
-          : Colors.green,
-    });
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+
+    const closeToList = () => {
+      setSecondModal((prev) => ({
+        ...prev,
+        visible: false,
+      }));
+      setNoParcelItemIds([]);
+      getSliderDataFun();
+    };
+
+    setSecondModal(
+      buildGiveScannerToDriverModal({
+        t,
+        image: Images.CustomerAfterCondirmImage,
+        onGoToOverview: () => {
+          setSecondModal(
+            buildAcceptanceSummaryModal({
+              t,
+              message: summaryMessage,
+              color:
+                GloblyTypeSlide === "outbound_scan"
+                  ? Colors.primary
+                  : Colors.green,
+              onClose: closeToList,
+            }),
+          );
+        },
+      }),
+    );
   } catch (error) {
     const handledError = ErrorHandle(error);
 
@@ -1879,7 +1930,10 @@ const CustomerSignatureFun = async (
 
             if (isSignatureAllowed) {
               buttons.push({
-                text: t("Signature"),
+                text:
+                  ProductDamageList?.length > 0
+                    ? t("Go to overview")
+                    : t("Signature"),
                 type: "primary",
                 onPress: () => {
                   openSignatureFlow(savedDeliveryLabel);
@@ -1901,6 +1955,12 @@ const CustomerSignatureFun = async (
               visible: true,
               title: t("All Parcels Scanned Successfully!"),
               message: t(res?.remaining_item_message) || "",
+              hint: isSignatureAllowed
+                ? t("GIVE SCANNER TO CUSTOMER")
+                : undefined,
+              image: isSignatureAllowed
+                ? Images.DriverConfirmCustomerImage
+                : undefined,
               buttons: buttons,
               color: GloblyTypeSlide == "outbound_scan" ? Colors.primary : Colors.green
 
@@ -1946,7 +2006,10 @@ const CustomerSignatureFun = async (
           }
         } else if (isSignatureAllowed) {
           const buttons: any[] = [{
-            text: t("Signature"),
+            text:
+              ProductDamageList?.length > 0
+                ? t("Go to overview")
+                : t("Signature"),
             type: "primary",
             onPress: () => {
               openSignatureFlow(savedDeliveryLabel);
@@ -1957,6 +2020,8 @@ const CustomerSignatureFun = async (
             visible: true,
             title: t("Confirm Delivery"),
             message: t("Delivery completed. Please provide your signature to confirm successful handover."),
+            hint: t("GIVE SCANNER TO CUSTOMER"),
+            image: Images.DriverConfirmCustomerImage,
             buttons: buttons,
             color: Colors.green,
           });
@@ -2572,9 +2637,8 @@ const CustomerSignatureFun = async (
           });
           navigation.navigate("Camera");
         }}
-        onSave={(base64, name, damageItems) => {
-
-          CustomerSignatureFun(base64, name, damageItems)
+        onSave={(base64, name, damageItems, acceptanceComment, parcelDamageAccept) => {
+          CustomerSignatureFun(base64, name, damageItems, acceptanceComment, parcelDamageAccept)
         }}
         onClear={() => { }}
       />
@@ -2936,107 +3000,7 @@ const CustomerSignatureFun = async (
         ItemsData={ItemsData}
       />
 
-      {SecondModal?.visible && (
-        <ReAnimated.View
-          entering={FadeIn}
-          exiting={FadeInDown}
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            justifyContent: "center",
-            alignItems: "center",
-            backgroundColor: SecondModal?.color || "rgba(0,0,0,0.6)",
-            zIndex: 999,
-          }}
-        >
-          <View
-            style={{
-              backgroundColor: Colors.white,
-              borderRadius: 14,
-              width: "95%",
-              paddingVertical: 25,
-              paddingHorizontal: 20,
-              alignItems: "center",
-            }}
-          >
-            {SecondModal?.title ? (
-              <Text
-                style={{
-                  fontSize: 18,
-                  fontWeight: "600",
-                  textAlign: "center",
-                  color: "#000",
-                  marginBottom: 10,
-                }}
-              >
-                {SecondModal?.title}
-              </Text>
-            ) : null}
-
-            {SecondModal?.message ? (
-              <Text
-                style={{
-                  fontSize: 14,
-                  color: Colors.gray,
-                  textAlign: "center",
-                  marginBottom: 20,
-                }}
-              >
-                {SecondModal?.message}
-              </Text>
-            ) : null}
-
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "center",
-                width: "100%",
-              }}
-            >
-              {SecondModal?.buttons?.map((btn: any, index: number) => (
-                <TouchableOpacity
-                  key={index}
-                  style={{
-                    backgroundColor:
-                      btn.backgroundColor ||
-                      (btn.type === "primary"
-                        ? deliveryContinuePending
-                          ? Colors.green
-                          : Colors.primary
-                        : deliveryContinuePending
-                          ? Colors.red
-                          : "#E0E0E0"),
-                    paddingVertical: 15,
-                    paddingHorizontal: 20,
-                    borderRadius: 8,
-                    marginHorizontal: 5,
-                    flex: 1,
-                    alignItems: "center",
-                  }}
-                  onPress={btn.onPress}
-                >
-                  <Text
-                    style={{
-                      color:
-                        btn.type === "primary" ||
-                        btn.backgroundColor ||
-                        deliveryContinuePending
-                          ? Colors.white
-                          : Colors.black,
-                      fontFamily: FONTS.Medium,
-                    }}
-                  >
-                    {btn.text}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        </ReAnimated.View>
-      )}
+      <SecondCustomModal SecondModal={SecondModal} />
 
       <InvalidQRModal
         visible={showQRError}

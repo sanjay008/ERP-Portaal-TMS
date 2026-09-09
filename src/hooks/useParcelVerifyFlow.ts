@@ -23,6 +23,10 @@ import { Colors } from '@/src/utils/colors';
 import { appendToLocalUploadQueue } from '@/src/utils/localUploadQueue';
 import { isDeliveryOrder } from '@/src/utils/orderStatus';
 import {
+  buildAcceptanceSummaryModal,
+  buildGiveScannerToDriverModal,
+} from '@/src/utils/parcelAcceptanceFlow';
+import {
   doesLabelRequireSignature,
   getSignatureIsDelivery,
   isSignatureAllowedAfterStatusUpdate,
@@ -1013,7 +1017,11 @@ export function useParcelVerifyFlow({
   const addImageOrCommentFun = useCallback(
     async (
       data: any[] = [],
-      options?: { skipClose?: boolean; manageLoader?: boolean },
+      options?: {
+        skipClose?: boolean;
+        manageLoader?: boolean;
+        orderComment?: string;
+      },
     ): Promise<boolean> => {
       const id = itemsData?.id || itemsData?.order_data?.id;
       const manageLoader = options?.manageLoader !== false;
@@ -1028,7 +1036,10 @@ export function useParcelVerifyFlow({
         formData.append('role', UserData?.user?.role);
         formData.append('relaties_id', UserData?.relaties?.id);
         formData.append('user_id', UserData?.user?.id);
-        formData.append('order_comment', description?.trim());
+        formData.append(
+          'order_comment',
+          (options?.orderComment ?? description)?.trim() || '',
+        );
         formData.append('order_id', id ? id : selectPlace?.id);
 
         const image_data =
@@ -1066,7 +1077,9 @@ export function useParcelVerifyFlow({
           return true;
         }
 
-        setComment(true);
+        if (!options?.skipClose) {
+          setComment(true);
+        }
         setToast({
           top: 45,
           text: t(res?.data?.message),
@@ -1075,7 +1088,9 @@ export function useParcelVerifyFlow({
         });
         return false;
       } catch (error) {
-        setComment(true);
+        if (!options?.skipClose) {
+          setComment(true);
+        }
         setToast({
           top: 45,
           text: ErrorHandle(error).message,
@@ -1110,6 +1125,8 @@ export function useParcelVerifyFlow({
       signature: string | null = null,
       name: string | null = null,
       damageItems: any[] = [],
+      acceptanceComment: string = '',
+      parcelDamageAccept: any[] = [],
     ) => {
       if (isBlankSignatureData(signature)) {
         setToast({
@@ -1123,6 +1140,20 @@ export function useParcelVerifyFlow({
 
       setSignatureLoader(true);
       try {
+        const trimmedAcceptanceComment =
+          typeof acceptanceComment === 'string' ? acceptanceComment.trim() : '';
+
+        if (trimmedAcceptanceComment) {
+          const commentOk = await addImageOrCommentFun([], {
+            skipClose: true,
+            manageLoader: false,
+            orderComment: trimmedAcceptanceComment,
+          });
+          if (!commentOk) {
+            return;
+          }
+        }
+
         const labelForSig =
           signatureLabelRef.current ??
           EffectiveDeliveryLabel ??
@@ -1139,6 +1170,22 @@ export function useParcelVerifyFlow({
           order_id: itemsData?.id,
           is_delivery: getSignatureIsDelivery(labelForSig),
         };
+
+        if (
+          Array.isArray(parcelDamageAccept) &&
+          parcelDamageAccept.length > 0
+        ) {
+          const mappedAccept = parcelDamageAccept
+            .map((row: any) => ({
+              product_id: Number(row?.product_id),
+              damage: Number(row?.damage) === 1 ? 1 : 0,
+              accept: Number(row?.accept) === 1 ? 1 : 0,
+            }))
+            .filter((row) => Number.isFinite(row.product_id) && row.product_id > 0);
+          if (mappedAccept.length > 0) {
+            payload.is_parcel_damage_accept = mappedAccept;
+          }
+        }
 
         // Signature top damage/undamage Change → send modified per-parcel list
         // (same shape as status_update; do not send stale selectDamageData).
@@ -1209,20 +1256,34 @@ export function useParcelVerifyFlow({
             return;
           }
 
-          setSecondModal({
-            visible: true,
-            title: t('All Parcels Scanned Successfully!'),
-            message: t(res?.remaining_item_message) || '',
-            buttons: [
-              {
-                text: t('Go to List Page'),
-                type: 'primary',
-                onPress: handleGoToListPage,
+          const summaryMessage = [
+            t(res?.remaining_item_message) || '',
+            trimmedAcceptanceComment
+              ? `${t('Comments')}\n\n${trimmedAcceptanceComment}`
+              : '',
+          ]
+            .filter(Boolean)
+            .join('\n\n');
+
+          setSecondModal(
+            buildGiveScannerToDriverModal({
+              t,
+              image: Images.CustomerAfterCondirmImage,
+              onGoToOverview: () => {
+                setSecondModal(
+                  buildAcceptanceSummaryModal({
+                    t,
+                    message: summaryMessage,
+                    color:
+                      GloblyTypeSlide === 'outbound_scan'
+                        ? Colors.primary
+                        : Colors.green,
+                    onClose: handleGoToListPage,
+                  }),
+                );
               },
-            ],
-            color:
-              GloblyTypeSlide === 'outbound_scan' ? Colors.primary : Colors.green,
-          });
+            }),
+          );
           await onSuccess?.();
         } else {
           setToast({
@@ -1263,6 +1324,7 @@ export function useParcelVerifyFlow({
       PinnedDeliveryLabel,
       SelectCurrentDeliveryLabel,
       setProductDamageList,
+      addImageOrCommentFun,
     ],
   );
 
@@ -1571,7 +1633,10 @@ export function useParcelVerifyFlow({
 
           if (isSignatureAllowed) {
             buttons.push({
-              text: t('Signature'),
+              text:
+                productDamageList?.length > 0
+                  ? t('Go to overview')
+                  : t('Signature'),
               type: 'primary',
               onPress: () => {
                 setSecondModal((prev: any) => ({ ...prev, visible: false }));
@@ -1590,6 +1655,12 @@ export function useParcelVerifyFlow({
             visible: true,
             title: t('All Parcels Scanned Successfully!'),
             message: t(res?.remaining_item_message) || '',
+            hint: isSignatureAllowed
+              ? t('GIVE SCANNER TO CUSTOMER')
+              : undefined,
+            image: isSignatureAllowed
+              ? Images.DriverConfirmCustomerImage
+              : undefined,
             buttons,
             color:
               effectiveType === 'outbound_scan' ? Colors.primary : Colors.green,
@@ -1636,9 +1707,14 @@ export function useParcelVerifyFlow({
           message: t(
             'Delivery completed. Please provide your signature to confirm successful handover.',
           ),
+          hint: t('GIVE SCANNER TO CUSTOMER'),
+          image: Images.DriverConfirmCustomerImage,
           buttons: [
             {
-              text: t('Signature'),
+              text:
+                productDamageList?.length > 0
+                  ? t('Go to overview')
+                  : t('Signature'),
               type: 'primary',
               onPress: () => {
                 setSecondModal((prev: any) => ({ ...prev, visible: false }));

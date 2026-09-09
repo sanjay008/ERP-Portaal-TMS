@@ -4,8 +4,8 @@ import LoadingModal from "@/src/components/LoadingModal";
 import ProfileImageViewer from "@/src/components/ProfileImageViewer";
 import ProfileItem from "@/src/components/ProfileItem";
 import { GlobalContextData } from "@/src/context/GlobalContext";
-import { Colors } from "@/src/utils/colors";
 import { resetChauffeurLocationSession } from "@/src/hooks/useChauffeurLocation";
+import { Colors } from "@/src/utils/colors";
 import { clearUserSessionStorage } from "@/src/utils/logoutSession";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
@@ -54,7 +54,8 @@ export default function Profile({ navigation }: any) {
   const retrieveAppVersion = async () => {
     try {
       const version = Constants.expoConfig?.version || "Beta";
-      setCurrentVersion(version);
+      const versionCode = Constants.expoConfig?.android?.versionCode ?? 0;
+      setCurrentVersion(`${t("Version")} ${version} ${t("Build")} ${versionCode}`);
     } catch (error) {
       console.error("Error retrieving app version:", error);
     }
@@ -206,7 +207,7 @@ export default function Profile({ navigation }: any) {
         ListFooterComponent={() => (
           <Text
             style={[styles.Text, { textAlign: "center", marginTop: 15 }]}
-          >{`V${CurrentVersion}`}</Text>
+          >{`${CurrentVersion}`}</Text>
         )}
         renderItem={({ item }) => (
           <ProfileItem
