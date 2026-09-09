@@ -12,6 +12,7 @@ type Props = {
   IconBoxBackground?: string;
   IconStyle?: object;
   TitleStyle?: object;
+  item?: object;
 };
 
 export default function ProfileItem({
@@ -21,6 +22,7 @@ export default function ProfileItem({
   IconBoxBackground,
   IconStyle,
   TitleStyle,
+  item,
 }: Props) {
   const { t } = useTranslation();
   return (
@@ -32,7 +34,11 @@ export default function ProfileItem({
             { backgroundColor: IconBoxBackground || Colors.background },
           ]}
         >
-          <Image source={Icon} style={[styles.Icon, IconStyle]} />
+          <Image
+            source={Icon}
+            style={[styles.Icon, IconStyle]}
+            tintColor={item?.id !== 7 ? Colors.white : undefined}
+          />
         </View>
         <Text style={styles.Text}>{Title}</Text>
       </View>

@@ -93,10 +93,23 @@ export const useErrorHandle = () => {
       const responseData = error?.response?.data ?? {};
 
  
-      const apiMessage:any =
-        responseData?.message ||
-        (Object.values(responseData?.errors || {}) as any[])[0]?.[0] || 
-        (typeof responseData === "string" ? responseData : null);
+      let apiMessage: string | null = null;
+      if (typeof responseData?.message === "string" && responseData.message.trim()) {
+        apiMessage = responseData.message.trim();
+      } else if (responseData?.errors && typeof responseData.errors === "object") {
+        for (const value of Object.values(responseData.errors)) {
+          if (typeof value === "string" && value.trim()) {
+            apiMessage = value.trim();
+            break;
+          }
+          if (Array.isArray(value) && typeof value[0] === "string" && value[0].trim()) {
+            apiMessage = value[0].trim();
+            break;
+          }
+        }
+      } else if (typeof responseData === "string" && responseData.trim()) {
+        apiMessage = responseData.trim();
+      }
 
       if (apiMessage) {
         userMessage = apiMessage;
@@ -152,9 +165,10 @@ export const useErrorHandle = () => {
       }
 
       
+      const isApiText = Boolean(apiMessage);
       return {
         type: errorType,
-        message: t(userMessage),
+        message: isApiText ? userMessage : t(userMessage),
         originalError: responseData || null,
         status,
       };

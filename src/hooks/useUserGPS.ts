@@ -140,7 +140,31 @@ export async function retryLocationPermission(): Promise<LocationAccessStatus> {
 }
 
 export async function openAppSettings(): Promise<void> {
-  await Linking.openSettings();
+  try {
+    await Linking.openSettings();
+    return;
+  } catch {
+    // Android throws when currentActivity is null ("Could not open the Settings: Required value was null").
+  }
+
+  if (Platform.OS !== 'android') {
+    return;
+  }
+
+  try {
+    const IntentLauncher = await import('expo-intent-launcher');
+    const Constants = (await import('expo-constants')).default;
+    const pkg =
+      Constants.expoConfig?.android?.package ??
+      Constants.android?.package ??
+      'com.erpportaal.ERP_Portaal_TMS';
+    await IntentLauncher.startActivityAsync(
+      IntentLauncher.ActivityAction.APPLICATION_DETAILS_SETTINGS,
+      { data: `package:${pkg}` },
+    );
+  } catch {
+    // Settings unavailable — caller UI already guides the user.
+  }
 }
 
 export async function recheckLocationAccess(): Promise<LocationAccessStatus> {

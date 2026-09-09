@@ -11,15 +11,113 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import React, { useCallback, useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FlatList, Text, View } from "react-native";
+import { Text, View } from "react-native";
+import Animated, {
+  Extrapolation,
+  interpolate,
+  SharedValue,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+} from "react-native-reanimated";
 import { styles } from "./styles";
 
 type ArrayProps = {
+  id?: number;
   Background: string;
   Icon: any;
   Title: string;
   onPress: () => void;
 };
+
+const ITEM_HEIGHT = 64;
+const HEADER_HEIGHT = 90;
+
+type AnimatedProfileRowProps = {
+  item: ArrayProps;
+  index: number;
+  scrollY: SharedValue<number>;
+};
+
+function AnimatedProfileRow({ item, index, scrollY }: AnimatedProfileRowProps) {
+  const animatedStyle = useAnimatedStyle(() => {
+    const itemOffset = HEADER_HEIGHT + index * ITEM_HEIGHT;
+    const opacity = interpolate(
+      scrollY.value,
+      [itemOffset - ITEM_HEIGHT, itemOffset],
+      [1, 0],
+      Extrapolation.CLAMP
+    );
+    const scale = interpolate(
+      scrollY.value,
+      [itemOffset - ITEM_HEIGHT, itemOffset],
+      [1, 0.8],
+      Extrapolation.CLAMP
+    );
+
+    return {
+      opacity,
+      transform: [{ scale }],
+    };
+  });
+
+  return (
+    <Animated.View style={animatedStyle}>
+      <ProfileItem
+        id={item?.id}
+        item={item}
+        Icon={item?.Icon}
+        Title={item?.Title}
+        IconBoxBackground={item?.Background}
+        onPress={item?.onPress}
+      />
+    </Animated.View>
+  );
+}
+
+type AnimatedProfileHeaderProps = {
+  imageUri: any;
+  username: string;
+  companyName: string;
+  scrollY: SharedValue<number>;
+};
+
+function AnimatedProfileHeader({
+  imageUri,
+  username,
+  companyName,
+  scrollY,
+}: AnimatedProfileHeaderProps) {
+  const animatedStyle = useAnimatedStyle(() => {
+    const opacity = interpolate(
+      scrollY.value,
+      [0, HEADER_HEIGHT],
+      [1, 0],
+      Extrapolation.CLAMP
+    );
+    const scale = interpolate(
+      scrollY.value,
+      [0, HEADER_HEIGHT],
+      [1, 0.8],
+      Extrapolation.CLAMP
+    );
+
+    return {
+      opacity,
+      transform: [{ scale }],
+    };
+  });
+
+  return (
+    <Animated.View style={[styles.SimpleFlex, animatedStyle]}>
+      <ProfileImageViewer imageUri={imageUri} />
+      <View style={{ gap: 5 }}>
+        <Text style={styles.Text}>{username}</Text>
+        <Text style={styles.darkText}>{companyName}</Text>
+      </View>
+    </Animated.View>
+  );
+}
 
 export default function Profile({ navigation }: any) {
   const {
@@ -51,6 +149,14 @@ export default function Profile({ navigation }: any) {
   });
   const { t } = useTranslation();
 
+  const scrollY = useSharedValue(0);
+
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollY.value = event.contentOffset.y;
+    },
+  });
+
   const retrieveAppVersion = async () => {
     try {
       const version = Constants.expoConfig?.version || "Beta";
@@ -67,7 +173,6 @@ export default function Profile({ navigation }: any) {
       const { closeActiveShiftSilent } = await import(
         '@/src/utils/shiftLocationGuard'
       );
-      // Silent trip end + is_active=0, then clear session.
       await closeActiveShiftSilent(UserData, activeShift);
       resetChauffeurLocationSession();
       setActiveShift(null);
@@ -127,6 +232,7 @@ export default function Profile({ navigation }: any) {
 
   const ProfileItems: ArrayProps[] = [
     {
+      id: 1,
       Background: Colors.primary,
       Icon: Images.Info,
       Title: t("About Us"),
@@ -137,6 +243,7 @@ export default function Profile({ navigation }: any) {
         }),
     },
     {
+      id: 2,
       Background: Colors.primary,
       Icon: Images.Privacy,
       Title: t("Privacy Policy"),
@@ -147,6 +254,7 @@ export default function Profile({ navigation }: any) {
         }),
     },
     {
+      id: 3,
       Background: Colors.primary,
       Icon: Images.Terms,
       Title: t("Terms & Conditions"),
@@ -157,6 +265,7 @@ export default function Profile({ navigation }: any) {
         }),
     },
     {
+      id: 4,
       Background: Colors.primary,
       Icon: Images.Phone,
       Title: t("Contact Us"),
@@ -167,12 +276,35 @@ export default function Profile({ navigation }: any) {
         }),
     },
     {
+      id: 5,
+      Background: Colors.primary,
+      Icon: Images.Client,
+      Title: t("Driver Company"),
+      onPress: () => navigation.navigate("DriverCompany"),
+    },
+    {
+      id:8,
+      Background: Colors.primary,
+      Icon: Images.documentlogo,
+      Title: t("Upload Documents"),
+      onPress: () => navigation.navigate("UploadDocuments"),
+    },
+    {
+      id:9,
+      Background: Colors.primary,
+      Icon: Images.user,
+      Title: t("Driver Profile"),
+      onPress: () => navigation.navigate("DriverProfile"),
+    },
+    {
+      id: 6,
       Background: Colors.primary,
       Icon: Images.LangaugeIcon,
       Title: t("Language"),
       onPress: () => navigation.navigate("Language"),
     },
     {
+      id: 7,
       Background: Colors.RemoveBg,
       Icon: Images.logout,
       Title: t("Log Out"),
@@ -186,36 +318,34 @@ export default function Profile({ navigation }: any) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.SimpleFlex}>
-        <ProfileImageViewer imageUri={UserData?.user?.profile_image} />
-        <View style={{ gap: 5 }}>
-          <Text style={styles.Text}>
-            {UserData?.user?.username?.length > 0
-              ? UserData.user.username
-              : UserData?.relaties?.display_name || ""}
-          </Text>
-
-          <Text style={styles.darkText}>{CompanysData}</Text>
-        </View>
-      </View>
-
-      <FlatList
+      <Animated.FlatList
         style={styles.FlatContainerStyle}
         contentContainerStyle={styles.ContentContainerStyle}
         data={ProfileItems}
         bounces={false}
-        ListFooterComponent={() => (
-          <Text
-            style={[styles.Text, { textAlign: "center", marginTop: 15 }]}
-          >{`${CurrentVersion}`}</Text>
-        )}
-        renderItem={({ item }) => (
-          <ProfileItem
-            Icon={item?.Icon}
-            Title={item?.Title}
-            IconBoxBackground={item?.Background}
-            onPress={item?.onPress}
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
+        ListHeaderComponent={() => (
+          <AnimatedProfileHeader
+            imageUri={UserData?.user?.profile_image}
+            username={
+              UserData?.user?.username?.length > 0
+                ? UserData.user.username
+                : UserData?.relaties?.display_name || ""
+            }
+            companyName={CompanysData}
+            scrollY={scrollY}
           />
+        )}
+        ListFooterComponent={() => (
+          <View style={{ paddingVertical: 20, minHeight: 40, paddingBottom: 35 }}>
+            <Text
+              style={[styles.Text, { textAlign: "center" }]}
+            >{`V${CurrentVersion}`}</Text>
+          </View>
+        )}
+        renderItem={({ item, index }) => (
+          <AnimatedProfileRow item={item} index={index} scrollY={scrollY} />
         )}
       />
 

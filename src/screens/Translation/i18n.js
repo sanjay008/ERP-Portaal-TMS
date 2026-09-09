@@ -1,13 +1,13 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import apiConstants from "../../api/apiConstants";
 import ApiService from "../../utils/Apiservice";
-// import { ApiService, apiConstants } from './ApiService'; // Import ApiService
+import { getStoredUserLanguage } from "../../utils/languagePreference";
 
 const loadLanguage = async () => {
-  const storedLanguage = await AsyncStorage.getItem("userLanguage");
-  return storedLanguage || "nl"; // Default to 'nl' if none is found
+  const storedLanguage = await getStoredUserLanguage();
+  // Fallback only for i18n init UI — does NOT write to storage
+  return storedLanguage || "nl";
 };
 
 export const languagedata = async () => {
@@ -27,7 +27,6 @@ export const languagedata = async () => {
         resources: languageData,
         interpolation: { escapeValue: false },
       });
-
     } else {
       console.log("Invalid API response");
     }
@@ -36,7 +35,6 @@ export const languagedata = async () => {
   }
 };
 
-
-languagedata(); 
+languagedata();
 
 export default i18n;

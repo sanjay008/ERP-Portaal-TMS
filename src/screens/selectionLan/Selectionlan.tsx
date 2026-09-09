@@ -1,7 +1,8 @@
 import { GlobalContextData } from "@/src/context/GlobalContext";
+import { persistLanguageSelection } from "@/src/utils/languagePreference";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Image, StyleSheet, Text, View } from "react-native";
 import { RFValue } from "react-native-responsive-fontsize";
@@ -11,12 +12,11 @@ import { Images } from "../../assets/images";
 import ButtonComponent from "../../components/buttonComponent";
 import ApiService from "../../utils/Apiservice";
 import { Colors } from "../../utils/colors";
-import { FONTS, getData, storeData } from "../../utils/storeData";
+import { FONTS, getData } from "../../utils/storeData";
 import i18n from "../Translation/i18n";
 
 type RootStackParamList = {
   OnBoarding: undefined;
-  // Add more screens if needed
 };
 
 type NavigationProp = NativeStackNavigationProp<
@@ -32,29 +32,14 @@ interface LanguageItem {
 const SelectLanguage: React.FC = () => {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp | any>();
-  const {
-    GOOGLE_API_KEY,
-    setGOOGLE_API_KEY,
-    CompanyLogo,
-    setCompanyLogo,
-    Permission,
-    setPermission,
-    SelectLanguage,
-    setSelectLanguage,
-  } = useContext(GlobalContextData);
-  const [currentLanguage, setCurrentLanguage] = useState<string | null>('Nederlands');
+  const { setSelectLanguage } = useContext(GlobalContextData);
+  const [currentLanguage, setCurrentLanguage] = useState<string | null>(null);
   const [isLanguageValid, setIsLanguageValid] = useState<boolean>(true);
   const [languages, setLanguages] = useState<LanguageItem[]>([]);
 
-  // Fetch language list
   const fetchLanguages = async () => {
     try {
       const data = await ApiService(apiConstants.langauge, {});
-      console.log("language", data);
-      await storeData("userLanguage", 'nl');
-      await i18n.changeLanguage('nl');
-      setSelectLanguage('nl');
-
       if (data?.status && Array.isArray(data.data)) {
         setLanguages(data.data);
       }
@@ -67,46 +52,60 @@ const SelectLanguage: React.FC = () => {
     fetchLanguages();
   }, []);
 
-  const changeLanguage = async (language_shortname: string) => {
+  const selectedLanguageItem = useMemo(
+    () =>
+      languages.find((item) => item.language_shortname === currentLanguage) ||
+      null,
+    [languages, currentLanguage],
+  );
+
+  const handleLanguageSelect = async (item: LanguageItem) => {
+    const code = item?.language_shortname;
+    if (!code) return;
+    setCurrentLanguage(code);
+    setIsLanguageValid(true);
     try {
-      await storeData("userLanguage", language_shortname);
-      setSelectLanguage(language_shortname);
-      await i18n.changeLanguage(language_shortname);
-      setCurrentLanguage(language_shortname);
+      await i18n.changeLanguage(code);
     } catch (err) {
-      console.log("Language change error:", err);
+      console.log("Language preview error:", err);
     }
   };
 
-  const handleLanguageSelect = async (item: LanguageItem) => {
-    setCurrentLanguage(item.language_shortname);
-    await changeLanguage(item.language_shortname);
-    setIsLanguageValid(true);
-  };
-
   const handleEnter = async () => {
-    if (!currentLanguage) {
+    const isKnown =
+      !!currentLanguage &&
+      languages.some((item) => item.language_shortname === currentLanguage);
+
+    if (!isKnown) {
       setIsLanguageValid(false);
       Alert.alert(t("Validation Issue"), t("Please select a language"));
       return;
     }
 
-    let data = await getData("USERDATA");
-    if (data) {
-      navigation.navigate("BottomTabs");
-    } else {
-      navigation.navigate("OnBoarding");
+    try {
+      const code = await persistLanguageSelection(currentLanguage);
+      setSelectLanguage(code);
+      await i18n.changeLanguage(code);
+
+      const data = await getData("USERDATA");
+      if (data) {
+        navigation.navigate("BottomTabs");
+      } else {
+        navigation.navigate("OnBoarding");
+      }
+    } catch (err) {
+      console.log("Language persist error:", err);
+      setIsLanguageValid(false);
+      Alert.alert(t("Validation Issue"), t("Please select a language"));
     }
   };
 
   return (
     <View style={{ paddingHorizontal: 20 }}>
-      {/* Logo */}
       <View style={styles.logoContainer}>
         <Image source={Images.roundlogo} style={styles.logo} />
       </View>
 
-      {/* Language Dropdown */}
       <Text style={styles.title}>
         {t("Select Language")}
         <Text style={styles.required}>*</Text>
@@ -115,7 +114,7 @@ const SelectLanguage: React.FC = () => {
       <SelectDropdown
         data={languages || []}
         onSelect={handleLanguageSelect}
-        renderButton={(selectedItem: LanguageItem | null) => (
+        renderButton={() => (
           <View
             style={[
               styles.dropdownButtonStyle,
@@ -123,7 +122,9 @@ const SelectLanguage: React.FC = () => {
             ]}
           >
             <Text style={styles.dropdownButtonTxtStyle}>
-              {selectedItem ? selectedItem.language_name : t("Nederlands")}
+              {selectedLanguageItem
+                ? selectedLanguageItem.language_name
+                : t("Select Language")}
             </Text>
             <Image
               source={Images.down}
@@ -134,7 +135,7 @@ const SelectLanguage: React.FC = () => {
         renderItem={(
           item: LanguageItem,
           index: number,
-          isSelected: boolean
+          isSelected: boolean,
         ) => (
           <View
             style={[
@@ -151,14 +152,12 @@ const SelectLanguage: React.FC = () => {
         dropdownStyle={styles.dropdownMenuStyle}
       />
 
-      {/* Enter Button */}
       <View style={styles.submitButtonContainer}>
         <ButtonComponent
           onPress={handleEnter}
           marginTop={RFValue(15)}
           width={"100%"}
           title={t("Enter")}
-          // height={60}
         />
       </View>
     </View>

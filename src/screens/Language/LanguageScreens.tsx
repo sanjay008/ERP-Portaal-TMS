@@ -3,7 +3,7 @@ import DetailsHeader from "@/src/components/DetailsHeader";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
-import { storeData } from "@/src/utils/storeData";
+import { persistLanguageSelection } from "@/src/utils/languagePreference";
 import React, { useCallback, useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, RefreshControl, Text, View } from "react-native";
@@ -19,11 +19,9 @@ export default function LanguageScreens() {
 
   const LanguageChangeFun = async (lang: string) => {
     try {
-      await storeData("userLanguage", lang);
-      await i18n.changeLanguage(lang);
-      setSelectLanguage(lang);
-      console.warn("lanaguge change", lang);
-
+      const code = await persistLanguageSelection(lang);
+      await i18n.changeLanguage(code);
+      setSelectLanguage(code);
     } catch (error) {
       console.warn("Language change error:", error);
     }

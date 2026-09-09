@@ -89,6 +89,26 @@ const ApiService = async (endpoint, options = {}) => {
           return;
         }
 
+        if (
+          Array.isArray(value) &&
+          value.length > 0 &&
+          typeof value[0] === "object" &&
+          value[0] !== null &&
+          value[0].uri
+        ) {
+          const formKey = key.endsWith("[]") ? key : `${key}[]`;
+          value.forEach((file, index) => {
+            requestData.append(formKey, {
+              uri: file.uri,
+              name: file.name || `file_${index + 1}.jpg`,
+              type: file.type || "image/jpeg",
+            });
+          });
+          return;
+        }
+
+        if (value == null) return;
+
         requestData.append(key, value);
       });
     }

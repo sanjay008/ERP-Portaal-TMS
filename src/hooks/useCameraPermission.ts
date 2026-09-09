@@ -62,5 +62,9 @@ export async function recheckCameraAccess(): Promise<CameraAccessStatus> {
 }
 
 export async function openAppSettings(): Promise<void> {
-  await Linking.openSettings();
+  try {
+    await Linking.openSettings();
+  } catch {
+    // Android can throw if currentActivity is null; ignore.
+  }
 }

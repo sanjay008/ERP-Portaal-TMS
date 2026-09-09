@@ -6,12 +6,14 @@ export const styles = StyleSheet.create({
     container:{
         flex:1,
         backgroundColor:Colors.background,
-        padding:15
+       
     },
     SimpleFlex:{
         flexDirection:'row',
         alignItems:'center',
-        gap:15
+        gap:15,
+        // paddingHorizontal:15,
+        // paddingTop:15
     },
     UserImage:{
         width:60,
@@ -30,9 +32,12 @@ export const styles = StyleSheet.create({
     },
     FlatContainerStyle:{
         width:'100%',
-        marginTop:'5%'
+        // marginTop:'5%'
+        paddingTop:25
     },
     ContentContainerStyle:{
         gap:10,
+        paddingHorizontal:15,
+        paddingBottom:10
     }
 });

@@ -54,6 +54,16 @@ module.exports = {
     get_add_product_prices:`${baseUrlnew}tms-driver/get-add-product-prices`,
     add_product_to_order:`${baseUrlnew}tms-driver/add-product-to-order`,
     send_driver_whatsapp_message:`${baseUrlnew}tms-driver/send-driver-whatsapp-message`,
+    contactUs: `${baseUrlnew}store-contact-us`,
+    getDriverCompany: `${baseUrlnew}tms-driver/get-driver-company`,
+    storeDriverCompany: `${baseUrlnew}tms-driver/store-driver-company`,
+    updateDriverCompany: `${baseUrlnew}tms-driver/update-driver-company`,
+    uploadDriverCompanyLogo: `${baseUrlnew}tms-driver/upload-driver-company-logo`,
+    updateProfile: `${baseUrlnew}updateprofiles`,
+    getQuickUploadTypes: `${baseUrlnew}documenten/get-quick-upload-types`,
+    getRelatieDocuments: `${baseUrlnew}documenten/get-relatie-documents`,
+    getDocumentDetails: `${baseUrlnew}documenten/get-document-details`,
+    quickUploadDocument: `${baseUrlnew}documenten/quick-upload`,
 };
 
 

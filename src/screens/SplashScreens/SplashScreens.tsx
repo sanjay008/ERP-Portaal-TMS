@@ -4,6 +4,10 @@ import { GlobalContextData } from "@/src/context/GlobalContext";
 import { DropboxContext } from "@/src/context/UploadProider";
 import ApiService from "@/src/utils/Apiservice";
 import { bootstrapAppDateTime } from "@/src/utils/appDateTime";
+import {
+  getStoredUserLanguage,
+  hasCompletedLanguageSelection,
+} from "@/src/utils/languagePreference";
 import { getData } from "@/src/utils/storeData";
 import * as Font from "expo-font";
 import React, { useContext, useEffect } from "react";
@@ -51,14 +55,16 @@ export default function SplashScreens({ navigation }: any) {
 
   const getAuthData = async () => {
     try {
-      const [languages, auth, company, logo, companyData,fullcompany] = await Promise.all([
-        getData("userLanguage"),
-        getData("AUTH"),
-        getData("USERDATA"),
-        getData("COMPANYLOGO"),
-        getData("COMPANYLOGIN"),
-        getData("COMPANYDATA"),
-      ]);
+      const [languages, languageReady, auth, company, logo, companyData, fullcompany] =
+        await Promise.all([
+          getStoredUserLanguage(),
+          hasCompletedLanguageSelection(),
+          getData("AUTH"),
+          getData("USERDATA"),
+          getData("COMPANYLOGO"),
+          getData("COMPANYLOGIN"),
+          getData("COMPANYDATA"),
+        ]);
 
       if (languages) {
         await i18n.changeLanguage(languages);
@@ -87,7 +93,7 @@ export default function SplashScreens({ navigation }: any) {
 
       if (logo) setCompanyLogo(logo);
 
-      if (!languages) {
+      if (!languageReady || !languages) {
         navigation.replace("Select");
         return;
       }

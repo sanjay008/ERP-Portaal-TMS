@@ -8,6 +8,9 @@ import GlobalContext from "@/src/context/GlobalContext";
 import Chat from "@/src/screens/Chat/Chat";
 import DeliveryScreens from "@/src/screens/Delivery/DeliveryScreens";
 import DetailsScreens from "@/src/screens/Details/DetailsScreens";
+import CompanyFormScreen from "@/src/screens/DriverCompany/CompanyFormScreen";
+import DriverCompanyScreen from "@/src/screens/DriverCompany/DriverCompanyScreen";
+import DriverProfileScreen from "@/src/screens/DriverProfile/DriverProfileScreen";
 import FilterScreen from "@/src/screens/FilterDataScreen/FilterScreen";
 import HomeScreens from "@/src/screens/Home/HomeScreens";
 import LanguageScreens from "@/src/screens/Language/LanguageScreens";
@@ -29,6 +32,8 @@ import ScannerScreens from "@/src/screens/Scanner/ScannerScreens";
 import SelectLanguage from "@/src/screens/selectionLan/Selectionlan";
 import SplashScreens from "@/src/screens/SplashScreens/SplashScreens";
 import i18n from "@/src/screens/Translation/i18n";
+import DocumentUploadScreen from "@/src/screens/UploadDocuments/DocumentUploadScreen";
+import UploadDocumentsScreen from "@/src/screens/UploadDocuments/UploadDocumentsScreen";
 import WebViewScreeens from "@/src/screens/WebView/WebViewScreeens";
 import { Colors } from "@/src/utils/colors";
 import NetInfo from "@react-native-community/netinfo";
@@ -176,6 +181,30 @@ export default function index() {
                 <Stack.Screen
                   name="Language"
                   component={withLayoutHeader(LanguageScreens)}
+                />
+                {/* <Stack.Screen
+                  name="ContactUs"
+                  component={withLayoutHeader(ContactUsScreen)}
+                /> */}
+                <Stack.Screen
+                  name="DriverCompany"
+                  component={withLayoutHeader(DriverCompanyScreen)}
+                />
+                <Stack.Screen
+                  name="DriverCompanyForm"
+                  component={withLayoutHeader(CompanyFormScreen)}
+                />
+                <Stack.Screen
+                  name="UploadDocuments"
+                  component={withLayoutHeader(UploadDocumentsScreen)}
+                />
+                <Stack.Screen
+                  name="DriverProfile"
+                  component={withLayoutHeader(DriverProfileScreen)}
+                />
+                <Stack.Screen
+                  name="DocumentUpload"
+                  component={withLayoutHeader(DocumentUploadScreen)}
                 />
                 <Stack.Screen
                   name="Delivery"

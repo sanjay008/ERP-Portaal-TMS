@@ -110,7 +110,6 @@ export default function HomeScreens({ navigation, route }: any) {
     setIsGpsTracking,
   } = useContext(GlobalContextData);
   const { ErrorHandle } = useErrorHandle();
-
   const userId = UserData?.user?.id;
   const verifyToken = UserData?.user?.verify_token;
   const userRole = UserData?.user?.role;

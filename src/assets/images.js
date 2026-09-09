@@ -98,14 +98,13 @@ export const Images = {
   CustomerAfterCondirmImage: require("./image/GoToDriverimage.png"),
   wine_glass_crack_solid: require("./image/wine_glass_crack_solid.png"),
   wine_glass_empty_solid: require("./image/wine_glass_empty_solid.png"),
+  Glass_Crash: require("./image/Glass_Crash.png"),
+  Glass_Empty: require("./image/Glass_Empty.png"),
 
-// Audio
-
+  // Audio
   ScannerSound: require("./image/ScannerSound.mp3"),
   ErrorSound: require("./image/ErrorSound.mp3"),
 
-
   // Animations
-  NoInternet:require('./Animations.json'),
-
+  NoInternet: require("./Animations.json"),
 };
