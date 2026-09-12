@@ -436,6 +436,10 @@ export default function ScannerScreens({ navigation, route }: any) {
 
   const [isVerifyingScan, setIsVerifyingScan] = useState(false);
   const isVerifyingScanRef = useRef(false);
+  const [showScanLoader, setShowScanLoader] = useState(false);
+  const scanLoaderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scanLoaderGenRef = useRef(0);
+  const SCAN_LOADER_DELAY_MS = 400;
 
   const isScannerBlockedByModal =
     isAnyScannerModalOpen ||
@@ -453,8 +457,17 @@ export default function ScannerScreens({ navigation, route }: any) {
   const shouldPauseCameraPreview = isAnyScannerModalOpen;
 
   const wasCameraPausedByOverlayRef = useRef(false);
+  const lastDetectedBarcodeRef = useRef("");
+  /** item_ids that already completed status_update — never re-verify these */
+  const completedItemIdsRef = useRef<Set<string>>(new Set());
+  /**
+   * Toggles native barcode callback to reset Expo's "already seen" QR cache
+   * without remounting CameraView (remount = black screen).
+   */
+  const [barcodePipelineActive, setBarcodePipelineActive] = useState(true);
 
   const restartScannerPreview = useCallback(() => {
+    lastDetectedBarcodeRef.current = "";
     setLastDetectedBarcode("");
     setTimeout(async () => {
       try {
@@ -468,17 +481,36 @@ export default function ScannerScreens({ navigation, route }: any) {
     }, 400);
   }, []);
 
+  /** Ready for next parcel: clear locks + reset barcode pipeline (no black screen). */
+  const readyForNextParcelScan = useCallback(() => {
+    isVerifyingScanRef.current = false;
+    setIsVerifyingScan(false);
+    lastDetectedBarcodeRef.current = "";
+    setLastDetectedBarcode("");
+    wasCameraPausedByOverlayRef.current = false;
+    try {
+      cameraRef.current?.resumePreview?.();
+    } catch {
+      // ignore
+    }
+    // Brief off→on resets Expo barcode dedupe so the next parcel fires on 1st present
+    setBarcodePipelineActive(false);
+    requestAnimationFrame(() => {
+      setBarcodePipelineActive(true);
+    });
+  }, []);
+
   const unlockScanner = useCallback(() => {
     isVerifyingScanRef.current = false;
     setIsVerifyingScan(false);
+    lastDetectedBarcodeRef.current = "";
     setLastDetectedBarcode("");
   }, []);
 
   const closeConformationModalAndUnlockScan = useCallback(() => {
     setConformationModal((prev: any) => ({ ...prev, visible: false }));
-    unlockScanner();
-    restartScannerPreview();
-  }, [restartScannerPreview, unlockScanner]);
+    readyForNextParcelScan();
+  }, [readyForNextParcelScan]);
 
   const closePickupPlannedSheetAndUnlockScan = useCallback(() => {
     pickupPlannedModalPendingRef.current = false;
@@ -486,6 +518,7 @@ export default function ScannerScreens({ navigation, route }: any) {
     pendingPickupScanRef.current = null;
     setIsVerifyingScan(false);
     isVerifyingScanRef.current = false;
+    lastDetectedBarcodeRef.current = "";
     setLastDetectedBarcode("");
     restartScannerPreview();
   }, [restartScannerPreview]);
@@ -510,6 +543,7 @@ export default function ScannerScreens({ navigation, route }: any) {
     setEvetyTimeShowDeliveryLabelList(false);
     setIsVerifyingScan(false);
     isVerifyingScanRef.current = false;
+    lastDetectedBarcodeRef.current = "";
     setLastDetectedBarcode("");
     restartScannerPreview();
   }, [restartScannerPreview]);
@@ -671,38 +705,19 @@ export default function ScannerScreens({ navigation, route }: any) {
       return;
     }
 
-    const syncCameraWithOverlay = async () => {
-      try {
-        if (shouldPauseCameraPreview) {
-          await cameraRef.current?.pausePreview?.();
-          wasCameraPausedByOverlayRef.current = true;
-          return;
-        }
+    // Keep camera live under modals — do not pause/remount (black screen / missed scans).
+    if (shouldPauseCameraPreview) return;
+    wasCameraPausedByOverlayRef.current = false;
+  }, [shouldPauseCameraPreview, Focused]);
 
-        if (!wasCameraPausedByOverlayRef.current) return;
-
-        wasCameraPausedByOverlayRef.current = false;
-        restartScannerPreview();
-      } catch (error) {
-      }
-    };
-
-    syncCameraWithOverlay();
-  }, [shouldPauseCameraPreview, Focused, restartScannerPreview]);
+  // Do NOT clear isVerifyingScan when modal opens — that let a 2nd QR overwrite QRData
+  // while Confirm still held the 1st parcel payload (item_id / qr_data mismatch).
 
   useEffect(() => {
-    if (isAnyScannerModalOpen) {
-      isVerifyingScanRef.current = false;
-      setIsVerifyingScan(false);
-    }
-  }, [isAnyScannerModalOpen]);
-
-  useEffect(() => {
-    if (!isScannerBlockedByModal) {
-      setLastDetectedBarcode("");
-      isVerifyingScanRef.current = false;
-      setIsVerifyingScan(false);
-    }
+    if (isScannerBlockedByModal) return;
+    if (isVerifyingScanRef.current) return;
+    lastDetectedBarcodeRef.current = "";
+    setLastDetectedBarcode("");
   }, [isScannerBlockedByModal]);
 
   const handleCameraPermissionResult = useCallback((status: CameraAccessStatus) => {
@@ -857,42 +872,50 @@ export default function ScannerScreens({ navigation, route }: any) {
 
   const onBarcodeScanned = useCallback(
     async ({ data, type }: { data: string; type: string }) => {
+      if (!data) return;
+      if (!barcodePipelineActive) return;
+      if (isScannerBlockedByModalRef.current || isVerifyingScanRef.current) return;
+      if (data === lastDetectedBarcodeRef.current) return;
 
-      if (!data || isScannerBlockedByModalRef.current || isVerifyingScanRef.current) return;
-      if (data === lastDetectedBarcode) return;
+      let parsedData: any;
+      try {
+        parsedData = JSON.parse(data);
+      } catch {
+        setQrErrorMessage(null);
+        setShowQRError(true);
+        setToast({
+          top: 45,
+          text: t("Invalid QR code format"),
+          type: "error",
+          visible: true,
+        });
+        return;
+      }
 
+      if (!parsedData?.item_id || !parsedData?.order_id) {
+        setToast({
+          top: 45,
+          text: t("Invalid QR: Missing item or order ID"),
+          type: "error",
+          visible: true,
+        });
+        return;
+      }
+
+      const itemKey = String(parsedData.item_id);
+      // Already status_updated in this scanner session — ignore (frees next parcel)
+      if (completedItemIdsRef.current.has(itemKey)) {
+        return;
+      }
+
+      lastDetectedBarcodeRef.current = data;
       setLastDetectedBarcode(data);
       isVerifyingScanRef.current = true;
       setIsVerifyingScan(true);
 
       try {
-      
-        let parsedData: any;
-        
-        try {
-          parsedData = JSON.parse(data);
-          console.log("QRDATa",parsedData);
-          setQRData(parsedData)
-        } catch (err) {
-          setQrErrorMessage(null);
-          setShowQRError(true);
-          setToast({
-            top: 45,
-            text: t("Invalid QR code format"),
-            type: "error",
-            visible: true,
-          });
-          return;
-        }
-        if (!parsedData?.item_id || !parsedData?.order_id) {
-          setToast({
-            top: 45,
-            text: t("Invalid QR: Missing item or order ID"),
-            type: "error",
-            visible: true,
-          });
-          return;
-        }
+        console.log("QRDATa", parsedData);
+        setQRData(parsedData);
 
         if (
           restrictedOrderId != null &&
@@ -902,12 +925,12 @@ export default function ScannerScreens({ navigation, route }: any) {
             t("Please scan the QR code for the current order only."),
           );
           setShowQRError(true);
+          lastDetectedBarcodeRef.current = "";
           setLastDetectedBarcode("");
           return;
         }
 
         Vibration.vibrate(500);
-        // Beep must not block verify/popup — sound failures were intermittent "vibrate but no popup"
         try {
           await playBeep();
         } catch (_) {
@@ -945,7 +968,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         });
       }
     },
-    [lastDetectedBarcode, playBeep, restrictedOrderId, t, unlockScanner, ErrorHandle]
+    [barcodePipelineActive, playBeep, restrictedOrderId, t, unlockScanner, ErrorHandle]
   );
 
   const refreshCamera = () => {
@@ -963,49 +986,75 @@ export default function ScannerScreens({ navigation, route }: any) {
   }, [Refreshcondition, Focused]);
 
   const QuestiongetApi = async (data: any) => {
-    await runParcelVerifyFlow(data, {
-      userData: UserData,
-      slideType: type ?? GloblyTypeSlide,
-      routeSlideType: type,
-      selectCurrentDate: SelectCurrentDate,
-      isScanRoute: is_scan,
-      source: 'scanner',
-      t,
-      errorHandle: ErrorHandle,
-      navigation,
-      globlyTypeSlide: GloblyTypeSlide,
-      allDeliveyLabel: AllDeliveyLabel,
-      allDamageListReason: AllDamageListReason,
-      selectCurrentDeliveryLabel: SelectCurrentDeliveryLabel,
-      selectDamageData: selectDamageData,
-      setAllDeliveyLabel,
-      setAllDamageListReason,
-      setselectDamageData,
-      setOrderDeliveryMapingLableOption,
-      setItemsData,
-      setShowDeliveryLabelList,
-      setSelectPlace,
-      setProductDamageList,
-      setResponseOrderData,
-      setConformationModal,
-      setToast,
-      setEvetyTimeShowDeliveryLabelList,
-      setAlerModalOpen,
-      setDeliveyDataSave,
-      setAllSelectImage,
-      setComment,
-      setPickupPlannedSheetOpen,
-      deliveryLabelModalPendingRef,
-      pickupPlannedModalPendingRef,
-      pendingPickupScanRef,
-      deliveryTypeRef,
-      statusUpdateFun: StatusUpdateFun,
-      reversParcelFun: ReversParcelFun,
-      getSessionDeliveryLabel,
-      unlockScanner,
-      selectRegionData,
-      onDeliveryLabeledParcelReady,
-    });
+    if (scanLoaderTimerRef.current) {
+      clearTimeout(scanLoaderTimerRef.current);
+      scanLoaderTimerRef.current = null;
+    }
+
+    const loaderGen = ++scanLoaderGenRef.current;
+    scanLoaderTimerRef.current = setTimeout(() => {
+      scanLoaderTimerRef.current = null;
+      if (loaderGen !== scanLoaderGenRef.current) return;
+      setShowScanLoader(true);
+    }, SCAN_LOADER_DELAY_MS);
+
+    try {
+      await runParcelVerifyFlow(data, {
+        userData: UserData,
+        slideType: type ?? GloblyTypeSlide,
+        routeSlideType: type,
+        selectCurrentDate: SelectCurrentDate,
+        isScanRoute: is_scan,
+        source: 'scanner',
+        t,
+        errorHandle: ErrorHandle,
+        navigation,
+        globlyTypeSlide: GloblyTypeSlide,
+        allDeliveyLabel: AllDeliveyLabel,
+        allDamageListReason: AllDamageListReason,
+        selectCurrentDeliveryLabel: SelectCurrentDeliveryLabel,
+        selectDamageData: selectDamageData,
+        setAllDeliveyLabel,
+        setAllDamageListReason,
+        setselectDamageData,
+        setOrderDeliveryMapingLableOption,
+        setItemsData,
+        setShowDeliveryLabelList,
+        setSelectPlace,
+        setProductDamageList,
+        setResponseOrderData,
+        setConformationModal,
+        setToast,
+        setEvetyTimeShowDeliveryLabelList,
+        setAlerModalOpen,
+        setDeliveyDataSave,
+        setAllSelectImage,
+        setComment,
+        setPickupPlannedSheetOpen,
+        deliveryLabelModalPendingRef,
+        pickupPlannedModalPendingRef,
+        pendingPickupScanRef,
+        deliveryTypeRef,
+        statusUpdateFun: StatusUpdateFun,
+        reversParcelFun: ReversParcelFun,
+        getSessionDeliveryLabel,
+        unlockScanner,
+        selectRegionData,
+        onDeliveryLabeledParcelReady,
+      });
+    } finally {
+      if (scanLoaderTimerRef.current) {
+        clearTimeout(scanLoaderTimerRef.current);
+        scanLoaderTimerRef.current = null;
+      }
+      scanLoaderGenRef.current += 1;
+      setShowScanLoader(false);
+      // Always clear button/scan verifying lock after verify settles.
+      // Modal/pickup sheet use isScannerBlockedByModal — do not leave isVerifyingScan stuck
+      // (Enter QR Continue spinner stayed on forever).
+      isVerifyingScanRef.current = false;
+      setIsVerifyingScan(false);
+    }
   };
 
   const ReversParcelFun = async (order_id = null, item_id = null) => {
@@ -1071,17 +1120,27 @@ export default function ScannerScreens({ navigation, route }: any) {
     setIsLoading(true);
 
     try {
+      // CRITICAL: always use the Confirm/scan payload — never stale QRData state.
+      // Mismatch (item_id A + qr_data item B) caused wrong/missing status updates.
+      const scanPayload = data ?? QRData;
+      if (scanPayload) {
+        setQRData(scanPayload);
+      }
+
       const payload: any = {
         token: UserData?.user?.verify_token,
         role: UserData?.user?.role,
         relaties_id: UserData?.relaties?.id,
         user_id: UserData?.user?.id,
-        item_id: data?.item_id,
-        order_id: data?.order_id,
-        platform:ScanPlatFormId,
-        qr_data: JSON.stringify(QRData),
+        item_id: scanPayload?.item_id,
+        order_id: scanPayload?.order_id,
+        platform: ScanPlatFormId,
+        qr_data: JSON.stringify(scanPayload),
         type: type ?? GloblyTypeSlide,
-        ...(SelectCurrentDeliveryLabel != null && GloblyTypeSlide == "pickup_dropoff" && {
+        // Delivery label only for delivery-phase orders (status 4) — never on pickup
+        ...(SelectCurrentDeliveryLabel != null &&
+          GloblyTypeSlide == "pickup_dropoff" &&
+          isDeliveryOrder(ItemsData) && {
           delivered_lable_id: SelectCurrentDeliveryLabel?.id,
         }),
       };
@@ -1131,12 +1190,13 @@ export default function ScannerScreens({ navigation, route }: any) {
         );
 
         setConformationModal((prev: any) => ({ ...prev, visible: false }));
-        setLastDetectedBarcode("");
-        isVerifyingScanRef.current = false;
-        setIsVerifyingScan(false);
+        if (scanPayload?.item_id != null) {
+          completedItemIdsRef.current.add(String(scanPayload.item_id));
+        }
+        readyForNextParcelScan();
         await GetScanedOrderDataLatestFun([
           ...AllRecentScanData,
-          data?.order_id,
+          scanPayload?.order_id ?? data?.order_id,
         ]);
       } else {
         setToast({
@@ -1170,8 +1230,6 @@ export default function ScannerScreens({ navigation, route }: any) {
       keepDeliveryLabel: true,
       skipDamage: true,
     });
-    unlockScanner();
-    restartScannerPreview();
   };
 
   deliveryMoreParcelsNoRef.current = () => {
@@ -1766,7 +1824,10 @@ const CustomerSignatureFun = async (
         type: GloblyTypeSlide,
         platform:ScanPlatFormId,
         qr_data: JSON.stringify(QRData),
-        ...(sessionDeliveryLabel != null && GloblyTypeSlide == "pickup_dropoff" && {
+        // Delivery label only at delivery time — not on pickup
+        ...(sessionDeliveryLabel != null &&
+          GloblyTypeSlide == "pickup_dropoff" &&
+          isDeliveryOrder(ItemsData) && {
           delivered_lable_id: sessionDeliveryLabel?.id,
         }),
       };
@@ -1849,6 +1910,7 @@ const CustomerSignatureFun = async (
             );
             const existing = prev.find((el: any) => Number(el?.id) === itemId);
 
+            const isDelivery = isDeliveryOrder(ItemsData);
             const updatedLastItem = {
               ...(existing ?? { id: itemId }),
               item_status_id:
@@ -1856,8 +1918,12 @@ const CustomerSignatureFun = async (
               scan_qty: 1,
               delivery_label:
                 existing?.delivery_label ?? matchedOrderItem?.delivery_label,
-              is_damaged_delivery: savedDamageId,
-              is_damaged_pickup: existing?.is_damaged_pickup ?? null,
+              is_damaged_delivery: isDelivery
+                ? savedDamageId
+                : (existing?.is_damaged_delivery ?? null),
+              is_damaged_pickup: !isDelivery
+                ? savedDamageId
+                : (existing?.is_damaged_pickup ?? null),
               tms_product_name:
                 existing?.tms_product_name ??
                 matchedOrderItem?.tms_product_name ??
@@ -1998,6 +2064,7 @@ const CustomerSignatureFun = async (
                     setSelectPlace(null);
                     setDescrition("");
                     setCommentError("");
+                    readyForNextParcelScan();
                   },
                 },
               ],
@@ -2264,6 +2331,7 @@ const CustomerSignatureFun = async (
                   setSelectPlace(null);
                   setDescrition("");
                   setCommentError("");
+                  readyForNextParcelScan();
                 },
               },
             ],
@@ -2302,11 +2370,19 @@ const CustomerSignatureFun = async (
   };
 
   useEffect(() => {
+    lastDetectedBarcodeRef.current = "";
     setLastDetectedBarcode("");
+    completedItemIdsRef.current.clear();
     return () => {
       setSelectCurrentDeliveryLabel(null);
     }
   }, [route.params?.refreshTime]);
+
+  useEffect(() => {
+    if (!Focused) {
+      completedItemIdsRef.current.clear();
+    }
+  }, [Focused]);
 
   useEffect(() => {
     if (restrictedOrderId != null && restrictedOrderId !== "") {
@@ -2340,8 +2416,10 @@ const CustomerSignatureFun = async (
       return;
     }
 
+    // If a previous verify left the lock stuck, clear so Continue can run again
     if (isVerifyingScanRef.current) {
-      return;
+      isVerifyingScanRef.current = false;
+      setIsVerifyingScan(false);
     }
 
     Keyboard.dismiss();
@@ -2385,15 +2463,9 @@ const CustomerSignatureFun = async (
         });
       }
     } finally {
-      requestAnimationFrame(() => {
-        if (
-          !isScannerBlockedByModalRef.current &&
-          !deliveryLabelModalPendingRef.current &&
-          !pickupPlannedModalPendingRef.current
-        ) {
-          unlockScanner();
-        }
-      });
+      // Always stop Continue-button spinner after verify attempt
+      isVerifyingScanRef.current = false;
+      setIsVerifyingScan(false);
     }
   };
 
@@ -2406,7 +2478,11 @@ const CustomerSignatureFun = async (
             key={cameraKey}
             enableTorch={flashEnabled}
             style={StyleSheet.absoluteFill}
-            onBarcodeScanned={isScannerBlockedByModal ? undefined : onBarcodeScanned}
+            onBarcodeScanned={
+              barcodePipelineActive && !isScannerBlockedByModal
+                ? onBarcodeScanned
+                : undefined
+            }
             barcodeScannerSettings={{
               barcodeTypes: ["qr"],
             }}
@@ -2642,7 +2718,10 @@ const CustomerSignatureFun = async (
         onClear={() => { }}
       />
 
-      <LoadingModal visible={IsLoading} message={t("Please wait…")} />
+      <LoadingModal
+        visible={IsLoading || showScanLoader}
+        message={showScanLoader ? t("Scanning...") : t("Please wait…")}
+      />
       <BottomSheet snapPoints={["15%", "90%"]} ref={bottomSheetRef}>
         <BottomSheetFlatList
           data={AllScanedData}
@@ -3007,6 +3086,7 @@ const CustomerSignatureFun = async (
         onScanAgain={() => {
           setShowQRError(false);
           setQrErrorMessage(null);
+          lastDetectedBarcodeRef.current = "";
           setLastDetectedBarcode("");
         }}
         onGoBack={() => {

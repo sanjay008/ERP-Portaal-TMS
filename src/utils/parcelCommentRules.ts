@@ -1,4 +1,8 @@
-import { getOrderStatusId, isDeliveryOrder } from '@/src/utils/orderStatus';
+import {
+  getOrderStatusId,
+  isDeliveryOrder,
+  isPickupOrder,
+} from '@/src/utils/orderStatus';
 import { isPickupPlannedOrder } from '@/src/utils/pickupPlanned';
 
 const toFlag = (value: unknown): boolean | null => {
@@ -9,12 +13,17 @@ const toFlag = (value: unknown): boolean | null => {
   return null;
 };
 
+/** Pickup comment always shows damage; delivery only when label requires it. */
+function isPickupDamageOrder(order: any): boolean {
+  return isPickupPlannedOrder(order) || isPickupOrder(order);
+}
+
 export function shouldShowDamageInCommentModal(
   deliveryLabel: any,
   order: any,
 ): boolean {
-
-  if (isPickupPlannedOrder(order)) {
+  // Pickup: damage options on comment — no delivery label needed.
+  if (isPickupDamageOrder(order)) {
     return true;
   }
 
@@ -24,12 +33,15 @@ export function shouldShowDamageInCommentModal(
   return false;
 }
 
-/** Deliver status_update / payload: send is_damage only when label requires it. Pickup-planned keeps damage. */
+/**
+ * status_update: send is_damage on pickup always (comment path).
+ * Delivery: only when label has damaged_required.
+ */
 export function shouldSendDamageForDeliveryLabel(
   deliveryLabel: any,
   order?: any,
 ): boolean {
-  if (order != null && isPickupPlannedOrder(order)) {
+  if (order != null && isPickupDamageOrder(order)) {
     return true;
   }
   if (order != null && isDeliveryOrder(order)) {

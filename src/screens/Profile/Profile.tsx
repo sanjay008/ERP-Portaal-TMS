@@ -341,7 +341,7 @@ export default function Profile({ navigation }: any) {
           <View style={{ paddingVertical: 20, minHeight: 40, paddingBottom: 35 }}>
             <Text
               style={[styles.Text, { textAlign: "center" }]}
-            >{`V${CurrentVersion}`}</Text>
+            >{`${CurrentVersion}`}</Text>
           </View>
         )}
         renderItem={({ item, index }) => (

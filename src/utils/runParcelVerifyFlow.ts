@@ -305,8 +305,10 @@ export async function runParcelVerifyFlow(
     if (res?.data?.isscaned || Number(res?.data?.is_scan) === 1) {
       modalConfig.NewScanText =
         deps.source === 'scanner' ? deps.t('New scan') : undefined;
+      // Capture scan payload in closure — Confirm must update THIS item only
+      const scanPayloadForUpdate = data;
       modalConfig.onPress = async () => {
-        await deps.statusUpdateFun(data, true);
+        await deps.statusUpdateFun(scanPayloadForUpdate, true);
       };
     }
 
@@ -361,7 +363,6 @@ export async function runParcelVerifyFlow(
         res?.data,
         data?.item_id,
       );
-
   
 
       if (deps.onDeliveryLabeledParcelReady) {

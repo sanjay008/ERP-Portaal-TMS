@@ -432,8 +432,10 @@ export function useParcelVerifyFlow({
           order_id: data?.order_id,
           platform: ScanPlatFormId,
           type: slideType ?? GloblyTypeSlide,
+          // Delivery label only for delivery orders — never on pickup
           ...(labelForStatus != null &&
-            GloblyTypeSlide === 'pickup_dropoff' && {
+            GloblyTypeSlide === 'pickup_dropoff' &&
+            isDeliveryOrder(itemsData) && {
             delivered_lable_id: labelForStatus?.id,
           }),
         };
@@ -1404,8 +1406,10 @@ export function useParcelVerifyFlow({
         order_id: selectPlace?.order_id,
         type: effectiveType,
         platform: ScanPlatFormId,
+        // Delivery label only at delivery time — not on pickup
         ...(activeDeliveryLabel != null &&
-          effectiveType === 'pickup_dropoff' && {
+          effectiveType === 'pickup_dropoff' &&
+          isDeliveryOrder(itemsData) && {
           delivered_lable_id: activeDeliveryLabel?.id,
         }),
       };
@@ -1540,6 +1544,7 @@ export function useParcelVerifyFlow({
           );
           const existing = prev.find((el: any) => Number(el?.id) === itemId);
 
+          const isDelivery = isDeliveryOrder(itemsData);
           const updatedLastItem = {
             ...(existing ?? { id: itemId }),
             item_status_id:
@@ -1547,8 +1552,12 @@ export function useParcelVerifyFlow({
             scan_qty: 1,
             delivery_label:
               existing?.delivery_label ?? matchedOrderItem?.delivery_label,
-            is_damaged_delivery: savedDamageId,
-            is_damaged_pickup: existing?.is_damaged_pickup ?? null,
+            is_damaged_delivery: isDelivery
+              ? savedDamageId
+              : (existing?.is_damaged_delivery ?? null),
+            is_damaged_pickup: !isDelivery
+              ? savedDamageId
+              : (existing?.is_damaged_pickup ?? null),
             tms_product_name:
               existing?.tms_product_name ??
               matchedOrderItem?.tms_product_name ??
