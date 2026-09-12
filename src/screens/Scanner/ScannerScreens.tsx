@@ -69,6 +69,10 @@ import {
 } from "@/src/utils/runParcelVerifyFlow";
 import { attachScanFreshCoordsToPayload } from "@/src/utils/scanFreshLocation";
 import { isBlankSignatureData } from "@/src/utils/signatureValidation";
+import {
+  appendDeviceMetaToFormData,
+  withDeviceMeta,
+} from "@/src/utils/deviceMeta";
 import { FONTS, height, ScanPlatFormId, width } from "@/src/utils/storeData";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import BottomSheet, {
@@ -1174,7 +1178,7 @@ export default function ScannerScreens({ navigation, route }: any) {
       await attachScanFreshCoordsToPayload(payload);
 
       const res = await ApiService(apiConstants.status_update, {
-        customData: payload,
+        customData: await withDeviceMeta(payload),
       });
       console.log("StatusUpdateFun", res);
 
@@ -1409,6 +1413,7 @@ export default function ScannerScreens({ navigation, route }: any) {
       formData.append('qr_data', JSON.stringify(QRData));
       formData.append('order_comment', comment?.trim() || Description?.trim() || '');
       formData.append('order_id', id ? id : SelectPlace?.id);
+      await appendDeviceMetaToFormData(formData);
       let image_data = Array.isArray(data) && data?.length > 0
         ? data
         : Array.isArray(AllSelectImage)
@@ -1632,7 +1637,7 @@ const CustomerSignatureFun = async (
     }
 
     const res = await ApiService(apiConstants.store_customer_signature, {
-      customData: payload,
+      customData: await withDeviceMeta(payload),
     });
 
     if (!res?.status) {
@@ -1850,7 +1855,7 @@ const CustomerSignatureFun = async (
       await attachScanFreshCoordsToPayload(payload);
 
       const res = await ApiService(apiConstants.status_update, {
-        customData: payload,
+        customData: await withDeviceMeta(payload),
       });
 
       if (res?.status) {

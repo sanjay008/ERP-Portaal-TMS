@@ -9,6 +9,7 @@ import SignatureModal from "@/src/components/SignatureModal";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
+import { withDeviceMeta } from "@/src/utils/deviceMeta";
 import {
   hasRemainingParcelsToDeliver,
 } from "@/src/utils/pickupPlanned";
@@ -204,7 +205,7 @@ export default function RejectionReview() {
         };
         logRejectionApi("update-damage-edit", "REQ", payload);
         const res = await ApiService(apiConstants.status_update, {
-          customData: payload,
+          customData: await withDeviceMeta(payload),
         });
         logRejectionApi("update-damage-edit", "RES", res);
         if (!Boolean(res?.status)) {
@@ -293,7 +294,7 @@ export default function RejectionReview() {
 
         logRejectionApi("signature", "REQ", payload);
         const res = await ApiService(apiConstants.store_customer_signature, {
-          customData: payload,
+          customData: await withDeviceMeta(payload),
         });
         logRejectionApi("signature", "RES", res);
 
@@ -402,7 +403,7 @@ export default function RejectionReview() {
       };
       logRejectionApi("close", "REQ", payload);
       const res = await ApiService(apiConstants.status_update, {
-        customData: payload,
+        customData: await withDeviceMeta(payload),
       });
       logRejectionApi("close", "RES", res);
 

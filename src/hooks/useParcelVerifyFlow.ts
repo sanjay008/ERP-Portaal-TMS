@@ -23,6 +23,10 @@ import { Colors } from '@/src/utils/colors';
 import { appendToLocalUploadQueue } from '@/src/utils/localUploadQueue';
 import { isDeliveryOrder } from '@/src/utils/orderStatus';
 import {
+  appendDeviceMetaToFormData,
+  withDeviceMeta,
+} from '@/src/utils/deviceMeta';
+import {
   buildAcceptanceSummaryModal,
   buildGiveScannerToDriverModal,
 } from '@/src/utils/parcelAcceptanceFlow';
@@ -460,7 +464,7 @@ export function useParcelVerifyFlow({
         await attachScanFreshCoordsToPayload(payload);
 
         const res = await ApiService(apiConstants.status_update, {
-          customData: payload,
+          customData: await withDeviceMeta(payload),
         });
 
         if (!res?.status) {
@@ -1043,6 +1047,7 @@ export function useParcelVerifyFlow({
           (options?.orderComment ?? description)?.trim() || '',
         );
         formData.append('order_id', id ? id : selectPlace?.id);
+        await appendDeviceMetaToFormData(formData);
 
         const image_data =
           Array.isArray(data) && data?.length > 0
@@ -1217,7 +1222,7 @@ export function useParcelVerifyFlow({
         }
 
         const res = await ApiService(apiConstants.store_customer_signature, {
-          customData: payload,
+          customData: await withDeviceMeta(payload),
         });
 
         if (res?.status) {
@@ -1439,7 +1444,7 @@ export function useParcelVerifyFlow({
       await attachScanFreshCoordsToPayload(payload);
 
       const res = await ApiService(apiConstants.status_update, {
-        customData: payload,
+        customData: await withDeviceMeta(payload),
       });
 
       if (!res?.status) {

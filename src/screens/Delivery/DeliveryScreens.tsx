@@ -9,6 +9,7 @@ import PickUpBox from "@/src/components/PickUpBox";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
+import { withDeviceMeta } from "@/src/utils/deviceMeta";
 import { ScanPlatFormId, width } from "@/src/utils/storeData";
 import axios from "axios";
 // import { Image } from "expo-image";
@@ -161,7 +162,7 @@ export default function DeliveryScreens({ route, navigation }: any) {
     setIsLoading(true);
     try {
       let res = await ApiService(apiConstants.status_update, {
-        customData: {
+        customData: await withDeviceMeta({
           token: UserData?.user?.verify_token,
           role: UserData?.user?.role,
           platform: ScanPlatFormId,
@@ -170,7 +171,7 @@ export default function DeliveryScreens({ route, navigation }: any) {
           item_id: item?.order_data?.items[0]?.id,
           order_id: item?.order_data?.items[0]?.tms_order_id,
           delivered_lable_id: selectReason?.id,
-        },
+        }),
       });
       if (res?.status) {
         fun();

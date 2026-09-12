@@ -13,6 +13,7 @@ import {
   lockParcelCameraCallback,
   unlockParcelCameraCallback,
 } from "@/src/utils/parcelVerifyCameraReturn";
+import { appendDeviceMetaToFormData } from "@/src/utils/deviceMeta";
 import { FONTS, height, width } from "@/src/utils/storeData";
 import { Ionicons } from "@expo/vector-icons";
 import { useIsFocused, useNavigation } from "@react-navigation/native";
@@ -340,6 +341,7 @@ export default function DriverPhotosScanner({ route }: any) {
           if (qrData) {
             formData.append("qr_data", JSON.stringify(qrData));
           }
+          await appendDeviceMetaToFormData(formData);
 
           const res: any = await axios.post(
             apiConstants.store_tms_comment,

@@ -26,6 +26,10 @@ import { Colors } from "@/src/utils/colors";
 import { appendToLocalUploadQueue } from "@/src/utils/localUploadQueue";
 import { isDeliveryOrder, isPickupOrder } from "@/src/utils/orderStatus";
 import {
+  appendDeviceMetaToFormData,
+  withDeviceMeta,
+} from "@/src/utils/deviceMeta";
+import {
   doesLabelRequireSignature,
   getSignatureIsDelivery,
   isSignatureAllowedAfterStatusUpdate,
@@ -496,6 +500,7 @@ export default function DetailsScreens({ navigation, route }: any) {
       formData.append("user_id", UserData?.user?.id);
       formData.append("order_comment", comment?.trim());
       formData.append("order_id", item?.id);
+      await appendDeviceMetaToFormData(formData);
 
       const imagesToSend = data && data.length > 0 ? data : AllSelectImage;
 
@@ -951,7 +956,7 @@ export default function DetailsScreens({ navigation, route }: any) {
         is_delivery: getSignatureIsDelivery(labelForSig),
       };
       const res = await ApiService(apiConstants.store_customer_signature, {
-        customData: payload,
+        customData: await withDeviceMeta(payload),
       });
 
       if (res?.status) {
@@ -1009,7 +1014,7 @@ export default function DetailsScreens({ navigation, route }: any) {
         is_customer_not_at_home: 1,
       };
       const res = await ApiService(apiConstants.status_update, {
-        customData: payload,
+        customData: await withDeviceMeta(payload),
       });
 
       if (res?.status) {

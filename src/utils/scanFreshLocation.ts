@@ -8,8 +8,16 @@ import type { NativeDriverCoordinate } from 'expo-driver-location';
  * otherwise fetch fresh GPS (native also resets the 15-min publish timer).
  */
 const SCAN_MAX_AGE_MS = 3.5 * 60 * 1000;
-/** Max wait at status_update if prefetch still running. */
-const AWAIT_TIMEOUT_MS = 5000;
+/**
+ * Hard cap on native getFreshLocationAndPublish (background / prefetch).
+ * iOS requestLocation() can hang for minutes with no timeout — OTA-safe JS guard.
+ */
+const NATIVE_FRESH_TIMEOUT_MS = 5000;
+/**
+ * status_update must not block UI on iOS GPS.
+ * Use cache immediately; only wait this long if no cache at all.
+ */
+const STATUS_UPDATE_MAX_WAIT_MS = 800;
 
 let inFlight: Promise<NativeDriverCoordinate | null> | null = null;
 let lastFresh: {
@@ -86,19 +94,43 @@ async function readPublished(): Promise<{
   }
 }
 
+/** Instant best-effort: memory then published store (no fresh GPS wait). */
+async function getCachedCoord(
+  orderId: string | null,
+): Promise<NativeDriverCoordinate | null> {
+  if (lastFresh && isUsable(lastFresh.coord)) {
+    return remember(lastFresh.coord, orderId ?? lastFresh.orderId);
+  }
+  const published = await readPublished();
+  if (published) {
+    return remember(published.coord, orderId);
+  }
+  return null;
+}
+
 async function fetchFreshFromNative(
   orderId: string | null,
 ): Promise<NativeDriverCoordinate | null> {
   try {
     const { getFreshLocationAndPublish } = await import('expo-driver-location');
-    const coord = await getFreshLocationAndPublish();
+    // Never block forever — iOS native GPS can hang without resolving.
+    const coord = await Promise.race([
+      getFreshLocationAndPublish(),
+      new Promise<null>((resolve) => {
+        setTimeout(() => resolve(null), NATIVE_FRESH_TIMEOUT_MS);
+      }),
+    ]);
     if (!isUsable(coord)) {
       driverLocWarn('scan_resolve', {
         decision: 'fresh_fetch',
         ok: 0,
         order: orderId ?? '-',
-        reason: 'native_null',
+        reason: 'native_null_or_timeout',
       });
+      const published = await readPublished();
+      if (published) {
+        return remember(published.coord, orderId);
+      }
       return null;
     }
     return remember(coord, orderId);
@@ -127,7 +159,7 @@ function ensureFreshFetch(
 }
 
 /**
- * Shared scan GPS resolver for verify + status_update.
+ * Shared scan GPS resolver for verify prefetch / background.
  *
  * - Same order (parcel 2/3…): reuse published/memory — never refetch.
  * - First parcel / new order: reuse if published age ≤ ~3.5 min; else fresh GPS.
@@ -188,8 +220,7 @@ export async function resolveScanLocation(
 }
 
 /**
- * Start / resolve scan GPS after a successful verify (does not block UI callers
- * that fire-and-forget; prefer awaiting before live-location ping).
+ * Start / resolve scan GPS after a successful verify (does not block UI).
  */
 export function prefetchScanFreshLocation(
   orderId?: number | string | null,
@@ -198,17 +229,31 @@ export function prefetchScanFreshLocation(
 }
 
 /**
- * Await scan GPS before status_update. Falls back to published cache on timeout.
+ * status_update GPS: cache-first, almost no wait (iOS must not delay loader).
+ * Fresh fetch runs in background for next call.
  */
 export async function awaitScanFreshLocationForStatusUpdate(
   orderId?: number | string | null,
 ): Promise<NativeDriverCoordinate | null> {
+  const oid = normalizeOrderId(orderId);
   try {
-    const fetchPromise = resolveScanLocation(orderId);
+    const cached = await getCachedCoord(oid);
+    if (cached) {
+      driverLocLog('scan_resolve', {
+        decision: 'status_cache_immediate',
+        order: oid ?? '-',
+        lat: cached.latitude,
+        lon: cached.longitude,
+      });
+      return cached;
+    }
+
+    // No cache: start fresh, wait at most ~800ms, then continue without coords.
+    const fetchPromise = ensureFreshFetch(oid);
     const timed = await Promise.race([
       fetchPromise,
       new Promise<null>((resolve) => {
-        setTimeout(() => resolve(null), AWAIT_TIMEOUT_MS);
+        setTimeout(() => resolve(null), STATUS_UPDATE_MAX_WAIT_MS);
       }),
     ]);
 
@@ -219,18 +264,18 @@ export async function awaitScanFreshLocationForStatusUpdate(
     const published = await readPublished();
     if (published) {
       driverLocWarn('scan_resolve', {
-        decision: 'status_timeout_fallback',
-        order: normalizeOrderId(orderId) ?? '-',
+        decision: 'status_quick_timeout_fallback',
+        order: oid ?? '-',
         ageMs: published.ageMs,
         lat: published.coord.latitude,
         lon: published.coord.longitude,
       });
-      return remember(published.coord, normalizeOrderId(orderId));
+      return remember(published.coord, oid);
     }
 
     driverLocWarn('scan_resolve', {
-      decision: 'status_timeout_empty',
-      order: normalizeOrderId(orderId) ?? '-',
+      decision: 'status_quick_timeout_empty',
+      order: oid ?? '-',
     });
     return null;
   } catch (error) {
@@ -242,7 +287,7 @@ export async function awaitScanFreshLocationForStatusUpdate(
   }
 }
 
-/** Mutates payload with scan lat/lon for status_update. */
+/** Mutates payload with scan lat/lon for status_update (non-blocking on iOS). */
 export async function attachScanFreshCoordsToPayload(
   payload: Record<string, any>,
 ): Promise<void> {

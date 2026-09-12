@@ -29,7 +29,8 @@ import {
   shouldOpenPickupPlannedModal,
 } from '@/src/utils/pickupPlanned';
 import { playErrorSound } from '@/src/utils/playScanSound';
-import { resolveScanLocation } from '@/src/utils/scanFreshLocation';
+import { prefetchScanFreshLocation } from '@/src/utils/scanFreshLocation';
+import { withDeviceMeta } from '@/src/utils/deviceMeta';
 
 const REGION_MISMATCH_QUESTION =
   'this parcel is not for your region';
@@ -149,7 +150,7 @@ export async function runParcelVerifyFlow(
     }
 
     const res = await ApiService(apiConstants.Verify_status, {
-      customData: payload,
+      customData: await withDeviceMeta(payload),
     });
     console.log("payload", res);
     if (!Boolean(res?.status)) {
@@ -184,8 +185,9 @@ export async function runParcelVerifyFlow(
       return;
     }
 
-    // Resolve scan GPS first (age / same-order rules), then pin order + ping published cache.
-    await resolveScanLocation(data?.order_id);
+    // Do NOT await GPS here — iOS native requestLocation can hang for minutes and
+    // keeps "Scanning..." stuck. Prefetch in background; status_update has its own timeout.
+    prefetchScanFreshLocation(data?.order_id);
     await setLastScannedOrderId(data?.order_id);
     void pingDriverLiveLocation(deps.userData);
     void syncNativeDriverTracking(deps.userData);

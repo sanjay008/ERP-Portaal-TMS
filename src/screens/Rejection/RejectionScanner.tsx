@@ -12,6 +12,10 @@ import { DropboxContext } from "@/src/context/UploadProider";
 import { pingDriverLiveLocation } from "@/src/utils/driverLocationApi";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
+import {
+  appendDeviceMetaToFormData,
+  withDeviceMeta,
+} from "@/src/utils/deviceMeta";
 import { moreParcelsTitle } from "@/src/utils/deliveryMultiParcel";
 import { appendToLocalUploadQueue } from "@/src/utils/localUploadQueue";
 import { setLastScannedOrderId } from "@/src/utils/lastScannedOrderId";
@@ -28,7 +32,7 @@ import {
   unlockParcelCameraCallback,
 } from "@/src/utils/parcelVerifyCameraReturn";
 import { playErrorSound } from "@/src/utils/playScanSound";
-import { resolveScanLocation } from "@/src/utils/scanFreshLocation";
+import { prefetchScanFreshLocation } from "@/src/utils/scanFreshLocation";
 import { FONTS, height, width } from "@/src/utils/storeData";
 import { Ionicons } from "@expo/vector-icons";
 import { useIsFocused, useNavigation } from "@react-navigation/native";
@@ -345,7 +349,7 @@ export default function RejectionScanner({ route }: any) {
       };
       logRejectionApi("update-damage", "REQ", payload);
       const res = await ApiService(apiConstants.status_update, {
-        customData: payload,
+        customData: await withDeviceMeta(payload),
       });
       logRejectionApi("update-damage", "RES", res);
 
@@ -704,7 +708,7 @@ export default function RejectionScanner({ route }: any) {
 
         logRejectionApi("verify", "REQ", payload);
         const res = await ApiService(apiConstants.Verify_status, {
-          customData: payload,
+          customData: await withDeviceMeta(payload),
         });
         logRejectionApi("verify", "RES", res);
 
@@ -731,7 +735,8 @@ export default function RejectionScanner({ route }: any) {
           return;
         }
 
-        await resolveScanLocation(orderId);
+        // Background GPS only — never block scanner UI (iOS GPS hang OTA fix).
+        prefetchScanFreshLocation(orderId);
         await setLastScannedOrderId(orderId);
         void pingDriverLiveLocation(UserData);
         void syncNativeDriverTracking(UserData);
@@ -985,6 +990,7 @@ export default function RejectionScanner({ route }: any) {
           "date",
           ApiFormatDate(SelectCurrentDate || new Date()),
         );
+        await appendDeviceMetaToFormData(formData);
 
         const res: any = await axios.post(apiConstants.store_tms_comment, formData, {
           headers: { "Content-Type": "multipart/form-data" },
