@@ -3,16 +3,20 @@ import ButtonComponent from "@/src/components/buttonComponent";
 import { formatDate, toApiDateString } from "@/src/components/DateFormate";
 import DetailsHeader from "@/src/components/DetailsHeader";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
+import ImageSourceSheet, {
+  type ImageSourceChoice,
+} from "@/src/components/ImageSourceSheet";
 import LoadingModal from "@/src/components/LoadingModal";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import { Colors } from "@/src/utils/colors";
 import { FONTS } from "@/src/utils/storeData";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
-import React, { useContext, useMemo, useState } from "react";
+import React, { useCallback, useContext, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Image,
+  Platform,
   Pressable,
   Text,
   TouchableOpacity,
@@ -85,10 +89,19 @@ const calendarTheme = {
 } as any;
 
 function assetToFile(asset: ImagePicker.ImagePickerAsset): PickedDocumentFile {
+  const uri = asset.uri;
+  const ext =
+    uri?.split(".").pop()?.split("?")[0]?.toLowerCase() ||
+    (asset.mimeType?.includes("png") ? "png" : "jpg");
+  const mime =
+    asset.mimeType || (ext === "png" ? "image/png" : "image/jpeg");
   return {
-    uri: asset.uri,
-    name: asset.fileName || `document_${Date.now()}.jpg`,
-    type: asset.mimeType || "image/jpeg",
+    // Keep platform URI as-is (file:// / content://).
+    uri,
+    name:
+      asset.fileName ||
+      `document_${Date.now()}.${ext === "jpeg" ? "jpg" : ext}`,
+    type: mime,
   };
 }
 
@@ -119,12 +132,10 @@ export default function DocumentUploadScreen() {
   const [expiryPickerOpen, setExpiryPickerOpen] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [sourceSheetOpen, setSourceSheetOpen] = useState(false);
+  const [pendingSlotIndex, setPendingSlotIndex] = useState<number | null>(null);
 
   const locale = SelectLanguage || i18n.language || "en";
-  const capturedCount = useMemo(
-    () => photos.filter(Boolean).length,
-    [photos],
-  );
 
   const subtitle = useMemo(() => {
     const parts: string[] = [];
@@ -137,7 +148,27 @@ export default function DocumentUploadScreen() {
     return parts.join(" · ");
   }, [minPhotos, requiresExpiry, t]);
 
-  const openCamera = async () => {
+  const applyPhotoAt = useCallback(
+    (index: number, file: PickedDocumentFile) => {
+      setPhotos((prev) => {
+        const next = [...prev];
+        while (next.length < minPhotos) next.push(null);
+        next[index] = file;
+        return next;
+      });
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next.photos;
+        delete next[`photo_${index}`];
+        if (index === 0) delete next.front;
+        if (index === 1) delete next.back;
+        return next;
+      });
+    },
+    [minPhotos],
+  );
+
+  const openCamera = async (): Promise<PickedDocumentFile | null> => {
     const { granted } = await ImagePicker.requestCameraPermissionsAsync();
     if (!granted) {
       setToast({
@@ -152,61 +183,77 @@ export default function DocumentUploadScreen() {
     const result = await ImagePicker.launchCameraAsync({
       allowsEditing: false,
       quality: 0.85,
+      exif: false,
     });
 
     if (result.canceled || !result.assets?.[0]) return null;
     return assetToFile(result.assets[0]);
   };
 
-  const openGallery = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      setToast({
-        visible: true,
-        text: t("Permission denied"),
-        type: "error",
-        top: 45,
-      });
-      return null;
+  const openGallery = async (): Promise<PickedDocumentFile | null> => {
+    if (Platform.OS !== "web") {
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        setToast({
+          visible: true,
+          text: t("Permission denied"),
+          type: "error",
+          top: 45,
+        });
+        return null;
+      }
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.85,
       allowsMultipleSelection: false,
+      exif: false,
     });
 
     if (result.canceled || !result.assets?.[0]) return null;
     return assetToFile(result.assets[0]);
   };
 
-  const capturePhotoAt = async (index: number) => {
-    const file = allowCamera ? await openCamera() : await openGallery();
+  const openSourcePicker = (index: number) => {
+    // Camera disabled by API → gallery only (no sheet).
+    if (!allowCamera) {
+      void (async () => {
+        const file = await openGallery();
+        if (file) applyPhotoAt(index, file);
+      })();
+      return;
+    }
+    setPendingSlotIndex(index);
+    setSourceSheetOpen(true);
+  };
+
+  const onSourceSelect = async (source: ImageSourceChoice) => {
+    const index = pendingSlotIndex;
+    setSourceSheetOpen(false);
+    setPendingSlotIndex(null);
+    if (index == null) return;
+
+    // Let sheet close animation start before opening native picker.
+    await new Promise((r) => setTimeout(r, 280));
+
+    const file =
+      source === "camera" ? await openCamera() : await openGallery();
     if (!file) return;
-    setPhotos((prev) => {
-      const next = [...prev];
-      while (next.length < minPhotos) next.push(null);
-      next[index] = file;
-      return next;
-    });
-    setErrors((prev) => {
-      const next = { ...prev };
-      delete next.photos;
-      delete next[`photo_${index}`];
-      return next;
-    });
+    applyPhotoAt(index, file);
   };
 
   const validate = () => {
     const next: Record<string, string> = {};
     if (!photos[0]) {
-      next.front = t("This field is required");
+      next.front = t("Front photo is required");
     }
     if (!photos[1]) {
-      next.back = t("This field is required");
+      next.back = t("Back photo is required");
     }
     if (requiresExpiry && !expiryDate) {
-      next.expiry_date = t("This field is required");
+      next.expiry_date = t("Expiry date is required");
     }
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -279,59 +326,53 @@ export default function DocumentUploadScreen() {
           <Text style={styles.sectionHint}>
             {t("Something went wrong. Please try again.")}
           </Text>
-          <ButtonComponent title={t("Back")} onPress={() => navigation.goBack()} />
+          <ButtonComponent
+            title={t("Back")}
+            onPress={() => navigation.goBack()}
+          />
         </View>
       </SafeAreaView>
     );
   }
 
-  const uploadDisabled =
-    !photos[0] || !photos[1] || (requiresExpiry && !expiryDate);
+  const uploadDisabled = loading;
 
   const slots = [0, 1];
+  const slotErrorKey = (index: number) =>
+    index === 0 ? "front" : index === 1 ? "back" : `photo_${index}`;
 
   return (
-    <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
-      <DetailsHeader title={t(typeName)} />
-      <View style={styles.background}>
-        <KeyboardAwareScrollView
-          enableOnAndroid
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-        >
+    <>
+      <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
+        <DetailsHeader title={t(typeName)} />
+        <View style={styles.background}>
+          <KeyboardAwareScrollView
+            enableOnAndroid
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.content}
+            showsVerticalScrollIndicator={false}
+          >
           <View style={styles.introCard}>
             <Text style={styles.introTitle}>{t(typeName)}</Text>
             <Text style={styles.introText}>{subtitle}</Text>
           </View>
 
           <View style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>{t("Photos")}</Text>
-
-            <View style={styles.progressRow}>
-              {slots.map((index) => (
-                <View
-                  key={`chip-${index}`}
-                  style={[
-                    styles.progressChip,
-                    photos[index] ? styles.progressChipDone : null,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.progressChipText,
-                      photos[index] ? styles.progressChipTextDone : null,
-                    ]}
-                  >
-                    {`${t("Photo")} ${index + 1}`} {photos[index] ? "✓" : ""}
-                  </Text>
-                </View>
-              ))}
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>{t("Photos")}</Text>
+              <Text style={styles.sectionMeta}>
+                {`${photos.filter(Boolean).length}/2`}
+              </Text>
             </View>
+            <Text style={styles.sectionHint}>
+              {t("Add clear Front and Back photos of the document")}
+            </Text>
 
             <View style={styles.photoRow}>
               {slots.map((index) => {
                 const photo = photos[index];
+                const errKey = slotErrorKey(index);
+                const slotError = errors[errKey];
                 const slotLabel =
                   index === 0
                     ? t("Front")
@@ -339,49 +380,70 @@ export default function DocumentUploadScreen() {
                       ? t("Back")
                       : `${t("Photo")} ${index + 1}`;
                 return (
-                  <TouchableOpacity
-                    key={`slot-${index}`}
-                    style={[
-                      styles.photoSlot,
-                      photo ? styles.photoSlotFilled : null,
-                    ]}
-                    activeOpacity={0.85}
-                    onPress={() => capturePhotoAt(index)}
-                  >
-                    {photo ? (
-                      <>
-                        <Image
-                          source={{ uri: photo.uri }}
-                          style={styles.photoPreview}
-                        />
-                        <View style={styles.retakeBtn}>
-                          <Text style={styles.retakeText}>{t("Retake")}</Text>
+                  <View key={`slot-${index}`} style={styles.photoColumn}>
+                    <Text style={styles.slotCaption}>
+                      {slotLabel}
+                      <Text style={styles.required}> *</Text>
+                    </Text>
+                    <TouchableOpacity
+                      style={[
+                        styles.photoSlot,
+                        photo ? styles.photoSlotFilled : null,
+                        slotError ? styles.photoSlotError : null,
+                      ]}
+                      activeOpacity={0.85}
+                      onPress={() => openSourcePicker(index)}
+                    >
+                      {photo ? (
+                        <>
+                          <Image
+                            source={{ uri: photo.uri }}
+                            style={styles.photoPreview}
+                          />
+                          <View style={styles.photoOverlay}>
+                            <View style={styles.retakeBtn}>
+                              <Text style={styles.retakeText}>
+                                {t("Change")}
+                              </Text>
+                            </View>
+                          </View>
+                        </>
+                      ) : (
+                        <View style={styles.photoPlaceholder}>
+                          <View
+                            style={[
+                              styles.photoIconCircle,
+                              slotError ? styles.photoIconCircleError : null,
+                            ]}
+                          >
+                            <Image
+                              source={Images.UploadPhoto}
+                              style={styles.photoPlaceholderIcon}
+                              tintColor={
+                                slotError ? Colors.red : Colors.primary
+                              }
+                            />
+                          </View>
+                          <Text
+                            style={[
+                              styles.photoAction,
+                              slotError ? styles.photoActionError : null,
+                            ]}
+                          >
+                            {allowCamera
+                              ? t("Camera or Gallery")
+                              : t("Tap to select")}
+                          </Text>
                         </View>
-                      </>
-                    ) : (
-                      <View style={styles.photoPlaceholder}>
-                        <Image
-                          source={Images.UploadPhoto}
-                          style={styles.photoPlaceholderIcon}
-                        />
-                        <Text style={styles.photoLabel}>{slotLabel}</Text>
-                        <Text style={styles.photoAction}>
-                          {allowCamera
-                            ? t("Tap to capture")
-                            : t("Tap to select")}
-                        </Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
+                      )}
+                    </TouchableOpacity>
+                    {slotError ? (
+                      <Text style={styles.fieldError}>{slotError}</Text>
+                    ) : null}
+                  </View>
                 );
               })}
             </View>
-
-            {errors.front || errors.back ? (
-              <Text style={styles.error}>
-                {errors.front || errors.back}
-              </Text>
-            ) : null}
           </View>
 
           {requiresExpiry ? (
@@ -395,24 +457,41 @@ export default function DocumentUploadScreen() {
                   style={[
                     styles.dateField,
                     expiryDate ? styles.dateFieldActive : null,
+                    errors.expiry_date ? styles.dateFieldError : null,
                   ]}
-                  onPress={() => setExpiryPickerOpen(true)}
+                  onPress={() => {
+                    setExpiryPickerOpen(true);
+                    setErrors((prev) => {
+                      if (!prev.expiry_date) return prev;
+                      const next = { ...prev };
+                      delete next.expiry_date;
+                      return next;
+                    });
+                  }}
                 >
                   <Image
                     source={Images.date}
                     style={styles.dateIcon}
-                    tintColor={expiryDate ? Colors.primary : Colors.darkText}
+                    tintColor={
+                      errors.expiry_date
+                        ? Colors.red
+                        : expiryDate
+                          ? Colors.primary
+                          : Colors.darkText
+                    }
                   />
                   {expiryDate ? (
                     <Text style={styles.dateText}>
                       {formatDate(expiryDate, locale)}
                     </Text>
                   ) : (
-                    <Text style={styles.datePlaceholder}>{t("Select Date")}</Text>
+                    <Text style={styles.datePlaceholder}>
+                      {t("Select Date")}
+                    </Text>
                   )}
                 </Pressable>
                 {errors.expiry_date ? (
-                  <Text style={styles.error}>{errors.expiry_date}</Text>
+                  <Text style={styles.fieldError}>{errors.expiry_date}</Text>
                 ) : null}
               </View>
             </View>
@@ -465,6 +544,21 @@ export default function DocumentUploadScreen() {
       </Modal>
 
       <LoadingModal visible={loading} message={t("Please wait…")} />
-    </SafeAreaView>
+      </SafeAreaView>
+
+      {/* Full-screen overlay outside SafeAreaView; sheet uses bottom inset. */}
+      <ImageSourceSheet
+        visible={sourceSheetOpen}
+        showCamera={allowCamera}
+        showGallery
+        onClose={() => {
+          setSourceSheetOpen(false);
+          setPendingSlotIndex(null);
+        }}
+        onSelect={(source) => {
+          void onSourceSelect(source);
+        }}
+      />
+    </>
   );
 }
