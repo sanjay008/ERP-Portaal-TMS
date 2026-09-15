@@ -9,6 +9,7 @@ import type {
 } from './ExpoDriverLocation.types';
 
 export type {
+  LocationSource,
   NativeDriverCoordinate,
   NativeShiftLocationGuardConfig,
   NativeTrackingConfig,
@@ -40,6 +41,11 @@ export async function getLastLocation(): Promise<NativeDriverCoordinate | null> 
 /** Fresh GPS for scan → status_update; also replaces the published 15-min cache. */
 export async function getFreshLocationAndPublish(): Promise<NativeDriverCoordinate | null> {
   return ExpoDriverLocation.getFreshLocationAndPublish();
+}
+
+/** Clear published + warm location cache (shift / region / planning change). */
+export async function clearPublishedLocation(): Promise<void> {
+  await ExpoDriverLocation.clearPublishedLocation();
 }
 
 export async function enableShiftLocationGuard(

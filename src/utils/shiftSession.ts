@@ -57,6 +57,11 @@ export async function saveActiveShift(
   session: ActiveShiftSession,
 ): Promise<void> {
   const existing = await getData(ACTIVE_SHIFT_KEY);
+  const regionOrPlanningChanged =
+    existing &&
+    (String(existing.region_id) !== String(session.region_id) ||
+      existing.planning_date !== session.planning_date);
+
   if (
     existing &&
     String(existing.region_id) === String(session.region_id) &&
@@ -67,6 +72,16 @@ export async function saveActiveShift(
   ) {
     return;
   }
+
+  if (regionOrPlanningChanged) {
+    try {
+      const { clearPublishedLocation } = await import('expo-driver-location');
+      await clearPublishedLocation();
+    } catch {
+      // ignore
+    }
+  }
+
   await storeData(ACTIVE_SHIFT_KEY, session);
   console.log('[Shift] saved', session);
 }
@@ -91,6 +106,13 @@ export async function wipeShiftLocalData(
 ): Promise<void> {
   await storeData(ACTIVE_SHIFT_KEY, null);
   await storeData(TRACKING_REGION_KEY, null);
+
+  try {
+    const { clearPublishedLocation } = await import('expo-driver-location');
+    await clearPublishedLocation();
+  } catch {
+    // Native module may be unavailable in some envs.
+  }
 
   if (regionId != null) {
     const registry =

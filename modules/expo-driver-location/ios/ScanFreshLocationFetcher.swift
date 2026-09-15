@@ -61,15 +61,8 @@ final class ScanFreshLocationFetcher: NSObject, CLLocationManagerDelegate {
       return nil
     }
 
-    let published = DriverCoordinate(
-      latitude: location.coordinate.latitude,
-      longitude: location.coordinate.longitude,
-      heading: location.course >= 0 ? location.course : nil,
-      speed: location.speed >= 0 ? location.speed : nil,
-      accuracy: location.horizontalAccuracy >= 0 ? location.horizontalAccuracy : nil,
-      capturedAtMs: Date().timeIntervalSince1970 * 1000
-    )
-    guard published.latitude != 0, published.longitude != 0 else { return nil }
+    let published = DriverCoordinate.fromCLLocation(location, source: "getCurrentLocation")
+    guard let published, published.latitude != 0 || published.longitude != 0 else { return nil }
 
     TrackingSessionStore.savePublishedLocation(published)
     TrackingSessionStore.saveWarmLocation(published)

@@ -1,11 +1,17 @@
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 import apiConstants from '@/src/api/apiConstants';
 import ApiService from '@/src/utils/Apiservice';
 import { driverLocLog, driverLocWarn } from '@/src/utils/driverLocLog';
 import { getLastScannedOrderId } from '@/src/utils/lastScannedOrderId';
 import { ACTIVE_SHIFT_KEY, type ActiveShiftSession, loadTrackingRegion } from '@/src/utils/shiftSession';
 import { getData } from '@/src/utils/storeData';
+import type { LocationSource, NativeDriverCoordinate } from 'expo-driver-location';
 
 export const REQUIRED_CHAUFFEUR_ROLE = 'chauffeur';
+
+/** Do not POST published_cache older than this without a fresh GPS fix (20 min). */
+export const STALE_LOCATION_MAX_AGE_MS = 20 * 60 * 1000;
 
 export type DriverCoordinate = {
   latitude: number;
@@ -13,8 +19,13 @@ export type DriverCoordinate = {
   heading: number | null;
   speed: number | null;
   accuracy: number | null;
-  /** Epoch ms when this fix was captured (from native 15-min publish). */
+  /** Epoch ms when this fix was captured (from native GPS timestamp). */
   capturedAtMs?: number | null;
+  altitude?: number | null;
+  altitudeAccuracy?: number | null;
+  isMock?: boolean | null;
+  source?: LocationSource | null;
+  provider?: string | null;
 };
 
 type UserDataShape = {
@@ -41,7 +52,9 @@ type ValidatedPayload = {
   accuracy: string;
   speed: string;
   is_active: number;
-  captured_at?: string;
+  captured_at: string;
+  location_meta: string;
+  order_id?: string;
 };
 
 type PayloadValidationResult =
@@ -54,6 +67,84 @@ function getTodayDate(): string {
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   const dd = String(d.getDate()).padStart(2, '0');
   return `${yyyy}-${mm}-${dd}`;
+}
+
+function getAppVersion(): string {
+  return (
+    Constants.nativeAppVersion ??
+    Constants.expoConfig?.version ??
+    '0.0.0'
+  );
+}
+
+export function getLocationAgeMs(
+  capturedAtMs: number | null | undefined,
+  now = Date.now(),
+): number | null {
+  if (capturedAtMs == null || !Number.isFinite(Number(capturedAtMs)) || Number(capturedAtMs) <= 0) {
+    return null;
+  }
+  return Math.max(0, now - Number(capturedAtMs));
+}
+
+export function isLocationStale(
+  capturedAtMs: number | null | undefined,
+  now = Date.now(),
+): boolean {
+  const age = getLocationAgeMs(capturedAtMs, now);
+  if (age == null) return true;
+  return age > STALE_LOCATION_MAX_AGE_MS;
+}
+
+/** Build location_meta JSON object from the actual GPS coordinate fields. */
+export function buildLocationMeta(
+  coord: DriverCoordinate,
+  now = Date.now(),
+): Record<string, unknown> {
+  const locationTimeMs =
+    coord.capturedAtMs != null && Number(coord.capturedAtMs) > 0
+      ? Number(coord.capturedAtMs)
+      : null;
+  const ageMs =
+    locationTimeMs != null ? Math.max(0, now - locationTimeMs) : null;
+
+  return {
+    source: coord.source ?? 'published_cache',
+    provider:
+      coord.provider ??
+      (Platform.OS === 'ios' ? 'core_location' : 'fused'),
+    location_time_ms: locationTimeMs,
+    age_ms: ageMs,
+    is_mock: coord.isMock ?? false,
+    accuracy_m: coord.accuracy,
+    altitude: coord.altitude ?? null,
+    bearing: coord.heading,
+    speed_mps: coord.speed,
+    latitude: coord.latitude,
+    longitude: coord.longitude,
+    altitude_accuracy: coord.altitudeAccuracy ?? null,
+    platform: Platform.OS,
+    app_version: getAppVersion(),
+  };
+}
+
+export function nativeCoordToDriverCoordinate(
+  last: NativeDriverCoordinate,
+  fallbackSource: LocationSource = 'published_cache',
+): DriverCoordinate {
+  return {
+    latitude: last.latitude,
+    longitude: last.longitude,
+    heading: last.heading ?? null,
+    speed: last.speed ?? null,
+    accuracy: last.accuracy ?? null,
+    capturedAtMs: last.capturedAtMs ?? null,
+    altitude: last.altitude ?? null,
+    altitudeAccuracy: last.altitudeAccuracy ?? null,
+    isMock: last.isMock ?? null,
+    source: last.source ?? fallbackSource,
+    provider: last.provider ?? null,
+  };
 }
 
 export function normalizeStoredUserData(raw: unknown): UserDataShape | null {
@@ -128,6 +219,24 @@ export function buildAndValidateDriverPayload(
     };
   }
 
+  const capturedAtMs =
+    coord.capturedAtMs != null && Number(coord.capturedAtMs) > 0
+      ? Number(coord.capturedAtMs)
+      : null;
+
+  if (capturedAtMs == null) {
+    return {
+      valid: false,
+      reason: 'captured_at missing — GPS fix timestamp required (not Date.now())',
+    };
+  }
+
+  const locationMeta = buildLocationMeta({
+    ...coord,
+    capturedAtMs,
+    source: coord.source ?? 'published_cache',
+  });
+
   return {
     valid: true,
     payload: {
@@ -139,13 +248,12 @@ export function buildAndValidateDriverPayload(
       region_id: String(region_id),
       latitude: String(coord.latitude),
       longitude: String(coord.longitude),
-      heading: String(coord.heading ?? ''),
-      accuracy: String(coord.accuracy ?? ''),
-      speed: String(coord.speed ?? ''),
+      heading: coord.heading != null ? String(coord.heading) : '',
+      accuracy: coord.accuracy != null ? String(coord.accuracy) : '',
+      speed: coord.speed != null ? String(coord.speed) : '',
       is_active: isActive,
-      ...(coord.capturedAtMs
-        ? { captured_at: String(coord.capturedAtMs) }
-        : {}),
+      captured_at: String(Math.round(capturedAtMs)),
+      location_meta: JSON.stringify(locationMeta),
     },
   };
 }
@@ -191,6 +299,21 @@ export async function sendDriverLocationUpdate(
   planning_date: string | null | undefined,
   isActive: number,
 ): Promise<boolean> {
+  // Active updates must not send stale published_cache without a fresher fix.
+  if (
+    isActive === 1 &&
+    isLocationStale(coord.capturedAtMs) &&
+    (coord.source === 'published_cache' || coord.source == null)
+  ) {
+    driverLocWarn('api', {
+      ok: 0,
+      reason: 'stale_published_cache',
+      age_ms: getLocationAgeMs(coord.capturedAtMs),
+      is_active: isActive,
+    });
+    return false;
+  }
+
   const result = buildAndValidateDriverPayload(
     coord,
     userData,
@@ -214,7 +337,7 @@ export async function sendDriverLocationUpdate(
     const res = await ApiService(apiConstants.update_driver_live_location, {
       customData,
     });
-
+    console.log('res', res, customData);
     if (res?.status) {
       driverLocLog('api', {
         ok: 1,
@@ -226,6 +349,7 @@ export async function sendDriverLocationUpdate(
         region_id: result.payload.region_id,
         planning_date: result.payload.planning_date,
         order_id: orderId ?? '-',
+        location_source: coord.source ?? 'published_cache',
       });
       return true;
     }
@@ -240,10 +364,12 @@ export async function sendDriverLocationUpdate(
 
 /**
  * Fire-and-forget: ping live location once (e.g. after successful Verify_status).
- * Uses the published native cache (15-min or last scan fresh) — does not fetch GPS again.
+ * Uses the same 3-min scan cache rule + shared in-flight fetch as prefetch
+ * (so parcel 2 while parcel 1 is still fetching joins the same GPS promise).
  */
 export async function pingDriverLiveLocation(
   userData?: UserDataShape | null,
+  orderId?: number | string | null,
 ): Promise<void> {
   try {
     const resolvedUser = userData ?? (await loadTrackingUserData());
@@ -251,31 +377,40 @@ export async function pingDriverLiveLocation(
       return;
     }
 
-    const { getLastLocation } = await import('expo-driver-location');
-    const last = await getLastLocation();
-
+    const { resolveScanLocation } = await import('@/src/utils/scanFreshLocation');
+    const last = await resolveScanLocation(orderId);
     if (!last?.latitude || !last?.longitude) {
-      driverLocWarn('ping', { ok: 0, reason: 'no_published_cache' });
+      driverLocWarn('ping', { ok: 0, reason: 'no_scan_location' });
+      return;
+    }
+
+    const coord = nativeCoordToDriverCoordinate(
+      last,
+      (last.source as LocationSource) ?? 'published_cache',
+    );
+
+    // Absolute safety: never POST published_cache older than 20 min without a real fix.
+    if (isLocationStale(coord.capturedAtMs)) {
+      driverLocWarn('ping', {
+        ok: 0,
+        reason: 'stale_after_resolve',
+        age_ms: getLocationAgeMs(coord.capturedAtMs),
+      });
       return;
     }
 
     const { region_id, planning_date } = await resolveTrackingContext();
     driverLocLog('ping', {
-      lat: last.latitude,
-      lon: last.longitude,
-      capturedAt: last.capturedAtMs ?? '-',
+      lat: coord.latitude,
+      lon: coord.longitude,
+      capturedAt: coord.capturedAtMs ?? '-',
       region_id,
       planning_date,
+      source: coord.source ?? 'published_cache',
+      order: orderId ?? '-',
     });
     await sendDriverLocationUpdate(
-      {
-        latitude: last.latitude,
-        longitude: last.longitude,
-        heading: last.heading ?? null,
-        speed: last.speed ?? null,
-        accuracy: last.accuracy ?? null,
-        capturedAtMs: last.capturedAtMs || null,
-      },
+      coord,
       resolvedUser,
       region_id,
       planning_date,

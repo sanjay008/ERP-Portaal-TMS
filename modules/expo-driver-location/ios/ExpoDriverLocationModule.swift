@@ -37,14 +37,7 @@ public final class ExpoDriverLocationModule: Module {
       guard let coord = TrackingSessionStore.getLastLocation() else {
         return nil
       }
-      return [
-        "latitude": coord.latitude,
-        "longitude": coord.longitude,
-        "heading": coord.heading as Any,
-        "speed": coord.speed as Any,
-        "accuracy": coord.accuracy as Any,
-        "capturedAtMs": coord.capturedAtMs as Any,
-      ]
+      return coord.withSource(coord.source ?? "published_cache").toJsDictionary()
     }
 
     // Scan → status_update: fresh GPS + replace published 15-min cache (no live-location POST).
@@ -55,20 +48,17 @@ public final class ExpoDriverLocationModule: Module {
           published = ScanFreshLocationFetcher.shared.publishIfAcceptable(location)
         }
         // If fresh rejected, still return current published cache for status_update fallback.
-        let coord = published ?? TrackingSessionStore.getLastLocation()
+        let coord = published ?? TrackingSessionStore.getLastLocation()?.withSource("published_cache")
         guard let coord, coord.latitude != 0, coord.longitude != 0 else {
           promise.resolve(nil)
           return
         }
-        promise.resolve([
-          "latitude": coord.latitude,
-          "longitude": coord.longitude,
-          "heading": coord.heading as Any,
-          "speed": coord.speed as Any,
-          "accuracy": coord.accuracy as Any,
-          "capturedAtMs": coord.capturedAtMs as Any,
-        ])
+        promise.resolve(coord.toJsDictionary())
       }
+    }
+
+    AsyncFunction("clearPublishedLocation") {
+      TrackingSessionStore.clearPublishedLocation()
     }
 
     AsyncFunction("enableShiftLocationGuard") { (config: [String: Any]) in

@@ -75,14 +75,7 @@ class ExpoDriverLocationModule : Module() {
     AsyncFunction("getLastLocation") {
       val context = resolveContext() ?: return@AsyncFunction null
       val coord = TrackingSessionStore.getLastLocation(context) ?: return@AsyncFunction null
-      mapOf(
-        "latitude" to coord.latitude,
-        "longitude" to coord.longitude,
-        "heading" to (coord.heading ?: 0.0),
-        "speed" to (coord.speed ?: 0.0),
-        "accuracy" to (coord.accuracy ?: 0.0),
-        "capturedAtMs" to (coord.capturedAtMs ?: 0.0),
-      )
+      coord.withSource(coord.source ?: "published_cache").toJsMap()
     }
 
     // Scan → status_update: fresh GPS + replace published 15-min cache (no live-location POST).
@@ -97,17 +90,14 @@ class ExpoDriverLocationModule : Module() {
           promise.resolve(null)
           return@request
         }
-        promise.resolve(
-          mapOf(
-            "latitude" to coord.latitude,
-            "longitude" to coord.longitude,
-            "heading" to (coord.heading ?: 0.0),
-            "speed" to (coord.speed ?: 0.0),
-            "accuracy" to (coord.accuracy ?: 0.0),
-            "capturedAtMs" to (coord.capturedAtMs ?: 0.0),
-          ),
-        )
+        promise.resolve(coord.toJsMap())
       }
+    }
+
+    AsyncFunction("clearPublishedLocation") {
+      val context = resolveContext() ?: return@AsyncFunction null
+      TrackingSessionStore.clearPublishedLocation(context)
+      null
     }
 
     AsyncFunction("enableShiftLocationGuard") { config: Map<String, Any?> ->

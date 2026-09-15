@@ -32,7 +32,7 @@ import {
   unlockParcelCameraCallback,
 } from "@/src/utils/parcelVerifyCameraReturn";
 import { playErrorSound } from "@/src/utils/playScanSound";
-import { prefetchScanFreshLocation } from "@/src/utils/scanFreshLocation";
+import { attachScanLocationForVerify } from "@/src/utils/scanFreshLocation";
 import { FONTS, height, width } from "@/src/utils/storeData";
 import { Ionicons } from "@expo/vector-icons";
 import { useIsFocused, useNavigation } from "@react-navigation/native";
@@ -707,6 +707,7 @@ export default function RejectionScanner({ route }: any) {
         };
 
         logRejectionApi("verify", "REQ", payload);
+        await attachScanLocationForVerify(payload, orderId);
         const res = await ApiService(apiConstants.Verify_status, {
           customData: await withDeviceMeta(payload),
         });
@@ -735,10 +736,9 @@ export default function RejectionScanner({ route }: any) {
           return;
         }
 
-        // Background GPS only — never block scanner UI (iOS GPS hang OTA fix).
-        prefetchScanFreshLocation(orderId);
+        // Location already resolved for verify; ping reuses ≤3 min cache.
         await setLastScannedOrderId(orderId);
-        void pingDriverLiveLocation(UserData);
+        void pingDriverLiveLocation(UserData, orderId);
         void syncNativeDriverTracking(UserData);
 
         const orderData = res?.data?.order_data || res?.data || null;

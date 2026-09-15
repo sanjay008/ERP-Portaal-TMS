@@ -68,26 +68,76 @@ async function sendSilentIsActiveOn(
 ): Promise<void> {
   let latitude = 0;
   let longitude = 0;
+  let heading: number | null = null;
+  let speed: number | null = null;
+  let accuracy: number | null = null;
+  let altitude: number | null = null;
+  let altitudeAccuracy: number | null = null;
+  let capturedAtMs: number | null = null;
+  let source: string | null = null;
+  let provider: string | null = null;
 
-  const cached = getChauffeurLocation();
-  if (cached.latitude && cached.longitude) {
-    latitude = cached.latitude;
-    longitude = cached.longitude;
-  } else {
+  try {
+    const { getLastLocation, getFreshLocationAndPublish } = await import(
+      'expo-driver-location'
+    );
+    const { isLocationStale, nativeCoordToDriverCoordinate } = await import(
+      '@/src/utils/driverLocationApi'
+    );
+    let last = await getLastLocation();
+    let coord = last
+      ? nativeCoordToDriverCoordinate(last, 'published_cache')
+      : null;
+    if (!coord || isLocationStale(coord.capturedAtMs)) {
+      const fresh = await getFreshLocationAndPublish();
+      if (fresh?.latitude && fresh?.longitude) {
+        coord = nativeCoordToDriverCoordinate(fresh, 'getCurrentLocation');
+      }
+    }
+    if (coord?.latitude && coord?.longitude && coord.capturedAtMs) {
+      latitude = coord.latitude;
+      longitude = coord.longitude;
+      heading = coord.heading ?? null;
+      speed = coord.speed ?? null;
+      accuracy = coord.accuracy ?? null;
+      altitude = coord.altitude ?? null;
+      altitudeAccuracy = coord.altitudeAccuracy ?? null;
+      capturedAtMs = Number(coord.capturedAtMs);
+      source = coord.source ?? 'published_cache';
+      provider = coord.provider ?? null;
+      setChauffeurLocation(latitude, longitude, true);
+    }
+  } catch {
+    // fall through to Expo Location
+  }
+
+  if (!latitude || !longitude || capturedAtMs == null) {
     try {
       const position = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
       latitude = position.coords.latitude;
       longitude = position.coords.longitude;
+      heading = position.coords.heading ?? null;
+      speed = position.coords.speed ?? null;
+      accuracy = position.coords.accuracy ?? null;
+      altitude = position.coords.altitude ?? null;
+      altitudeAccuracy = position.coords.altitudeAccuracy ?? null;
+      capturedAtMs = position.timestamp;
+      source = 'getCurrentLocation';
       setChauffeurLocation(latitude, longitude, true);
     } catch (error) {
-      driverLocWarn('guard_on', { phase: 'is_active=1', ok: 0, reason: 'location_fetch', err: String(error) });
+      driverLocWarn('guard_on', {
+        phase: 'is_active=1',
+        ok: 0,
+        reason: 'location_fetch',
+        err: String(error),
+      });
       return;
     }
   }
 
-  if (!latitude || !longitude) {
+  if (!latitude || !longitude || capturedAtMs == null) {
     driverLocWarn('guard_on', { phase: 'is_active=1', ok: 0, reason: 'no_location' });
     return;
   }
@@ -97,9 +147,14 @@ async function sendSilentIsActiveOn(
       {
         latitude,
         longitude,
-        heading: null,
-        speed: null,
-        accuracy: null,
+        heading,
+        speed,
+        accuracy,
+        altitude,
+        altitudeAccuracy,
+        capturedAtMs,
+        source,
+        provider,
       },
       userData,
       regionId,
@@ -112,6 +167,8 @@ async function sendSilentIsActiveOn(
       region_id: regionId,
       lat: latitude,
       lon: longitude,
+      captured_at: capturedAtMs,
+      source: source ?? '-',
     });
   } catch (error) {
     driverLocWarn('guard_on', { phase: 'is_active=1', ok: 0, reason: String(error) });
@@ -245,13 +302,33 @@ export async function closeActiveShiftSilent(
   const cached = getChauffeurLocation();
   if (cached.latitude && cached.longitude) {
     try {
+      let capturedAtMs: number | null = null;
+      let heading: number | null = null;
+      let speed: number | null = null;
+      let accuracy: number | null = null;
+      let source: string | null = 'published_cache';
+      try {
+        const { getLastLocation } = await import('expo-driver-location');
+        const last = await getLastLocation();
+        if (last?.capturedAtMs) {
+          capturedAtMs = Number(last.capturedAtMs);
+          heading = last.heading ?? null;
+          speed = last.speed ?? null;
+          accuracy = last.accuracy ?? null;
+          source = last.source ?? 'published_cache';
+        }
+      } catch {
+        // ignore
+      }
       await sendDriverLocationUpdate(
         {
           latitude: cached.latitude,
           longitude: cached.longitude,
-          heading: null,
-          speed: null,
-          accuracy: null,
+          heading,
+          speed,
+          accuracy,
+          capturedAtMs,
+          source,
         },
         userData,
         activeShift!.region_id,

@@ -1,13 +1,12 @@
 import { setChauffeurLocation } from '@/src/utils/chauffeurLocationCache';
 import { driverLocLog, driverLocWarn } from '@/src/utils/driverLocLog';
-import { getLastScannedOrderId } from '@/src/utils/lastScannedOrderId';
 import type { NativeDriverCoordinate } from 'expo-driver-location';
 
 /**
- * First parcel of an order: reuse published cache if younger than this;
- * otherwise fetch fresh GPS (native also resets the 15-min publish timer).
+ * Scan / live-ping: reuse published cache only if younger than this.
+ * Older → fresh GPS (native also resets the 15-min interval timer).
  */
-const SCAN_MAX_AGE_MS = 3.5 * 60 * 1000;
+export const SCAN_MAX_AGE_MS = 3 * 60 * 1000;
 /**
  * Hard cap on native getFreshLocationAndPublish (background / prefetch).
  * iOS requestLocation() can hang for minutes with no timeout — OTA-safe JS guard.
@@ -55,19 +54,26 @@ function remember(
   return coord;
 }
 
+function ageOfCoord(coord: NativeDriverCoordinate, fallbackAt?: number): number {
+  const capturedAt = Number(coord.capturedAtMs) || 0;
+  if (capturedAt > 0) {
+    return Math.max(0, Date.now() - capturedAt);
+  }
+  if (fallbackAt != null && fallbackAt > 0) {
+    return Math.max(0, Date.now() - fallbackAt);
+  }
+  return Number.POSITIVE_INFINITY;
+}
+
 function logScan(
   decision: string,
   orderId: string | null,
-  previousOrderId: string | null,
-  sameOrder: boolean,
   coord: NativeDriverCoordinate | null,
   ageMs?: number,
 ): void {
   driverLocLog('scan_resolve', {
     decision,
-    sameOrder: sameOrder ? 1 : 0,
     order: orderId ?? '-',
-    prevOrder: previousOrderId ?? '-',
     ageMs: ageMs ?? '-',
     lat: coord ? coord.latitude : '-',
     lon: coord ? coord.longitude : '-',
@@ -85,17 +91,33 @@ async function readPublished(): Promise<{
     if (!isUsable(last)) {
       return null;
     }
-    const capturedAt = Number(last.capturedAtMs) || 0;
-    const ageMs =
-      capturedAt > 0 ? Math.max(0, Date.now() - capturedAt) : Number.POSITIVE_INFINITY;
-    return { coord: last, ageMs };
+    return { coord: last, ageMs: ageOfCoord(last) };
   } catch {
     return null;
   }
 }
 
-/** Instant best-effort: memory then published store (no fresh GPS wait). */
-async function getCachedCoord(
+/** Cache usable for scan/ping only if age ≤ SCAN_MAX_AGE_MS (3 min). */
+async function getFreshEnoughCache(
+  orderId: string | null,
+): Promise<{ coord: NativeDriverCoordinate; ageMs: number } | null> {
+  if (lastFresh && isUsable(lastFresh.coord)) {
+    const ageMs = ageOfCoord(lastFresh.coord, lastFresh.at);
+    if (ageMs <= SCAN_MAX_AGE_MS) {
+      return { coord: lastFresh.coord, ageMs };
+    }
+  }
+
+  const published = await readPublished();
+  if (published && published.ageMs <= SCAN_MAX_AGE_MS) {
+    return published;
+  }
+
+  return null;
+}
+
+/** Any usable cache (even old) — status_update fallback only. */
+async function getAnyCachedCoord(
   orderId: string | null,
 ): Promise<NativeDriverCoordinate | null> {
   if (lastFresh && isUsable(lastFresh.coord)) {
@@ -127,6 +149,11 @@ async function fetchFreshFromNative(
         order: orderId ?? '-',
         reason: 'native_null_or_timeout',
       });
+      // Prefer still-young cache; else last published for best-effort.
+      const young = await getFreshEnoughCache(orderId);
+      if (young) {
+        return remember(young.coord, orderId);
+      }
       const published = await readPublished();
       if (published) {
         return remember(published.coord, orderId);
@@ -145,7 +172,10 @@ async function fetchFreshFromNative(
   }
 }
 
-function ensureFreshFetch(
+/**
+ * Single shared fresh-GPS promise — 2nd parcel while 1st is fetching joins this.
+ */
+export function ensureFreshFetch(
   orderId: string | null,
 ): Promise<NativeDriverCoordinate | null> {
   if (inFlight) {
@@ -158,64 +188,41 @@ function ensureFreshFetch(
   return inFlight;
 }
 
+export function getScanLocationInFlight(): Promise<NativeDriverCoordinate | null> | null {
+  return inFlight;
+}
+
 /**
- * Shared scan GPS resolver for verify prefetch / background.
+ * Shared scan GPS resolver (prefetch / ping / background).
  *
- * - Same order (parcel 2/3…): reuse published/memory — never refetch.
- * - First parcel / new order: reuse if published age ≤ ~3.5 min; else fresh GPS.
+ * - Cache age ≤ 3 min → reuse (same or new order).
+ * - Older / empty → one shared fresh fetch (resets native 15-min timer on success).
+ * - Concurrent scans share the same in-flight promise (no hang / no double GPS).
  */
 export async function resolveScanLocation(
   orderId?: number | string | null,
 ): Promise<NativeDriverCoordinate | null> {
   const oid = normalizeOrderId(orderId);
-  const previousOrderId = await getLastScannedOrderId();
-  const sameOrder = oid != null && previousOrderId != null && oid === previousOrderId;
 
-  if (sameOrder) {
-    if (lastFresh && isUsable(lastFresh.coord)) {
-      const ageMs = Date.now() - lastFresh.at;
-      const coord = remember(lastFresh.coord, oid);
-      logScan('reuse_same_order_memory', oid, previousOrderId, true, coord, ageMs);
-      return coord;
+  // Another scan already fetching — join it (don't start a second GPS / don't block UI path).
+  if (inFlight) {
+    const joined = await inFlight;
+    if (isUsable(joined)) {
+      logScan('join_in_flight', oid, joined, ageOfCoord(joined));
+      return remember(joined, oid);
     }
-    const published = await readPublished();
-    if (published) {
-      const coord = remember(published.coord, oid);
-      logScan('reuse_same_order_published', oid, previousOrderId, true, coord, published.ageMs);
-      return coord;
-    }
-    const fresh = await ensureFreshFetch(oid);
-    logScan('fresh_same_order_no_cache', oid, previousOrderId, true, fresh);
-    return fresh;
   }
 
-  if (
-    lastFresh &&
-    Date.now() - lastFresh.at <= SCAN_MAX_AGE_MS &&
-    isUsable(lastFresh.coord)
-  ) {
-    const ageMs = Date.now() - lastFresh.at;
-    const coord = remember(lastFresh.coord, oid);
-    logScan('reuse_age_memory', oid, previousOrderId, false, coord, ageMs);
+  const young = await getFreshEnoughCache(oid);
+  if (young) {
+    const coord = remember(young.coord, oid);
+    logScan('reuse_within_3min', oid, coord, young.ageMs);
     return coord;
   }
 
   const published = await readPublished();
-  if (published && published.ageMs <= SCAN_MAX_AGE_MS) {
-    const coord = remember(published.coord, oid);
-    logScan('reuse_age_published', oid, previousOrderId, false, coord, published.ageMs);
-    return coord;
-  }
-
   const fresh = await ensureFreshFetch(oid);
-  logScan(
-    'fresh_fetch',
-    oid,
-    previousOrderId,
-    false,
-    fresh,
-    published?.ageMs,
-  );
+  logScan('fresh_fetch', oid, fresh, published?.ageMs);
   return fresh;
 }
 
@@ -229,27 +236,69 @@ export function prefetchScanFreshLocation(
 }
 
 /**
- * status_update GPS: cache-first, almost no wait (iOS must not delay loader).
- * Fresh fetch runs in background for next call.
+ * Before Verify: ≤3 min cache or fresh (max ~5s). Sets latitude/longitude on payload.
+ * Does not hang forever — uses the same timed resolve as scan/ping.
+ */
+export async function attachScanLocationForVerify(
+  payload: Record<string, any>,
+  orderId?: number | string | null,
+): Promise<NativeDriverCoordinate | null> {
+  const oid = orderId ?? payload?.order_id ?? null;
+  try {
+    const coord = await resolveScanLocation(oid);
+    if (!isUsable(coord)) {
+      driverLocWarn('verify_coords', {
+        decision: 'no_location',
+        order: normalizeOrderId(oid) ?? '-',
+      });
+      return null;
+    }
+    payload.latitude = String(coord.latitude);
+    payload.longitude = String(coord.longitude);
+    driverLocLog('verify_coords', {
+      decision: 'attached',
+      order: normalizeOrderId(oid) ?? '-',
+      lat: coord.latitude,
+      lon: coord.longitude,
+      capturedAt: coord.capturedAtMs
+        ? Math.round(Number(coord.capturedAtMs))
+        : '-',
+      source: coord.source ?? '-',
+      ageMs: ageOfCoord(coord),
+    });
+    return coord;
+  } catch (error) {
+    driverLocWarn('verify_coords', {
+      decision: 'error',
+      reason: String(error),
+    });
+    return null;
+  }
+}
+
+/**
+ * status_update GPS: prefer ≤3 min cache; else join/start fetch with short wait.
+ * Never hangs the UI (max ~800ms).
  */
 export async function awaitScanFreshLocationForStatusUpdate(
   orderId?: number | string | null,
 ): Promise<NativeDriverCoordinate | null> {
   const oid = normalizeOrderId(orderId);
   try {
-    const cached = await getCachedCoord(oid);
-    if (cached) {
+    const young = await getFreshEnoughCache(oid);
+    if (young) {
+      const coord = remember(young.coord, oid);
       driverLocLog('scan_resolve', {
-        decision: 'status_cache_immediate',
+        decision: 'status_cache_within_3min',
         order: oid ?? '-',
-        lat: cached.latitude,
-        lon: cached.longitude,
+        ageMs: young.ageMs,
+        lat: coord.latitude,
+        lon: coord.longitude,
       });
-      return cached;
+      return coord;
     }
 
-    // No cache: start fresh, wait at most ~800ms, then continue without coords.
-    const fetchPromise = ensureFreshFetch(oid);
+    const fetchPromise = inFlight ?? ensureFreshFetch(oid);
     const timed = await Promise.race([
       fetchPromise,
       new Promise<null>((resolve) => {
@@ -261,16 +310,16 @@ export async function awaitScanFreshLocationForStatusUpdate(
       return timed;
     }
 
-    const published = await readPublished();
-    if (published) {
+    // Timeout: best-effort any cache so status still has coords without waiting.
+    const any = await getAnyCachedCoord(oid);
+    if (any) {
       driverLocWarn('scan_resolve', {
         decision: 'status_quick_timeout_fallback',
         order: oid ?? '-',
-        ageMs: published.ageMs,
-        lat: published.coord.latitude,
-        lon: published.coord.longitude,
+        lat: any.latitude,
+        lon: any.longitude,
       });
-      return remember(published.coord, oid);
+      return any;
     }
 
     driverLocWarn('scan_resolve', {

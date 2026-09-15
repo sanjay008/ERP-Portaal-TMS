@@ -52,6 +52,9 @@ export async function buildNativeTrackingConfig(
       heading: null,
       speed: null,
       accuracy: null,
+      // Config build only validates auth/region — not a real GPS post.
+      capturedAtMs: 1,
+      source: 'published_cache',
     },
     userData,
     planning_date,

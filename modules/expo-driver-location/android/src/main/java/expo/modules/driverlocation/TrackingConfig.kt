@@ -1,5 +1,10 @@
 package expo.modules.driverlocation
 
+import android.content.Context
+import android.location.Location
+import android.os.Build
+import org.json.JSONObject
+
 data class TrackingConfig(
   val apiUrl: String,
   val token: String,
@@ -49,6 +54,107 @@ data class DriverCoordinate(
   val heading: Double?,
   val speed: Double?,
   val accuracy: Double?,
-  /** Epoch ms when this fix was published (15-min tick). */
+  /** Epoch ms when GPS fix was measured (from Location.time / CLLocation.timestamp). */
   val capturedAtMs: Double? = null,
-)
+  val altitude: Double? = null,
+  val altitudeAccuracy: Double? = null,
+  val isMock: Boolean? = null,
+  /** getCurrentLocation | lastLocation | published_cache | interval */
+  val source: String? = null,
+  val provider: String? = null,
+) {
+  companion object {
+    /** Max age for POSTing published_cache without a fresh fix (20 min). */
+    const val STALE_MAX_AGE_MS = 20L * 60L * 1000L
+
+    fun fromAndroidLocation(
+      location: Location,
+      source: String,
+      provider: String? = location.provider,
+    ): DriverCoordinate? {
+      if (location.latitude == 0.0 && location.longitude == 0.0) {
+        return null
+      }
+      val fixTime = if (location.time > 0) location.time.toDouble() else null
+      return DriverCoordinate(
+        latitude = location.latitude,
+        longitude = location.longitude,
+        heading = if (location.hasBearing()) location.bearing.toDouble() else null,
+        speed = if (location.hasSpeed()) location.speed.toDouble() else null,
+        accuracy = if (location.hasAccuracy()) location.accuracy.toDouble() else null,
+        capturedAtMs = fixTime,
+        altitude = if (location.hasAltitude()) location.altitude else null,
+        altitudeAccuracy = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && location.hasVerticalAccuracy()) {
+          location.verticalAccuracyMeters.toDouble()
+        } else {
+          null
+        },
+        isMock = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+          location.isMock
+        } else {
+          @Suppress("DEPRECATION")
+          location.isFromMockProvider
+        },
+        source = source,
+        provider = provider ?: "fused",
+      )
+    }
+  }
+
+  fun ageMs(now: Long = System.currentTimeMillis()): Long? {
+    val captured = capturedAtMs ?: return null
+    return (now - captured.toLong()).coerceAtLeast(0)
+  }
+
+  fun isStale(now: Long = System.currentTimeMillis()): Boolean {
+    val age = ageMs(now) ?: return true
+    return age > STALE_MAX_AGE_MS
+  }
+
+  fun withSource(newSource: String): DriverCoordinate = copy(source = newSource)
+
+  fun toLocationMetaJson(context: Context? = null): String {
+    val now = System.currentTimeMillis()
+    val timeMs = capturedAtMs?.toLong()?.takeIf { it > 0 } ?: return "{}"
+    val appVersion = try {
+      val ctx = context ?: DriverLocationService.getApplicationContext()
+      if (ctx != null) {
+        ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: ""
+      } else {
+        ""
+      }
+    } catch (_: Exception) {
+      ""
+    }
+    val json = JSONObject()
+    json.put("source", source ?: "published_cache")
+    json.put("provider", provider ?: "fused")
+    json.put("location_time_ms", timeMs)
+    json.put("age_ms", (now - timeMs).coerceAtLeast(0))
+    json.put("is_mock", isMock ?: false)
+    json.put("accuracy_m", accuracy)
+    json.put("altitude", altitude)
+    json.put("bearing", heading)
+    json.put("speed_mps", speed)
+    json.put("latitude", latitude)
+    json.put("longitude", longitude)
+    json.put("altitude_accuracy", altitudeAccuracy)
+    json.put("platform", "android")
+    json.put("app_version", appVersion)
+    return json.toString()
+  }
+
+  fun toJsMap(): Map<String, Any?> = mapOf(
+    "latitude" to latitude,
+    "longitude" to longitude,
+    "heading" to heading,
+    "speed" to speed,
+    "accuracy" to accuracy,
+    "capturedAtMs" to capturedAtMs,
+    "altitude" to altitude,
+    "altitudeAccuracy" to altitudeAccuracy,
+    "isMock" to isMock,
+    "source" to source,
+    "provider" to provider,
+  )
+}

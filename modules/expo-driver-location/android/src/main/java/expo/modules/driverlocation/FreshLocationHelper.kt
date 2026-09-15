@@ -104,14 +104,15 @@ object FreshLocationHelper {
       return false
     }
 
-    val published = DriverCoordinate(
-      latitude = location.latitude,
-      longitude = location.longitude,
-      heading = if (location.hasBearing()) location.bearing.toDouble() else null,
-      speed = if (location.hasSpeed()) location.speed.toDouble() else null,
-      accuracy = if (location.hasAccuracy()) location.accuracy.toDouble() else null,
-      capturedAtMs = System.currentTimeMillis().toDouble(),
-    )
+    val published = DriverCoordinate.fromAndroidLocation(
+      location,
+      source = when {
+        source.contains("getCurrentLocation", ignoreCase = true) -> "getCurrentLocation"
+        source.contains("lastLocation", ignoreCase = true) -> "lastLocation"
+        else -> "getCurrentLocation"
+      },
+      provider = "fused",
+    ) ?: return false
     if (published.latitude == 0.0 && published.longitude == 0.0) {
       return false
     }

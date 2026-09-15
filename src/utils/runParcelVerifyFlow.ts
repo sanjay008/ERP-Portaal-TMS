@@ -29,7 +29,7 @@ import {
   shouldOpenPickupPlannedModal,
 } from '@/src/utils/pickupPlanned';
 import { playErrorSound } from '@/src/utils/playScanSound';
-import { prefetchScanFreshLocation } from '@/src/utils/scanFreshLocation';
+import { attachScanLocationForVerify } from '@/src/utils/scanFreshLocation';
 import { withDeviceMeta } from '@/src/utils/deviceMeta';
 
 const REGION_MISMATCH_QUESTION =
@@ -149,8 +149,12 @@ export async function runParcelVerifyFlow(
       return;
     }
 
+    // ≤3 min cache or fresh GPS (max ~5s) — same fix used for verify + later ping.
+    const verifyPayload: Record<string, any> = { ...payload };
+    await attachScanLocationForVerify(verifyPayload, data?.order_id);
+
     const res = await ApiService(apiConstants.Verify_status, {
-      customData: await withDeviceMeta(payload),
+      customData: await withDeviceMeta(verifyPayload),
     });
     console.log("payload", res);
     if (!Boolean(res?.status)) {
@@ -185,11 +189,9 @@ export async function runParcelVerifyFlow(
       return;
     }
 
-    // Do NOT await GPS here — iOS native requestLocation can hang for minutes and
-    // keeps "Scanning..." stuck. Prefetch in background; status_update has its own timeout.
-    prefetchScanFreshLocation(data?.order_id);
+    // Location already resolved for verify (≤3 min / fresh). Ping reuses same cache.
     await setLastScannedOrderId(data?.order_id);
-    void pingDriverLiveLocation(deps.userData);
+    void pingDriverLiveLocation(deps.userData, data?.order_id);
     void syncNativeDriverTracking(deps.userData);
 
     if (Array.isArray(res?.data?.damaged_parcel) && res.data.damaged_parcel.length > 0) {

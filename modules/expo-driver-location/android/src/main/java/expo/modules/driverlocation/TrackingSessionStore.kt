@@ -23,6 +23,11 @@ object TrackingSessionStore {
   private const val KEY_LAST_SPEED = "last_speed"
   private const val KEY_LAST_ACCURACY = "last_accuracy"
   private const val KEY_LAST_CAPTURED_AT = "last_captured_at"
+  private const val KEY_LAST_ALTITUDE = "last_altitude"
+  private const val KEY_LAST_ALTITUDE_ACC = "last_altitude_acc"
+  private const val KEY_LAST_IS_MOCK = "last_is_mock"
+  private const val KEY_LAST_SOURCE = "last_source"
+  private const val KEY_LAST_PROVIDER = "last_provider"
 
   // Warm GPS (continuous) — never used for API until published
   private const val KEY_WARM_LAT = "warm_lat"
@@ -30,9 +35,23 @@ object TrackingSessionStore {
   private const val KEY_WARM_HEADING = "warm_heading"
   private const val KEY_WARM_SPEED = "warm_speed"
   private const val KEY_WARM_ACCURACY = "warm_accuracy"
+  private const val KEY_WARM_CAPTURED_AT = "warm_captured_at"
+  private const val KEY_WARM_ALTITUDE = "warm_altitude"
+  private const val KEY_WARM_ALTITUDE_ACC = "warm_altitude_acc"
+  private const val KEY_WARM_IS_MOCK = "warm_is_mock"
+  private const val KEY_WARM_SOURCE = "warm_source"
+  private const val KEY_WARM_PROVIDER = "warm_provider"
 
   fun save(context: Context, config: TrackingConfig) {
-    context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    val prevRegion = prefs.getString(KEY_REGION_ID, null)
+    val prevPlanning = prefs.getString(KEY_PLANNING_DATE, null)
+    val regionChanged =
+      prevRegion != null && prevRegion != config.regionId
+    val planningChanged =
+      prevPlanning != null && prevPlanning != config.planningDate
+
+    val editor = prefs.edit()
       .putString(KEY_API_URL, config.apiUrl)
       .putString(KEY_TOKEN, config.token)
       .putString(KEY_ROLE, config.role)
@@ -43,14 +62,23 @@ object TrackingSessionStore {
       .putInt(KEY_API_INTERVAL_SECONDS, config.apiIntervalSeconds)
       .putString(KEY_NOTIFICATION_TITLE, config.notificationTitle)
       .putString(KEY_NOTIFICATION_BODY, config.notificationBody)
-      .apply {
-        if (config.orderId.isNullOrBlank()) {
-          remove(KEY_ORDER_ID)
-        } else {
-          putString(KEY_ORDER_ID, config.orderId)
-        }
-      }
-      .apply()
+
+    if (config.orderId.isNullOrBlank()) {
+      editor.remove(KEY_ORDER_ID)
+    } else {
+      editor.putString(KEY_ORDER_ID, config.orderId)
+    }
+
+    if (regionChanged || planningChanged) {
+      clearPublishedKeys(editor)
+      clearWarmKeys(editor)
+      DriverLocLog.i(
+        "cache_clear",
+        "reason=region_or_planning_change region=$prevRegion→${config.regionId} planning=$prevPlanning→${config.planningDate}",
+      )
+    }
+
+    editor.apply()
   }
 
   fun load(context: Context): TrackingConfig? {
@@ -94,6 +122,12 @@ object TrackingSessionStore {
       .putString(KEY_WARM_HEADING, (coord.heading ?: 0.0).toString())
       .putString(KEY_WARM_SPEED, (coord.speed ?: 0.0).toString())
       .putString(KEY_WARM_ACCURACY, (coord.accuracy ?: 0.0).toString())
+      .putString(KEY_WARM_CAPTURED_AT, (coord.capturedAtMs ?: 0.0).toString())
+      .putString(KEY_WARM_ALTITUDE, (coord.altitude ?: 0.0).toString())
+      .putString(KEY_WARM_ALTITUDE_ACC, (coord.altitudeAccuracy ?: 0.0).toString())
+      .putBoolean(KEY_WARM_IS_MOCK, coord.isMock ?: false)
+      .putString(KEY_WARM_SOURCE, coord.source ?: "")
+      .putString(KEY_WARM_PROVIDER, coord.provider ?: "")
       .apply()
   }
 
@@ -110,6 +144,12 @@ object TrackingSessionStore {
       heading = readDouble(prefs, KEY_WARM_HEADING)?.takeIf { it != 0.0 },
       speed = readDouble(prefs, KEY_WARM_SPEED)?.takeIf { it != 0.0 },
       accuracy = readDouble(prefs, KEY_WARM_ACCURACY)?.takeIf { it != 0.0 },
+      capturedAtMs = readDouble(prefs, KEY_WARM_CAPTURED_AT)?.takeIf { it > 0 },
+      altitude = readDouble(prefs, KEY_WARM_ALTITUDE)?.takeIf { it != 0.0 },
+      altitudeAccuracy = readDouble(prefs, KEY_WARM_ALTITUDE_ACC)?.takeIf { it != 0.0 },
+      isMock = if (prefs.contains(KEY_WARM_IS_MOCK)) prefs.getBoolean(KEY_WARM_IS_MOCK, false) else null,
+      source = prefs.getString(KEY_WARM_SOURCE, null)?.takeIf { it.isNotBlank() },
+      provider = prefs.getString(KEY_WARM_PROVIDER, null)?.takeIf { it.isNotBlank() },
     )
   }
 
@@ -123,8 +163,13 @@ object TrackingSessionStore {
       .putString(KEY_LAST_ACCURACY, (coord.accuracy ?: 0.0).toString())
       .putString(
         KEY_LAST_CAPTURED_AT,
-        (coord.capturedAtMs ?: System.currentTimeMillis().toDouble()).toString(),
+        (coord.capturedAtMs ?: 0.0).toString(),
       )
+      .putString(KEY_LAST_ALTITUDE, (coord.altitude ?: 0.0).toString())
+      .putString(KEY_LAST_ALTITUDE_ACC, (coord.altitudeAccuracy ?: 0.0).toString())
+      .putBoolean(KEY_LAST_IS_MOCK, coord.isMock ?: false)
+      .putString(KEY_LAST_SOURCE, coord.source ?: "published_cache")
+      .putString(KEY_LAST_PROVIDER, coord.provider ?: "")
       .apply()
   }
 
@@ -147,7 +192,12 @@ object TrackingSessionStore {
       heading = readDouble(prefs, KEY_LAST_HEADING)?.takeIf { it != 0.0 },
       speed = readDouble(prefs, KEY_LAST_SPEED)?.takeIf { it != 0.0 },
       accuracy = readDouble(prefs, KEY_LAST_ACCURACY)?.takeIf { it != 0.0 },
-      capturedAtMs = readDouble(prefs, KEY_LAST_CAPTURED_AT),
+      capturedAtMs = readDouble(prefs, KEY_LAST_CAPTURED_AT)?.takeIf { it > 0 },
+      altitude = readDouble(prefs, KEY_LAST_ALTITUDE)?.takeIf { it != 0.0 },
+      altitudeAccuracy = readDouble(prefs, KEY_LAST_ALTITUDE_ACC)?.takeIf { it != 0.0 },
+      isMock = if (prefs.contains(KEY_LAST_IS_MOCK)) prefs.getBoolean(KEY_LAST_IS_MOCK, false) else null,
+      source = prefs.getString(KEY_LAST_SOURCE, null)?.takeIf { it.isNotBlank() } ?: "published_cache",
+      provider = prefs.getString(KEY_LAST_PROVIDER, null)?.takeIf { it.isNotBlank() },
     )
   }
 
@@ -155,8 +205,45 @@ object TrackingSessionStore {
     return getLastLocation(context) ?: getWarmLocation(context)
   }
 
+  fun clearPublishedLocation(context: Context) {
+    context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+      .also { clearPublishedKeys(it); clearWarmKeys(it) }
+      .apply()
+    DriverLocLog.i("cache_clear", "reason=clear_published")
+  }
+
   fun clear(context: Context) {
     context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().clear().apply()
+  }
+
+  private fun clearPublishedKeys(editor: android.content.SharedPreferences.Editor) {
+    editor
+      .remove(KEY_LAST_LAT)
+      .remove(KEY_LAST_LON)
+      .remove(KEY_LAST_HEADING)
+      .remove(KEY_LAST_SPEED)
+      .remove(KEY_LAST_ACCURACY)
+      .remove(KEY_LAST_CAPTURED_AT)
+      .remove(KEY_LAST_ALTITUDE)
+      .remove(KEY_LAST_ALTITUDE_ACC)
+      .remove(KEY_LAST_IS_MOCK)
+      .remove(KEY_LAST_SOURCE)
+      .remove(KEY_LAST_PROVIDER)
+  }
+
+  private fun clearWarmKeys(editor: android.content.SharedPreferences.Editor) {
+    editor
+      .remove(KEY_WARM_LAT)
+      .remove(KEY_WARM_LON)
+      .remove(KEY_WARM_HEADING)
+      .remove(KEY_WARM_SPEED)
+      .remove(KEY_WARM_ACCURACY)
+      .remove(KEY_WARM_CAPTURED_AT)
+      .remove(KEY_WARM_ALTITUDE)
+      .remove(KEY_WARM_ALTITUDE_ACC)
+      .remove(KEY_WARM_IS_MOCK)
+      .remove(KEY_WARM_SOURCE)
+      .remove(KEY_WARM_PROVIDER)
   }
 
   /**

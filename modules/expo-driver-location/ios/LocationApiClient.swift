@@ -80,8 +80,15 @@ struct DriverCoordinate {
   let heading: Double?
   let speed: Double?
   let accuracy: Double?
-  /// Epoch ms when this fix was published (15-min tick).
+  /// Epoch ms when GPS fix was measured (CLLocation.timestamp).
   let capturedAtMs: Double?
+  let altitude: Double?
+  let altitudeAccuracy: Double?
+  let isMock: Bool?
+  let source: String?
+  let provider: String?
+
+  static let staleMaxAgeMs: Double = 20 * 60 * 1000
 
   init(
     latitude: Double,
@@ -89,7 +96,12 @@ struct DriverCoordinate {
     heading: Double?,
     speed: Double?,
     accuracy: Double?,
-    capturedAtMs: Double? = nil
+    capturedAtMs: Double? = nil,
+    altitude: Double? = nil,
+    altitudeAccuracy: Double? = nil,
+    isMock: Bool? = nil,
+    source: String? = nil,
+    provider: String? = nil
   ) {
     self.latitude = latitude
     self.longitude = longitude
@@ -97,6 +109,114 @@ struct DriverCoordinate {
     self.speed = speed
     self.accuracy = accuracy
     self.capturedAtMs = capturedAtMs
+    self.altitude = altitude
+    self.altitudeAccuracy = altitudeAccuracy
+    self.isMock = isMock
+    self.source = source
+    self.provider = provider
+  }
+
+  static func fromCLLocation(_ location: CLLocation, source: String, provider: String = "core_location") -> DriverCoordinate? {
+    let lat = location.coordinate.latitude
+    let lon = location.coordinate.longitude
+    guard lat != 0 || lon != 0 else { return nil }
+    let fixMs = location.timestamp.timeIntervalSince1970 * 1000
+    return DriverCoordinate(
+      latitude: lat,
+      longitude: lon,
+      heading: location.course >= 0 ? location.course : nil,
+      speed: location.speed >= 0 ? location.speed : nil,
+      accuracy: location.horizontalAccuracy >= 0 ? location.horizontalAccuracy : nil,
+      capturedAtMs: fixMs,
+      altitude: location.verticalAccuracy >= 0 ? location.altitude : nil,
+      altitudeAccuracy: location.verticalAccuracy >= 0 ? location.verticalAccuracy : nil,
+      isMock: false,
+      source: source,
+      provider: provider
+    )
+  }
+
+  func ageMs(now: Double = Date().timeIntervalSince1970 * 1000) -> Double? {
+    guard let capturedAtMs else { return nil }
+    return max(0, now - capturedAtMs)
+  }
+
+  func isStale(now: Double = Date().timeIntervalSince1970 * 1000) -> Bool {
+    guard let age = ageMs(now: now) else { return true }
+    return age > DriverCoordinate.staleMaxAgeMs
+  }
+
+  func withSource(_ newSource: String) -> DriverCoordinate {
+    DriverCoordinate(
+      latitude: latitude,
+      longitude: longitude,
+      heading: heading,
+      speed: speed,
+      accuracy: accuracy,
+      capturedAtMs: capturedAtMs,
+      altitude: altitude,
+      altitudeAccuracy: altitudeAccuracy,
+      isMock: isMock,
+      source: newSource,
+      provider: provider
+    )
+  }
+
+  func toLocationMetaJson() -> String {
+    let now = Date().timeIntervalSince1970 * 1000
+    guard let timeMs = capturedAtMs, timeMs > 0 else {
+      return "{}"
+    }
+    let appVersion =
+      (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? ""
+    let dict: [String: Any?] = [
+      "source": source ?? "published_cache",
+      "provider": provider ?? "core_location",
+      "location_time_ms": Int64(timeMs),
+      "age_ms": Int64(max(0, now - timeMs)),
+      "is_mock": isMock ?? false,
+      "accuracy_m": accuracy as Any,
+      "altitude": altitude as Any,
+      "bearing": heading as Any,
+      "speed_mps": speed as Any,
+      "latitude": latitude,
+      "longitude": longitude,
+      "altitude_accuracy": altitudeAccuracy as Any,
+      "platform": "ios",
+      "app_version": appVersion,
+    ]
+    let cleaned = dict.reduce(into: [String: Any]()) { result, pair in
+      if let value = pair.value {
+        if value is NSNull { return }
+        result[pair.key] = value
+      } else {
+        result[pair.key] = NSNull()
+      }
+    }
+    guard
+      let data = try? JSONSerialization.data(withJSONObject: cleaned, options: []),
+      let json = String(data: data, encoding: .utf8)
+    else {
+      return "{}"
+    }
+    return json
+  }
+
+  func toJsDictionary() -> [String: Any] {
+    var dict: [String: Any] = [
+      "latitude": latitude,
+      "longitude": longitude,
+    ]
+    if let heading { dict["heading"] = heading }
+    if let speed { dict["speed"] = speed }
+    if let accuracy { dict["accuracy"] = accuracy }
+    if let capturedAtMs { dict["capturedAtMs"] = capturedAtMs }
+    if let altitude { dict["altitude"] = altitude }
+    if let altitudeAccuracy { dict["altitudeAccuracy"] = altitudeAccuracy }
+    if let isMock { dict["isMock"] = isMock }
+    if let source { dict["source"] = source }
+    if let provider { dict["provider"] = provider }
+    return dict
   }
 }
 
@@ -104,6 +224,11 @@ enum TrackingSessionStore {
   private static let defaults = UserDefaults(suiteName: "expo_driver_location") ?? .standard
 
   static func save(_ config: TrackingConfig) {
+    let prevRegion = defaults.string(forKey: "region_id")
+    let prevPlanning = defaults.string(forKey: "planning_date")
+    let regionChanged = prevRegion != nil && prevRegion != config.regionId
+    let planningChanged = prevPlanning != nil && prevPlanning != config.planningDate
+
     defaults.set(config.apiUrl, forKey: "api_url")
     defaults.set(config.token, forKey: "token")
     defaults.set(config.role, forKey: "role")
@@ -118,6 +243,14 @@ enum TrackingSessionStore {
       defaults.set(orderId, forKey: "order_id")
     } else {
       defaults.removeObject(forKey: "order_id")
+    }
+
+    if regionChanged || planningChanged {
+      clearPublishedLocation()
+      DriverLocLog.i(
+        "cache_clear",
+        "reason=region_or_planning_change region=\(prevRegion ?? "-")→\(config.regionId) planning=\(prevPlanning ?? "-")→\(config.planningDate)"
+      )
     }
   }
 
@@ -184,7 +317,15 @@ enum TrackingSessionStore {
     defaults.set(coord.heading ?? 0, forKey: "last_heading")
     defaults.set(coord.speed ?? 0, forKey: "last_speed")
     defaults.set(coord.accuracy ?? 0, forKey: "last_accuracy")
-    defaults.set(coord.capturedAtMs ?? (Date().timeIntervalSince1970 * 1000), forKey: "last_captured_at")
+    // Preserve original GPS capture time — never invent Date() when missing if already stored.
+    if let captured = coord.capturedAtMs {
+      defaults.set(captured, forKey: "last_captured_at")
+    }
+    defaults.set(coord.altitude ?? 0, forKey: "last_altitude")
+    defaults.set(coord.altitudeAccuracy ?? 0, forKey: "last_altitude_acc")
+    defaults.set(coord.isMock ?? false, forKey: "last_is_mock")
+    defaults.set(coord.source ?? "published_cache", forKey: "last_source")
+    defaults.set(coord.provider ?? "core_location", forKey: "last_provider")
   }
 
   static func saveLastLocation(_ coord: DriverCoordinate) {
@@ -207,12 +348,30 @@ enum TrackingSessionStore {
       heading: defaults.double(forKey: "last_heading").nonZeroOrNil,
       speed: defaults.double(forKey: "last_speed").nonZeroOrNil,
       accuracy: defaults.double(forKey: "last_accuracy").nonZeroOrNil,
-      capturedAtMs: capturedAt
+      capturedAtMs: capturedAt,
+      altitude: defaults.double(forKey: "last_altitude").nonZeroOrNil,
+      altitudeAccuracy: defaults.double(forKey: "last_altitude_acc").nonZeroOrNil,
+      isMock: defaults.object(forKey: "last_is_mock") != nil ? defaults.bool(forKey: "last_is_mock") : nil,
+      source: defaults.string(forKey: "last_source") ?? "published_cache",
+      provider: defaults.string(forKey: "last_provider")
     )
   }
 
   static func getLocationForApiOrDeactivate() -> DriverCoordinate? {
     getLastLocation() ?? getWarmLocation()
+  }
+
+  static func clearPublishedLocation() {
+    let keys = [
+      "last_lat", "last_lon", "last_heading", "last_speed", "last_accuracy",
+      "last_captured_at", "last_altitude", "last_altitude_acc", "last_is_mock",
+      "last_source", "last_provider",
+      "warm_lat", "warm_lon", "warm_heading", "warm_speed", "warm_accuracy",
+    ]
+    for key in keys {
+      defaults.removeObject(forKey: key)
+    }
+    DriverLocLog.i("cache_clear", "reason=clear_published")
   }
 
   static func clearLastSentCoord() {
@@ -254,6 +413,12 @@ enum LocationApiClient {
       return
     }
 
+    if isActive == 1 && coord.isStale() {
+      DriverLocLog.w("api", "ok=false reason=stale_published_cache ageMs=\(coord.ageMs() ?? -1) is_active=1")
+      completion?(false)
+      return
+    }
+
     guard let url = URL(string: config.apiUrl) else {
       DriverLocLog.w("api", "ok=false reason=invalid_url is_active=\(isActive)")
       completion?(false)
@@ -264,6 +429,13 @@ enum LocationApiClient {
       "api",
       "phase=request is_active=\(isActive) \(DriverLocLog.coord(lat: coord.latitude, lon: coord.longitude, accuracy: coord.accuracy, capturedAtMs: coord.capturedAtMs)) region=\(config.regionId) planning=\(config.planningDate) order=\(config.orderId ?? "-") user=\(config.userId)"
     )
+
+    let forMeta = coord.source == nil ? coord.withSource("published_cache") : coord
+    guard let capturedAt = forMeta.capturedAtMs, capturedAt > 0 else {
+      DriverLocLog.w("api", "ok=false reason=captured_at_missing is_active=\(isActive)")
+      completion?(false)
+      return
+    }
 
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
@@ -276,18 +448,17 @@ enum LocationApiClient {
       "relaties_id": config.relatiesId,
       "user_id": config.userId,
       "region_id": config.regionId,
-      "latitude": String(coord.latitude),
-      "longitude": String(coord.longitude),
-      "heading": formatOptional(coord.heading),
-      "accuracy": formatOptional(coord.accuracy),
-      "speed": formatOptional(coord.speed),
+      "latitude": String(forMeta.latitude),
+      "longitude": String(forMeta.longitude),
+      "heading": formatOptional(forMeta.heading),
+      "accuracy": formatOptional(forMeta.accuracy),
+      "speed": formatOptional(forMeta.speed),
       "is_active": "\(isActive)",
+      "captured_at": String(Int64(capturedAt)),
+      "location_meta": forMeta.toLocationMetaJson(),
     ]
     if let orderId = config.orderId, !orderId.isEmpty {
       fields["order_id"] = orderId
-    }
-    if let capturedAt = coord.capturedAtMs {
-      fields["captured_at"] = String(Int64(capturedAt))
     }
     request.httpBody = buildMultipartBody(
       boundary: boundary,

@@ -221,14 +221,7 @@ final class DriverLocationManager: NSObject, CLLocationManagerDelegate {
     }
     guard let warm = TrackingSessionStore.getWarmLocation() else { return }
     TrackingSessionStore.savePublishedLocation(
-      DriverCoordinate(
-        latitude: warm.latitude,
-        longitude: warm.longitude,
-        heading: warm.heading,
-        speed: warm.speed,
-        accuracy: warm.accuracy,
-        capturedAtMs: Date().timeIntervalSince1970 * 1000
-      )
+      warm.withSource(warm.source ?? "lastLocation")
     )
     print("[\(logTag)] Seeded published from warm (first fix) → lat=\(warm.latitude) lon=\(warm.longitude)")
   }
@@ -268,25 +261,25 @@ final class DriverLocationManager: NSObject, CLLocationManagerDelegate {
       print("[\(logTag)] API skipped — invalid coordinates (0,0)")
       return
     }
+    if coord.isStale() {
+      DriverLocLog.w("api", "skip_stale_active_update ageMs=\(coord.ageMs() ?? -1)")
+      return
+    }
 
-    LocationApiClient.sendLocationUpdate(config: config, coord: coord, isActive: 1) { _ in }
+    LocationApiClient.sendLocationUpdate(
+      config: config,
+      coord: coord.withSource(coord.source ?? "published_cache"),
+      isActive: 1
+    ) { _ in }
   }
 
   private func saveWarmLocation(_ location: CLLocation) {
-    guard let coord = locationToCoord(location) else { return }
+    guard let coord = DriverCoordinate.fromCLLocation(location, source: "interval") else { return }
     TrackingSessionStore.saveWarmLocation(coord)
   }
 
   private func publishLocation(_ location: CLLocation) {
-    guard let base = locationToCoord(location) else { return }
-    let published = DriverCoordinate(
-      latitude: base.latitude,
-      longitude: base.longitude,
-      heading: base.heading,
-      speed: base.speed,
-      accuracy: base.accuracy,
-      capturedAtMs: Date().timeIntervalSince1970 * 1000
-    )
+    guard let published = DriverCoordinate.fromCLLocation(location, source: "interval") else { return }
     TrackingSessionStore.savePublishedLocation(published)
     TrackingSessionStore.saveWarmLocation(published)
     DriverLocLog.i(
@@ -296,15 +289,7 @@ final class DriverLocationManager: NSObject, CLLocationManagerDelegate {
   }
 
   private func locationToCoord(_ location: CLLocation) -> DriverCoordinate? {
-    let coord = DriverCoordinate(
-      latitude: location.coordinate.latitude,
-      longitude: location.coordinate.longitude,
-      heading: location.course >= 0 ? location.course : nil,
-      speed: location.speed >= 0 ? location.speed : nil,
-      accuracy: location.horizontalAccuracy >= 0 ? location.horizontalAccuracy : nil
-    )
-    guard coord.latitude != 0, coord.longitude != 0 else { return nil }
-    return coord
+    DriverCoordinate.fromCLLocation(location, source: "interval")
   }
 
   private func suspendTrackingForDisabledLocation(sendDeactivate: Bool) {

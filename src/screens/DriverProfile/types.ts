@@ -32,6 +32,13 @@ export function userDataToForm(userData: any): DriverProfileForm {
   const relaties = userData?.relaties ?? {};
   const user = userData?.user ?? {};
 
+  const rawCountryId =
+    relaties.country_data?.id ?? relaties.country ?? relaties.country_id ?? null;
+  const countryId =
+    rawCountryId == null || rawCountryId === ""
+      ? null
+      : Number(rawCountryId);
+
   return {
     aanhef: String(relaties.aanhef ?? ""),
     voornaam: String(relaties.voornaam ?? ""),
@@ -40,7 +47,8 @@ export function userDataToForm(userData: any): DriverProfileForm {
     house_number: String(relaties.house_number ?? ""),
     postcode: String(relaties.postcode ?? ""),
     city: String(relaties.city ?? ""),
-    country_id: relaties.country ?? relaties.country_id ?? null,
+    // Match AllCountries.apiId (number) — string "99" won't select in Dropdown.
+    country_id: Number.isFinite(countryId as number) ? countryId : null,
     mobile: String(user.whatsapp_number ?? relaties.mobiel ?? ""),
     mobile_country_code: normalizePhoneCode(
       user.country_code ?? relaties.country_code ?? "+31",

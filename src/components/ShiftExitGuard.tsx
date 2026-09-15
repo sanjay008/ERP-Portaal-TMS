@@ -74,13 +74,33 @@ export default function ShiftExitGuard({ navigation }: Props) {
       );
       const cached = getChauffeurLocation();
       if (cached.latitude && cached.longitude) {
+        let capturedAtMs: number | null = null;
+        let heading: number | null = null;
+        let speed: number | null = null;
+        let accuracy: number | null = null;
+        let source: string | null = 'published_cache';
+        try {
+          const { getLastLocation } = await import('expo-driver-location');
+          const last = await getLastLocation();
+          if (last?.capturedAtMs) {
+            capturedAtMs = Number(last.capturedAtMs);
+            heading = last.heading ?? null;
+            speed = last.speed ?? null;
+            accuracy = last.accuracy ?? null;
+            source = last.source ?? 'published_cache';
+          }
+        } catch {
+          // ignore
+        }
         await sendDriverLocationUpdate(
           {
             latitude: cached.latitude,
             longitude: cached.longitude,
-            heading: null,
-            speed: null,
-            accuracy: null,
+            heading,
+            speed,
+            accuracy,
+            capturedAtMs,
+            source,
           },
           UserData,
           activeShift!.region_id,

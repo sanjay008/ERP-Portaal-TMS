@@ -14,6 +14,7 @@ type ExpoDriverLocationNativeModule = {
   updateNotificationLabels(title: string, body: string): Promise<void>;
   getLastLocation(): Promise<NativeDriverCoordinate | null>;
   getFreshLocationAndPublish(): Promise<NativeDriverCoordinate | null>;
+  clearPublishedLocation(): Promise<void>;
   enableShiftLocationGuard(config: NativeShiftLocationGuardConfig): Promise<void>;
   disableShiftLocationGuard(): Promise<void>;
   consumePendingShiftClose(): Promise<string | null>;

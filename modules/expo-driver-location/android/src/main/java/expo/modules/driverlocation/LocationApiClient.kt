@@ -1,25 +1,55 @@
 package expo.modules.driverlocation
 
-import android.util.Log
 import okhttp3.Call
 import okhttp3.Callback
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 object LocationApiClient {
-  private const val TAG = DriverLocLog.TAG
-
   private val client = OkHttpClient.Builder()
     .connectTimeout(30, TimeUnit.SECONDS)
     .readTimeout(30, TimeUnit.SECONDS)
     .writeTimeout(30, TimeUnit.SECONDS)
     .build()
+
+  private fun buildMultipart(config: TrackingConfig, coord: DriverCoordinate, isActive: Int): MultipartBody? {
+    val forMeta = if (coord.source.isNullOrBlank()) {
+      coord.withSource("published_cache")
+    } else {
+      coord
+    }
+    // Must be the GPS fix time — never wall-clock now.
+    val capturedAt = forMeta.capturedAtMs?.toLong()?.takeIf { it > 0 } ?: run {
+      DriverLocLog.w("api", "ok=false reason=captured_at_missing is_active=$isActive")
+      return null
+    }
+
+    val builder = MultipartBody.Builder()
+      .setType(MultipartBody.FORM)
+      .addFormDataPart("token", config.token)
+      .addFormDataPart("role", config.role)
+      .addFormDataPart("planning_date", config.planningDate)
+      .addFormDataPart("relaties_id", config.relatiesId)
+      .addFormDataPart("user_id", config.userId)
+      .addFormDataPart("region_id", config.regionId)
+      .addFormDataPart("latitude", forMeta.latitude.toString())
+      .addFormDataPart("longitude", forMeta.longitude.toString())
+      .addFormDataPart("heading", forMeta.heading?.toString() ?: "")
+      .addFormDataPart("accuracy", forMeta.accuracy?.toString() ?: "")
+      .addFormDataPart("speed", forMeta.speed?.toString() ?: "")
+      .addFormDataPart("is_active", isActive.toString())
+      .addFormDataPart("captured_at", capturedAt.toString())
+      .addFormDataPart("location_meta", forMeta.toLocationMetaJson())
+
+    if (!config.orderId.isNullOrBlank()) {
+      builder.addFormDataPart("order_id", config.orderId)
+    }
+    return builder.build()
+  }
 
   fun sendLocationUpdate(
     config: TrackingConfig,
@@ -33,36 +63,25 @@ object LocationApiClient {
       return
     }
 
+    // is_active=1: never POST a stale published_cache without a fresher fix.
+    if (isActive == 1 && coord.isStale()) {
+      DriverLocLog.w(
+        "api",
+        "ok=false reason=stale_published_cache ageMs=${coord.ageMs()} is_active=1",
+      )
+      onComplete?.invoke(false)
+      return
+    }
+
     DriverLocLog.i(
       "api",
       "phase=request is_active=$isActive ${DriverLocLog.coord(coord.latitude, coord.longitude, coord.accuracy, coord.capturedAtMs)} region=${config.regionId} planning=${config.planningDate} order=${config.orderId ?: "-"} user=${config.userId}",
     )
 
-    val multipartBuilder = MultipartBody.Builder()
-      .setType(MultipartBody.FORM)
-      .addFormDataPart("token", config.token)
-      .addFormDataPart("role", config.role)
-      .addFormDataPart("planning_date", config.planningDate)
-      .addFormDataPart("relaties_id", config.relatiesId)
-      .addFormDataPart("user_id", config.userId)
-      .addFormDataPart("region_id", config.regionId)
-      .addFormDataPart("latitude", coord.latitude.toString())
-      .addFormDataPart("longitude", coord.longitude.toString())
-      .addFormDataPart("heading", coord.heading?.toString() ?: "")
-      .addFormDataPart("accuracy", coord.accuracy?.toString() ?: "")
-      .addFormDataPart("speed", coord.speed?.toString() ?: "")
-      .addFormDataPart("is_active", isActive.toString())
-
-    if (coord.capturedAtMs != null) {
-      multipartBuilder.addFormDataPart("captured_at", coord.capturedAtMs.toLong().toString())
+    val multipart = buildMultipart(config, coord, isActive) ?: run {
+      onComplete?.invoke(false)
+      return
     }
-
-    if (!config.orderId.isNullOrBlank()) {
-      multipartBuilder.addFormDataPart("order_id", config.orderId)
-    }
-
-    val multipart = multipartBuilder.build()
-
     val request = Request.Builder()
       .url(config.apiUrl)
       .post(multipart)
@@ -104,36 +123,21 @@ object LocationApiClient {
       return false
     }
 
+    // Deactivate (is_active=0) may use stale coords; active updates must not.
+    if (isActive == 1 && coord.isStale()) {
+      DriverLocLog.w(
+        "api",
+        "ok=false reason=stale_published_cache ageMs=${coord.ageMs()} blocking=1 is_active=1",
+      )
+      return false
+    }
+
     DriverLocLog.i(
       "api",
       "phase=request blocking=1 is_active=$isActive ${DriverLocLog.coord(coord.latitude, coord.longitude, coord.accuracy, coord.capturedAtMs)} region=${config.regionId} planning=${config.planningDate} order=${config.orderId ?: "-"}",
     )
 
-    val multipartBuilder = MultipartBody.Builder()
-      .setType(MultipartBody.FORM)
-      .addFormDataPart("token", config.token)
-      .addFormDataPart("role", config.role)
-      .addFormDataPart("planning_date", config.planningDate)
-      .addFormDataPart("relaties_id", config.relatiesId)
-      .addFormDataPart("user_id", config.userId)
-      .addFormDataPart("region_id", config.regionId)
-      .addFormDataPart("latitude", coord.latitude.toString())
-      .addFormDataPart("longitude", coord.longitude.toString())
-      .addFormDataPart("heading", coord.heading?.toString() ?: "")
-      .addFormDataPart("accuracy", coord.accuracy?.toString() ?: "")
-      .addFormDataPart("speed", coord.speed?.toString() ?: "")
-      .addFormDataPart("is_active", isActive.toString())
-
-    if (coord.capturedAtMs != null) {
-      multipartBuilder.addFormDataPart("captured_at", coord.capturedAtMs.toLong().toString())
-    }
-
-    if (!config.orderId.isNullOrBlank()) {
-      multipartBuilder.addFormDataPart("order_id", config.orderId)
-    }
-
-    val multipart = multipartBuilder.build()
-
+    val multipart = buildMultipart(config, coord, isActive) ?: return false
     val request = Request.Builder()
       .url(config.apiUrl)
       .post(multipart)

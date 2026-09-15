@@ -9,8 +9,8 @@ import { GlobalContextData } from "@/src/context/GlobalContext";
 import { extractApiErrorMessage } from "@/src/screens/DriverCompany/driverCompanyApi";
 import { Colors } from "@/src/utils/colors";
 import { getData, storeData } from "@/src/utils/storeData";
-import * as ImagePicker from "expo-image-picker";
 import { useNavigation } from "@react-navigation/native";
+import * as ImagePicker from "expo-image-picker";
 import React, { useContext, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Image, Text, TouchableOpacity, View } from "react-native";
@@ -94,9 +94,12 @@ export default function DriverProfileScreen() {
   const countryOptions = useMemo(
     () =>
       AllCountries.map((item) => ({
-        id: item.apiId ?? item.sortcode,
+        id: item.apiId != null ? Number(item.apiId) : null,
         label: item.name || item.countryname,
-      })).filter((item) => item.id != null),
+      })).filter(
+        (item): item is { id: number; label: string } =>
+          item.id != null && Number.isFinite(item.id),
+      ),
     [AllCountries],
   );
 
@@ -391,7 +394,7 @@ export default function DriverProfileScreen() {
               valueField="id"
               placeholder={t("---Select a Country---")}
               value={form.country_id}
-              onChange={(item) => setField("country_id", item.id)}
+              onChange={(item) => setField("country_id", Number(item.id))}
               search
               placeholderStyle={styles.placeholderStyle}
               selectedTextStyle={styles.selectedTextStyle}

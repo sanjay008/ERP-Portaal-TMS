@@ -22,14 +22,26 @@ export type NativeShiftLocationGuardConfig = Omit<
   seedLongitude?: number;
 };
 
+export type LocationSource =
+  | 'getCurrentLocation'
+  | 'lastLocation'
+  | 'published_cache'
+  | 'interval'
+  | string;
+
 export type NativeDriverCoordinate = {
   latitude: number;
   longitude: number;
-  heading: number | null;
-  speed: number | null;
-  accuracy: number | null;
-  /** Epoch ms when the 15-min published fix was captured */
+  heading?: number | null;
+  speed?: number | null;
+  accuracy?: number | null;
+  /** Epoch ms when the GPS fix was measured */
   capturedAtMs?: number | null;
+  altitude?: number | null;
+  altitudeAccuracy?: number | null;
+  isMock?: boolean | null;
+  source?: LocationSource | null;
+  provider?: string | null;
 };
 
 export type ShiftForceClosedEvent = {

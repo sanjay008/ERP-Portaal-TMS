@@ -424,7 +424,7 @@ class DriverLocationService : Service() {
     val warm = TrackingSessionStore.getWarmLocation(this) ?: return
     TrackingSessionStore.savePublishedLocation(
       this,
-      warm.copy(capturedAtMs = System.currentTimeMillis().toDouble()),
+      warm.withSource(warm.source ?: "lastLocation"),
     )
     Log.i(TAG, "Seeded published from warm (first fix) → lat=${warm.latitude} lon=${warm.longitude}")
   }
@@ -460,28 +460,18 @@ class DriverLocationService : Service() {
   }
 
   private fun publishLocation(location: Location) {
-    val coord = locationToCoord(location) ?: return
-    val published = coord.copy(capturedAtMs = System.currentTimeMillis().toDouble())
-    TrackingSessionStore.savePublishedLocation(this, published)
-    TrackingSessionStore.saveWarmLocation(this, published)
+    val coord = DriverCoordinate.fromAndroidLocation(location, source = "interval", provider = "fused")
+      ?: return
+    TrackingSessionStore.savePublishedLocation(this, coord)
+    TrackingSessionStore.saveWarmLocation(this, coord)
     DriverLocLog.i(
       "publish",
-      "source=interval ${DriverLocLog.coord(published.latitude, published.longitude, published.accuracy, published.capturedAtMs)}",
+      "source=interval ${DriverLocLog.coord(coord.latitude, coord.longitude, coord.accuracy, coord.capturedAtMs)}",
     )
   }
 
   private fun locationToCoord(location: Location): DriverCoordinate? {
-    val coord = DriverCoordinate(
-      latitude = location.latitude,
-      longitude = location.longitude,
-      heading = if (location.hasBearing()) location.bearing.toDouble() else null,
-      speed = if (location.hasSpeed()) location.speed.toDouble() else null,
-      accuracy = if (location.hasAccuracy()) location.accuracy.toDouble() else null,
-    )
-    if (coord.latitude == 0.0 && coord.longitude == 0.0) {
-      return null
-    }
-    return coord
+    return DriverCoordinate.fromAndroidLocation(location, source = "interval", provider = "fused")
   }
 
   private fun sendActiveApiUpdate(config: TrackingConfig) {
@@ -489,7 +479,13 @@ class DriverLocationService : Service() {
     if (coord.latitude == 0.0 && coord.longitude == 0.0) {
       return
     }
-    LocationApiClient.sendLocationUpdate(config, coord, 1) { _ -> }
+    if (coord.isStale()) {
+      DriverLocLog.w("api", "skip_stale_active_update ageMs=${coord.ageMs()} — refreshing first")
+      // Interval tick already runs publishFreshAndSend; if still stale here, skip.
+      return
+    }
+    val forApi = coord.withSource(coord.source ?: "published_cache")
+    LocationApiClient.sendLocationUpdate(config, forApi, 1) { _ -> }
   }
 
   private fun sendDeactivateAndStop(restartAllowed: Boolean) {
