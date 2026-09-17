@@ -2,6 +2,7 @@ import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import apiConstants from "../../api/apiConstants";
 import ApiService from "../../utils/Apiservice";
+import { hydrateApiBaseUrl } from "../../utils/apiBaseUrl";
 import { getStoredUserLanguage } from "../../utils/languagePreference";
 
 const loadLanguage = async () => {
@@ -12,6 +13,7 @@ const loadLanguage = async () => {
 
 export const languagedata = async () => {
   try {
+    await hydrateApiBaseUrl();
     const data = await ApiService(apiConstants.langauge, {});
     if (data.status) {
       const languageData = data.data.reduce((acc, language) => {

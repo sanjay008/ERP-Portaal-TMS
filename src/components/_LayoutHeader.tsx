@@ -1,5 +1,4 @@
-import React, { ReactNode, useContext, useState } from "react";
-import { useTranslation } from "react-i18next";
+import React, { ReactNode, useContext } from "react";
 import { StatusBar, StyleSheet, View } from "react-native";
 import { GlobalContextData } from "../context/GlobalContext";
 import { Colors } from "../utils/colors";
@@ -9,12 +8,8 @@ interface LayoutHeaderProps {
   children: ReactNode;
 }
 
-
 export default function LayoutHeader({ children }: LayoutHeaderProps) {
-  const { Toast, setToast, UserData } = useContext(GlobalContextData);
-  const { t } = useTranslation();
-
-  const [BaseUrlPopup,setBaseUrlPopup] = useState<boolean>(false);
+  const { Toast } = useContext(GlobalContextData);
 
   return (
     <View style={styles.container}>

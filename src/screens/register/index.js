@@ -18,8 +18,10 @@ import MyCountryPiker from "../../components/CountryPicker";
 import apiConstants from "../../api/apiConstants";
 import { Images } from "../../assets/images";
 import ButtonComponent from "../../components/buttonComponent.tsx";
+import { useErrorHandle } from "../../components/ErrorHandle";
 import Input from "../../components/input";
 import Loader from "../../components/loading";
+import ToastMessage from "../../components/ToastMessage";
 import ApiService from "../../utils/Apiservice";
 import { Colors } from "../../utils/colors";
 import { getData, storeData } from "../../utils/storeData";
@@ -29,6 +31,7 @@ const regex = /^[\w+.-]+@[\w.-]+\.[a-zA-Z]{2,}$/;
 
 const Register = ({ navigation, route }) => {
   const { t } = useTranslation();
+  const { ErrorHandle } = useErrorHandle();
   const { typee } = route.params;
   const { width } = Dimensions.get("screen");
   const [commpny, setcommpny] = useState("");
@@ -47,6 +50,8 @@ const Register = ({ navigation, route }) => {
   const [countryPickerOpen, setCountryPickerOpen] = useState(false);
   const {
     setUserData,
+    Toast,
+    setToast,
     GOOGLE_API_KEY, setGOOGLE_API_KEY,
     CompanyLogo, setCompanyLogo,
     Permission, setPermission,
@@ -216,19 +221,37 @@ const Register = ({ navigation, route }) => {
         }
       } else {
         setTimeout(() => setLoding(false), 1000);
-        Alert.alert("Oops!", data.message, [
-          { text: "OK", onPress: () => console.log("OK Pressed") },
-        ]);
+        setToast({
+          top: 45,
+          text:
+            t(data?.message) ||
+            data?.message ||
+            t("Something went wrong. Please try again."),
+          type: "error",
+          visible: true,
+        });
       }
     } catch (err) {
       console.log("Error fetching connections:", err);
       setTimeout(() => setLoding(false), 1000);
+      setToast({
+        top: 45,
+        text: ErrorHandle(err).message,
+        type: "error",
+        visible: true,
+      });
     }
   };
 
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar backgroundColor={Colors.white} barStyle={"dark-content"} />
+      <ToastMessage
+        type={Toast?.type}
+        visible={Toast?.visible}
+        text={Toast?.text}
+        top={Toast?.top}
+      />
       {loading && <Loader color={Colors.pink} />}
       <KeyboardAwareScrollView
         bounces={false}

@@ -1,4 +1,5 @@
 import BottomTabs from "@/src/bottomTabs/BottomTabs";
+import AdminBaseUrlGate from "@/src/components/AdminBaseUrlGate";
 import LayoutHeader from "@/src/components/_LayoutHeader";
 import ChauffeurLocationBootstrap from "@/src/components/ChauffeurLocationBootstrap";
 import CustomCamera from "@/src/components/CustomCamera";
@@ -40,7 +41,7 @@ import NetInfo from "@react-native-community/netinfo";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import React, { useEffect, useState } from "react";
 import { I18nextProvider } from "react-i18next";
-import { StatusBar } from "react-native";
+import { StatusBar, View } from "react-native";
 import changeNavigationBarColor from 'react-native-navigation-bar-color';
 import { MenuProvider } from "react-native-popup-menu";
 import OnBoarding from "../src/screens/onbording";
@@ -86,6 +87,8 @@ export default function index() {
             <DropboxUploadRunner />
             <ChauffeurLocationBootstrap />
             <DriverGPSTraking />
+            <AdminBaseUrlGate>
+            <View style={{ flex: 1 }}>
             {isConnected ? (
               <Stack.Navigator
                 id="MainStack"
@@ -246,6 +249,8 @@ export default function index() {
                 <Stack.Screen name="NoInternet" component={NoInternet} />
               </Stack.Navigator>
             )}
+            </View>
+            </AdminBaseUrlGate>
           </GlobalContext>
         </MenuProvider>
       </I18nextProvider>
