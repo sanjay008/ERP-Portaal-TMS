@@ -38,7 +38,8 @@ import {
 const SEARCH_BAR_HEIGHT = 44;
 const ROW_HEIGHT = 44;
 const BOTTOM_INSET = 12;
-const MIN_LIST_HEIGHT = ROW_HEIGHT * 3;
+const TOP_INSET = 12;
+const MIN_LIST_HEIGHT = ROW_HEIGHT * 4;
 const MIN_DROPDOWN_HEIGHT = SEARCH_BAR_HEIGHT + MIN_LIST_HEIGHT;
 
 type AnchorRect = {
@@ -56,40 +57,33 @@ type DropdownLayout = {
   opensAbove: boolean;
 };
 
-const getPreferredMaxHeight = () => {
-  const screenH = Dimensions.get('window').height;
-  return Math.round(Math.min(Math.max(screenH * 0.42, 280), 400));
+/** Keyboard top edge in window coords (from endCoordinates.screenY). */
+type KeyboardFrame = {
+  height: number;
+  topY: number;
 };
 
+const getPreferredMaxHeight = (visibleSpan: number) =>
+  Math.round(
+    Math.min(Math.max(visibleSpan * 0.55, MIN_DROPDOWN_HEIGHT), 400),
+  );
+
+/**
+ * Anchored dropdown layout (not a bottom sheet).
+ *
+ * Root cause of the white empty box on search:
+ * On Android, adjustResize shrinks Dimensions.window WHILE keyboard events
+ * still report keyboard height. Subtracting keyboard height again collapses
+ * the panel / FlatList into a blank white rectangle.
+ *
+ * Fix: use keyboard.topY (endCoordinates.screenY) as the visible bottom —
+ * never windowHeight - keyboardHeight when that would double-count.
+ */
 const computeDropdownLayout = (
   anchor: AnchorRect,
-  keyboardHeight = 0,
+  keyboard: KeyboardFrame | null,
 ): DropdownLayout => {
-  const { height: screenH, width: screenW } = Dimensions.get('window');
-  const preferredMax = getPreferredMaxHeight();
-  const visibleBottom = screenH - keyboardHeight - BOTTOM_INSET;
-  const spaceBelow = visibleBottom - (anchor.y + anchor.height);
-  const spaceAbove = anchor.y - BOTTOM_INSET;
-
-  let opensAbove = false;
-  let height: number;
-  let top: number;
-
-  if (spaceBelow >= MIN_DROPDOWN_HEIGHT) {
-    height = Math.min(preferredMax, spaceBelow);
-    top = anchor.y + anchor.height;
-  } else if (spaceAbove >= MIN_DROPDOWN_HEIGHT && spaceAbove > spaceBelow) {
-    opensAbove = true;
-    height = Math.min(preferredMax, spaceAbove);
-    top = anchor.y - height;
-  } else if (spaceBelow >= spaceAbove) {
-    height = Math.max(MIN_DROPDOWN_HEIGHT, Math.min(preferredMax, spaceBelow));
-    top = anchor.y + anchor.height;
-  } else {
-    opensAbove = true;
-    height = Math.max(MIN_DROPDOWN_HEIGHT, Math.min(preferredMax, spaceAbove));
-    top = Math.max(BOTTOM_INSET, anchor.y - height);
-  }
+  const { height: windowH, width: screenW } = Dimensions.get('window');
 
   const horizontalInset = 8;
   const left = Math.max(
@@ -98,7 +92,88 @@ const computeDropdownLayout = (
   );
   const width = Math.min(anchor.width, screenW - left - horizontalInset);
 
-  return { top, left, width, height, opensAbove };
+  const visibleTop = TOP_INSET;
+  let visibleBottom = windowH - BOTTOM_INSET;
+
+  if (keyboard && keyboard.height > 0) {
+    // screenY = top of keyboard. Also clamp to current window (handles resize).
+    const kbTop =
+      keyboard.topY > 0 ? keyboard.topY : windowH - keyboard.height;
+    visibleBottom = Math.min(windowH, kbTop) - BOTTOM_INSET;
+  }
+
+  const available = Math.max(0, visibleBottom - visibleTop);
+  const preferredMax = getPreferredMaxHeight(available || windowH);
+
+  // Search keyboard open: park the whole panel in the free band above the keyboard.
+  if (keyboard && keyboard.height > 0) {
+    const height = Math.min(
+      preferredMax,
+      Math.max(MIN_DROPDOWN_HEIGHT, available),
+    );
+    // Keep horizontally aligned with the phone field; vertically fill free space.
+    const top = Math.max(visibleTop, visibleBottom - height);
+    return { top, left, width, height, opensAbove: true };
+  }
+
+  const spaceBelow = visibleBottom - (anchor.y + anchor.height);
+  const spaceAbove = anchor.y - visibleTop;
+
+  // Phone field sits low on Driver Profile — prefer opening above when possible.
+  const preferAbove =
+    spaceBelow < MIN_DROPDOWN_HEIGHT ||
+    (anchor.y > windowH * 0.45 && spaceAbove >= MIN_DROPDOWN_HEIGHT);
+
+  if (!preferAbove && spaceBelow >= MIN_DROPDOWN_HEIGHT) {
+    const height = Math.min(preferredMax, spaceBelow);
+    return {
+      top: anchor.y + anchor.height,
+      left,
+      width,
+      height,
+      opensAbove: false,
+    };
+  }
+
+  if (spaceAbove >= MIN_LIST_HEIGHT) {
+    const height = Math.min(preferredMax, Math.max(spaceAbove, MIN_DROPDOWN_HEIGHT));
+    const top = Math.max(visibleTop, anchor.y - height);
+    return {
+      top,
+      left,
+      width,
+      height: Math.min(height, anchor.y - top),
+      opensAbove: true,
+    };
+  }
+
+  // Tiny leftover space: use whatever band is larger.
+  if (spaceBelow >= spaceAbove) {
+    const height = Math.max(
+      Math.min(preferredMax, Math.max(spaceBelow, MIN_LIST_HEIGHT)),
+      MIN_LIST_HEIGHT,
+    );
+    const top = Math.min(anchor.y + anchor.height, visibleBottom - height);
+    return {
+      top: Math.max(visibleTop, top),
+      left,
+      width,
+      height,
+      opensAbove: false,
+    };
+  }
+
+  const height = Math.max(
+    Math.min(preferredMax, Math.max(spaceAbove, MIN_LIST_HEIGHT)),
+    MIN_LIST_HEIGHT,
+  );
+  return {
+    top: Math.max(visibleTop, anchor.y - height),
+    left,
+    width,
+    height,
+    opensAbove: true,
+  };
 };
 
 type Props = {
@@ -166,19 +241,34 @@ export default function MyCountryPiker({
     top: 0,
     left: 0,
     width: 0,
-    height: getPreferredMaxHeight(),
+    height: MIN_DROPDOWN_HEIGHT,
     opensAbove: false,
   });
   const anchorRef = useRef<View>(null);
-  const keyboardHeightRef = useRef(0);
+  const anchorRectRef = useRef<AnchorRect | null>(null);
+  const keyboardRef = useRef<KeyboardFrame | null>(null);
+  const searchInputRef = useRef<TextInput>(null);
 
-  const updateDropdownLayout = useCallback((keyboardHeight = 0) => {
-    keyboardHeightRef.current = keyboardHeight;
-    anchorRef.current?.measureInWindow((x, y, width, height) => {
-      const anchor = { x, y, width, height };
-      setDropdownLayout(computeDropdownLayout(anchor, keyboardHeight));
-    });
+  const applyLayout = useCallback((anchor: AnchorRect, keyboard: KeyboardFrame | null) => {
+    anchorRectRef.current = anchor;
+    setDropdownLayout(computeDropdownLayout(anchor, keyboard));
   }, []);
+
+  const remeasureAndLayout = useCallback(
+    (keyboard: KeyboardFrame | null) => {
+      keyboardRef.current = keyboard;
+      anchorRef.current?.measureInWindow((x, y, width, height) => {
+        if (width > 0 && height > 0) {
+          applyLayout({ x, y, width, height }, keyboard);
+          return;
+        }
+        if (anchorRectRef.current) {
+          applyLayout(anchorRectRef.current, keyboard);
+        }
+      });
+    },
+    [applyLayout],
+  );
 
   useEffect(() => {
     fetchCountries?.();
@@ -246,36 +336,60 @@ export default function MyCountryPiker({
     if (disabled) return;
 
     setSearchQuery('');
-    keyboardHeightRef.current = 0;
+    keyboardRef.current = null;
     anchorRef.current?.measureInWindow((x, y, width, height) => {
       const anchor = { x, y, width, height };
-      setDropdownLayout(computeDropdownLayout(anchor, 0));
+      anchorRectRef.current = anchor;
+      setDropdownLayout(computeDropdownLayout(anchor, null));
       setOpenState(true);
     });
   }, [disabled, setOpenState]);
 
   const closeDropdown = useCallback(() => {
     setSearchQuery('');
-    keyboardHeightRef.current = 0;
+    keyboardRef.current = null;
     setOpenState(false);
   }, [setOpenState]);
 
   useEffect(() => {
     if (!open) return;
 
-    const keyboardShowEvent =
+    const showEvent =
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const keyboardHideEvent =
+    const hideEvent =
       Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
 
-    const showSub = Keyboard.addListener(keyboardShowEvent, (event) => {
-      updateDropdownLayout(event.endCoordinates.height);
+    const showSub = Keyboard.addListener(showEvent, (event) => {
+      const height = event.endCoordinates?.height ?? 0;
+      const topY = event.endCoordinates?.screenY ?? 0;
+      const frame: KeyboardFrame = { height, topY };
+      keyboardRef.current = frame;
+
+      // Prefer frozen open-time anchor — re-measure jumps while keyboard animates
+      // and is a common source of the empty white panel.
+      const anchor = anchorRectRef.current;
+      if (anchor) {
+        applyLayout(anchor, frame);
+      } else {
+        remeasureAndLayout(frame);
+      }
     });
-    const hideSub = Keyboard.addListener(keyboardHideEvent, () => {
-      updateDropdownLayout(0);
+
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      keyboardRef.current = null;
+      const anchor = anchorRectRef.current;
+      if (anchor) {
+        applyLayout(anchor, null);
+      } else {
+        remeasureAndLayout(null);
+      }
     });
+
     const dimensionSub = Dimensions.addEventListener('change', () => {
-      updateDropdownLayout(keyboardHeightRef.current);
+      const anchor = anchorRectRef.current;
+      if (anchor) {
+        applyLayout(anchor, keyboardRef.current);
+      }
     });
 
     return () => {
@@ -283,7 +397,7 @@ export default function MyCountryPiker({
       hideSub.remove();
       dimensionSub.remove();
     };
-  }, [open, updateDropdownLayout]);
+  }, [open, applyLayout, remeasureAndLayout]);
 
   const toggleDropdown = useCallback(() => {
     if (open) {
@@ -422,10 +536,16 @@ export default function MyCountryPiker({
         statusBarTranslucent
         onRequestClose={closeDropdown}
       >
-        <View style={styles.modalRoot}>
-          <Pressable style={styles.modalBackdrop} onPress={closeDropdown} />
+        <View style={styles.modalRoot} collapsable={false}>
+          <Pressable
+            style={styles.modalBackdrop}
+            onPress={closeDropdown}
+            accessibilityRole="button"
+            accessibilityLabel={t('Close')}
+          />
 
           <View
+            pointerEvents="box-none"
             style={[
               styles.modalDropdown,
               dropdownLayout.opensAbove
@@ -447,6 +567,7 @@ export default function MyCountryPiker({
                 style={styles.searchIcon}
               />
               <TextInput
+                ref={searchInputRef}
                 style={styles.searchInput}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
@@ -455,6 +576,9 @@ export default function MyCountryPiker({
                 autoCorrect={false}
                 autoCapitalize="none"
                 returnKeyType="search"
+                blurOnSubmit={false}
+                // Keep focus inside modal so keyboard events stay on this window.
+                showSoftInputOnFocus
               />
               {searchQuery.length > 0 ? (
                 <Pressable
@@ -471,25 +595,39 @@ export default function MyCountryPiker({
               ) : null}
             </View>
 
-            <FlatList
-              data={flatListData}
-              keyExtractor={keyExtractor}
-              renderItem={renderFlatItem}
-              style={styles.dropdownList}
-              contentContainerStyle={styles.dropdownListContent}
-              keyboardShouldPersistTaps="always"
-              showsVerticalScrollIndicator
-              bounces
-              scrollEventThrottle={16}
-              initialNumToRender={14}
-              maxToRenderPerBatch={18}
-              windowSize={8}
-              removeClippedSubviews={Platform.OS === 'android'}
-              nestedScrollEnabled
-              ListEmptyComponent={
-                <Text style={styles.emptyText}>{t('No countries found')}</Text>
-              }
-            />
+            {/*
+              FlatList must use flex:1 inside a fixed-height parent.
+              Passing a changing style={{ height }} while the keyboard opens
+              is what leaves an empty white panel on Android.
+            */}
+            <View style={styles.listHost} collapsable={false}>
+              <FlatList
+                data={flatListData}
+                keyExtractor={keyExtractor}
+                renderItem={renderFlatItem}
+                style={styles.list}
+                contentContainerStyle={
+                  flatListData.length === 0
+                    ? styles.dropdownListEmpty
+                    : styles.dropdownListContent
+                }
+                keyboardShouldPersistTaps="always"
+                keyboardDismissMode="none"
+                showsVerticalScrollIndicator
+                bounces={false}
+                overScrollMode="never"
+                initialNumToRender={20}
+                maxToRenderPerBatch={24}
+                windowSize={12}
+                removeClippedSubviews={false}
+                nestedScrollEnabled
+                ListEmptyComponent={
+                  <Text style={styles.emptyText}>
+                    {t('No countries found')}
+                  </Text>
+                }
+              />
+            </View>
           </View>
         </View>
       </Modal>
@@ -505,20 +643,24 @@ const styles = StyleSheet.create({
   },
   inputRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'stretch',
     width: '100%',
     minHeight: 48,
-    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: Colors.languageborder,
+    borderRadius: 4,
+    overflow: 'hidden',
+    backgroundColor: Colors.white,
   },
   codeBtn: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
-    paddingRight: 10,
-    marginRight: 8,
+    paddingHorizontal: 12,
+    backgroundColor: Colors.primarylite,
     borderRightWidth: 1,
-    borderRightColor: Colors.litegray,
-    minHeight: 48,
+    borderRightColor: Colors.languageborder,
   },
   flagText: {
     fontSize: 20,
@@ -534,7 +676,9 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.Regular,
     color: Colors.black,
     paddingVertical: 0,
+    paddingHorizontal: 12,
     minHeight: 48,
+    backgroundColor: Colors.white,
   },
   modalRoot: {
     flex: 1,
@@ -542,14 +686,18 @@ const styles = StyleSheet.create({
   modalBackdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.08)',
+    zIndex: 0,
   },
   modalDropdown: {
     position: 'absolute',
+    zIndex: 2,
+    elevation: 24,
+    flexDirection: 'column',
     backgroundColor: Colors.white,
     borderWidth: 1,
     borderColor: Colors.litegray,
-    overflow: 'hidden',
-    elevation: 24,
+    // Do NOT use overflow:'hidden' — on Android it blanks FlatList children
+    // when the panel height changes with the keyboard.
     shadowColor: Colors.black,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.15,
@@ -589,11 +737,21 @@ const styles = StyleSheet.create({
     marginLeft: 6,
     padding: 2,
   },
-  dropdownList: {
+  listHost: {
+    flex: 1,
+    minHeight: MIN_LIST_HEIGHT,
+    backgroundColor: Colors.white,
+  },
+  list: {
     flex: 1,
   },
   dropdownListContent: {
     paddingBottom: 8,
+    flexGrow: 1,
+  },
+  dropdownListEmpty: {
+    flexGrow: 1,
+    justifyContent: 'center',
   },
   dropdownRow: {
     flexDirection: 'row',
@@ -602,6 +760,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     gap: 8,
     width: '100%',
+    backgroundColor: Colors.white,
   },
   dropdownRowPressed: {
     backgroundColor: Colors.BtnBg,

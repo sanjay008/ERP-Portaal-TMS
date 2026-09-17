@@ -39,7 +39,7 @@ export type PickedDocumentFile = {
 
 export function buildTypeSubtitle(item: QuickUploadType) {
   const parts: string[] = [];
-  const minPhotos = Number(item.min_photos || 1);
+  const minPhotos = resolveMinPhotos(item);
   if (minPhotos > 0) {
     parts.push(
       minPhotos === 1
@@ -51,6 +51,29 @@ export function buildTypeSubtitle(item: QuickUploadType) {
     parts.push("Expiry date required");
   }
   return parts.join(" · ") || "Upload document photo";
+}
+
+/** NIWO / passport (and API min_photos=1) → single photo upload. */
+export function isSinglePhotoDocumentType(
+  item: Pick<QuickUploadType, "type" | "slug" | "min_photos"> | null | undefined,
+): boolean {
+  if (!item) return false;
+  if (Number(item.min_photos) === 1) return true;
+  const key = `${item.slug || ""} ${item.type || ""}`.toLowerCase();
+  return (
+    key.includes("niwo") ||
+    key.includes("passport") ||
+    key.includes("paspoort")
+  );
+}
+
+export function resolveMinPhotos(
+  item: Pick<QuickUploadType, "type" | "slug" | "min_photos"> | null | undefined,
+): number {
+  if (isSinglePhotoDocumentType(item)) return 1;
+  const n = Number(item?.min_photos);
+  if (Number.isFinite(n) && n > 0) return Math.max(1, Math.floor(n));
+  return 2;
 }
 
 export function resolveDocumentFileType(doc: RelatieDocument | null | undefined) {

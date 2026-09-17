@@ -37,18 +37,14 @@ export const styles = StyleSheet.create({
     flex: 1,
   },
   country: {
-    height: RFValue(45),
     width: '100%',
-    alignItems: "center",
-    flexDirection: "row",
     marginTop: 24,
-    backgroundColor: Colors.white,
-    borderRadius: 10,
-    borderColor: Colors.litegray,
-    borderWidth: 1.3,
-    overflow: 'hidden'
-    // alignSelf:'center'
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    overflow: 'visible',
+    zIndex: 10,
   },
+
   pickerStyle: {
     // marginLeft: 20,
     // width:'50%',
@@ -71,28 +67,6 @@ export const styles = StyleSheet.create({
     color: Colors.black,
     marginTop: RFValue(5),
     alignSelf: "center",
-  },
-
-  country: {
-    minHeight: RFValue(48),
-    width: "100%",
-    flexDirection: "column",
-    marginTop: 24,
-    backgroundColor: Colors.white,
-    borderRadius: 10,
-    borderColor: Colors.litegray,
-    borderWidth: 1.3,
-    paddingHorizontal: 0,
-    overflow: "visible",
-    zIndex: 10,
-  },
-
-  pickerStyle: {
-    // flexShrink: 0, // prevent shrinking
-    justifyContent: "center",
-    borderWidth: 0,
-    height: heightPercentageToDP(6),
-    width: '80%',
   },
 
   pickerTitleStyle: {

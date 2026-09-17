@@ -9,84 +9,44 @@ import ImageSourceSheet, {
 import LoadingModal from "@/src/components/LoadingModal";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import { Colors } from "@/src/utils/colors";
-import { FONTS } from "@/src/utils/storeData";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
 import React, { useCallback, useContext, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Image,
+  Modal,
   Platform,
   Pressable,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import { Calendar } from "react-native-calendars";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
-import Modal from "react-native-modal";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styles } from "./styles";
 import type { PickedDocumentFile, QuickUploadType } from "./types";
+import { resolveMinPhotos } from "./types";
 import {
   extractDocumentApiError,
   isApiSuccess,
   quickUploadDocuments,
 } from "./uploadDocumentsApi";
 
-const calendarTheme = {
-  backgroundColor: Colors.white,
-  calendarBackground: Colors.white,
-  textSectionTitleColor: Colors.darkText,
-  selectedDayBackgroundColor: Colors.primary,
-  selectedDayTextColor: Colors.white,
-  todayTextColor: Colors.primary,
-  dayTextColor: Colors.black,
-  monthTextColor: Colors.black,
-  textMonthFontSize: 18,
-  textMonthFontWeight: "600",
-  textMonthFontFamily: FONTS.SemiBold,
-  arrowColor: Colors.black,
-  textDayFontSize: 15,
-  textDayHeaderFontSize: 13,
-  textDayFontWeight: "400",
-  textDayFontFamily: FONTS.Regular,
-  textDayHeaderFontFamily: FONTS.Medium,
-  "stylesheet.calendar.header": {
-    header: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginHorizontal: 10,
-      marginTop: 10,
-      marginBottom: 10,
-    },
-    monthText: {
-      fontSize: 18,
-      fontWeight: "600",
-      fontFamily: FONTS.SemiBold,
-      color: Colors.black,
-    },
-    dayHeader: {
-      fontSize: 13,
-      fontFamily: FONTS.Medium,
-      color: Colors.darkText,
-    },
-  },
-  "stylesheet.day.basic": {
-    base: {
-      width: 32,
-      height: 32,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    text: {
-      fontSize: 15,
-      fontFamily: FONTS.Regular,
-      color: Colors.black,
-    },
-  },
-} as any;
+function ymdToDate(ymd: string): Date {
+  if (!ymd) return new Date();
+  const [y, m, d] = ymd.split("-").map(Number);
+  if (!y || !m || !d) return new Date();
+  return new Date(y, m - 1, d);
+}
+
+function dateToYmd(date: Date): string {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
 
 function assetToFile(asset: ImagePicker.ImagePickerAsset): PickedDocumentFile {
   const uri = asset.uri;
@@ -118,18 +78,19 @@ export default function DocumentUploadScreen() {
   const { ErrorHandle } = useErrorHandle();
 
   const documentType = params.documentType;
-  const minPhotos = Math.max(1, Number(documentType?.min_photos || 2));
+  const minPhotos = resolveMinPhotos(documentType);
+  const singlePhoto = minPhotos === 1;
   const requiresExpiry = documentType?.expire_date_required !== false;
   const allowCamera = documentType?.allow_camera !== false;
   const typeName = documentType?.type || "";
   const typeSlug = documentType?.slug || "";
 
-  const [photos, setPhotos] = useState<(PickedDocumentFile | null)[]>([
-    null,
-    null,
-  ]);
+  const [photos, setPhotos] = useState<(PickedDocumentFile | null)[]>(() =>
+    Array.from({ length: minPhotos }, () => null),
+  );
   const [expiryDate, setExpiryDate] = useState("");
   const [expiryPickerOpen, setExpiryPickerOpen] = useState(false);
+  const [iosExpiryDraft, setIosExpiryDraft] = useState(() => new Date());
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [sourceSheetOpen, setSourceSheetOpen] = useState(false);
@@ -247,9 +208,11 @@ export default function DocumentUploadScreen() {
   const validate = () => {
     const next: Record<string, string> = {};
     if (!photos[0]) {
-      next.front = t("Front photo is required");
+      next.front = singlePhoto
+        ? t("Photo is required")
+        : t("Front photo is required");
     }
-    if (!photos[1]) {
+    if (!singlePhoto && !photos[1]) {
       next.back = t("Back photo is required");
     }
     if (requiresExpiry && !expiryDate) {
@@ -263,8 +226,8 @@ export default function DocumentUploadScreen() {
     if (!documentType || !validate()) return;
 
     const frontPhoto = photos[0];
-    const backPhoto = photos[1];
-    if (!frontPhoto || !backPhoto) return;
+    if (!frontPhoto) return;
+    if (!singlePhoto && !photos[1]) return;
 
     setLoading(true);
     try {
@@ -273,12 +236,16 @@ export default function DocumentUploadScreen() {
         expire_date: requiresExpiry ? toApiDateString(expiryDate) : undefined,
         front_file: {
           ...frontPhoto,
-          name: "photo_front.jpg",
+          name: singlePhoto ? "photo.jpg" : "photo_front.jpg",
         },
-        back_file: {
-          ...backPhoto,
-          name: "photo_back.jpg",
-        },
+        ...(singlePhoto
+          ? {}
+          : {
+              back_file: {
+                ...photos[1]!,
+                name: "photo_back.jpg",
+              },
+            }),
       });
 
       if (isApiSuccess(res)) {
@@ -337,7 +304,10 @@ export default function DocumentUploadScreen() {
 
   const uploadDisabled = loading;
 
-  const slots = [0, 1];
+  const slots = useMemo(
+    () => Array.from({ length: minPhotos }, (_, i) => i),
+    [minPhotos],
+  );
   const slotErrorKey = (index: number) =>
     index === 0 ? "front" : index === 1 ? "back" : `photo_${index}`;
 
@@ -361,11 +331,13 @@ export default function DocumentUploadScreen() {
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>{t("Photos")}</Text>
               <Text style={styles.sectionMeta}>
-                {`${photos.filter(Boolean).length}/2`}
+                {`${photos.filter(Boolean).length}/${minPhotos}`}
               </Text>
             </View>
             <Text style={styles.sectionHint}>
-              {t("Add clear Front and Back photos of the document")}
+              {singlePhoto
+                ? t("Add a clear photo of the document")
+                : t("Add clear Front and Back photos of the document")}
             </Text>
 
             <View style={styles.photoRow}>
@@ -373,14 +345,21 @@ export default function DocumentUploadScreen() {
                 const photo = photos[index];
                 const errKey = slotErrorKey(index);
                 const slotError = errors[errKey];
-                const slotLabel =
-                  index === 0
+                const slotLabel = singlePhoto
+                  ? t("Photo")
+                  : index === 0
                     ? t("Front")
                     : index === 1
                       ? t("Back")
                       : `${t("Photo")} ${index + 1}`;
                 return (
-                  <View key={`slot-${index}`} style={styles.photoColumn}>
+                  <View
+                    key={`slot-${index}`}
+                    style={[
+                      styles.photoColumn,
+                      singlePhoto ? styles.photoColumnSingle : null,
+                    ]}
+                  >
                     <Text style={styles.slotCaption}>
                       {slotLabel}
                       <Text style={styles.required}> *</Text>
@@ -388,6 +367,7 @@ export default function DocumentUploadScreen() {
                     <TouchableOpacity
                       style={[
                         styles.photoSlot,
+                        singlePhoto ? styles.photoSlotSingle : null,
                         photo ? styles.photoSlotFilled : null,
                         slotError ? styles.photoSlotError : null,
                       ]}
@@ -460,6 +440,7 @@ export default function DocumentUploadScreen() {
                     errors.expiry_date ? styles.dateFieldError : null,
                   ]}
                   onPress={() => {
+                    setIosExpiryDraft(ymdToDate(expiryDate));
                     setExpiryPickerOpen(true);
                     setErrors((prev) => {
                       if (!prev.expiry_date) return prev;
@@ -506,42 +487,73 @@ export default function DocumentUploadScreen() {
         </KeyboardAwareScrollView>
       </View>
 
-      <Modal
-        isVisible={expiryPickerOpen}
-        animationIn="zoomIn"
-        animationOut="zoomOut"
-        backdropColor="rgba(0,0,0,0.4)"
-        onBackButtonPress={() => setExpiryPickerOpen(false)}
-        onBackdropPress={() => setExpiryPickerOpen(false)}
-        useNativeDriver
-        hideModalContentWhileAnimating
-        statusBarTranslucent
-      >
-        <View style={styles.calendarModal}>
-          <Calendar
-            onDayPress={(day) => {
-              setExpiryDate(day.dateString);
-              setExpiryPickerOpen(false);
-              setErrors((prev) => {
-                const next = { ...prev };
-                delete next.expiry_date;
-                return next;
-              });
-            }}
-            markedDates={
-              expiryDate
-                ? {
-                    [expiryDate]: {
-                      selected: true,
-                      selectedColor: Colors.primary,
-                    },
-                  }
-                : {}
-            }
-            theme={calendarTheme}
-          />
-        </View>
-      </Modal>
+      {expiryPickerOpen && Platform.OS === "android" ? (
+        <DateTimePicker
+          value={ymdToDate(expiryDate)}
+          mode="date"
+          display="default"
+          onChange={(event, selectedDate) => {
+            setExpiryPickerOpen(false);
+            if (event.type === "dismissed" || !selectedDate) return;
+            setExpiryDate(dateToYmd(selectedDate));
+            setErrors((prev) => {
+              const next = { ...prev };
+              delete next.expiry_date;
+              return next;
+            });
+          }}
+        />
+      ) : null}
+
+      {Platform.OS === "ios" ? (
+        <Modal
+          visible={expiryPickerOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setExpiryPickerOpen(false)}
+        >
+          <Pressable
+            style={styles.datePickerBackdrop}
+            onPress={() => setExpiryPickerOpen(false)}
+          >
+            <Pressable
+              style={styles.datePickerSheet}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <View style={styles.datePickerHeader}>
+                <Pressable onPress={() => setExpiryPickerOpen(false)}>
+                  <Text style={styles.datePickerAction}>{t("Cancel")}</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    setExpiryDate(dateToYmd(iosExpiryDraft));
+                    setExpiryPickerOpen(false);
+                    setErrors((prev) => {
+                      const next = { ...prev };
+                      delete next.expiry_date;
+                      return next;
+                    });
+                  }}
+                >
+                  <Text
+                    style={[styles.datePickerAction, styles.datePickerDone]}
+                  >
+                    {t("Done")}
+                  </Text>
+                </Pressable>
+              </View>
+              <DateTimePicker
+                value={iosExpiryDraft}
+                mode="date"
+                display="spinner"
+                onChange={(_event, selectedDate) => {
+                  if (selectedDate) setIosExpiryDraft(selectedDate);
+                }}
+              />
+            </Pressable>
+          </Pressable>
+        </Modal>
+      ) : null}
 
       <LoadingModal visible={loading} message={t("Please wait…")} />
       </SafeAreaView>

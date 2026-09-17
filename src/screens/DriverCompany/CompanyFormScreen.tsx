@@ -325,6 +325,7 @@ export default function CompanyFormScreen() {
       <View style={styles.background}>
         <KeyboardAwareScrollView
           enableOnAndroid
+          enableAutomaticScroll={!countryPickerOpen}
           keyboardShouldPersistTaps="handled"
           extraScrollHeight={120}
           scrollEnabled={!countryPickerOpen}

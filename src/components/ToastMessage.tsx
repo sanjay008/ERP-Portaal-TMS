@@ -79,7 +79,7 @@ export default function ToastMessage({
             LogOut();
           }
         }, 300);
-      }, 3000);
+      }, 3500);
 
       return () => clearTimeout(timer);
     } else {

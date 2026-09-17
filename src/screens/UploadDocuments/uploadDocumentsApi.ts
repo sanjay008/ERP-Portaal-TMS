@@ -69,7 +69,8 @@ export type QuickUploadPayload = {
   type: string;
   expire_date?: string;
   front_file: PickedDocumentFile;
-  back_file: PickedDocumentFile;
+  /** Optional for single-photo types (NIWO / passport). */
+  back_file?: PickedDocumentFile;
   filename?: string;
   short_description?: string;
 };
@@ -78,24 +79,29 @@ export async function quickUploadDocuments(
   userData: AuthUser | null | undefined,
   payload: QuickUploadPayload,
 ) {
-  return ApiService(apiConstants.quickUploadDocument, {
-    customData: {
-      ...buildDocumentAuth(userData),
-      type: payload.type,
-      expire_date: payload.expire_date || "",
-      filename: payload.filename || payload.type,
-      short_description: payload.short_description || "",
-      front_file: {
-        uri: payload.front_file.uri,
-        name: payload.front_file.name || "photo_front.jpg",
-        type: payload.front_file.type || "image/jpeg",
-      },
-      back_file: {
-        uri: payload.back_file.uri,
-        name: payload.back_file.name || "photo_back.jpg",
-        type: payload.back_file.type || "image/jpeg",
-      },
+  const customData: Record<string, any> = {
+    ...buildDocumentAuth(userData),
+    type: payload.type,
+    expire_date: payload.expire_date || "",
+    filename: payload.filename || payload.type,
+    short_description: payload.short_description || "",
+    front_file: {
+      uri: payload.front_file.uri,
+      name: payload.front_file.name || "photo_front.jpg",
+      type: payload.front_file.type || "image/jpeg",
     },
+  };
+
+  if (payload.back_file) {
+    customData.back_file = {
+      uri: payload.back_file.uri,
+      name: payload.back_file.name || "photo_back.jpg",
+      type: payload.back_file.type || "image/jpeg",
+    };
+  }
+
+  return ApiService(apiConstants.quickUploadDocument, {
+    customData,
   });
 }
 

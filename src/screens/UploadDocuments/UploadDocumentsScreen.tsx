@@ -53,16 +53,22 @@ export default function UploadDocumentsScreen() {
   const tRef = useRef(t);
   const inFlightRef = useRef(false);
   const openingRef = useRef(false);
+  const typesRef = useRef(types);
 
   userDataRef.current = UserData;
   setToastRef.current = setToast;
   errorHandleRef.current = ErrorHandle;
   tRef.current = t;
+  typesRef.current = types;
 
   const load = useCallback(async () => {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
-    setLoading(true);
+    // Only block UI when we have nothing to show yet.
+    const showBlockingLoader = typesRef.current.length === 0;
+    if (showBlockingLoader) {
+      setLoading(true);
+    }
     setErrorText("");
     try {
       const [typesRes, docsRes] = await Promise.all([
@@ -275,7 +281,7 @@ export default function UploadDocumentsScreen() {
       </View>
 
       <LoadingModal
-        visible={loading || openingDoc}
+        visible={(loading && types.length === 0) || openingDoc}
         message={t("Please wait…")}
       />
       <DocumentPreviewModal

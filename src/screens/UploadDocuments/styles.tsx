@@ -120,10 +120,17 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
     alignItems: "flex-start",
+    justifyContent: "center",
   },
   photoColumn: {
     flex: 1,
     gap: 8,
+  },
+  photoColumnSingle: {
+    flex: 0,
+    width: "100%",
+    maxWidth: 280,
+    alignSelf: "center",
   },
   slotCaption: {
     fontSize: 13,
@@ -141,6 +148,10 @@ export const styles = StyleSheet.create({
     overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
+  },
+  photoSlotSingle: {
+    aspectRatio: 1.2,
+    maxHeight: 220,
   },
   photoSlotFilled: {
     borderStyle: "solid",
@@ -348,6 +359,33 @@ export const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 15,
     alignSelf: "center",
+  },
+  datePickerBackdrop: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.35)",
+  },
+  datePickerSheet: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingBottom: 20,
+  },
+  datePickerHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.litegray,
+  },
+  datePickerAction: {
+    fontSize: 15,
+    fontFamily: FONTS.Medium,
+    color: Colors.darkText,
+  },
+  datePickerDone: {
+    color: Colors.primary,
   },
   error: {
     fontSize: 13,

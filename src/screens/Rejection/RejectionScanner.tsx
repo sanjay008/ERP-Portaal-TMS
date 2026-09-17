@@ -9,7 +9,10 @@ import ScannerInfoModal from "@/src/components/ScannerInfoModal";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import { setLatestPickupCameraSetData } from "@/src/context/ParcelVerifySessionContext";
 import { DropboxContext } from "@/src/context/UploadProider";
-import { pingDriverLiveLocation } from "@/src/utils/driverLocationApi";
+import {
+  pingDriverLiveLocation,
+  REQUIRED_CHAUFFEUR_ROLE,
+} from "@/src/utils/driverLocationApi";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
 import {
@@ -32,7 +35,11 @@ import {
   unlockParcelCameraCallback,
 } from "@/src/utils/parcelVerifyCameraReturn";
 import { playErrorSound } from "@/src/utils/playScanSound";
-import { attachScanLocationForVerify } from "@/src/utils/scanFreshLocation";
+import {
+  attachScanLocationForVerify,
+  prefetchScanFreshLocation,
+  SCAN_MAX_AGE_MS,
+} from "@/src/utils/scanFreshLocation";
 import { FONTS, height, width } from "@/src/utils/storeData";
 import { Ionicons } from "@expo/vector-icons";
 import { useIsFocused, useNavigation } from "@react-navigation/native";
@@ -45,6 +52,7 @@ import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   AppState,
+  InteractionManager,
   Keyboard,
   StyleSheet,
   Text,
@@ -199,6 +207,48 @@ export default function RejectionScanner({ route }: any) {
     });
     return () => sub.remove();
   }, [isFocused, restartScannerPreview]);
+
+  useEffect(() => {
+    const isChauffeur = UserData?.user?.role === REQUIRED_CHAUFFEUR_ROLE;
+    if (!isFocused || !isChauffeur) {
+      return;
+    }
+
+    let cancelled = false;
+    let delayTimer: ReturnType<typeof setTimeout> | null = null;
+    let keepWarmTimer: ReturnType<typeof setInterval> | null = null;
+
+    const warm = () => {
+      if (cancelled || AppState.currentState !== "active") {
+        return;
+      }
+      prefetchScanFreshLocation();
+    };
+
+    const interaction = InteractionManager.runAfterInteractions(() => {
+      delayTimer = setTimeout(warm, 400);
+    });
+
+    keepWarmTimer = setInterval(warm, SCAN_MAX_AGE_MS - 30 * 1000);
+
+    const appStateSub = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") {
+        warm();
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      interaction.cancel();
+      if (delayTimer) {
+        clearTimeout(delayTimer);
+      }
+      if (keepWarmTimer) {
+        clearInterval(keepWarmTimer);
+      }
+      appStateSub.remove();
+    };
+  }, [isFocused, UserData?.user?.role]);
 
   const closeAllModals = useCallback(() => {
     setChoiceModal((prev) => ({ ...prev, visible: false }));

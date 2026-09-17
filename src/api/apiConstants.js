@@ -1,5 +1,6 @@
 
 const producation_base = "https://app.erpportaal.nl/api/";
+const new_producation_url = 'https://gesutms.nl/';
 const development = "https://development.erpportaal.nl/api/";
 
 
@@ -9,7 +10,6 @@ const isProductation = true
 const baseUrlnew = isProductation ? producation_base : development
 
 module.exports = {
-
     Login: `${baseUrlnew}login`,
     Verifyotp: `${baseUrlnew}verify_otp`,
     Workorderuitvoer: `${baseUrlnew}workorder`,

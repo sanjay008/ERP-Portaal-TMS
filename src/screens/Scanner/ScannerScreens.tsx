@@ -30,12 +30,17 @@ import {
 } from "@/src/hooks/useCameraPermission";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors.js";
+import { REQUIRED_CHAUFFEUR_ROLE } from "@/src/utils/driverLocationApi";
 import {
   buildIsDamagePayload,
   initParcelDamageSelections,
   moreParcelsTitle,
   type ParcelDamageSelectionMap,
 } from "@/src/utils/deliveryMultiParcel";
+import {
+  appendDeviceMetaToFormData,
+  withDeviceMeta,
+} from "@/src/utils/deviceMeta";
 import { appendToLocalUploadQueue } from "@/src/utils/localUploadQueue";
 import { isDeliveryOrder } from "@/src/utils/orderStatus";
 import {
@@ -67,12 +72,12 @@ import {
   runParcelVerifyFlow,
   type DeliveryScanContinueContext,
 } from "@/src/utils/runParcelVerifyFlow";
-import { attachScanFreshCoordsToPayload } from "@/src/utils/scanFreshLocation";
-import { isBlankSignatureData } from "@/src/utils/signatureValidation";
 import {
-  appendDeviceMetaToFormData,
-  withDeviceMeta,
-} from "@/src/utils/deviceMeta";
+  attachScanFreshCoordsToPayload,
+  prefetchScanFreshLocation,
+  SCAN_MAX_AGE_MS,
+} from "@/src/utils/scanFreshLocation";
+import { isBlankSignatureData } from "@/src/utils/signatureValidation";
 import { FONTS, height, ScanPlatFormId, width } from "@/src/utils/storeData";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import BottomSheet, {
@@ -101,6 +106,7 @@ import {
   AppState,
   FlatList,
   Image,
+  InteractionManager,
   Keyboard,
   Platform,
   Pressable,
@@ -129,7 +135,6 @@ export default function ScannerScreens({ navigation, route }: any) {
   const [isNoParcelFlow, setIsNoParcelFlow] = useState(false);
   const [showSig, setShowSig] = useState<boolean>(false);
   const [EvetyTimeShowDeliveryLabelList, setEvetyTimeShowDeliveryLabelList] = useState<boolean>(false);
-  // const [NoParcelItemIds, setNoParcelItemIds] = useState<number[]>([]);
   const [IsLoading, setIsLoading] = useState<boolean>(false);
   const [ConformationModalOpen, setConformationModal] = useState<any>({
     visible: false,
@@ -779,6 +784,48 @@ export default function ScannerScreens({ navigation, route }: any) {
       cancelled = true;
     };
   }, [Focused, handleCameraPermissionResult]);
+
+  useEffect(() => {
+    const isChauffeur = UserData?.user?.role === REQUIRED_CHAUFFEUR_ROLE;
+    if (!Focused || !isChauffeur) {
+      return;
+    }
+
+    let cancelled = false;
+    let delayTimer: ReturnType<typeof setTimeout> | null = null;
+    let keepWarmTimer: ReturnType<typeof setInterval> | null = null;
+
+    const warm = () => {
+      if (cancelled || AppState.currentState !== "active") {
+        return;
+      }
+      prefetchScanFreshLocation();
+    };
+
+    const interaction = InteractionManager.runAfterInteractions(() => {
+      delayTimer = setTimeout(warm, 400);
+    });
+
+    keepWarmTimer = setInterval(warm, SCAN_MAX_AGE_MS - 30 * 1000);
+
+    const appStateSub = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") {
+        warm();
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      interaction.cancel();
+      if (delayTimer) {
+        clearTimeout(delayTimer);
+      }
+      if (keepWarmTimer) {
+        clearInterval(keepWarmTimer);
+      }
+      appStateSub.remove();
+    };
+  }, [Focused, UserData?.user?.role]);
 
   useEffect(() => {
     if (!cameraPermissionSheet.visible) return;
