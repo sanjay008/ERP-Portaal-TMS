@@ -4,6 +4,7 @@ import { ApiFormatDate } from '@/src/components/ApiFormatDate';
 import { setLatestDeliveryCameraSetData } from '@/src/context/ParcelVerifySessionContext';
 import ApiService from '@/src/utils/Apiservice';
 import { Colors } from '@/src/utils/colors';
+import { withDeviceMeta } from '@/src/utils/deviceMeta';
 import { pingDriverLiveLocation } from '@/src/utils/driverLocationApi';
 import { setLastScannedOrderId } from '@/src/utils/lastScannedOrderId';
 import { syncNativeDriverTracking } from '@/src/utils/nativeDriverLocation';
@@ -30,7 +31,6 @@ import {
 } from '@/src/utils/pickupPlanned';
 import { playErrorSound } from '@/src/utils/playScanSound';
 import { attachScanLocationForVerify } from '@/src/utils/scanFreshLocation';
-import { withDeviceMeta } from '@/src/utils/deviceMeta';
 
 const REGION_MISMATCH_QUESTION =
   'this parcel is not for your region';
@@ -111,7 +111,6 @@ export type ParcelVerifyFlowDeps = {
   getSessionDeliveryLabel: () => any;
   clearDeliveryLabelSelection?: () => void;
   unlockScanner?: () => void;
-  /** Delivery-only: after verify + label, Yes/No more parcels or camera. */
   onDeliveryLabeledParcelReady?: (ctx: DeliveryScanContinueContext) => void;
 };
 
@@ -453,7 +452,10 @@ export async function runParcelVerifyFlow(
       isStatus4 &&
       slideType === 'pickup_dropoff' &&
       itemNeedsDeliveryLabelSelection(res?.data, data);
-    const isWarehouseUnload = slideType === 'driver_warehouse_unload' || slideType === 'driver_warehouse_loading';
+    const isWarehouseUnload =
+      slideType === 'driver_warehouse_unload' ||
+      slideType === 'driver_warehouse_loading' ||
+      slideType === 'driver_loading';
 
     let scanOverlayShown = false;
 

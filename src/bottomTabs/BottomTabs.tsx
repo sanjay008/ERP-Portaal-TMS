@@ -16,8 +16,9 @@ import ApiService from "../utils/Apiservice";
 import { Colors } from "../utils/colors";
 import { FONTS, getData, height } from "../utils/storeData";
 
+const Tab = createBottomTabNavigator();
+
 export default function BottomTabs({ navigation }: any) {
-  const Tab = createBottomTabNavigator();
   const { t } = useTranslation();
   const {top,bottom} = useSafeAreaInsets();
   const [IsLoading, setLoading] = useState<boolean>(false);

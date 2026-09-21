@@ -31,6 +31,7 @@ export default function GlobalContext({ children }: any) {
   const [AllRegion, setAllRegion] = useState<any[]>([]);
   const [CompanysData, setCompanysData] = useState<string>("");
   const [GloblyTypeSlide, setGloblyTypeSlide] = useState("");
+  const [GloblySlideTitle, setGloblySlideTitle] = useState("");
   const [SelectActiveRegionData, setSelectActiveRegionData] = useState<any>(null);
   const [SelectActiveDate, setSelectActiveDate] = useState<any>(null);
   const [OrderDeliveryMapingLableOption, setOrderDeliveryMapingLableOption] = useState(null);
@@ -165,6 +166,7 @@ export default function GlobalContext({ children }: any) {
         SelectCurrentDate, setSelectCurrentDate,
         DeliveyDataSave, setDeliveyDataSave,
         GloblyTypeSlide, setGloblyTypeSlide,
+        GloblySlideTitle, setGloblySlideTitle,
         PickUpDataSave, setPickUpDataSave,
         NoParcelItemIds, setNoParcelItemIds,
         SelectActiveRegionData, setSelectActiveRegionData,

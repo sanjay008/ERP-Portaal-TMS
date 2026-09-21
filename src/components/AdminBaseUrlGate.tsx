@@ -3,24 +3,36 @@ import * as Updates from "expo-updates";
 import React, {
   ReactNode,
   useCallback,
+  useContext,
   useEffect,
   useRef,
   useState,
 } from "react";
 import {
   ActivityIndicator,
+  DevSettings,
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
+import Animated, {
+  useAnimatedKeyboard,
+  useAnimatedStyle,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
+import { GlobalContextData } from "../context/GlobalContext";
+import { resetChauffeurLocationSession } from "../hooks/useChauffeurLocation";
 import {
+  ADMIN_PASSCODE,
   API_BASE_LIST,
   getApiBaseUrl,
-  PRODUCTION_BASE,
   saveApiBaseUrl,
 } from "../utils/apiBaseUrl";
 import { Colors } from "../utils/colors";
@@ -28,11 +40,13 @@ import { FONTS } from "../utils/storeData";
 
 interface AdminBaseUrlGateProps {
   children: ReactNode;
+  blocked?: boolean;
 }
 
 const TAP_ZONE = 56;
 const TAP_TIMEOUT_MS = 2500;
 const REQUIRED_TAPS = 6;
+const RELOAD_TIMEOUT_MS = 4000;
 
 const BASE_LABELS: Record<string, string> = {
   erpportaal: "ERP Portaal",
@@ -43,13 +57,70 @@ function logAdminTap(details: Record<string, unknown>) {
   console.log("[AdminBaseUrlGate]", details);
 }
 
-export default function AdminBaseUrlGate({ children }: AdminBaseUrlGateProps) {
+async function reloadAppSafely(): Promise<void> {
+  if (__DEV__) {
+    try {
+      DevSettings.reload();
+      await new Promise(() => {});
+      return;
+    } catch (error) {
+      logAdminTap({ event: "reload_dev_fail", reason: String(error) });
+    }
+  }
+
+  try {
+    await Promise.race([
+      Updates.reloadAsync(),
+      new Promise<never>((_, reject) => {
+        setTimeout(
+          () => reject(new Error("reload_timeout")),
+          RELOAD_TIMEOUT_MS,
+        );
+      }),
+    ]);
+  } catch (error) {
+    logAdminTap({ event: "reload_retry", reason: String(error) });
+    try {
+      await Updates.reloadAsync();
+    } catch (retryError) {
+      logAdminTap({ event: "reload_fail", reason: String(retryError) });
+      try {
+        DevSettings.reload();
+      } catch {}
+      throw retryError;
+    }
+  }
+
+  await new Promise(() => {});
+}
+
+export default function AdminBaseUrlGate({
+  children,
+  blocked = false,
+}: AdminBaseUrlGateProps) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const {
+    UserData,
+    activeShift,
+    setActiveShift,
+    setIsGpsTracking,
+  } = useContext(GlobalContextData);
 
   const [BaseUrlPopup, setBaseUrlPopup] = useState(false);
-  const [selectedBase, setSelectedBase] = useState(PRODUCTION_BASE);
+  const [PasscodePopup, setPasscodePopup] = useState(false);
+  const [passcodeInput, setPasscodeInput] = useState("");
+  const [passcodeError, setPasscodeError] = useState("");
+  const [selectedBase, setSelectedBase] = useState(() => getApiBaseUrl());
   const [savingBase, setSavingBase] = useState(false);
+
+  const keyboard = useAnimatedKeyboard();
+  const passcodeCardStyle = useAnimatedStyle(() => {
+    const lift = Math.min(keyboard.height.value * 0.5, 180);
+    return {
+      transform: [{ translateY: -lift }],
+    };
+  });
 
   const tapCountRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -78,11 +149,28 @@ export default function AdminBaseUrlGate({ children }: AdminBaseUrlGateProps) {
     }, TAP_TIMEOUT_MS);
   }, [clearTapTimer]);
 
+  const openPasscodePopup = useCallback(() => {
+    tapCountRef.current = 0;
+    clearTapTimer();
+    setPasscodeInput("");
+    setPasscodeError("");
+    setPasscodePopup(true);
+    logAdminTap({
+      event: "passcode_open",
+      count: REQUIRED_TAPS,
+      required: REQUIRED_TAPS,
+    });
+  }, [clearTapTimer]);
+
   const openBaseUrlPopup = useCallback(() => {
-    const current = getApiBaseUrl(PRODUCTION_BASE);
+    Keyboard.dismiss();
+    const current = getApiBaseUrl();
     tapCountRef.current = 0;
     clearTapTimer();
     setSelectedBase(current);
+    setPasscodePopup(false);
+    setPasscodeInput("");
+    setPasscodeError("");
     setBaseUrlPopup(true);
     logAdminTap({
       event: "popup_open",
@@ -93,7 +181,7 @@ export default function AdminBaseUrlGate({ children }: AdminBaseUrlGateProps) {
   }, [clearTapTimer]);
 
   const onSecretTap = useCallback(() => {
-    if (BaseUrlPopup) {
+    if (BaseUrlPopup || PasscodePopup || blocked) {
       return;
     }
 
@@ -109,18 +197,51 @@ export default function AdminBaseUrlGate({ children }: AdminBaseUrlGateProps) {
     });
 
     if (next >= REQUIRED_TAPS) {
-      openBaseUrlPopup();
+      openPasscodePopup();
       return;
     }
 
     armTapTimer();
-  }, [BaseUrlPopup, armTapTimer, openBaseUrlPopup]);
+  }, [BaseUrlPopup, PasscodePopup, blocked, armTapTimer, openPasscodePopup]);
+
+  useEffect(() => {
+    if (blocked) {
+      tapCountRef.current = 0;
+      clearTapTimer();
+    }
+  }, [blocked, clearTapTimer]);
 
   useEffect(() => {
     return () => {
       clearTapTimer();
     };
   }, [clearTapTimer]);
+
+  const closePasscodePopup = useCallback(() => {
+    Keyboard.dismiss();
+    setPasscodePopup(false);
+    setPasscodeInput("");
+    setPasscodeError("");
+    logAdminTap({
+      event: "passcode_close",
+    });
+  }, []);
+
+  const confirmPasscode = useCallback(() => {
+    const expected = ADMIN_PASSCODE;
+    const entered = String(passcodeInput ?? "").trim();
+    if (!expected || entered !== expected) {
+      setPasscodeError(t("Invalid passcode"));
+      logAdminTap({
+        event: "passcode_fail",
+      });
+      return;
+    }
+    logAdminTap({
+      event: "passcode_ok",
+    });
+    openBaseUrlPopup();
+  }, [passcodeInput, t, openBaseUrlPopup]);
 
   const closePopup = useCallback(() => {
     if (savingBase) {
@@ -129,7 +250,7 @@ export default function AdminBaseUrlGate({ children }: AdminBaseUrlGateProps) {
     setBaseUrlPopup(false);
     logAdminTap({
       event: "popup_close",
-      currentBase: getApiBaseUrl(PRODUCTION_BASE),
+      currentBase: getApiBaseUrl(),
     });
   }, [savingBase]);
 
@@ -137,7 +258,7 @@ export default function AdminBaseUrlGate({ children }: AdminBaseUrlGateProps) {
     if (savingBase) {
       return;
     }
-    const current = getApiBaseUrl(PRODUCTION_BASE);
+    const current = getApiBaseUrl();
     if (selectedBase === current) {
       setBaseUrlPopup(false);
       logAdminTap({
@@ -147,8 +268,34 @@ export default function AdminBaseUrlGate({ children }: AdminBaseUrlGateProps) {
       });
       return;
     }
+
     setSavingBase(true);
     try {
+      try {
+        const { closeActiveShiftSilent } = await import(
+          "@/src/utils/shiftLocationGuard"
+        );
+        const { wipeShiftLocalData } = await import("@/src/utils/shiftSession");
+        await closeActiveShiftSilent(UserData, activeShift);
+        await wipeShiftLocalData(
+          activeShift?.region_id,
+          "admin_base_url_switch",
+        );
+        resetChauffeurLocationSession();
+        setActiveShift?.(null);
+        setIsGpsTracking?.(false);
+        logAdminTap({
+          event: "trip_ended",
+          hadShift: !!activeShift,
+          from: current,
+        });
+      } catch (error) {
+        logAdminTap({
+          event: "trip_end_error",
+          reason: String(error),
+        });
+      }
+
       const ok = await saveApiBaseUrl(selectedBase);
       logAdminTap({
         event: "popup_save",
@@ -157,30 +304,42 @@ export default function AdminBaseUrlGate({ children }: AdminBaseUrlGateProps) {
         to: selectedBase,
       });
       if (!ok) {
+        setSavingBase(false);
         return;
       }
-      setBaseUrlPopup(false);
-      try {
-        await Updates.reloadAsync();
-      } catch {}
-    } finally {
+
+      await reloadAppSafely();
+      setSavingBase(false);
+    } catch (error) {
+      logAdminTap({
+        event: "save_error",
+        reason: String(error),
+      });
       setSavingBase(false);
     }
-  }, [savingBase, selectedBase]);
+  }, [
+    savingBase,
+    selectedBase,
+    UserData,
+    activeShift,
+    setActiveShift,
+    setIsGpsTracking,
+  ]);
 
-  const activeBase = getApiBaseUrl(PRODUCTION_BASE);
+  const activeBase = getApiBaseUrl();
   const hasChanges = selectedBase !== activeBase;
 
   return (
     <View style={styles.container}>
       {children}
 
-      {!BaseUrlPopup ? (
+      {!BaseUrlPopup && !PasscodePopup && !blocked ? (
         <Pressable
           style={[
             styles.secretTapZone,
             {
               top: insets.top,
+              right: 0,
               width: TAP_ZONE,
               height: TAP_ZONE,
             },
@@ -189,6 +348,69 @@ export default function AdminBaseUrlGate({ children }: AdminBaseUrlGateProps) {
           hitSlop={8}
         />
       ) : null}
+
+      <Modal
+        visible={PasscodePopup}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => {}}
+      >
+        <KeyboardAvoidingView
+          style={styles.keyboardWrap}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
+        >
+          <View style={styles.modalBackdrop}>
+            <Animated.View style={[styles.modalCard, passcodeCardStyle]}>
+              <View style={styles.modalHeader}>
+                <View style={styles.headerTextWrap}>
+                  <Text style={styles.modalEyebrow}>{t("Admin")}</Text>
+                  <Text style={styles.modalTitle}>{t("Passcode")}</Text>
+                  <Text style={styles.modalSubtitle}>
+                    {t("Enter passcode to change API Base URL")}
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={closePasscodePopup}
+                  hitSlop={12}
+                  style={styles.closeBtn}
+                >
+                  <Ionicons name="close" size={20} color={Colors.darkText} />
+                </Pressable>
+              </View>
+
+              <TextInput
+                value={passcodeInput}
+                onChangeText={(value) => {
+                  setPasscodeInput(value);
+                  if (passcodeError) {
+                    setPasscodeError("");
+                  }
+                }}
+                placeholder={t("Enter passcode")}
+                placeholderTextColor={Colors.darkText}
+                secureTextEntry
+                autoFocus
+                keyboardType="number-pad"
+                returnKeyType="done"
+                onSubmitEditing={confirmPasscode}
+                style={styles.passcodeInput}
+              />
+              {passcodeError ? (
+                <Text style={styles.passcodeError}>{passcodeError}</Text>
+              ) : null}
+
+              <Pressable
+                onPress={confirmPasscode}
+                style={styles.saveBtn}
+              >
+                <Text style={styles.saveBtnText}>{t("Confirm")}</Text>
+              </Pressable>
+            </Animated.View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       <Modal
         visible={BaseUrlPopup}
@@ -258,7 +480,7 @@ export default function AdminBaseUrlGate({ children }: AdminBaseUrlGateProps) {
 
             <Pressable
               onPress={savePopup}
-              disabled={savingBase}
+              disabled={savingBase || !hasChanges}
               style={[
                 styles.saveBtn,
                 (!hasChanges || savingBase) && styles.saveBtnDisabled,
@@ -273,6 +495,18 @@ export default function AdminBaseUrlGate({ children }: AdminBaseUrlGateProps) {
           </View>
         </View>
       </Modal>
+
+      <Modal
+        visible={savingBase}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+      >
+        <View style={styles.switchingOverlay}>
+          <ActivityIndicator size="large" color={Colors.white} />
+          <Text style={styles.switchingText}>{t("Save")}...</Text>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -283,10 +517,12 @@ const styles = StyleSheet.create({
   },
   secretTapZone: {
     position: "absolute",
-    left: 0,
     zIndex: 99999,
     elevation: 99999,
     backgroundColor: "transparent",
+  },
+  keyboardWrap: {
+    flex: 1,
   },
   modalBackdrop: {
     flex: 1,
@@ -426,5 +662,35 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.SemiBold,
     fontSize: 16,
     color: Colors.white,
+  },
+  switchingOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.72)",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 14,
+  },
+  switchingText: {
+    fontFamily: FONTS.Medium,
+    fontSize: 14,
+    color: Colors.white,
+  },
+  passcodeInput: {
+    height: 50,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: Colors.Boxgray,
+    backgroundColor: Colors.litegray1,
+    paddingHorizontal: 14,
+    marginBottom: 12,
+    fontFamily: FONTS.Medium,
+    fontSize: 16,
+    color: Colors.black,
+  },
+  passcodeError: {
+    fontFamily: FONTS.Regular,
+    fontSize: 13,
+    color: Colors.red,
+    marginBottom: 12,
   },
 });

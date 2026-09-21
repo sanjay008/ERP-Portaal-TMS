@@ -36,6 +36,7 @@ import {
   isShiftActive,
   wipeShiftLocalData,
 } from "@/src/utils/shiftSession";
+import { getOtaVersionLine } from "@/src/utils/appVersionMeta";
 import { getData } from "@/src/utils/storeData";
 import Constants from "expo-constants";
 import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
@@ -105,6 +106,7 @@ export default function HomeScreens({ navigation, route }: any) {
     UserData,
     setToast,
     setGloblyTypeSlide,
+    setGloblySlideTitle,
     setTimeZone,
     SelectActiveDate,
     setSelectActiveDate,
@@ -235,9 +237,10 @@ export default function HomeScreens({ navigation, route }: any) {
   const navigateToFilterScreen = useCallback(
     (slideItem: any) => {
       setGloblyTypeSlide(slideItem?.type);
+      setGloblySlideTitle(slideItem?.item_title || "");
       navigation.navigate("FilterScreen", { item: slideItem });
     },
-    [navigation, setGloblyTypeSlide],
+    [navigation, setGloblyTypeSlide, setGloblySlideTitle],
   );
 
   const handleGpsPermissionResult = useCallback(
@@ -313,6 +316,7 @@ export default function HomeScreens({ navigation, route }: any) {
   const handleSlidePress = useCallback(
     (slideItem: any) => {
       setGloblyTypeSlide(slideItem?.type);
+      setGloblySlideTitle(slideItem?.item_title || "");
       if (slideItem?.type == "outbound_scan") {
         navigation.navigate("Scanner", { item: slideItem });
       } else if (slideItem?.type == REJECTION_SLIDE_TYPE) {
@@ -335,7 +339,7 @@ export default function HomeScreens({ navigation, route }: any) {
         navigation.navigate("FilterScreen", { item: slideItem });
       }
     },
-    [navigation, setGloblyTypeSlide],
+    [navigation, setGloblyTypeSlide, setGloblySlideTitle],
   );
 
   const handleTripOffConfirm = useCallback(
@@ -457,15 +461,22 @@ export default function HomeScreens({ navigation, route }: any) {
   }, [IsLoading, t]);
 
   const ListFooterComponent = useCallback(() => {
-    if (!IsLoading) return  <Text
-    style={[styles.Text, { textAlign: "center", marginTop: 15, color: Colors.black   }]}
-  >{`${CurrentVersion}`}</Text>;
+    if (!IsLoading) return (
+      <View style={{ marginTop: 15, marginBottom: 8 }}>
+        <Text
+          style={[styles.Text, { textAlign: "center", color: Colors.black }]}
+        >{`${CurrentVersion}`}</Text>
+        <Text
+          style={[styles.Text, { textAlign: "center", marginTop: 4, color: Colors.black }]}
+        >{getOtaVersionLine()}</Text>
+      </View>
+    );
     return (
       <View style={styles.EmptyComponents}>
         <Loader />
       </View>
     );
-  }, [IsLoading]);
+  }, [IsLoading, CurrentVersion]);
 
   const handleGpsSheetClose = useCallback(() => {
     pendingFilterItemRef.current = null;

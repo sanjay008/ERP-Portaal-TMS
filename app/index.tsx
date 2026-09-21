@@ -49,9 +49,74 @@ import Otp from "../src/screens/otp";
 import Password from "../src/screens/password";
 import Register from "../src/screens/register";
 import Staff from "../src/screens/staff";
+
+const ADMIN_TAP_BLOCKED_ROUTES = new Set([
+  "Scanner",
+  "RejectionScanner",
+  "DriverPhotosScanner",
+  "Camera",
+  "ScanManager",
+]);
+
+const Stack = createNativeStackNavigator();
+const OfflineStack = createNativeStackNavigator();
+
+function getActiveRouteName(state: any): string {
+  if (!state?.routes?.length) {
+    return "";
+  }
+  const route = state.routes[state.index ?? 0];
+  if (route?.state) {
+    return getActiveRouteName(route.state);
+  }
+  return route?.name ?? "";
+}
+
+function withLayoutHeader(Component: React.ComponentType<any>) {
+  function Wrapped(props: any) {
+    return (
+      <LayoutHeader>
+        <Component {...props} />
+      </LayoutHeader>
+    );
+  }
+  Wrapped.displayName = `WithLayoutHeader(${Component.displayName || Component.name || "Component"})`;
+  return Wrapped;
+}
+
+const DetailsWithHeader = withLayoutHeader(DetailsScreens);
+const AllOrderWithHeader = withLayoutHeader(AllOrder);
+const OrderDetailsWithHeader = withLayoutHeader(OrderDetails);
+const ScanDetailsWithHeader = withLayoutHeader(ScanDetails);
+const BottomTabsWithHeader = withLayoutHeader(BottomTabs);
+const ScannerWithHeader = withLayoutHeader(ScannerScreens);
+const RejectionScannerWithHeader = withLayoutHeader(RejectionScanner);
+const RejectionReviewWithHeader = withLayoutHeader(RejectionReview);
+const DriverPhotosScannerWithHeader = withLayoutHeader(DriverPhotosScanner);
+const SelectWithHeader = withLayoutHeader(SelectLanguage);
+const MasterDriverWithHeader = withLayoutHeader(MasterDriver);
+const LoadingWithHeader = withLayoutHeader(LoadedScreens);
+const ScanManagerWithHeader = withLayoutHeader(ScanManager);
+const WarehouseOrderEditWithHeader = withLayoutHeader(WarehouseOrderEdit);
+const ParcelWithHeader = withLayoutHeader(Parcel);
+const ChatWithHeader = withLayoutHeader(Chat);
+const ProfileWithHeader = withLayoutHeader(Profile);
+const MapsScreensWithHeader = withLayoutHeader(MapsScreens);
+const LanguageWithHeader = withLayoutHeader(LanguageScreens);
+const DriverCompanyWithHeader = withLayoutHeader(DriverCompanyScreen);
+const DriverCompanyFormWithHeader = withLayoutHeader(CompanyFormScreen);
+const UploadDocumentsWithHeader = withLayoutHeader(UploadDocumentsScreen);
+const DriverProfileWithHeader = withLayoutHeader(DriverProfileScreen);
+const DocumentUploadWithHeader = withLayoutHeader(DocumentUploadScreen);
+const DeliveryWithHeader = withLayoutHeader(DeliveryScreens);
+const WebViewWithHeader = withLayoutHeader(WebViewScreeens);
+const HomeWithHeader = withLayoutHeader(HomeScreens);
+const FilterScreenWithHeader = withLayoutHeader(FilterScreen);
+const CameraWithHeader = withLayoutHeader(CustomCamera);
+
 export default function index() {
-  const Stack = createNativeStackNavigator();
   const [isConnected, setIsConnected] = useState<boolean>(true);
+  const [currentRoute, setCurrentRoute] = useState<string>("");
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state: any) => {
@@ -70,13 +135,7 @@ export default function index() {
     }
   };
 
-  const withLayoutHeader =
-    (Component: React.ComponentType<any>) => (props: any) =>
-      (
-        <LayoutHeader>
-          <Component {...props} />
-        </LayoutHeader>
-      );
+  const adminTapBlocked = ADMIN_TAP_BLOCKED_ROUTES.has(currentRoute);
     
   return (
     <>
@@ -87,7 +146,7 @@ export default function index() {
             <DropboxUploadRunner />
             <ChauffeurLocationBootstrap />
             <DriverGPSTraking />
-            <AdminBaseUrlGate>
+            <AdminBaseUrlGate blocked={adminTapBlocked}>
             <View style={{ flex: 1 }}>
             {isConnected ? (
               <Stack.Navigator
@@ -96,6 +155,11 @@ export default function index() {
                 screenOptions={{
                   headerShown: false,
                   animation: "simple_push",
+                }}
+                screenListeners={{
+                  state: (e) => {
+                    setCurrentRoute(getActiveRouteName(e.data.state));
+                  },
                 }}
               >
                 <Stack.Screen name="SplashScreens" component={SplashScreens} />
@@ -106,139 +170,135 @@ export default function index() {
                 <Stack.Screen name="Staff" component={Staff} />
                 <Stack.Screen
                   name="Details"
-                  component={withLayoutHeader(DetailsScreens)}
+                  component={DetailsWithHeader}
                   options={{ statusBarAnimation: "slide" }}
                 />
                 <Stack.Screen
                   name="AllOrder"
-                  component={withLayoutHeader(AllOrder)}
+                  component={AllOrderWithHeader}
                   options={{ statusBarAnimation: "slide" }}
                 />
                 <Stack.Screen
                   name="OrderDetails"
-                  component={withLayoutHeader(OrderDetails)}
+                  component={OrderDetailsWithHeader}
                   options={{ statusBarAnimation: "slide" }}
                 />
                 <Stack.Screen
                   name="ScanDetails"
-                  component={withLayoutHeader(ScanDetails)}
+                  component={ScanDetailsWithHeader}
                   options={{ statusBarAnimation: "slide" }}
                 />
                 <Stack.Screen
                   name="BottomTabs"
-                  component={withLayoutHeader(BottomTabs)}
+                  component={BottomTabsWithHeader}
                 />
                 <Stack.Screen
                   name="Scanner"
                   options={{ statusBarAnimation: "slide",gestureEnabled: false, }}
-                  component={withLayoutHeader(ScannerScreens)}
+                  component={ScannerWithHeader}
                 />
                 <Stack.Screen
                   name="RejectionScanner"
                   options={{ statusBarAnimation: "slide", gestureEnabled: false }}
-                  component={withLayoutHeader(RejectionScanner)}
+                  component={RejectionScannerWithHeader}
                 />
                 <Stack.Screen
                   name="RejectionReview"
                   options={{ statusBarAnimation: "slide", gestureEnabled: false }}
-                  component={withLayoutHeader(RejectionReview)}
+                  component={RejectionReviewWithHeader}
                 />
                 <Stack.Screen
                   name="DriverPhotosScanner"
                   options={{ statusBarAnimation: "slide", gestureEnabled: false }}
-                  component={withLayoutHeader(DriverPhotosScanner)}
+                  component={DriverPhotosScannerWithHeader}
                 />
                 <Stack.Screen
                   name="Select"
-                  component={withLayoutHeader(SelectLanguage)}
+                  component={SelectWithHeader}
                 />
                 <Stack.Screen
                   name="MasterDriver"
-                  component={withLayoutHeader(MasterDriver)}
+                  component={MasterDriverWithHeader}
                 />
                 <Stack.Screen
                   name="Loading"
-                  component={withLayoutHeader(LoadedScreens)}
+                  component={LoadingWithHeader}
                 />
                 <Stack.Screen
                   name="ScanManager"
-                  component={withLayoutHeader(ScanManager)}
+                  component={ScanManagerWithHeader}
                 />
                 <Stack.Screen
                   name="WarehouseOrderEdit"
-                  component={withLayoutHeader(WarehouseOrderEdit)}
+                  component={WarehouseOrderEditWithHeader}
                 />
                 <Stack.Screen
                   name="Parcel"
-                  component={withLayoutHeader(Parcel)}
+                  component={ParcelWithHeader}
                 />
-                <Stack.Screen name="Chat" component={withLayoutHeader(Chat)} />
+                <Stack.Screen name="Chat" component={ChatWithHeader} />
                 <Stack.Screen
                   name="Profile"
-                  component={withLayoutHeader(Profile)}
+                  component={ProfileWithHeader}
                 />
                 <Stack.Screen
                   name="MapsScreens"
-                  component={withLayoutHeader(MapsScreens)}
+                  component={MapsScreensWithHeader}
                 />
                 <Stack.Screen
                   name="Language"
-                  component={withLayoutHeader(LanguageScreens)}
+                  component={LanguageWithHeader}
                 />
-                {/* <Stack.Screen
-                  name="ContactUs"
-                  component={withLayoutHeader(ContactUsScreen)}
-                /> */}
                 <Stack.Screen
                   name="DriverCompany"
-                  component={withLayoutHeader(DriverCompanyScreen)}
+                  component={DriverCompanyWithHeader}
                 />
                 <Stack.Screen
                   name="DriverCompanyForm"
-                  component={withLayoutHeader(CompanyFormScreen)}
+                  component={DriverCompanyFormWithHeader}
                 />
                 <Stack.Screen
                   name="UploadDocuments"
-                  component={withLayoutHeader(UploadDocumentsScreen)}
+                  component={UploadDocumentsWithHeader}
                 />
                 <Stack.Screen
                   name="DriverProfile"
-                  component={withLayoutHeader(DriverProfileScreen)}
+                  component={DriverProfileWithHeader}
                 />
                 <Stack.Screen
                   name="DocumentUpload"
-                  component={withLayoutHeader(DocumentUploadScreen)}
+                  component={DocumentUploadWithHeader}
                 />
                 <Stack.Screen
                   name="Delivery"
-                  component={withLayoutHeader(DeliveryScreens)}
+                  component={DeliveryWithHeader}
                 />
                 <Stack.Screen
                   name="WebViewScreeens"
-                  component={withLayoutHeader(WebViewScreeens)}
+                  component={WebViewWithHeader}
                 />
                 <Stack.Screen
                   name="Home"
-                  component={withLayoutHeader(HomeScreens)}
+                  component={HomeWithHeader}
                 />
                 <Stack.Screen
                   name="MapScreens"
                   options={{
                     animation: "slide_from_right",
                   }}
-                  component={withLayoutHeader(MapsScreens)}
+                  component={MapsScreensWithHeader}
                 />
                 <Stack.Screen
                   name="FilterScreen"
-                  component={withLayoutHeader(FilterScreen)}
+                  component={FilterScreenWithHeader}
                 />
                 <Stack.Screen
                   name="Camera"
-                  component={withLayoutHeader(CustomCamera)}
+                  component={CameraWithHeader}
                 />
               </Stack.Navigator>
             ) : (
-              <Stack.Navigator
+              <OfflineStack.Navigator
                 id="NoInternetStack"
                 initialRouteName={"NoInternet"}
                 screenOptions={{
@@ -246,8 +306,8 @@ export default function index() {
                   animation: "simple_push",
                 }}
               >
-                <Stack.Screen name="NoInternet" component={NoInternet} />
-              </Stack.Navigator>
+                <OfflineStack.Screen name="NoInternet" component={NoInternet} />
+              </OfflineStack.Navigator>
             )}
             </View>
             </AdminBaseUrlGate>

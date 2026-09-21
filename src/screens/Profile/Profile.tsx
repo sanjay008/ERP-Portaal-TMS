@@ -5,6 +5,7 @@ import ProfileImageViewer from "@/src/components/ProfileImageViewer";
 import ProfileItem from "@/src/components/ProfileItem";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import { resetChauffeurLocationSession } from "@/src/hooks/useChauffeurLocation";
+import { getOtaVersionLine } from "@/src/utils/appVersionMeta";
 import { Colors } from "@/src/utils/colors";
 import { clearUserSessionStorage } from "@/src/utils/logoutSession";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -342,6 +343,9 @@ export default function Profile({ navigation }: any) {
             <Text
               style={[styles.Text, { textAlign: "center" }]}
             >{`${CurrentVersion}`}</Text>
+            <Text
+              style={[styles.Text, { textAlign: "center", marginTop: 4 }]}
+            >{getOtaVersionLine()}</Text>
           </View>
         )}
         renderItem={({ item, index }) => (

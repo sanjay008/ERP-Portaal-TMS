@@ -3,7 +3,7 @@ import { Images } from "@/src/assets/images";
 import AdditionalStopBox from "@/src/components/AdditionalStopBox";
 import AnimatedTooltip from "@/src/components/AnimatedTooltip";
 import CalenderDate from "@/src/components/CalenderDate";
-import CustomHeader from "@/src/components/CustomHeader";
+import DetailsHeader from "@/src/components/DetailsHeader";
 import DropDownBox from "@/src/components/DropDownBox";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
 import GpsTrackingStartPopup from "@/src/components/GpsTrackingStartPopup";
@@ -81,6 +81,8 @@ export default function FilterScreen({ navigation, route }: any) {
     isGpsTracking, setIsGpsTracking,
     activeShift, setActiveShift,
     SelectActiveDate, setSelectActiveDate,
+    GloblySlideTitle,
+    setGloblySlideTitle,
 
   } = useContext(GlobalContextData);
   const [SelectDate, setSelectDate] = useState<string>(SelectActiveDate || "");
@@ -645,6 +647,9 @@ export default function FilterScreen({ navigation, route }: any) {
     }
     const currentType = Type || item?.type;
     setSlideType(currentType);
+    if (item?.item_title) {
+      setGloblySlideTitle(item.item_title);
+    }
     const shouldAllowNavigation = currentType === "pickup_dropoff";
     setScanBTNAvailble(!shouldAllowNavigation);
   }, [
@@ -935,7 +940,9 @@ export default function FilterScreen({ navigation, route }: any) {
     <SafeAreaView style={styles.container}>
       <View style={styles.wrapper}>
         <View style={styles.Header}>
-          <CustomHeader />
+          <DetailsHeader
+            title={t(item?.item_title || GloblySlideTitle || "")}
+          />
         </View>
         <ScrollView
           style={{ flex: 1, marginTop: -20, paddingTop: 15 }}

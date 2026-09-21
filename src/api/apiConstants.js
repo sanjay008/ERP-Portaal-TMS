@@ -2,12 +2,13 @@
 const { getApiBaseUrl } = require('../utils/apiBaseUrl');
 
 const producation_base = "https://app.erpportaal.nl/api/";
+// const producation_base = "https://gesutms.nl/api/";
 const development = "https://development.erpportaal.nl/api/";
 
 const isProductation = true
 
 function activeBase() {
-    return getApiBaseUrl(isProductation ? producation_base : development);
+    return getApiBaseUrl();
 }
 
 const paths = {
@@ -74,6 +75,12 @@ Object.keys(paths).forEach((key) => {
             return `${activeBase()}${paths[key]}`;
         },
     });
+});
+
+Object.defineProperty(apiConstants, 'getActiveApiBaseUrl', {
+    enumerable: false,
+    configurable: false,
+    value: activeBase,
 });
 
 module.exports = apiConstants;
