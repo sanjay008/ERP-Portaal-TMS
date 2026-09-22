@@ -1,5 +1,4 @@
 import { getApiBaseUrl } from '@/src/utils/apiBaseUrl';
-import Constants from 'expo-constants';
 import * as Updates from 'expo-updates';
 
 export function getActiveApiShortName(): string {
@@ -13,24 +12,41 @@ export function getActiveApiShortName(): string {
   return 'App';
 }
 
-function shortOtaId(id?: string | null): string | null {
-  if (!id) return null;
-  const raw = String(id).replace(/^urn:uuid:/i, '').trim();
-  if (!raw) return null;
-  return raw.split('-')[0].slice(0, 8) || null;
+function toSafeDate(value: Date | number | string | null | undefined): Date {
+  if (value instanceof Date && Number.isFinite(value.getTime())) {
+    return value;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const fromMs = new Date(value);
+    if (Number.isFinite(fromMs.getTime())) return fromMs;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const fromText = new Date(value);
+    if (Number.isFinite(fromText.getTime())) return fromText;
+  }
+  return new Date(Date.now());
 }
 
-export function resolveOtaId(): string {
-  const manifest = Updates.manifest as { id?: string } | undefined;
-  const constantsManifest = (Constants as { manifest2?: { id?: string } }).manifest2;
-  const id =
-    Updates.updateId ||
-    manifest?.id ||
-    constantsManifest?.id ||
-    null;
-  return shortOtaId(id) ?? 'embedded';
+/** YY.M.D — e.g. 26.9.21, no leading zeros */
+function formatOtaDate(value: Date | number | string | null | undefined): string {
+  const date = toSafeDate(value);
+  return `${date.getFullYear() % 100}.${date.getMonth() + 1}.${date.getDate()}`;
+}
+
+function resolveOtaDate(): Date {
+  const createdAt = Updates.createdAt;
+  if (createdAt instanceof Date && Number.isFinite(createdAt.getTime())) {
+    return createdAt;
+  }
+
+  const manifest = Updates.manifest as { createdAt?: string | number } | undefined;
+  if (manifest?.createdAt != null) {
+    return toSafeDate(manifest.createdAt);
+  }
+
+  return new Date(Date.now());
 }
 
 export function getOtaVersionLine(): string {
-  return `OTA ${resolveOtaId()} - ${getActiveApiShortName()}`;
+  return `OTA ${formatOtaDate(resolveOtaDate())} - ${getActiveApiShortName()}`;
 }
