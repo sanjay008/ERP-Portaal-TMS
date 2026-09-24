@@ -26,6 +26,7 @@ import ScanDetails from "@/src/screens/Order Analysis/ScanDetails";
 import ScanManager from "@/src/screens/Order Analysis/ScanManager";
 import WarehouseOrderEdit from "@/src/screens/Order Analysis/WarehouseOrderEdit";
 import Parcel from "@/src/screens/Parcel/Parcel";
+import AppPermissionsScreen from "@/src/screens/AppPermissions/AppPermissionsScreen";
 import Profile from "@/src/screens/Profile/Profile";
 import RejectionReview from "@/src/screens/Rejection/RejectionReview";
 import RejectionScanner from "@/src/screens/Rejection/RejectionScanner";
@@ -111,6 +112,7 @@ const WarehouseOrderEditWithHeader = withLayoutHeader(WarehouseOrderEdit);
 const ParcelWithHeader = withLayoutHeader(Parcel);
 const ChatWithHeader = withLayoutHeader(Chat);
 const ProfileWithHeader = withLayoutHeader(Profile);
+const AppPermissionsWithHeader = withLayoutHeader(AppPermissionsScreen);
 const MapsScreensWithHeader = withLayoutHeader(MapsScreens);
 const LanguageWithHeader = withLayoutHeader(LanguageScreens);
 const DriverCompanyWithHeader = withLayoutHeader(DriverCompanyScreen);
@@ -252,6 +254,10 @@ export default function index() {
                 <Stack.Screen
                   name="Profile"
                   component={ProfileWithHeader}
+                />
+                <Stack.Screen
+                  name="AppPermissions"
+                  component={AppPermissionsWithHeader}
                 />
                 <Stack.Screen
                   name="MapsScreens"

@@ -20,7 +20,11 @@ import {
 import { DropboxContext } from '@/src/context/UploadProider';
 import ApiService from '@/src/utils/Apiservice';
 import { Colors } from '@/src/utils/colors';
-import { appendToLocalUploadQueue } from '@/src/utils/localUploadQueue';
+import {
+  appendBoundProofToQueue,
+  buildCameraProofBinding,
+  type CameraProofBinding,
+} from '@/src/utils/localUploadQueue';
 import { isDeliveryOrder } from '@/src/utils/orderStatus';
 import {
   appendDeviceMetaToFormData,
@@ -197,8 +201,49 @@ export function useParcelVerifyFlow({
   const deliveryMoreParcelsNoRef = useRef<(() => void) | null>(null);
   /** Yes/No "No" path — after comment → signature → goBack (skip No Parcel / Open Scanner). */
   const deliveryMoreParcelsNoPathRef = useRef(false);
-  /** Full verify API payload — used for direct-flow Yes/No moreCount only. */
   const lastVerifyApiDataRef = useRef<any>(null);
+  const proofQueuedFromCameraRef = useRef(false);
+  /** Frozen at Camera open — Done/queue must never read live selectPlace. */
+  const cameraProofBindingRef = useRef<CameraProofBinding | null>(null);
+
+  const clearProofSession = useCallback(() => {
+    proofQueuedFromCameraRef.current = false;
+    cameraProofBindingRef.current = null;
+    setAllSelectImage([]);
+  }, []);
+
+  const lockCameraProofBinding = useCallback(
+    (orderData?: any): CameraProofBinding | null => {
+      const binding = buildCameraProofBinding({
+        selectPlace,
+        orderData: orderData ?? responseOrderData ?? itemsData,
+        itemsData,
+      });
+      cameraProofBindingRef.current = binding;
+      if (!binding && __DEV__) {
+        console.warn('[ProofBind] failed to lock order_id before Camera');
+      }
+      return binding;
+    },
+    [selectPlace, responseOrderData, itemsData],
+  );
+
+  const queueCameraProofImages = useCallback(
+    (data: unknown, source: string): boolean => {
+      const binding = cameraProofBindingRef.current;
+      const queued = appendBoundProofToQueue(
+        setLocalImagesUploadbeforeData,
+        binding,
+        data,
+        { source },
+      );
+      if (queued) {
+        proofQueuedFromCameraRef.current = true;
+      }
+      return queued;
+    },
+    [setLocalImagesUploadbeforeData],
+  );
 
   useEffect(() => {
     if (!comment) return;
@@ -642,10 +687,12 @@ export function useParcelVerifyFlow({
           deliveryTypeRef.current = false;
           setActiveVerifyDeliveryLabel(selectedLabel);
           lockParcelCameraCallback();
+          lockCameraProofBinding(orderData ?? itemsData);
           const setData = async (data: any[]) => {
             try {
               if (!data?.length) return;
               setAllSelectImage(data);
+              queueCameraProofImages(data, 'camera_done');
               setParcelDamageSelections((prev) =>
                 initParcelDamageSelections(
                   productDamageList,
@@ -679,8 +726,10 @@ export function useParcelVerifyFlow({
     [
       AllDamageListReason,
       itemsData,
+      lockCameraProofBinding,
       navigation,
       productDamageList,
+      queueCameraProofImages,
       selectDamageData,
       setComment,
       setDeliveyDataSave,
@@ -823,6 +872,7 @@ export function useParcelVerifyFlow({
 
   const startVerify = useCallback(
     async (data: ParcelVerifyScanPayload & { item?: any }) => {
+      clearProofSession();
       setIsLoading(true);
       try {
         // Seed fallback from tapped parcel so optional (label 21) survives
@@ -836,7 +886,7 @@ export function useParcelVerifyFlow({
         setIsLoading(false);
       }
     },
-    [flowDeps],
+    [clearProofSession, flowDeps],
   );
 
   const handlePickupWithPhoto = useCallback(() => {
@@ -844,10 +894,14 @@ export function useParcelVerifyFlow({
     setPickupPlannedSheetOpen((prev) => ({ ...prev, visible: false }));
     pendingPickupScanRef.current = null;
     lockParcelCameraCallback();
+    lockCameraProofBinding(
+      pickupPlannedSheetOpen.orderData ?? responseOrderData ?? itemsData,
+    );
     const setData = async (data: any[]) => {
       try {
         if (data?.length > 0) {
           setAllSelectImage(data);
+          queueCameraProofImages(data, 'pickup_camera_done');
           console.log('[DirectFlow] open comment (pickup camera return)');
           setComment(true);
         }
@@ -858,7 +912,16 @@ export function useParcelVerifyFlow({
     setLatestPickupCameraSetData(setData);
     setPickUpDataSave({ setData });
     navigation.navigate('Camera', { from: 'Pickup' });
-  }, [navigation, setPickUpDataSave, setComment]);
+  }, [
+    navigation,
+    setPickUpDataSave,
+    setComment,
+    lockCameraProofBinding,
+    queueCameraProofImages,
+    pickupPlannedSheetOpen.orderData,
+    responseOrderData,
+    itemsData,
+  ]);
 
   const handlePickupNextScan = useCallback(async () => {
     const scanData =
@@ -1006,19 +1069,45 @@ export function useParcelVerifyFlow({
   );
 
   const queueProofImagesOnly = useCallback(() => {
-    const orderId =
-      selectPlace?.order_id ?? itemsData?.id ?? itemsData?.order_data?.id;
-    if (!allSelectImage?.length || orderId == null) {
+    if (proofQueuedFromCameraRef.current) {
+      return true;
+    }
+    if (!allSelectImage?.length) {
       return false;
     }
 
-    return appendToLocalUploadQueue(setLocalImagesUploadbeforeData, {
-      order_id: orderId,
-      image_data: [...allSelectImage],
-      item_id: selectPlace?.item_id || null,
-      commentId: null,
+    // Prefer frozen camera binding; never invent order from stale UI alone without binding.
+    if (cameraProofBindingRef.current) {
+      return appendBoundProofToQueue(
+        setLocalImagesUploadbeforeData,
+        cameraProofBindingRef.current,
+        allSelectImage,
+        { source: 'comment_empty' },
+      );
+    }
+
+    const binding = buildCameraProofBinding({
+      selectPlace,
+      itemsData,
+      orderData: responseOrderData ?? itemsData,
     });
-  }, [allSelectImage, itemsData, selectPlace, setLocalImagesUploadbeforeData]);
+    if (!binding) {
+      return false;
+    }
+    cameraProofBindingRef.current = binding;
+    return appendBoundProofToQueue(
+      setLocalImagesUploadbeforeData,
+      binding,
+      allSelectImage,
+      { source: 'comment_empty' },
+    );
+  }, [
+    allSelectImage,
+    itemsData,
+    responseOrderData,
+    selectPlace,
+    setLocalImagesUploadbeforeData,
+  ]);
 
   const addImageOrCommentFun = useCallback(
     async (
@@ -1064,17 +1153,29 @@ export function useParcelVerifyFlow({
         if (Boolean(res?.data?.status)) {
           const orderLogId = res?.data?.data?.order_log_id;
           setCommentId(orderLogId);
-          const orderId =
-            selectPlace?.order_id ?? itemsData?.id ?? itemsData?.order_data?.id;
-          if (image_data.length > 0 && orderLogId != null && orderId != null) {
-            appendToLocalUploadQueue(setLocalImagesUploadbeforeData, {
-              order_id: orderId,
-              image_data: [...image_data],
-              item_id: selectPlace?.item_id || null,
-              commentId: orderLogId,
-            });
+          if (
+            image_data.length > 0 &&
+            orderLogId != null &&
+            !proofQueuedFromCameraRef.current
+          ) {
+            const binding =
+              cameraProofBindingRef.current ??
+              buildCameraProofBinding({
+                selectPlace,
+                itemsData,
+                orderData: responseOrderData ?? itemsData,
+              });
+            if (binding) {
+              cameraProofBindingRef.current = binding;
+              appendBoundProofToQueue(
+                setLocalImagesUploadbeforeData,
+                binding,
+                image_data,
+                { commentId: orderLogId, source: 'comment_submit' },
+              );
+            }
           }
-          setAllSelectImage([]);
+          clearProofSession();
           setPickUpDataSave([]);
           setDeliveyDataSave([]);
           setDescription('');
@@ -1114,8 +1215,10 @@ export function useParcelVerifyFlow({
     [
       UserData,
       allSelectImage,
+      clearProofSession,
       description,
       itemsData,
+      responseOrderData,
       selectPlace,
       setCommentId,
       setDeliveyDataSave,
@@ -1229,18 +1332,26 @@ export function useParcelVerifyFlow({
           signatureLabelRef.current = null;
           setProductDamageList([]);
           if (allSelectImage?.length > 0 && CommentId != null) {
-            const orderId =
-              selectPlace?.order_id ?? itemsData?.id ?? itemsData?.order_data?.id;
-            if (orderId != null) {
-              appendToLocalUploadQueue(setLocalImagesUploadbeforeData, {
-                order_id: orderId,
-                image_data: [...allSelectImage],
-                item_id: selectPlace?.item_id || null,
-                commentId: CommentId,
-              });
+            if (!proofQueuedFromCameraRef.current) {
+              const binding =
+                cameraProofBindingRef.current ??
+                buildCameraProofBinding({
+                  selectPlace,
+                  itemsData,
+                  orderData: responseOrderData ?? itemsData,
+                });
+              if (binding) {
+                cameraProofBindingRef.current = binding;
+                appendBoundProofToQueue(
+                  setLocalImagesUploadbeforeData,
+                  binding,
+                  allSelectImage,
+                  { commentId: CommentId, source: 'signature_submit' },
+                );
+              }
             }
           }
-          setAllSelectImage([]);
+          clearProofSession();
           deliveryTypeRef.current = false;
           setShowSig(false);
           clearParcelVerifySession();
@@ -1318,6 +1429,8 @@ export function useParcelVerifyFlow({
       allSelectImage,
       CommentId,
       selectPlace,
+      responseOrderData,
+      clearProofSession,
       setLocalImagesUploadbeforeData,
       handleGoToListPage,
       onSuccess,
@@ -1582,13 +1695,13 @@ export function useParcelVerifyFlow({
 
       if (!hadCommentText && allSelectImage?.length > 0) {
         queueProofImagesOnly();
-        setAllSelectImage([]);
+        clearProofSession();
         setPickUpDataSave([]);
         setDeliveyDataSave([]);
         setDescription('');
         setCommentError('');
       } else if (!hadCommentText && commentOptionalNow) {
-        setAllSelectImage([]);
+        clearProofSession();
         setPickUpDataSave([]);
         setDeliveyDataSave([]);
         setDescription('');
@@ -1792,8 +1905,12 @@ export function useParcelVerifyFlow({
     deliveryTypeRef.current = true;
     setShowSig(false);
     lockParcelCameraCallback();
+    lockCameraProofBinding(responseOrderData ?? itemsData);
     const setData = async (data: any[]) => {
       try {
+        if (data?.length) {
+          queueCameraProofImages(data, 'signature_camera_done');
+        }
         reopenSignatureAfterCamera(data);
       } finally {
         unlockParcelCameraCallback();
@@ -1814,6 +1931,8 @@ export function useParcelVerifyFlow({
     responseOrderData,
     itemsData,
     setDeliveyDataSave,
+    lockCameraProofBinding,
+    queueCameraProofImages,
   ]);
 
   const handleSelectDamage = useCallback(
@@ -1871,7 +1990,12 @@ export function useParcelVerifyFlow({
 
     const pickupSetData = async (data: any[]) => {
       if (data?.length > 0) {
+        // Fallback only — prefer locked binding from explicit open handlers.
+        if (!cameraProofBindingRef.current) {
+          lockCameraProofBinding(responseOrderData ?? itemsData);
+        }
         setAllSelectImage(data);
+        queueCameraProofImages(data, 'pickup_camera_done');
         setComment(true);
       }
     };
@@ -1880,8 +2004,12 @@ export function useParcelVerifyFlow({
 
     const deliverySetData = async (data: any[]) => {
       if (!data?.length) return;
+      if (!cameraProofBindingRef.current) {
+        lockCameraProofBinding(responseOrderData ?? itemsData);
+      }
       setAllSelectImage(data);
       if (!deliveryTypeRef.current) {
+        queueCameraProofImages(data, 'camera_done');
         const label =
           getActiveVerifyDeliveryLabel() ??
           deliveryLabelSnapshotRef.current ??
@@ -1900,6 +2028,7 @@ export function useParcelVerifyFlow({
         }
         setShowSig(false);
       } else {
+        queueCameraProofImages(data, 'signature_camera_done');
         reopenSignatureAfterCamera(data);
       }
     };
@@ -1925,6 +2054,11 @@ export function useParcelVerifyFlow({
     reopenSignatureAfterCamera,
     setDeliveyDataSave,
     setPickUpDataSave,
+    lockCameraProofBinding,
+    queueCameraProofImages,
+    responseOrderData,
+    itemsData,
+    persistDeliveryLabel,
   ]);
 
   return {

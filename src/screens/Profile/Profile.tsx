@@ -298,6 +298,13 @@ export default function Profile({ navigation }: any) {
       onPress: () => navigation.navigate("DriverProfile"),
     },
     {
+      id: 10,
+      Background: Colors.primary,
+      Icon: Images.SettingsIcon,
+      Title: t("Permissions"),
+      onPress: () => navigation.navigate("AppPermissions"),
+    },
+    {
       id: 6,
       Background: Colors.primary,
       Icon: Images.LangaugeIcon,

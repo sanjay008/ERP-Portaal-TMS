@@ -41,7 +41,11 @@ import {
   withDeviceMeta,
 } from "@/src/utils/deviceMeta";
 import { REQUIRED_CHAUFFEUR_ROLE } from "@/src/utils/driverLocationApi";
-import { appendToLocalUploadQueue } from "@/src/utils/localUploadQueue";
+import {
+  appendBoundProofToQueue,
+  buildCameraProofBinding,
+  type CameraProofBinding,
+} from "@/src/utils/localUploadQueue";
 import { isDeliveryOrder } from "@/src/utils/orderStatus";
 import {
   buildAcceptanceSummaryModal,
@@ -215,6 +219,8 @@ export default function ScannerScreens({ navigation, route }: any) {
   const deliveryMoreParcelsNoRef = useRef<(() => void) | null>(null);
   /** Yes/No "No" path — after comment → signature → goBack (skip No Parcel / Open Scanner). */
   const deliveryMoreParcelsNoPathRef = useRef(false);
+  const proofQueuedFromCameraRef = useRef(false);
+  const cameraProofBindingRef = useRef<CameraProofBinding | null>(null);
   const [parcelDamageSelections, setParcelDamageSelections] =
     useState<ParcelDamageSelectionMap>({});
   const [deliveryContinuePending, setDeliveryContinuePending] = useState(false);
@@ -431,6 +437,44 @@ export default function ScannerScreens({ navigation, route }: any) {
     DropBoxUploadImageDataQues, setDropBoxUploadImageDataQues
   } = useContext(DropboxContext);
 
+  const clearProofSession = useCallback(() => {
+    proofQueuedFromCameraRef.current = false;
+    cameraProofBindingRef.current = null;
+    setAllSelectImage([]);
+  }, []);
+
+  const lockCameraProofBinding = useCallback(
+    (orderData?: any): CameraProofBinding | null => {
+      const binding = buildCameraProofBinding({
+        selectPlace: SelectPlace,
+        orderData: orderData ?? ReposonseOrderData ?? ItemsData,
+        itemsData: ItemsData,
+      });
+      cameraProofBindingRef.current = binding;
+      if (!binding && __DEV__) {
+        console.warn("[ProofBind] Scanner failed to lock order_id before Camera");
+      }
+      return binding;
+    },
+    [SelectPlace, ReposonseOrderData, ItemsData],
+  );
+
+  const queueCameraProofImages = useCallback(
+    (data: unknown, source: string): boolean => {
+      const queued = appendBoundProofToQueue(
+        setLocalImagesUploadbeforeData,
+        cameraProofBindingRef.current,
+        data,
+        { source },
+      );
+      if (queued) {
+        proofQueuedFromCameraRef.current = true;
+      }
+      return queued;
+    },
+    [setLocalImagesUploadbeforeData],
+  );
+
   const Focused = useIsFocused();
 
   const isAnyScannerModalOpen =
@@ -579,10 +623,12 @@ export default function ScannerScreens({ navigation, route }: any) {
         onPress: () => {
           deliveryTypeRef.current = false;
           lockParcelCameraCallback();
+          lockCameraProofBinding(orderData ?? ItemsData);
           const setData = async (data: any[]) => {
             try {
               if (data?.length > 0) {
                 setAllSelectImage(data);
+                queueCameraProofImages(data, "camera_done");
                 setParcelDamageSelections((prev) =>
                   initParcelDamageSelections(
                     ProductDamageList,
@@ -616,7 +662,9 @@ export default function ScannerScreens({ navigation, route }: any) {
       AllDamageListReason,
       ItemsData,
       ProductDamageList,
+      lockCameraProofBinding,
       navigation,
+      queueCameraProofImages,
       SelectCurrentDeliveryLabel,
       selectDamageData,
       setDeliveyDataSave,
@@ -877,7 +925,11 @@ export default function ScannerScreens({ navigation, route }: any) {
 
     const pickupSetData = async (data: any[]) => {
       if (data?.length > 0) {
+        if (!cameraProofBindingRef.current) {
+          lockCameraProofBinding(ReposonseOrderData ?? ItemsData);
+        }
         setAllSelectImage(data);
+        queueCameraProofImages(data, "pickup_camera_done");
         setComment(true);
       }
     };
@@ -886,8 +938,12 @@ export default function ScannerScreens({ navigation, route }: any) {
 
     const deliverySetData = async (data: any[]) => {
       if (!data?.length) return;
+      if (!cameraProofBindingRef.current) {
+        lockCameraProofBinding(ReposonseOrderData ?? ItemsData);
+      }
       setAllSelectImage(data);
       if (!deliveryTypeRef.current) {
+        queueCameraProofImages(data, "camera_done");
         const label =
           selectCurrentDeliveryLabelRef.current ?? SelectCurrentDeliveryLabel;
         if (shouldSkipCommentAfterCamera(label, selectDamageData)) {
@@ -897,6 +953,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         }
         setShowSig(false);
       } else {
+        queueCameraProofImages(data, "signature_camera_done");
         reopenSignatureAfterCamera(data);
       }
     };
@@ -919,6 +976,10 @@ export default function ScannerScreens({ navigation, route }: any) {
     reopenSignatureAfterCamera,
     setPickUpDataSave,
     setDeliveyDataSave,
+    lockCameraProofBinding,
+    queueCameraProofImages,
+    ReposonseOrderData,
+    ItemsData,
   ]);
 
   const onBarcodeScanned = useCallback(
@@ -963,6 +1024,8 @@ export default function ScannerScreens({ navigation, route }: any) {
       setLastDetectedBarcode(data);
       isVerifyingScanRef.current = true;
       setIsVerifyingScan(true);
+      // New scan must never inherit previous parcel photos / order binding.
+      clearProofSession();
 
       try {
         console.log("QRDATa", parsedData);
@@ -1297,10 +1360,14 @@ export default function ScannerScreens({ navigation, route }: any) {
     setPickupPlannedSheetOpen((prev) => ({ ...prev, visible: false }));
     pendingPickupScanRef.current = null;
     lockParcelCameraCallback();
+    lockCameraProofBinding(
+      PickupPlannedSheetOpen.orderData ?? ReposonseOrderData ?? ItemsData,
+    );
     const setData = async (data: any[]) => {
       try {
         if (data?.length > 0) {
           setAllSelectImage(data);
+          queueCameraProofImages(data, "pickup_camera_done");
           setComment(true);
         }
       } finally {
@@ -1310,7 +1377,15 @@ export default function ScannerScreens({ navigation, route }: any) {
     setLatestPickupCameraSetData(setData);
     setPickUpDataSave({ setData });
     navigation.navigate("Camera", { from: "Pickup" });
-  }, [navigation, setPickUpDataSave]);
+  }, [
+    navigation,
+    setPickUpDataSave,
+    lockCameraProofBinding,
+    queueCameraProofImages,
+    PickupPlannedSheetOpen.orderData,
+    ReposonseOrderData,
+    ItemsData,
+  ]);
 
   const handlePickupNextScan = useCallback(async () => {
     const scanData =
@@ -1424,19 +1499,43 @@ export default function ScannerScreens({ navigation, route }: any) {
   };
 
   const queueProofImagesOnly = () => {
-    const orderId =
-      SelectPlace?.order_id ?? ItemsData?.id ?? ItemsData?.order_data?.id;
-    if (!AllSelectImage?.length || orderId == null) {
+    if (proofQueuedFromCameraRef.current) {
+      return true;
+    }
+    if (!AllSelectImage?.length) {
       return false;
     }
 
-    return appendToLocalUploadQueue(setLocalImagesUploadbeforeData, {
-      order_id: orderId,
-      image_data: [...AllSelectImage],
-      item_id: SelectPlace?.item_id || null,
-      commentId: null,
-      qr_data: JSON.stringify(QRData),
+    if (cameraProofBindingRef.current) {
+      return appendBoundProofToQueue(
+        setLocalImagesUploadbeforeData,
+        cameraProofBindingRef.current,
+        AllSelectImage,
+        {
+          source: "comment_empty",
+          qr_data: JSON.stringify(QRData),
+        },
+      );
+    }
+
+    const binding = buildCameraProofBinding({
+      selectPlace: SelectPlace,
+      itemsData: ItemsData,
+      orderData: ReposonseOrderData ?? ItemsData,
     });
+    if (!binding) {
+      return false;
+    }
+    cameraProofBindingRef.current = binding;
+    return appendBoundProofToQueue(
+      setLocalImagesUploadbeforeData,
+      binding,
+      AllSelectImage,
+      {
+        source: "comment_empty",
+        qr_data: JSON.stringify(QRData),
+      },
+    );
   };
 
   const AddImageOrCommentFun = async (
@@ -1482,17 +1581,33 @@ export default function ScannerScreens({ navigation, route }: any) {
       if (Boolean(res?.data?.status)) {
         const orderLogId = res?.data?.data?.order_log_id;
         setCommentId(orderLogId);
-        const orderId = SelectPlace?.order_id ?? ItemsData?.id ?? ItemsData?.order_data?.id;
-        if (image_data.length > 0 && orderLogId != null && orderId != null) {
-          appendToLocalUploadQueue(setLocalImagesUploadbeforeData, {
-            order_id: orderId,
-            image_data: [...image_data],
-            item_id: SelectPlace?.item_id || null,
-            commentId: orderLogId,
-            qr_data: JSON.stringify(QRData),
-          });
+        if (
+          image_data.length > 0 &&
+          orderLogId != null &&
+          !proofQueuedFromCameraRef.current
+        ) {
+          const binding =
+            cameraProofBindingRef.current ??
+            buildCameraProofBinding({
+              selectPlace: SelectPlace,
+              itemsData: ItemsData,
+              orderData: ReposonseOrderData ?? ItemsData,
+            });
+          if (binding) {
+            cameraProofBindingRef.current = binding;
+            appendBoundProofToQueue(
+              setLocalImagesUploadbeforeData,
+              binding,
+              image_data,
+              {
+                commentId: orderLogId,
+                source: "comment_submit",
+                qr_data: JSON.stringify(QRData),
+              },
+            );
+          }
         }
-        setAllSelectImage([]);
+        clearProofSession();
         setPickUpDataSave([]);
         setDeliveyDataSave([]);
         setDescrition('');
@@ -1703,26 +1818,31 @@ const CustomerSignatureFun = async (
     setProductDamageList([]);
 
     if (Array.isArray(AllSelectImage) && AllSelectImage.length > 0 && CommentId != null) {
-      const uploadOrderId =
-        SelectPlace?.order_id ??
-        ItemsData?.id ??
-        ItemsData?.order_data?.id;
-
-      if (uploadOrderId != null) {
-        appendToLocalUploadQueue(
-          setLocalImagesUploadbeforeData,
-          {
-            order_id: uploadOrderId,
-            image_data: [...AllSelectImage],
-            item_id: SelectPlace?.item_id ?? null,
-            commentId: CommentId,
-            qr_data: JSON.stringify(QRData ?? {}),
-          },
-        );
+      if (!proofQueuedFromCameraRef.current) {
+        const binding =
+          cameraProofBindingRef.current ??
+          buildCameraProofBinding({
+            selectPlace: SelectPlace,
+            itemsData: ItemsData,
+            orderData: ReposonseOrderData ?? ItemsData,
+          });
+        if (binding) {
+          cameraProofBindingRef.current = binding;
+          appendBoundProofToQueue(
+            setLocalImagesUploadbeforeData,
+            binding,
+            AllSelectImage,
+            {
+              commentId: CommentId,
+              source: "signature_submit",
+              qr_data: JSON.stringify(QRData ?? {}),
+            },
+          );
+        }
       }
     }
 
-    setAllSelectImage([]);
+    clearProofSession();
     deliveryTypeRef.current = false;
     setShowSig(false);
     setSecondModal((prev) => ({
@@ -1999,14 +2119,14 @@ const CustomerSignatureFun = async (
         // No comment text: proof images queue without comment log (old behavior).
         if (!hadCommentText && AllSelectImage?.length > 0) {
           queueProofImagesOnly();
-          setAllSelectImage([]);
+          clearProofSession();
           setPickUpDataSave([]);
           setDeliveyDataSave([]);
           setDescrition('');
           setCommentError('');
           refreshCamera();
         } else if (!hadCommentText && isCommentOptional) {
-          setAllSelectImage([]);
+          clearProofSession();
           setPickUpDataSave([]);
           setDeliveyDataSave([]);
           setDescrition('');
@@ -2685,10 +2805,14 @@ const CustomerSignatureFun = async (
               visible: false,
             }));
             lockParcelCameraCallback();
+            lockCameraProofBinding(
+              ConformationModalOpen?.OrderData ?? ReposonseOrderData ?? ItemsData,
+            );
             const setData = async (data: any[]) => {
               try {
                 if (data?.length > 0) {
                   setAllSelectImage(data);
+                  queueCameraProofImages(data, "pickup_camera_done");
                   setComment(true);
                 }
               } finally {
@@ -2748,8 +2872,12 @@ const CustomerSignatureFun = async (
           deliveryTypeRef.current = true;
           setShowSig(false);
           lockParcelCameraCallback();
+          lockCameraProofBinding(ReposonseOrderData ?? ItemsData);
           const setData = async (data: any[]) => {
             try {
+              if (data?.length) {
+                queueCameraProofImages(data, "signature_camera_done");
+              }
               reopenSignatureAfterCamera(data);
             } finally {
               unlockParcelCameraCallback();

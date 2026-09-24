@@ -1,12 +1,21 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import * as BackgroundTask from "expo-background-task";
+import Constants from "expo-constants";
+import * as Device from "expo-device";
 import * as FileSystem from "expo-file-system/legacy";
 import * as TaskManager from "expo-task-manager";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { Platform } from "react-native";
 import apiConstants from "../api/apiConstants";
 import { GlobalContextData } from "../context/GlobalContext";
 import { DropboxContext } from "../context/UploadProider";
+import { getDeviceMeta } from "../utils/deviceMeta";
+import {
+  buildDropboxOrderFolder,
+  resolveBoundDropboxFolder,
+  toPositiveId,
+} from "../utils/localUploadQueue";
 
 const TASK_NAME = "DROPBOX_BACKGROUND_UPLOAD";
 const STORAGE_QUEUE_KEY = "LOCAL_UPLOAD_QUEUE";
@@ -62,6 +71,10 @@ export interface LocalUploadItem {
   folder?: string;
   batchId?: string;
   qr_data?: string | null;
+  tracking_started_at?: number;
+  picture_count?: number;
+  source?: string;
+  parcel_count?: number | null;
 }
 
 export interface DropboxQueueItem {
@@ -559,6 +572,11 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         return { success: false, message: "User data not available" };
       }
 
+      const orderId = toPositiveId(item.order_id);
+      if (orderId == null) {
+        return { success: false, message: "Missing order_id — refuse store" };
+      }
+
       if (!item.image_data?.length) {
         return { success: false, message: "No images to store" };
       }
@@ -570,12 +588,13 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         formData.append("role", UserData.user.role);
         formData.append("relaties_id", String(UserData.relaties?.id ?? ""));
         formData.append("user_id", String(UserData.user.id ?? ""));
-        formData.append("order_id", String(item.order_id ?? ""));
+        formData.append("order_id", String(orderId));
         formData.append("order_log_id", String(item.commentId ?? ""));
         // formData.append("qr_data", item.qr_data ?? "null");
 
-        if (item.item_id !== null && item.item_id !== undefined) {
-          formData.append("item_id", String(item.item_id));
+        const itemId = toPositiveId(item.item_id);
+        if (itemId != null) {
+          formData.append("item_id", String(itemId));
         }
 
         item.image_data.forEach((image, index) => {
@@ -617,6 +636,7 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
       error: string;
       file: string;
       qr_data?: string | null;
+      dropbox_tracking_meta_data?: Record<string, any>;
     }): Promise<{ success: boolean; message?: string }> => {
       if (!UserData?.user?.verify_token) {
         return { success: false, message: "User data not available" };
@@ -634,6 +654,10 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         formData.append("error", params.error);
         formData.append("file", params.file);
         formData.append("qr_data", params.qr_data ?? "null");
+        formData.append(
+          "dropbox_tracking_meta_data",
+          JSON.stringify(params.dropbox_tracking_meta_data ?? {}),
+        );
 
         if (params.item_id !== null && params.item_id !== undefined) {
           formData.append("item_id", String(params.item_id));
@@ -810,12 +834,24 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
     async (item: LocalUploadItem): Promise<boolean> => {
       if (!setDropBoxUploadImageDataQues || !setLocalImagesUploadbeforeData) return false;
 
-      if (!item.order_id || !item.image_data?.length) {
+      const boundOrderId = toPositiveId(item.order_id);
+      if (boundOrderId == null || !item.image_data?.length) {
+        if (__DEV__) {
+          console.warn("[DropboxUpload] skip queue item — invalid order_id or empty images", {
+            order_id: item.order_id,
+            imageCount: item.image_data?.length ?? 0,
+          });
+        }
         return true;
       }
 
-      const batchItem = withBatchId(item);
+      const batchItem = withBatchId({
+        ...item,
+        order_id: boundOrderId,
+        item_id: toPositiveId(item.item_id),
+      });
       const itemKey = getQueueItemKey(batchItem);
+      const trackingStartedAt = batchItem.tracking_started_at ?? Date.now();
 
       if (processingLocalKeysRef.current.has(itemKey)) {
         return true;
@@ -831,49 +867,91 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
           return true;
         }
 
-        const folder = item.folder || "photos";
+        const folder = resolveBoundDropboxFolder(boundOrderId, batchItem.folder);
         const results = await Promise.all(uris.map((uri) => uploadSingleFile(uri, folder)));
 
         const uploaded: FileUploadResult[] = [];
-        const failedReports: Promise<{ success: boolean; message?: string }>[] = [];
+        const failed: { error: string; file: string }[] = [];
 
         for (const result of results) {
           if (!result) continue;
-
           if (result.ok === false) {
-            failedReports.push(
-              reportImageUploadError({
-                order_id: batchItem.order_id,
-                item_id: batchItem.item_id,
-                order_log_id: batchItem.commentId,
-                error: result.error,
-                file: result.file,
-                qr_data: batchItem.qr_data ?? null,
-              }),
-            );
+            failed.push({ error: result.error, file: result.file });
           } else {
             uploaded.push(result.data);
           }
         }
 
-        if (failedReports.length > 0) {
-          const reportResults = await Promise.all(failedReports);
-          const reportFailed = reportResults.some((r) => !r.success);
+        const finishedAt = Date.now();
+        const deviceMeta = await getDeviceMeta();
+        const uploadSuccess = uploaded.length > 0 && failed.length === 0;
+        const partialSuccess = uploaded.length > 0 && failed.length > 0;
+        const statusTag = uploadSuccess
+          ? "success"
+          : partialSuccess
+            ? "partial"
+            : "failed";
+        const errorSummary =
+          failed.length > 0
+            ? failed.map((f) => `${f.file}: ${f.error}`).join(" | ")
+            : uploadSuccess
+              ? "upload_success"
+              : "upload_failed";
+        const fileSummary =
+          [
+            ...uploaded.map((u) => u.file),
+            ...failed.map((f) => f.file),
+          ].join(",") || "none";
 
-          if (reportFailed && uploaded.length === 0) {
-            logDropboxUploadError("processQueueItem error API failed", {
-              step: "process_queue_item",
-              orderId: batchItem?.order_id ?? null,
-              itemId: batchItem?.item_id ?? null,
-              commentId: batchItem?.commentId ?? null,
-              attemptedCount: uris.length,
-              folder,
-            });
-            processingLocalKeysRef.current.delete(itemKey);
-            syncLocalQueue([...latestQueueRef.current, batchItem]);
-            return false;
-          }
-        }
+        const dropbox_tracking_meta_data = {
+          status: statusTag,
+          upload_success: uploadSuccess,
+          order_id: batchItem.order_id,
+          item_id: batchItem.item_id,
+          order_log_id: batchItem.commentId,
+          batch_id: batchItem.batchId ?? null,
+          source: batchItem.source ?? "queue",
+          folder,
+          picture_count:
+            batchItem.picture_count ?? batchItem.image_data?.length ?? uris.length,
+          pictures_attempted: uris.length,
+          pictures_uploaded: uploaded.length,
+          pictures_failed: failed.length,
+          parcel_count: batchItem.parcel_count ?? null,
+          duration_ms: Math.max(0, finishedAt - trackingStartedAt),
+          started_at: trackingStartedAt,
+          finished_at: finishedAt,
+          started_at_iso: new Date(trackingStartedAt).toISOString(),
+          finished_at_iso: new Date(finishedAt).toISOString(),
+          device: {
+            ...deviceMeta,
+            brand: Device.brand ?? null,
+            model_name: Device.modelName ?? null,
+            model_id: Device.modelId ?? null,
+            os_version: Device.osVersion ?? null,
+            platform: Platform.OS,
+            platform_version: String(Platform.Version ?? ""),
+            app_build:
+              Constants.expoConfig?.android?.versionCode ??
+              Constants.nativeBuildVersion ??
+              null,
+            is_device: Device.isDevice ?? null,
+          },
+          dropbox_uploaded: uploaded,
+          dropbox_failed: failed,
+          qr_data: batchItem.qr_data ?? null,
+          error_summary: errorSummary,
+        };
+
+        await reportImageUploadError({
+          order_id: batchItem.order_id,
+          item_id: batchItem.item_id,
+          order_log_id: batchItem.commentId,
+          error: errorSummary,
+          file: fileSummary,
+          qr_data: batchItem.qr_data ?? null,
+          dropbox_tracking_meta_data,
+        });
 
         if (uploaded.length === 0) {
           logDropboxUploadError("processQueueItem all files failed", {
@@ -914,6 +992,70 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         const errorMessage =
           e?.message || e?.response?.data?.message || "Unknown queue upload error";
         const userMessage = getUserFriendlyExceptionError(e, t);
+        const finishedAt = Date.now();
+
+        try {
+          const deviceMeta = await getDeviceMeta();
+          await reportImageUploadError({
+            order_id: batchItem.order_id,
+            item_id: batchItem.item_id,
+            order_log_id: batchItem.commentId,
+            error: errorMessage,
+            file: (batchItem.image_data || [])
+              .map((uri) => sanitizeFileUri(String(uri)))
+              .join(","),
+            qr_data: batchItem.qr_data ?? null,
+            dropbox_tracking_meta_data: {
+              status: "exception",
+              upload_success: false,
+              order_id: batchItem.order_id,
+              item_id: batchItem.item_id,
+              order_log_id: batchItem.commentId,
+              batch_id: batchItem.batchId ?? null,
+              source: batchItem.source ?? "queue",
+              folder: batchItem.folder ||
+                (batchItem.order_id != null
+                  ? buildDropboxOrderFolder(batchItem.order_id)
+                  : "photos"),
+              picture_count:
+                batchItem.picture_count ?? batchItem.image_data?.length ?? 0,
+              pictures_attempted: batchItem.image_data?.length ?? 0,
+              pictures_uploaded: 0,
+              pictures_failed: batchItem.image_data?.length ?? 0,
+              parcel_count: batchItem.parcel_count ?? null,
+              duration_ms: Math.max(0, finishedAt - trackingStartedAt),
+              started_at: trackingStartedAt,
+              finished_at: finishedAt,
+              started_at_iso: new Date(trackingStartedAt).toISOString(),
+              finished_at_iso: new Date(finishedAt).toISOString(),
+              device: {
+                ...deviceMeta,
+                brand: Device.brand ?? null,
+                model_name: Device.modelName ?? null,
+                model_id: Device.modelId ?? null,
+                os_version: Device.osVersion ?? null,
+                platform: Platform.OS,
+                platform_version: String(Platform.Version ?? ""),
+                app_build:
+                  Constants.expoConfig?.android?.versionCode ??
+                  Constants.nativeBuildVersion ??
+                  null,
+                is_device: Device.isDevice ?? null,
+              },
+              dropbox_uploaded: [],
+              dropbox_failed: [],
+              exception: {
+                message: errorMessage,
+                user_message: userMessage,
+                code: e?.code ?? null,
+                name: e?.name ?? null,
+              },
+              qr_data: batchItem.qr_data ?? null,
+              error_summary: errorMessage,
+            },
+          });
+        } catch {
+        }
 
         logDropboxUploadError("processQueueItem exception", {
           step: "process_queue_item",
@@ -1098,7 +1240,11 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
             if (queue.length > 0) {
               for (const item of queue) {
                 const uris = item.image_data.filter(Boolean);
-                const folder = item.folder || "photos";
+                const folder =
+                  item.folder ||
+                  (item.order_id != null
+                    ? buildDropboxOrderFolder(item.order_id)
+                    : "photos");
                 await Promise.all(uris.map((uri) => uploadSingleFile(uri, folder)));
               }
             }
