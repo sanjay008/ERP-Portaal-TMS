@@ -1,4 +1,5 @@
 import BottomTabs from "@/src/bottomTabs/BottomTabs";
+import AccountSwitcherGate from "@/src/components/AccountSwitcherGate";
 import AdminBaseUrlGate from "@/src/components/AdminBaseUrlGate";
 import LayoutHeader from "@/src/components/_LayoutHeader";
 import ChauffeurLocationBootstrap from "@/src/components/ChauffeurLocationBootstrap";
@@ -56,6 +57,15 @@ const ADMIN_TAP_BLOCKED_ROUTES = new Set([
   "DriverPhotosScanner",
   "Camera",
   "ScanManager",
+]);
+
+/** Left 6-tap only on tab roots (no back btn). Other screens keep back first. */
+const ACCOUNT_TAP_ENABLED_ROUTES = new Set([
+  "Home",
+  "Parcel",
+  "Loaded",
+  "Profile",
+  "BottomTabs",
 ]);
 
 const Stack = createNativeStackNavigator();
@@ -136,6 +146,7 @@ export default function index() {
   };
 
   const adminTapBlocked = ADMIN_TAP_BLOCKED_ROUTES.has(currentRoute);
+  const accountTapBlocked = !ACCOUNT_TAP_ENABLED_ROUTES.has(currentRoute);
     
   return (
     <>
@@ -147,6 +158,7 @@ export default function index() {
             <ChauffeurLocationBootstrap />
             <DriverGPSTraking />
             <AdminBaseUrlGate blocked={adminTapBlocked}>
+            <AccountSwitcherGate blocked={accountTapBlocked}>
             <View style={{ flex: 1 }}>
             {isConnected ? (
               <Stack.Navigator
@@ -310,6 +322,7 @@ export default function index() {
               </OfflineStack.Navigator>
             )}
             </View>
+            </AccountSwitcherGate>
             </AdminBaseUrlGate>
           </GlobalContext>
         </MenuProvider>

@@ -2,6 +2,7 @@ import React, { ReactNode, useContext } from "react";
 import { StatusBar, StyleSheet, View } from "react-native";
 import { GlobalContextData } from "../context/GlobalContext";
 import { Colors } from "../utils/colors";
+import ToastAnimated from "./Toast";
 import ToastMessage from "./ToastMessage";
 
 interface LayoutHeaderProps {
@@ -20,6 +21,7 @@ export default function LayoutHeader({ children }: LayoutHeaderProps) {
         text={Toast.text}
         top={Toast.top}
       />
+      <ToastAnimated />
       {children}
     </View>
   );

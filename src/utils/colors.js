@@ -69,6 +69,11 @@ export const Colors = {
   RemoveBg: "#FF00041A",
   FullRed: "#FF0004",
   MapLine: "#06C167",
+  error: "red",
+  errorGradient1: "#FF2C2C",
+  errorGradient2: "#D20000",
+  successGradient1: "#5CB85C",
+  successGradient2: "#378E37",
 };
 //     #fffbde(normal)
 // #cfe2ff(hold)

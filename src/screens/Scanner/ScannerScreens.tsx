@@ -30,7 +30,6 @@ import {
 } from "@/src/hooks/useCameraPermission";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors.js";
-import { REQUIRED_CHAUFFEUR_ROLE } from "@/src/utils/driverLocationApi";
 import {
   buildIsDamagePayload,
   initParcelDamageSelections,
@@ -41,6 +40,7 @@ import {
   appendDeviceMetaToFormData,
   withDeviceMeta,
 } from "@/src/utils/deviceMeta";
+import { REQUIRED_CHAUFFEUR_ROLE } from "@/src/utils/driverLocationApi";
 import { appendToLocalUploadQueue } from "@/src/utils/localUploadQueue";
 import { isDeliveryOrder } from "@/src/utils/orderStatus";
 import {

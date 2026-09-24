@@ -11,8 +11,8 @@ import React, {
 import {
   ActivityIndicator,
   DevSettings,
+  Dimensions,
   Keyboard,
-  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -22,8 +22,10 @@ import {
   View,
 } from "react-native";
 import Animated, {
-  useAnimatedKeyboard,
+  Easing,
   useAnimatedStyle,
+  useSharedValue,
+  withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
@@ -47,6 +49,7 @@ const TAP_ZONE = 56;
 const TAP_TIMEOUT_MS = 2500;
 const REQUIRED_TAPS = 6;
 const RELOAD_TIMEOUT_MS = 4000;
+const SCREEN_H = Dimensions.get("window").height;
 
 const BASE_LABELS: Record<string, string> = {
   erpportaal: "ERP Portaal",
@@ -114,11 +117,64 @@ export default function AdminBaseUrlGate({
   const [selectedBase, setSelectedBase] = useState(() => getApiBaseUrl());
   const [savingBase, setSavingBase] = useState(false);
 
-  const keyboard = useAnimatedKeyboard();
+  const keyboardOffset = useSharedValue(0);
+  const bottomInset = insets.bottom;
+  const topInset = insets.top;
+
+  const animatePasscodeLift = useCallback(
+    (height: number) => {
+      keyboardOffset.value = withTiming(Math.max(0, height), {
+        duration: Platform.OS === "ios" ? 280 : 240,
+        easing: Easing.out(Easing.cubic),
+      });
+    },
+    [keyboardOffset],
+  );
+
+  useEffect(() => {
+    if (!PasscodePopup) {
+      keyboardOffset.value = withTiming(0, {
+        duration: 180,
+        easing: Easing.out(Easing.quad),
+      });
+      return;
+    }
+
+    const showEvent =
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const onShow = (e: any) => {
+      const frame = e?.endCoordinates;
+      const fromScreenY =
+        typeof frame?.screenY === "number"
+          ? Math.max(0, SCREEN_H - frame.screenY)
+          : 0;
+      const fromHeight = frame?.height ?? 0;
+      animatePasscodeLift(Math.max(fromScreenY, fromHeight));
+    };
+    const onHide = () => {
+      animatePasscodeLift(0);
+    };
+
+    const showSub = Keyboard.addListener(showEvent, onShow);
+    const hideSub = Keyboard.addListener(hideEvent, onHide);
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [PasscodePopup, animatePasscodeLift, keyboardOffset]);
+
+  // Card sits just above keyboard (bottom-aligned + Y lift). Clamp so it never
+  // goes above the safe-area top.
   const passcodeCardStyle = useAnimatedStyle(() => {
-    const lift = Math.min(keyboard.height.value * 0.5, 180);
+    const kb = keyboardOffset.value;
+    const maxLift = Math.max(0, SCREEN_H - topInset - 24 - 280);
+    const lift = Math.min(kb, maxLift);
     return {
       transform: [{ translateY: -lift }],
+      marginBottom: kb > 0 ? 10 : Math.max(bottomInset, 16),
     };
   });
 
@@ -219,13 +275,17 @@ export default function AdminBaseUrlGate({
 
   const closePasscodePopup = useCallback(() => {
     Keyboard.dismiss();
+    keyboardOffset.value = withTiming(0, {
+      duration: 180,
+      easing: Easing.out(Easing.quad),
+    });
     setPasscodePopup(false);
     setPasscodeInput("");
     setPasscodeError("");
     logAdminTap({
       event: "passcode_close",
     });
-  }, []);
+  }, [keyboardOffset]);
 
   const confirmPasscode = useCallback(() => {
     const expected = ADMIN_PASSCODE;
@@ -356,60 +416,51 @@ export default function AdminBaseUrlGate({
         statusBarTranslucent
         onRequestClose={() => {}}
       >
-        <KeyboardAvoidingView
-          style={styles.keyboardWrap}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
-        >
-          <View style={styles.modalBackdrop}>
-            <Animated.View style={[styles.modalCard, passcodeCardStyle]}>
-              <View style={styles.modalHeader}>
-                <View style={styles.headerTextWrap}>
-                  <Text style={styles.modalEyebrow}>{t("Admin")}</Text>
-                  <Text style={styles.modalTitle}>{t("Passcode")}</Text>
-                  <Text style={styles.modalSubtitle}>
-                    {t("Enter passcode to change API Base URL")}
-                  </Text>
-                </View>
-                <Pressable
-                  onPress={closePasscodePopup}
-                  hitSlop={12}
-                  style={styles.closeBtn}
-                >
-                  <Ionicons name="close" size={20} color={Colors.darkText} />
-                </Pressable>
+        <View style={styles.passcodeBackdrop}>
+          <Animated.View style={[styles.modalCard, passcodeCardStyle]}>
+            <View style={styles.modalHeader}>
+              <View style={styles.headerTextWrap}>
+                <Text style={styles.modalEyebrow}>{t("Admin")}</Text>
+                <Text style={styles.modalTitle}>{t("Passcode")}</Text>
+                <Text style={styles.modalSubtitle}>
+                  {t("Enter passcode to change API Base URL")}
+                </Text>
               </View>
-
-              <TextInput
-                value={passcodeInput}
-                onChangeText={(value) => {
-                  setPasscodeInput(value);
-                  if (passcodeError) {
-                    setPasscodeError("");
-                  }
-                }}
-                placeholder={t("Enter passcode")}
-                placeholderTextColor={Colors.darkText}
-                secureTextEntry
-                autoFocus
-                keyboardType="number-pad"
-                returnKeyType="done"
-                onSubmitEditing={confirmPasscode}
-                style={styles.passcodeInput}
-              />
-              {passcodeError ? (
-                <Text style={styles.passcodeError}>{passcodeError}</Text>
-              ) : null}
-
               <Pressable
-                onPress={confirmPasscode}
-                style={styles.saveBtn}
+                onPress={closePasscodePopup}
+                hitSlop={12}
+                style={styles.closeBtn}
               >
-                <Text style={styles.saveBtnText}>{t("Confirm")}</Text>
+                <Ionicons name="close" size={20} color={Colors.darkText} />
               </Pressable>
-            </Animated.View>
-          </View>
-        </KeyboardAvoidingView>
+            </View>
+
+            <TextInput
+              value={passcodeInput}
+              onChangeText={(value) => {
+                setPasscodeInput(value);
+                if (passcodeError) {
+                  setPasscodeError("");
+                }
+              }}
+              placeholder={t("Enter passcode")}
+              placeholderTextColor={Colors.darkText}
+              secureTextEntry
+              autoFocus
+              keyboardType="number-pad"
+              returnKeyType="done"
+              onSubmitEditing={confirmPasscode}
+              style={styles.passcodeInput}
+            />
+            {passcodeError ? (
+              <Text style={styles.passcodeError}>{passcodeError}</Text>
+            ) : null}
+
+            <Pressable onPress={confirmPasscode} style={styles.saveBtn}>
+              <Text style={styles.saveBtnText}>{t("Confirm")}</Text>
+            </Pressable>
+          </Animated.View>
+        </View>
       </Modal>
 
       <Modal
@@ -521,8 +572,11 @@ const styles = StyleSheet.create({
     elevation: 99999,
     backgroundColor: "transparent",
   },
-  keyboardWrap: {
+  passcodeBackdrop: {
     flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.55)",
+    justifyContent: "flex-end",
+    paddingHorizontal: 20,
   },
   modalBackdrop: {
     flex: 1,

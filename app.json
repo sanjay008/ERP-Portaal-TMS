@@ -2,7 +2,7 @@
   "expo": {
     "name": "ERP TMS Driver",
     "slug": "erp-portaal-tms-driver",
-    "version": "26.9.4",
+    "version": "26.9.15",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "erpportaaltmsdriver",
