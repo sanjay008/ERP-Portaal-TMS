@@ -21,6 +21,7 @@ import { bootstrapAppDateTime } from "@/src/utils/appDateTime";
 import { getChauffeurLocation } from "@/src/utils/chauffeurLocationCache";
 import { Colors } from "@/src/utils/colors";
 import {
+  LIVE_LOCATION_REASON,
   REQUIRED_CHAUFFEUR_ROLE,
   sendDriverLocationUpdate,
 } from "@/src/utils/driverLocationApi";
@@ -404,6 +405,7 @@ export default function HomeScreens({ navigation, route }: any) {
             activeShift!.region_id,
             planning_date,
             0,
+            LIVE_LOCATION_REASON.TRIP_ENDED_MANUAL,
           ).catch(() => undefined);
         }
 

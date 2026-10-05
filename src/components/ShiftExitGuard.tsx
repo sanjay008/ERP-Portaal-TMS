@@ -69,7 +69,7 @@ export default function ShiftExitGuard({ navigation }: Props) {
       const { getChauffeurLocation } = await import(
         '@/src/utils/chauffeurLocationCache'
       );
-      const { sendDriverLocationUpdate } = await import(
+      const { LIVE_LOCATION_REASON, sendDriverLocationUpdate } = await import(
         '@/src/utils/driverLocationApi'
       );
       const cached = getChauffeurLocation();
@@ -106,6 +106,7 @@ export default function ShiftExitGuard({ navigation }: Props) {
           activeShift!.region_id,
           planning_date,
           0,
+          LIVE_LOCATION_REASON.TRIP_ENDED_APP_EXIT,
         ).catch(() => undefined);
       }
 

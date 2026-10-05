@@ -49,6 +49,7 @@ const paths = {
     revert_order_item_status: 'tms-driver/revert-order-item-status',
     update_order_item_product: 'tms-driver/update-order-item-product',
     update_order_data: 'tms-driver/update-order-data',
+    update_item_warehouse_check: 'tms-driver/update-item-warehouse-check',
     get_add_product_categories: 'tms-driver/get-add-product-categories',
     get_add_product_prices: 'tms-driver/get-add-product-prices',
     add_product_to_order: 'tms-driver/add-product-to-order',

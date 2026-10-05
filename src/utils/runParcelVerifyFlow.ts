@@ -5,7 +5,10 @@ import { setLatestDeliveryCameraSetData } from '@/src/context/ParcelVerifySessio
 import ApiService from '@/src/utils/Apiservice';
 import { Colors } from '@/src/utils/colors';
 import { withDeviceMeta } from '@/src/utils/deviceMeta';
-import { pingDriverLiveLocation } from '@/src/utils/driverLocationApi';
+import {
+  LIVE_LOCATION_REASON,
+  pingDriverLiveLocation,
+} from '@/src/utils/driverLocationApi';
 import { setLastScannedOrderId } from '@/src/utils/lastScannedOrderId';
 import { syncNativeDriverTracking } from '@/src/utils/nativeDriverLocation';
 import { isDeliveryOrder, isPickupOrder } from '@/src/utils/orderStatus';
@@ -30,7 +33,10 @@ import {
   shouldOpenPickupPlannedModal,
 } from '@/src/utils/pickupPlanned';
 import { playErrorSound } from '@/src/utils/playScanSound';
-import { attachScanLocationForVerify } from '@/src/utils/scanFreshLocation';
+import {
+  attachScanLocationForVerify,
+  consumeUnsentFreshFix,
+} from '@/src/utils/scanFreshLocation';
 
 const REGION_MISMATCH_QUESTION =
   'this parcel is not for your region';
@@ -152,9 +158,23 @@ export async function runParcelVerifyFlow(
     const verifyPayload: Record<string, any> = { ...payload };
     await attachScanLocationForVerify(verifyPayload, data?.order_id);
 
-    const res = await ApiService(apiConstants.Verify_status, {
-      customData: await withDeviceMeta(verifyPayload),
-    });
+    let res: any;
+    try {
+      res = await ApiService(apiConstants.Verify_status, {
+        customData: await withDeviceMeta(verifyPayload),
+      });
+    } finally {
+      // Live-location ping once per new GPS fix, whatever the verify result.
+      const freshFix = consumeUnsentFreshFix();
+      if (freshFix) {
+        void pingDriverLiveLocation(
+          LIVE_LOCATION_REASON.SCAN_PARCEL,
+          deps.userData,
+          data?.order_id,
+          freshFix,
+        );
+      }
+    }
     console.log("payload", res);
     if (!Boolean(res?.status)) {
       void playErrorSound();
@@ -188,9 +208,7 @@ export async function runParcelVerifyFlow(
       return;
     }
 
-    // Location already resolved for verify (≤3 min / fresh). Ping reuses same cache.
     await setLastScannedOrderId(data?.order_id);
-    void pingDriverLiveLocation(deps.userData, data?.order_id);
     void syncNativeDriverTracking(deps.userData);
 
     if (Array.isArray(res?.data?.damaged_parcel) && res.data.damaged_parcel.length > 0) {

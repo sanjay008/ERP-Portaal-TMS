@@ -197,7 +197,8 @@ final class ShiftLocationGuardManager: NSObject, CLLocationManagerDelegate {
         let ok = LocationApiClient.sendLocationUpdateBlocking(
           config: activeConfig,
           coord: lastCoord,
-          isActive: 0
+          isActive: 0,
+          reason: LiveLocationReason.shiftGuardLocationOff
         )
         DriverLocLog.i("api", "ok=\(ok ? 1 : 0) is_active=0 source=shift_guard")
       } else {

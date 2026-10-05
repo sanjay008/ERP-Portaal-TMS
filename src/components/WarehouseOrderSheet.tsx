@@ -34,7 +34,10 @@ type Props = {
   loading?: boolean;
   orderData: any;
   mode?: SheetMode;
+  /** Home slide type. Check In is shown only for warehouse_change. */
+  type?: string | null;
   onStop: () => void;
+  onCheckIn?: () => void;
   onNextScan: () => void;
   onEdit: () => void;
   onEditAgain: () => void;
@@ -48,7 +51,9 @@ export default function WarehouseOrderSheet({
   loading = false,
   orderData,
   mode = 'scan',
+  type,
   onStop,
+  onCheckIn,
   onNextScan,
   onEdit,
   onEditAgain,
@@ -65,6 +70,7 @@ export default function WarehouseOrderSheet({
     orderData,
     UserData?.user?.role,
   );
+  const showCheckIn = type === 'warehouse_change';
 
   useEffect(() => {
     if (visible) {
@@ -111,6 +117,37 @@ export default function WarehouseOrderSheet({
   if (!mounted) {
     return null;
   }
+
+  const stopRow = (
+    <View style={showCheckIn ? styles.savedRow : undefined}>
+      <Pressable
+        style={({ pressed }) => [
+          styles.btn,
+          styles.stopBtn,
+          showCheckIn && styles.halfBtn,
+          pressed && styles.pressed,
+        ]}
+        onPress={onStop}
+        disabled={loading}
+      >
+        <Text style={styles.stopBtnText}>{t('Stop')}</Text>
+      </Pressable>
+      {showCheckIn && (
+        <Pressable
+          style={({ pressed }) => [
+            styles.btn,
+            styles.checkInBtn,
+            styles.halfBtn,
+            pressed && styles.pressed,
+          ]}
+          onPress={onCheckIn}
+          disabled={loading}
+        >
+          <Text style={styles.checkInBtnText}>{t('Check In')}</Text>
+        </Pressable>
+      )}
+    </View>
+  );
 
   return (
     <View style={styles.host} pointerEvents="box-none">
@@ -180,17 +217,7 @@ export default function WarehouseOrderSheet({
         <View style={styles.actions}>
           {mode === 'scan' ? (
             <>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.btn,
-                  styles.stopBtn,
-                  pressed && styles.pressed,
-                ]}
-                onPress={onStop}
-                disabled={loading}
-              >
-                <Text style={styles.stopBtnText}>{t('Stop')}</Text>
-              </Pressable>
+              {stopRow}
               <View style={styles.savedRow}>
                 <Pressable
                   style={({ pressed }) => [
@@ -221,17 +248,7 @@ export default function WarehouseOrderSheet({
             </>
           ) : (
             <>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.btn,
-                  styles.stopBtn,
-                  pressed && styles.pressed,
-                ]}
-                onPress={onStop}
-                disabled={loading}
-              >
-                <Text style={styles.stopBtnText}>{t('Stop')}</Text>
-              </Pressable>
+              {stopRow}
               <View style={styles.savedRow}>
                 <Pressable
                   style={({ pressed }) => [
@@ -403,6 +420,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.black,
   },
   stopBtnText: {
+    color: Colors.white,
+    fontSize: 16,
+    fontFamily: FONTS.SemiBold,
+  },
+  checkInBtn: {
+    backgroundColor: '#FF00C0',
+  },
+  checkInBtnText: {
     color: Colors.white,
     fontSize: 16,
     fontFamily: FONTS.SemiBold,

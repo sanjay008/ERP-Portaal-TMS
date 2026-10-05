@@ -356,7 +356,12 @@ class ShiftLocationGuardService : Service() {
     }
 
     DriverLocLog.i("api", "is_active=0 source=shift_guard ${DriverLocLog.coord(coord.latitude, coord.longitude)}")
-    val success = LocationApiClient.sendLocationUpdateBlocking(config, coord, 0)
+    val success = LocationApiClient.sendLocationUpdateBlocking(
+      config,
+      coord,
+      0,
+      LiveLocationReason.SHIFT_GUARD_LOCATION_OFF,
+    )
     if (!success) {
       DriverLocLog.w("api", "ok=false is_active=0 source=shift_guard")
     } else {

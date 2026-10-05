@@ -174,7 +174,14 @@ export default function Profile({ navigation }: any) {
       const { closeActiveShiftSilent } = await import(
         '@/src/utils/shiftLocationGuard'
       );
-      await closeActiveShiftSilent(UserData, activeShift);
+      const { LIVE_LOCATION_REASON } = await import(
+        '@/src/utils/driverLocationApi'
+      );
+      await closeActiveShiftSilent(
+        UserData,
+        activeShift,
+        LIVE_LOCATION_REASON.LOGOUT,
+      );
       resetChauffeurLocationSession();
       setActiveShift(null);
       setIsGpsTracking(false);

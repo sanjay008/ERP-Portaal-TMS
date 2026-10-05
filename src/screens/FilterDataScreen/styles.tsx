@@ -32,6 +32,20 @@ export const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 6,
   },
+  BulkCommentButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
+    backgroundColor: Colors.yellow,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginVertical: -4,
+  },
+  BulkCommentIcon: {
+    width: 20,
+    height: 20,
+    tintColor: Colors.black,
+  },
   text: {
     color: '#FFF',
     fontSize: 12,

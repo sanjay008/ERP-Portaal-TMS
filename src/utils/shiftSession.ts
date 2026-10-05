@@ -137,12 +137,13 @@ function getShiftRegistryKey(regionId: number | string): string {
   return String(regionId);
 }
 
+/** Only one trip can be active at a time, so the registry keeps just the latest one. */
 export async function saveShiftToRegistry(
   session: ActiveShiftSession,
 ): Promise<void> {
-  const registry =
-    ((await getData(SHIFT_REGISTRY_KEY)) as ShiftRegistry | null) ?? {};
-  registry[getShiftRegistryKey(session.region_id)] = session;
+  const registry: ShiftRegistry = {
+    [getShiftRegistryKey(session.region_id)]: session,
+  };
   await storeData(SHIFT_REGISTRY_KEY, registry);
 }
 

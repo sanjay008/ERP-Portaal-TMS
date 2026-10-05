@@ -1,5 +1,6 @@
 import apiConstants from "@/src/api/apiConstants";
 import { Images } from "@/src/assets/images";
+import AddCommentModal from "@/src/components/AddCommentModal";
 import AdditionalStopBox from "@/src/components/AdditionalStopBox";
 import AnimatedTooltip from "@/src/components/AnimatedTooltip";
 import CalenderDate from "@/src/components/CalenderDate";
@@ -22,20 +23,26 @@ import {
   type LocationAccessStatus,
 } from "@/src/hooks/useUserGPS";
 import ApiService from "@/src/utils/Apiservice";
+import { getChauffeurLocation } from "@/src/utils/chauffeurLocationCache";
 import { Colors } from "@/src/utils/colors";
+import {
+  LIVE_LOCATION_REASON,
+  sendDriverLocationUpdate,
+} from "@/src/utils/driverLocationApi";
+import { stopNativeDriverTracking } from "@/src/utils/nativeDriverLocation";
 import { getActiveVerifyDeliveryLabel } from "@/src/utils/parcelVerifyDeliveryLabelStore";
 import {
   buildDateTime,
   getCurrentTimeString,
+  tripOff,
   tripOn,
 } from "@/src/utils/regionTripApi";
 import {
-  deactivateActiveShift,
   isShiftActiveForRegion,
-  loadShiftFromRegistry,
   saveActiveShift,
   saveShiftToRegistry,
   saveTrackingRegion,
+  wipeShiftLocalData,
   type ActiveShiftSession,
 } from "@/src/utils/shiftSession";
 import { Ionicons } from "@expo/vector-icons";
@@ -108,6 +115,7 @@ export default function FilterScreen({ navigation, route }: any) {
   const [gpsTrackingStartTime, setGpsTrackingStartTime] = useState("");
   const [isTripSubmitting, setIsTripSubmitting] = useState(false);
   const [Loading, setIsLoading] = useState(false);
+  const [bulkCommentVisible, setBulkCommentVisible] = useState(false);
   const [deviceLocationStatus, setDeviceLocationStatus] =
     useState<LocationAccessStatus>('denied');
 
@@ -193,6 +201,80 @@ export default function FilterScreen({ navigation, route }: any) {
     t,
   ]);
 
+  const endPreviousTrip = useCallback(
+    async (previous: ActiveShiftSession, ended_at: string) => {
+      const response = await tripOff({
+        UserData,
+        region_id: previous.region_id,
+        planning_date: previous.planning_date,
+        ended_at,
+      });
+
+      if (!response?.status) {
+        setToast({
+          top: 45,
+          text: t(response?.message) || t("Failed to close shift"),
+          type: "error",
+          visible: true,
+        });
+        return false;
+      }
+
+      const cached = getChauffeurLocation();
+      if (cached.latitude && cached.longitude) {
+        let capturedAtMs: number | null = null;
+        let heading: number | null = null;
+        let speed: number | null = null;
+        let accuracy: number | null = null;
+        let source: string | null = 'published_cache';
+        try {
+          const { getLastLocation } = await import('expo-driver-location');
+          const last = await getLastLocation();
+          if (last?.capturedAtMs) {
+            capturedAtMs = Number(last.capturedAtMs);
+            heading = last.heading ?? null;
+            speed = last.speed ?? null;
+            accuracy = last.accuracy ?? null;
+            source = last.source ?? 'published_cache';
+          }
+        } catch {
+          // ignore
+        }
+        await sendDriverLocationUpdate(
+          {
+            latitude: cached.latitude,
+            longitude: cached.longitude,
+            heading,
+            speed,
+            accuracy,
+            capturedAtMs,
+            source,
+          },
+          UserData,
+          previous.region_id,
+          previous.planning_date,
+          0,
+          LIVE_LOCATION_REASON.REGION_CHANGED,
+        ).catch(() => undefined);
+      }
+
+      await stopNativeDriverTracking().catch(() => undefined);
+      const { disableShiftLocationGuard } = await import(
+        '@/src/utils/shiftLocationGuard'
+      );
+      await disableShiftLocationGuard().catch(() => undefined);
+      await wipeShiftLocalData(previous.region_id, 'replaced_by_new_trip');
+      setActiveShift(null);
+      console.log('[Shift] previous trip ended before new trip', {
+        region_id: previous.region_id,
+        planning_date: previous.planning_date,
+        ended_at,
+      });
+      return true;
+    },
+    [UserData, setActiveShift, setToast, t],
+  );
+
   const handleGpsStartConfirm = useCallback(
     async (date: string, time: string) => {
       if (!selectRegionData) {
@@ -220,6 +302,17 @@ export default function FilterScreen({ navigation, route }: any) {
 
       try {
         const started_at = buildDateTime(date, time);
+
+        if (
+          activeShift?.shiftActive &&
+          String(activeShift.region_id) !== String(selectRegionData?.id)
+        ) {
+          const ended = await endPreviousTrip(activeShift, started_at);
+          if (!ended) {
+            return;
+          }
+        }
+
         const response = await tripOn({
           UserData,
           selectRegionData,
@@ -267,7 +360,11 @@ export default function FilterScreen({ navigation, route }: any) {
         const { enableShiftLocationGuard } = await import(
           '@/src/utils/shiftLocationGuard'
         );
-        await enableShiftLocationGuard(UserData, session);
+        await enableShiftLocationGuard(
+          UserData,
+          session,
+          LIVE_LOCATION_REASON.TRIP_STARTED,
+        );
       } catch (error: any) {
         setToast({
           top: 45,
@@ -281,6 +378,8 @@ export default function FilterScreen({ navigation, route }: any) {
     },
     [
       UserData,
+      activeShift,
+      endPreviousTrip,
       selectRegionData,
       selectRegionFirstMessage,
       handleGpsPermissionResult,
@@ -751,71 +850,16 @@ export default function FilterScreen({ navigation, route }: any) {
         return;
       }
 
-      // 1) Already ON for this region right now → no popup
-      if (
-        isShiftActiveForRegion(activeShift, region.id) &&
-        (!SelectDate || activeShift?.planning_date === SelectDate)
-      ) {
+      // Viewing another region never ends the active trip; only starting a
+      // new trip (handleGpsStartConfirm) replaces it.
+      const isActiveTripRegion = isShiftActiveForRegion(activeShift, region.id);
+      if (isActiveTripRegion) {
         await saveTrackingRegion({
           region_id: region.id,
-          planning_date: SelectDate || activeShift!.planning_date,
+          planning_date: activeShift!.planning_date,
         });
-        syncTrackingFlag(deviceLocationStatus, true);
-        await RegionDetailsDataFun(region);
-        return;
       }
-
-      // 2) Same region + same date was ON earlier (registry) → restore, no popup
-      //    Example: 12 ON → switch 13 → back to 12
-      const storedShift = await loadShiftFromRegistry(region.id);
-      if (
-        storedShift &&
-        (!SelectDate || storedShift.planning_date === SelectDate)
-      ) {
-        if (
-          activeShift?.shiftActive &&
-          String(activeShift.region_id) !== String(region.id)
-        ) {
-          await deactivateActiveShift(activeShift);
-          const { disableShiftLocationGuard } = await import(
-            '@/src/utils/shiftLocationGuard'
-          );
-          await disableShiftLocationGuard();
-        }
-
-        const restored: ActiveShiftSession = {
-          ...storedShift,
-          shiftActive: true,
-          planning_date: SelectDate || storedShift.planning_date,
-        };
-        await saveActiveShift(restored);
-        setActiveShift(restored);
-        await saveTrackingRegion({
-          region_id: restored.region_id,
-          planning_date: restored.planning_date,
-        });
-        syncTrackingFlag(deviceLocationStatus, true);
-        if (deviceLocationStatus === 'granted') {
-          const { enableShiftLocationGuard } = await import(
-            '@/src/utils/shiftLocationGuard'
-          );
-          await enableShiftLocationGuard(UserData, restored);
-        }
-        await RegionDetailsDataFun(region);
-        return;
-      }
-
-      // 3) New region / no shift for this date → close current.
-      //    Shift ON popup only via the button next to search (not auto).
-      if (activeShift?.shiftActive) {
-        await deactivateActiveShift(activeShift);
-        setActiveShift({ ...activeShift, shiftActive: false });
-        const { disableShiftLocationGuard } = await import(
-          '@/src/utils/shiftLocationGuard'
-        );
-        await disableShiftLocationGuard();
-      }
-      syncTrackingFlag(deviceLocationStatus, false);
+      syncTrackingFlag(deviceLocationStatus, isActiveTripRegion);
       await RegionDetailsDataFun(region);
     },
     [
@@ -865,6 +909,34 @@ export default function FilterScreen({ navigation, route }: any) {
       );
     });
   }, [search, RegionOrderData]);
+
+  const listOrderIds = useMemo(
+    () =>
+      (RegionOrderData ?? [])
+        .filter((item: any) => item?.row_type !== 'additional_address')
+        .map((item: any) => item?.id)
+        .filter((id: any) => id != null),
+    [RegionOrderData],
+  );
+
+  const showBulkCommentButton =
+    isPickupDropoffChauffeur &&
+    isShiftReadyForRegion &&
+    !!SelectDate &&
+    activeShift?.planning_date === SelectDate &&
+    listOrderIds.length > 0;
+
+  const handleBulkCommentSubmit = useCallback(
+    (comment: string) => {
+      console.log('[BulkComment] submit', {
+        comment,
+        order_ids: listOrderIds,
+        region_id: selectRegionData?.id,
+        planning_date: SelectDate,
+      });
+    },
+    [listOrderIds, selectRegionData?.id, SelectDate],
+  );
 
   const ReversParcelFun = async (order_id = null, item_id = null) => {
     try {
@@ -1058,10 +1130,24 @@ export default function FilterScreen({ navigation, route }: any) {
                 </TouchableOpacity>
               )}
           </View>
-          <View style={styles.CountContainer}>
+          <View style={[styles.CountContainer, styles.Flex]}>
             <Text style={styles.CountContainerText}>
               {`${t("Pick")} (${TotalCountParcel.pickup}) - ${t("Drop")} (${TotalCountParcel.dropoff})`}
             </Text>
+            {/* {showBulkCommentButton && (
+              <TouchableOpacity
+                onPress={() => setBulkCommentVisible(true)}
+                style={styles.BulkCommentButton}
+                activeOpacity={0.8}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              >
+                <Image
+                  source={Images.calendar_plus}
+                  style={styles.BulkCommentIcon}
+                  resizeMode="contain"
+                />
+              </TouchableOpacity>
+            )} */}
           </View>
 
           {selectRegionData && AllFilterData?.length > 0 ? (
@@ -1138,7 +1224,6 @@ export default function FilterScreen({ navigation, route }: any) {
                     customerData={item?.customer}
                     external_platform_data={item?.display_name}
                     external_order_id={item?.external_order_id}
-
                     ItemData={item}
                     statusData={item?.tmsstatus}
                     backOrder={true}
@@ -1184,6 +1269,12 @@ export default function FilterScreen({ navigation, route }: any) {
         onClose={() => setGpsPermissionSheet({ visible: false, reason: null })}
         onPrimaryAction={handleGpsSheetPrimaryAction}
       /> */}
+
+      <AddCommentModal
+        IsVisible={bulkCommentVisible}
+        setIsVisible={setBulkCommentVisible}
+        fun={handleBulkCommentSubmit}
+      />
 
       <ParcelVerifyOverlays flow={parcelVerifyFlow} navigation={navigation} />
     </SafeAreaView>

@@ -60,7 +60,7 @@ final class DriverLocationManager: NSObject, CLLocationManagerDelegate {
     gpsLocationDisabled = false
     pendingPublishCompletion = nil
     publishInFlight = false
-    sendDeactivateIfNeeded(sendDeactivate)
+    sendDeactivateIfNeeded(sendDeactivate, reason: LiveLocationReason.trackingStopped)
     stopLocationAndTimer()
     config = nil
   }
@@ -133,7 +133,7 @@ final class DriverLocationManager: NSObject, CLLocationManagerDelegate {
     locationManager.startUpdatingLocation()
     isTracking = true
     restartApiInterval(config: config)
-    publishFreshAndSend(config: config)
+    publishFreshAndSend(config: config, reason: LiveLocationReason.trackingStarted)
     DriverLocLog.i(
       "tracking_on",
       "intervalSec=\(config.apiIntervalSeconds) region=\(config.regionId) planning=\(config.planningDate) order=\(config.orderId ?? "-") user=\(config.userId)"
@@ -180,13 +180,13 @@ final class DriverLocationManager: NSObject, CLLocationManagerDelegate {
       return
     }
     guard let config = config ?? TrackingSessionStore.load() else { return }
-    publishFreshAndSend(config: config)
+    publishFreshAndSend(config: config, reason: LiveLocationReason.autoUpdate15Min)
   }
 
   /**
    * Force a fresh GPS fix, lock it as the published 15-min cache, then API.
    */
-  private func publishFreshAndSend(config: TrackingConfig) {
+  private func publishFreshAndSend(config: TrackingConfig, reason: String) {
     if publishInFlight {
       print("[\(logTag)] publish skipped — already in flight")
       return
@@ -198,18 +198,18 @@ final class DriverLocationManager: NSObject, CLLocationManagerDelegate {
       defer { self.publishInFlight = false }
 
       if let location, self.tryPublishLocation(location, source: "requestLocation") {
-        self.sendActiveApiUpdate(config: config)
+        self.sendActiveApiUpdate(config: config, reason: reason)
         return
       }
 
       if let cached = self.locationManager.location,
          self.tryPublishLocation(cached, source: "manager.location") {
-        self.sendActiveApiUpdate(config: config)
+        self.sendActiveApiUpdate(config: config, reason: reason)
         return
       }
 
       self.tryPublishWarmOnlyIfNoPublished()
-      self.sendActiveApiUpdate(config: config)
+      self.sendActiveApiUpdate(config: config, reason: reason)
     }
     locationManager.requestLocation()
   }
@@ -252,7 +252,7 @@ final class DriverLocationManager: NSObject, CLLocationManagerDelegate {
     return true
   }
 
-  private func sendActiveApiUpdate(config: TrackingConfig) {
+  private func sendActiveApiUpdate(config: TrackingConfig, reason: String) {
     guard let coord = TrackingSessionStore.getLastLocation() else {
       print("[\(logTag)] API skipped — no published location yet")
       return
@@ -269,7 +269,8 @@ final class DriverLocationManager: NSObject, CLLocationManagerDelegate {
     LocationApiClient.sendLocationUpdate(
       config: config,
       coord: coord.withSource(coord.source ?? "published_cache"),
-      isActive: 1
+      isActive: 1,
+      reason: reason
     ) { _ in }
   }
 
@@ -296,11 +297,11 @@ final class DriverLocationManager: NSObject, CLLocationManagerDelegate {
     guard !gpsLocationDisabled else { return }
     DriverLocLog.w("location_off", "action=deactivate source=ios_tracking")
     gpsLocationDisabled = true
-    sendDeactivateIfNeeded(sendDeactivate)
+    sendDeactivateIfNeeded(sendDeactivate, reason: LiveLocationReason.locationOff)
     stopLocationAndTimer()
   }
 
-  private func sendDeactivateIfNeeded(_ sendDeactivate: Bool) {
+  private func sendDeactivateIfNeeded(_ sendDeactivate: Bool, reason: String) {
     guard sendDeactivate, let config = config ?? TrackingSessionStore.load() else { return }
     guard let coord = TrackingSessionStore.getLocationForApiOrDeactivate() else {
       DriverLocLog.w("api", "ok=false is_active=0 reason=no_location")
@@ -318,7 +319,7 @@ final class DriverLocationManager: NSObject, CLLocationManagerDelegate {
     let semaphore = DispatchSemaphore(value: 0)
     var success = false
     DispatchQueue.global(qos: .userInitiated).async {
-      success = LocationApiClient.sendLocationUpdateBlocking(config: config, coord: coord, isActive: 0)
+      success = LocationApiClient.sendLocationUpdateBlocking(config: config, coord: coord, isActive: 0, reason: reason)
       semaphore.signal()
     }
     _ = semaphore.wait(timeout: .now() + 30)

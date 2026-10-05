@@ -336,7 +336,14 @@ export default function AdminBaseUrlGate({
           "@/src/utils/shiftLocationGuard"
         );
         const { wipeShiftLocalData } = await import("@/src/utils/shiftSession");
-        await closeActiveShiftSilent(UserData, activeShift);
+        const { LIVE_LOCATION_REASON } = await import(
+          "@/src/utils/driverLocationApi"
+        );
+        await closeActiveShiftSilent(
+          UserData,
+          activeShift,
+          LIVE_LOCATION_REASON.SERVER_SWITCH,
+        );
         await wipeShiftLocalData(
           activeShift?.region_id,
           "admin_base_url_switch",

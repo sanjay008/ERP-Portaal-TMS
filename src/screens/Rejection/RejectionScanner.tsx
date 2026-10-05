@@ -10,6 +10,7 @@ import { GlobalContextData } from "@/src/context/GlobalContext";
 import { setLatestPickupCameraSetData } from "@/src/context/ParcelVerifySessionContext";
 import { DropboxContext } from "@/src/context/UploadProider";
 import {
+  LIVE_LOCATION_REASON,
   pingDriverLiveLocation,
   REQUIRED_CHAUFFEUR_ROLE,
 } from "@/src/utils/driverLocationApi";
@@ -37,6 +38,7 @@ import {
 import { playErrorSound } from "@/src/utils/playScanSound";
 import {
   attachScanLocationForVerify,
+  consumeUnsentFreshFix,
   prefetchScanFreshLocation,
   SCAN_MAX_AGE_MS,
 } from "@/src/utils/scanFreshLocation";
@@ -758,9 +760,23 @@ export default function RejectionScanner({ route }: any) {
 
         logRejectionApi("verify", "REQ", payload);
         await attachScanLocationForVerify(payload, orderId);
-        const res = await ApiService(apiConstants.Verify_status, {
-          customData: await withDeviceMeta(payload),
-        });
+        let res: any;
+        try {
+          res = await ApiService(apiConstants.Verify_status, {
+            customData: await withDeviceMeta(payload),
+          });
+        } finally {
+          // Live-location ping once per new GPS fix, whatever the verify result.
+          const freshFix = consumeUnsentFreshFix();
+          if (freshFix) {
+            void pingDriverLiveLocation(
+              LIVE_LOCATION_REASON.SCAN_REJECTION,
+              UserData,
+              orderId,
+              freshFix,
+            );
+          }
+        }
         logRejectionApi("verify", "RES", res);
 
         const statusCode = Number(res?.status_code ?? res?.data?.status_code);
@@ -786,9 +802,7 @@ export default function RejectionScanner({ route }: any) {
           return;
         }
 
-        // Location already resolved for verify; ping reuses ≤3 min cache.
         await setLastScannedOrderId(orderId);
-        void pingDriverLiveLocation(UserData, orderId);
         void syncNativeDriverTracking(UserData);
 
         const orderData = res?.data?.order_data || res?.data || null;

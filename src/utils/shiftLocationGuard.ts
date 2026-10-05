@@ -4,6 +4,7 @@ import {
   setChauffeurLocation,
 } from '@/src/utils/chauffeurLocationCache';
 import {
+  type LiveLocationReason,
   REQUIRED_CHAUFFEUR_ROLE,
   resolveTrackingContext,
   sendDriverLocationUpdate,
@@ -65,6 +66,7 @@ async function sendSilentIsActiveOn(
   userData: UserDataShape,
   regionId: number | string,
   planningDate: string,
+  reason: LiveLocationReason,
 ): Promise<void> {
   let latitude = 0;
   let longitude = 0;
@@ -160,6 +162,7 @@ async function sendSilentIsActiveOn(
       regionId,
       planningDate,
       1,
+      reason,
     );
     driverLocLog('guard_on', {
       phase: 'is_active=1',
@@ -181,7 +184,8 @@ async function sendSilentIsActiveOn(
  */
 export async function enableShiftLocationGuard(
   userData: UserDataShape | null | undefined,
-  activeShift?: ActiveShiftSession | null,
+  activeShift: ActiveShiftSession | null | undefined,
+  reason: LiveLocationReason,
 ): Promise<boolean> {
   if (!userData?.user || userData.user.role !== REQUIRED_CHAUFFEUR_ROLE) {
     return false;
@@ -261,6 +265,7 @@ export async function enableShiftLocationGuard(
         userData,
         region_id,
         resolvedPlanningDate,
+        reason,
       );
       return true;
     } catch (error) {
@@ -292,7 +297,8 @@ export async function disableShiftLocationGuard(): Promise<void> {
  */
 export async function closeActiveShiftSilent(
   userData: UserDataShape | null | undefined,
-  activeShift?: ActiveShiftSession | null,
+  activeShift: ActiveShiftSession | null | undefined,
+  reason: LiveLocationReason,
 ): Promise<void> {
   if (!doesShiftBelongToUser(activeShift, userData)) {
     await disableShiftLocationGuard();
@@ -334,6 +340,7 @@ export async function closeActiveShiftSilent(
         activeShift!.region_id,
         activeShift!.planning_date,
         0,
+        reason,
       );
     } catch (error) {
       driverLocWarn('api', { is_active: 0, source: 'js_silent', ok: 0, reason: String(error) });

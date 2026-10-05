@@ -3,6 +3,9 @@ import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
+export const TMS_NOTIFICATION_SOUND = 'tms_notification.wav';
+export const TMS_NOTIFICATION_CHANNEL_ID = 'tms_notification';
+
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: true,
@@ -44,6 +47,8 @@ export const registerForPushNotificationsAsync = async () => {
     ).data;
 
     if (Platform.OS === 'android') {
+      // Android locks a channel's sound when the channel is first created, so
+      // devices that already have "default" also need the separate tms_notification channel.
       await Notifications.setNotificationChannelAsync(
         'default',
         {
@@ -51,6 +56,17 @@ export const registerForPushNotificationsAsync = async () => {
           importance: Notifications.AndroidImportance.MAX,
           vibrationPattern: [0, 250, 250, 250],
           lightColor: '#FF231F7C',
+          sound: TMS_NOTIFICATION_SOUND,
+        }
+      );
+      await Notifications.setNotificationChannelAsync(
+        TMS_NOTIFICATION_CHANNEL_ID,
+        {
+          name: 'TMS Notifications',
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#FF231F7C',
+          sound: TMS_NOTIFICATION_SOUND,
         }
       );
     }

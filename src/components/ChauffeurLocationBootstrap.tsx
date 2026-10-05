@@ -72,7 +72,14 @@ export default function ChauffeurLocationBootstrap() {
     const { enableShiftLocationGuard } = await import(
       '@/src/utils/shiftLocationGuard'
     );
-    await enableShiftLocationGuard(UserData, session);
+    const { LIVE_LOCATION_REASON } = await import(
+      '@/src/utils/driverLocationApi'
+    );
+    await enableShiftLocationGuard(
+      UserData,
+      session,
+      LIVE_LOCATION_REASON.SHIFT_RESUMED,
+    );
   }, [UserData, isChauffeur]);
 
   // Restore active shift after app reopen — do NOT start native guard until permission is granted.

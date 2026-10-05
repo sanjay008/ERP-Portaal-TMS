@@ -9,6 +9,15 @@ import okhttp3.Response
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
+/** Sent as `reason` on update-driver-live-location so the backend knows why it was called. */
+object LiveLocationReason {
+  const val AUTO_UPDATE_15_MIN = "AUTO_UPDATE_15_MIN"
+  const val TRACKING_STARTED = "TRACKING_STARTED"
+  const val TRACKING_STOPPED = "TRACKING_STOPPED"
+  const val LOCATION_OFF = "LOCATION_OFF"
+  const val SHIFT_GUARD_LOCATION_OFF = "SHIFT_GUARD_LOCATION_OFF"
+}
+
 object LocationApiClient {
   private val client = OkHttpClient.Builder()
     .connectTimeout(30, TimeUnit.SECONDS)
@@ -16,7 +25,12 @@ object LocationApiClient {
     .writeTimeout(30, TimeUnit.SECONDS)
     .build()
 
-  private fun buildMultipart(config: TrackingConfig, coord: DriverCoordinate, isActive: Int): MultipartBody? {
+  private fun buildMultipart(
+    config: TrackingConfig,
+    coord: DriverCoordinate,
+    isActive: Int,
+    reason: String,
+  ): MultipartBody? {
     val forMeta = if (coord.source.isNullOrBlank()) {
       coord.withSource("published_cache")
     } else {
@@ -44,6 +58,7 @@ object LocationApiClient {
       .addFormDataPart("is_active", isActive.toString())
       .addFormDataPart("captured_at", capturedAt.toString())
       .addFormDataPart("location_meta", forMeta.toLocationMetaJson())
+      .addFormDataPart("reason", reason)
 
     if (!config.orderId.isNullOrBlank()) {
       builder.addFormDataPart("order_id", config.orderId)
@@ -55,6 +70,7 @@ object LocationApiClient {
     config: TrackingConfig,
     coord: DriverCoordinate,
     isActive: Int,
+    reason: String,
     onComplete: ((Boolean) -> Unit)? = null,
   ) {
     if (coord.latitude == 0.0 || coord.longitude == 0.0) {
@@ -75,10 +91,10 @@ object LocationApiClient {
 
     DriverLocLog.i(
       "api",
-      "phase=request is_active=$isActive ${DriverLocLog.coord(coord.latitude, coord.longitude, coord.accuracy, coord.capturedAtMs)} region=${config.regionId} planning=${config.planningDate} order=${config.orderId ?: "-"} user=${config.userId}",
+      "phase=request is_active=$isActive reason=$reason ${DriverLocLog.coord(coord.latitude, coord.longitude, coord.accuracy, coord.capturedAtMs)} region=${config.regionId} planning=${config.planningDate} order=${config.orderId ?: "-"} user=${config.userId}",
     )
 
-    val multipart = buildMultipart(config, coord, isActive) ?: run {
+    val multipart = buildMultipart(config, coord, isActive, reason) ?: run {
       onComplete?.invoke(false)
       return
     }
@@ -117,6 +133,7 @@ object LocationApiClient {
     config: TrackingConfig,
     coord: DriverCoordinate,
     isActive: Int,
+    reason: String,
   ): Boolean {
     if (coord.latitude == 0.0 || coord.longitude == 0.0) {
       DriverLocLog.w("api", "ok=false reason=invalid_coords blocking=1 is_active=$isActive")
@@ -134,10 +151,10 @@ object LocationApiClient {
 
     DriverLocLog.i(
       "api",
-      "phase=request blocking=1 is_active=$isActive ${DriverLocLog.coord(coord.latitude, coord.longitude, coord.accuracy, coord.capturedAtMs)} region=${config.regionId} planning=${config.planningDate} order=${config.orderId ?: "-"}",
+      "phase=request blocking=1 is_active=$isActive reason=$reason ${DriverLocLog.coord(coord.latitude, coord.longitude, coord.accuracy, coord.capturedAtMs)} region=${config.regionId} planning=${config.planningDate} order=${config.orderId ?: "-"}",
     )
 
-    val multipart = buildMultipart(config, coord, isActive) ?: return false
+    val multipart = buildMultipart(config, coord, isActive, reason) ?: return false
     val request = Request.Builder()
       .url(config.apiUrl)
       .post(multipart)

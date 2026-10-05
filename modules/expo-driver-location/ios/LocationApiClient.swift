@@ -396,6 +396,15 @@ enum LocationMath {
   }
 }
 
+/// Sent as `reason` on update-driver-live-location so the backend knows why it was called.
+enum LiveLocationReason {
+  static let autoUpdate15Min = "AUTO_UPDATE_15_MIN"
+  static let trackingStarted = "TRACKING_STARTED"
+  static let trackingStopped = "TRACKING_STOPPED"
+  static let locationOff = "LOCATION_OFF"
+  static let shiftGuardLocationOff = "SHIFT_GUARD_LOCATION_OFF"
+}
+
 enum LocationApiClient {
   private static let logTag = "ExpoDriverLocation"
 
@@ -406,7 +415,7 @@ enum LocationApiClient {
     return String(value)
   }
 
-  static func sendLocationUpdate(config: TrackingConfig, coord: DriverCoordinate, isActive: Int, completion: ((Bool) -> Void)? = nil) {
+  static func sendLocationUpdate(config: TrackingConfig, coord: DriverCoordinate, isActive: Int, reason: String, completion: ((Bool) -> Void)? = nil) {
     guard coord.latitude != 0, coord.longitude != 0 else {
       DriverLocLog.w("api", "ok=false reason=invalid_coords is_active=\(isActive)")
       completion?(false)
@@ -427,7 +436,7 @@ enum LocationApiClient {
 
     DriverLocLog.i(
       "api",
-      "phase=request is_active=\(isActive) \(DriverLocLog.coord(lat: coord.latitude, lon: coord.longitude, accuracy: coord.accuracy, capturedAtMs: coord.capturedAtMs)) region=\(config.regionId) planning=\(config.planningDate) order=\(config.orderId ?? "-") user=\(config.userId)"
+      "phase=request is_active=\(isActive) reason=\(reason) \(DriverLocLog.coord(lat: coord.latitude, lon: coord.longitude, accuracy: coord.accuracy, capturedAtMs: coord.capturedAtMs)) region=\(config.regionId) planning=\(config.planningDate) order=\(config.orderId ?? "-") user=\(config.userId)"
     )
 
     let forMeta = coord.source == nil ? coord.withSource("published_cache") : coord
@@ -456,6 +465,7 @@ enum LocationApiClient {
       "is_active": "\(isActive)",
       "captured_at": String(Int64(capturedAt)),
       "location_meta": forMeta.toLocationMetaJson(),
+      "reason": reason,
     ]
     if let orderId = config.orderId, !orderId.isEmpty {
       fields["order_id"] = orderId
@@ -505,10 +515,10 @@ enum LocationApiClient {
     }.resume()
   }
 
-  static func sendLocationUpdateBlocking(config: TrackingConfig, coord: DriverCoordinate, isActive: Int) -> Bool {
+  static func sendLocationUpdateBlocking(config: TrackingConfig, coord: DriverCoordinate, isActive: Int, reason: String) -> Bool {
     let semaphore = DispatchSemaphore(value: 0)
     var success = false
-    sendLocationUpdate(config: config, coord: coord, isActive: isActive) { result in
+    sendLocationUpdate(config: config, coord: coord, isActive: isActive, reason: reason) { result in
       success = result
       semaphore.signal()
     }

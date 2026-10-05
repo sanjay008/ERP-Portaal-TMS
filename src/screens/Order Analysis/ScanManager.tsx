@@ -2,12 +2,14 @@ import apiConstants from '@/src/api/apiConstants';
 import { Images } from '@/src/assets/images';
 import { useErrorHandle } from '@/src/components/ErrorHandle';
 import AddWarehouseProductModal from '@/src/components/AddWarehouseProductModal';
+import { formatDate, toApiDateString } from '@/src/components/DateFormate';
 import WarehouseOrderSheet from '@/src/components/WarehouseOrderSheet';
 import { goBackOrPopTo } from '@/src/components/goBackOrPopTo';
 import { GlobalContextData } from '@/src/context/GlobalContext';
 import { setLatestDeliveryCameraSetData } from '@/src/context/ParcelVerifySessionContext';
 import { DropboxContext } from '@/src/context/UploadProider';
 import ApiService from '@/src/utils/Apiservice';
+import { getDateByTimezone, resolveAppTimeZone } from '@/src/utils/appDateTime';
 import { Colors } from '@/src/utils/colors';
 import { isProductActionLockedForRole } from '@/src/utils/orderStatus';
 import { appendToLocalUploadQueue } from '@/src/utils/localUploadQueue';
@@ -27,6 +29,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Calendar } from 'react-native-calendars';
+import Modal from 'react-native-modal';
 import ReAnimated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -57,6 +61,7 @@ export default function ScanManager({ route }: any) {
   const [preferredItemId, setPreferredItemId] = useState<string | number | null>(
     null,
   );
+  const [checkInLoading, setCheckInLoading] = useState(false);
 
   const {
     UserData,
@@ -65,7 +70,13 @@ export default function ScanManager({ route }: any) {
     warehouseScanResume,
     setWarehouseScanResume,
     setDeliveyDataSave,
+    TimeZone,
+    SelectLanguage,
   } = useContext(GlobalContextData);
+  const [planningDate, setPlanningDate] = useState<string>(() =>
+    getDateByTimezone(resolveAppTimeZone(TimeZone)),
+  );
+  const [datePickerVisible, setDatePickerVisible] = useState(false);
   const { setLocalImagesUploadbeforeData } = useContext(DropboxContext);
   const { top } = useSafeAreaInsets();
 
@@ -134,6 +145,9 @@ export default function ScanManager({ route }: any) {
             user_id: UserData?.user?.id,
             order_id: orderId,
             type: slideType,
+            ...(slideType === WAREHOUSE_TYPE && planningDate
+              ? { date: planningDate }
+              : {}),
           },
         });
 
@@ -162,7 +176,7 @@ export default function ScanManager({ route }: any) {
         setSheetLoading(false);
       }
     },
-    [UserData, slideType, setToast, t, ErrorHandle],
+    [UserData, slideType, planningDate, setToast, t, ErrorHandle],
   );
 
   useFocusEffect(
@@ -214,6 +228,75 @@ export default function ScanManager({ route }: any) {
     setPreferredItemId(null);
     unlockScanner();
   }, [closeSheet, unlockScanner]);
+
+  const handleCheckIn = useCallback(async () => {
+    const orderId = activeOrderIdRef.current;
+    const itemId = preferredItemId ?? orderData?.items?.[0]?.id ?? null;
+    if (checkInLoading) return;
+
+    if (orderId == null || itemId == null) {
+      setToast({
+        top: 45,
+        text: t('Invalid or missing order details. Please rescan.'),
+        type: 'error',
+        visible: true,
+      });
+      return;
+    }
+
+    setCheckInLoading(true);
+    try {
+      const res = await ApiService(apiConstants.update_item_warehouse_check, {
+        customData: {
+          token: UserData?.user?.verify_token,
+          role: UserData?.user?.role,
+          relaties_id: UserData?.relaties?.id,
+          user_id: UserData?.user?.id,
+          order_id: orderId,
+          item_id: itemId,
+          type: slideType,
+          check_in_warehouse: 1,
+        },
+      });
+
+      if (res?.status) {
+        setToast({
+          top: 45,
+          text: t(res?.message) || t('Checked in'),
+          type: 'success',
+          visible: true,
+        });
+        handleNextScan();
+        return;
+      }
+
+      setToast({
+        top: 45,
+        text: t(res?.message) || t('something_went_wrong'),
+        type: 'error',
+        visible: true,
+      });
+    } catch (error) {
+      setToast({
+        top: 45,
+        text: ErrorHandle(error).message,
+        type: 'error',
+        visible: true,
+      });
+    } finally {
+      setCheckInLoading(false);
+    }
+  }, [
+    preferredItemId,
+    orderData,
+    checkInLoading,
+    UserData,
+    slideType,
+    handleNextScan,
+    setToast,
+    t,
+    ErrorHandle,
+  ]);
 
   const handleStop = useCallback(() => {
     closeSheet();
@@ -666,10 +749,12 @@ export default function ScanManager({ route }: any) {
 
       <WarehouseOrderSheet
         visible={sheetVisible}
-        loading={sheetLoading}
+        loading={sheetLoading || checkInLoading}
         orderData={orderData}
         mode={sheetMode}
+        type={slideType}
         onStop={handleStop}
+        onCheckIn={handleCheckIn}
         onNextScan={handleNextScan}
         onEdit={handleEdit}
         onEditAgain={handleEditAgain}
@@ -726,18 +811,30 @@ export default function ScanManager({ route }: any) {
             />
           </TouchableOpacity>
 
-          {!manualEntryOpen ? (
-            <TouchableOpacity
-              style={styles.manualEntryChip}
-              activeOpacity={0.85}
-              onPress={() => setManualEntryOpen(true)}
-            >
-              <Ionicons name="keypad-outline" size={16} color={Colors.white} />
-              <Text style={styles.manualEntryChipText}>{t('Enter code')}</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={{ width: 1 }} />
-          )}
+          <View style={styles.topChipsRow}>
+            {slideType === WAREHOUSE_TYPE && (
+              <TouchableOpacity
+                style={styles.manualEntryChip}
+                activeOpacity={0.85}
+                onPress={() => setDatePickerVisible(true)}
+              >
+                <Ionicons name="calendar-outline" size={16} color={Colors.white} />
+                <Text style={styles.manualEntryChipText}>
+                  {formatDate(planningDate, SelectLanguage || 'nl')}
+                </Text>
+              </TouchableOpacity>
+            )}
+            {!manualEntryOpen && (
+              <TouchableOpacity
+                style={styles.manualEntryChip}
+                activeOpacity={0.85}
+                onPress={() => setManualEntryOpen(true)}
+              >
+                <Ionicons name="keypad-outline" size={16} color={Colors.white} />
+                <Text style={styles.manualEntryChipText}>{t('Enter code')}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
 
           <TouchableOpacity
             activeOpacity={0.85}
@@ -827,6 +924,42 @@ export default function ScanManager({ route }: any) {
           </TouchableOpacity>
         </ReAnimated.View>
       ) : null}
+
+      <Modal
+        isVisible={datePickerVisible}
+        animationIn="zoomIn"
+        animationOut="zoomOut"
+        backdropColor="rgba(0,0,0,0.4)"
+        onBackButtonPress={() => setDatePickerVisible(false)}
+        onBackdropPress={() => setDatePickerVisible(false)}
+        useNativeDriver
+        hideModalContentWhileAnimating
+        statusBarTranslucent
+      >
+        <View style={styles.calendarCard}>
+          {datePickerVisible ? (
+            <Calendar
+              current={planningDate}
+              onDayPress={(day) => {
+                setPlanningDate(day.dateString);
+                setDatePickerVisible(false);
+              }}
+              markedDates={{
+                [toApiDateString(planningDate)]: {
+                  selected: true,
+                  selectedColor: Colors.primary,
+                },
+              }}
+              theme={{
+                selectedDayBackgroundColor: Colors.primary,
+                selectedDayTextColor: Colors.white,
+                todayTextColor: Colors.primary,
+                arrowColor: Colors.black,
+              }}
+            />
+          ) : null}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -926,6 +1059,21 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: FONTS.Medium,
     color: Colors.white,
+  },
+  topChipsRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginHorizontal: 8,
+  },
+  calendarCard: {
+    width: '100%',
+    backgroundColor: Colors.white,
+    borderRadius: 12,
+    padding: 15,
+    alignSelf: 'center',
   },
   manualEntryPanel: {
     position: 'absolute',

@@ -100,6 +100,7 @@ export const Images = {
   wine_glass_empty_solid: require("./image/wine_glass_empty_solid.png"),
   Glass_Crash: require("./image/Glass_Crash.png"),
   Glass_Empty: require("./image/Glass_Empty.png"),
+  calendar_plus: require("./image/calendar_plus.png"),
 
   // Audio
   ScannerSound: require("./image/ScannerSound.mp3"),

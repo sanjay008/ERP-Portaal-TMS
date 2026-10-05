@@ -10,6 +10,22 @@ import type { LocationSource, NativeDriverCoordinate } from 'expo-driver-locatio
 
 export const REQUIRED_CHAUFFEUR_ROLE = 'chauffeur';
 
+/** Sent as `reason` on update-driver-live-location so the backend knows why it was called. */
+export const LIVE_LOCATION_REASON = {
+  SCAN_PARCEL: 'SCAN_PARCEL',
+  SCAN_REJECTION: 'SCAN_REJECTION',
+  TRIP_STARTED: 'TRIP_STARTED',
+  SHIFT_RESUMED: 'SHIFT_RESUMED',
+  TRIP_ENDED_MANUAL: 'TRIP_ENDED_MANUAL',
+  REGION_CHANGED: 'REGION_CHANGED',
+  TRIP_ENDED_APP_EXIT: 'TRIP_ENDED_APP_EXIT',
+  LOGOUT: 'LOGOUT',
+  SERVER_SWITCH: 'SERVER_SWITCH',
+} as const;
+
+export type LiveLocationReason =
+  (typeof LIVE_LOCATION_REASON)[keyof typeof LIVE_LOCATION_REASON];
+
 /** Do not POST published_cache older than this without a fresh GPS fix (20 min). */
 export const STALE_LOCATION_MAX_AGE_MS = 20 * 60 * 1000;
 
@@ -298,6 +314,7 @@ export async function sendDriverLocationUpdate(
   region_id: number | string | null | undefined,
   planning_date: string | null | undefined,
   isActive: number,
+  reason: LiveLocationReason,
 ): Promise<boolean> {
   // Active updates must not send stale published_cache without a fresher fix.
   if (
@@ -331,8 +348,8 @@ export async function sendDriverLocationUpdate(
     const orderId = await getLastScannedOrderId();
     const customData =
       orderId != null
-        ? { ...result.payload, order_id: orderId }
-        : result.payload;
+        ? { ...result.payload, order_id: orderId, reason }
+        : { ...result.payload, reason };
 
     const res = await ApiService(apiConstants.update_driver_live_location, {
       customData,
@@ -342,6 +359,7 @@ export async function sendDriverLocationUpdate(
       driverLocLog('api', {
         ok: 1,
         source: 'js',
+        reason,
         is_active: isActive,
         lat: coord.latitude,
         lon: coord.longitude,
@@ -368,8 +386,10 @@ export async function sendDriverLocationUpdate(
  * (so parcel 2 while parcel 1 is still fetching joins the same GPS promise).
  */
 export async function pingDriverLiveLocation(
+  reason: LiveLocationReason,
   userData?: UserDataShape | null,
   orderId?: number | string | null,
+  knownCoord?: NativeDriverCoordinate | null,
 ): Promise<void> {
   try {
     const resolvedUser = userData ?? (await loadTrackingUserData());
@@ -377,8 +397,11 @@ export async function pingDriverLiveLocation(
       return;
     }
 
-    const { resolveScanLocation } = await import('@/src/utils/scanFreshLocation');
-    const last = await resolveScanLocation(orderId);
+    let last = knownCoord ?? null;
+    if (!last) {
+      const { resolveScanLocation } = await import('@/src/utils/scanFreshLocation');
+      last = await resolveScanLocation(orderId);
+    }
     if (!last?.latitude || !last?.longitude) {
       driverLocWarn('ping', { ok: 0, reason: 'no_scan_location' });
       return;
@@ -415,6 +438,7 @@ export async function pingDriverLiveLocation(
       region_id,
       planning_date,
       1,
+      reason,
     );
   } catch (error) {
     driverLocWarn('ping', { ok: 0, reason: String(error) });

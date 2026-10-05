@@ -18,7 +18,12 @@ const NATIVE_FRESH_TIMEOUT_MS = 5000;
  */
 const STATUS_UPDATE_MAX_WAIT_MS = 800;
 
+/** Native fresh-fix acceptance window; older coords are fallbacks, not new GPS. */
+const FRESH_FIX_MAX_AGE_MS = 60 * 1000;
+
 let inFlight: Promise<NativeDriverCoordinate | null> | null = null;
+/** Newest real GPS fix not yet sent to the live-location API. */
+let unsentFreshFix: NativeDriverCoordinate | null = null;
 let lastFresh: {
   coord: NativeDriverCoordinate;
   at: number;
@@ -160,6 +165,12 @@ async function fetchFreshFromNative(
       }
       return null;
     }
+    if (
+      coord.source !== 'published_cache' &&
+      ageOfCoord(coord) <= FRESH_FIX_MAX_AGE_MS
+    ) {
+      unsentFreshFix = coord;
+    }
     return remember(coord, orderId);
   } catch (error) {
     driverLocWarn('scan_resolve', {
@@ -190,6 +201,16 @@ export function ensureFreshFetch(
 
 export function getScanLocationInFlight(): Promise<NativeDriverCoordinate | null> | null {
   return inFlight;
+}
+
+/**
+ * Returns the newest fresh GPS fix once, then clears it — so each new fix
+ * is sent to the live-location API only one time.
+ */
+export function consumeUnsentFreshFix(): NativeDriverCoordinate | null {
+  const coord = unsentFreshFix;
+  unsentFreshFix = null;
+  return coord;
 }
 
 /**

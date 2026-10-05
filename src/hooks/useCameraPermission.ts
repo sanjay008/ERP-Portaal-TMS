@@ -31,7 +31,6 @@ function toAccessStatus(result: CameraPermissionResult): CameraAccessStatus {
   return 'denied';
 }
 
-/** On screen open: auto-request only the first time; otherwise return denied/blocked for in-app sheet. */
 export async function resolveCameraAccess(): Promise<CameraAccessStatus> {
   const current = await checkCameraPermission();
   if (current.granted) return 'granted';
@@ -45,7 +44,6 @@ export async function resolveCameraAccess(): Promise<CameraAccessStatus> {
   return 'denied';
 }
 
-/** Re-request when the user taps Allow on the in-app sheet. */
 export async function retryCameraPermission(): Promise<CameraAccessStatus> {
   const current = await checkCameraPermission();
   if (current.granted) return 'granted';
@@ -55,7 +53,6 @@ export async function retryCameraPermission(): Promise<CameraAccessStatus> {
   return toAccessStatus(requested);
 }
 
-/** Read-only check (e.g. after returning from Settings). */
 export async function recheckCameraAccess(): Promise<CameraAccessStatus> {
   const current = await checkCameraPermission();
   return toAccessStatus(current);
@@ -65,6 +62,7 @@ export async function openAppSettings(): Promise<void> {
   try {
     await Linking.openSettings();
   } catch {
-    // Android can throw if currentActivity is null; ignore.
+  console.log('Error opening app settings');
+    throw new Error('Error opening app settings');
   }
 }
