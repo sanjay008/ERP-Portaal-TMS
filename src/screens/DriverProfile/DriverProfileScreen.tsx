@@ -1,5 +1,4 @@
 import { Images } from "@/src/assets/images";
-import ButtonComponent from "@/src/components/buttonComponent";
 import MyCountryPiker from "@/src/components/CountryPicker";
 import DetailsHeader from "@/src/components/DetailsHeader";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
@@ -9,6 +8,7 @@ import { GlobalContextData } from "@/src/context/GlobalContext";
 import { extractApiErrorMessage } from "@/src/screens/DriverCompany/driverCompanyApi";
 import { Colors } from "@/src/utils/colors";
 import { getData, storeData } from "@/src/utils/storeData";
+import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
 import React, { useContext, useEffect, useMemo, useState } from "react";
@@ -16,7 +16,10 @@ import { useTranslation } from "react-i18next";
 import { Image, Text, TouchableOpacity, View } from "react-native";
 import { Dropdown } from "react-native-element-dropdown";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import {
   isApiSuccess,
   updateDriverProfile,
@@ -39,6 +42,7 @@ const EMAIL_REGEX = /^[\w+.-]+@[\w.-]+\.[a-zA-Z]{2,}$/;
 export default function DriverProfileScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<any>();
+  const insets = useSafeAreaInsets();
   const { UserData, setUserData, setToast, AllCountries, fetchCountries } =
     useContext(GlobalContextData);
   const { ErrorHandle } = useErrorHandle();
@@ -271,6 +275,13 @@ export default function DriverProfileScreen() {
     }
   };
 
+  const displayName =
+    `${form.voornaam} ${form.achternaam}`.trim() ||
+    form.username ||
+    UserData?.relaties?.display_name ||
+    "";
+  const saveDisabled = !hasChanges || loading;
+
   return (
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
       <DetailsHeader title={t("Driver Profile")} />
@@ -285,23 +296,52 @@ export default function DriverProfileScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.profileCard}>
-            <Image
-              source={
-                previewImage ? { uri: previewImage } : Images.userblanck
-              }
-              style={styles.profileImage}
-            />
+            <View style={styles.profileBanner} />
+            <TouchableOpacity
+              style={styles.avatarWrap}
+              activeOpacity={0.85}
+              onPress={onUpdatePhotoPress}
+              accessibilityLabel={t("Update profile photo")}
+            >
+              <Image
+                source={
+                  previewImage ? { uri: previewImage } : Images.userblanck
+                }
+                style={styles.profileImage}
+              />
+              <View style={styles.cameraBadge}>
+                <Ionicons name="camera" size={15} color={Colors.white} />
+              </View>
+            </TouchableOpacity>
+
+            {displayName ? (
+              <Text style={styles.profileName} numberOfLines={1}>
+                {displayName}
+              </Text>
+            ) : null}
+            {form.email ? (
+              <Text style={styles.profileEmail} numberOfLines={1}>
+                {form.email}
+              </Text>
+            ) : null}
+
             <TouchableOpacity
               style={styles.updatePhotoBtn}
               activeOpacity={0.85}
               onPress={onUpdatePhotoPress}
             >
+              <Ionicons name="image-outline" size={15} color={Colors.primary} />
               <Text style={styles.updatePhotoText}>{t("Update profile photo")}</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>{t("Personal Details")}</Text>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionIconWrap}>
+                <Ionicons name="person-outline" size={16} color={Colors.primary} />
+              </View>
+              <Text style={styles.sectionTitle}>{t("Personal Details")}</Text>
+            </View>
 
             <Text style={styles.label}>{t("Salutation")}</Text>
             <Dropdown
@@ -325,6 +365,7 @@ export default function DriverProfileScreen() {
               onChangeText={(v) => setField("voornaam", v)}
               placeholder={t("First Name")}
               backgroundColor={EDITABLE_INPUT_BG}
+              style={styles.field}
             />
 
             <Input
@@ -335,20 +376,27 @@ export default function DriverProfileScreen() {
               placeholder={t("Last Name")}
               error={errors.achternaam}
               backgroundColor={EDITABLE_INPUT_BG}
+              style={styles.field}
             />
           </View>
 
           <View style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>{t("Contact")}</Text>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionIconWrap}>
+                <Ionicons name="call-outline" size={16} color={Colors.primary} />
+              </View>
+              <Text style={styles.sectionTitle}>{t("Contact")}</Text>
+            </View>
 
             <View style={styles.row}>
-              <View style={styles.rowItem}>
+              <View style={styles.rowItemWide}>
                 <Input
                   title={t("Street")}
                   value={form.street}
                   onChangeText={(v) => setField("street", v)}
                   placeholder={t("Street")}
                   backgroundColor={EDITABLE_INPUT_BG}
+                  style={styles.field}
                 />
               </View>
               <View style={styles.rowItem}>
@@ -358,6 +406,7 @@ export default function DriverProfileScreen() {
                   onChangeText={(v) => setField("house_number", v)}
                   placeholder={t("House Nr")}
                   backgroundColor={EDITABLE_INPUT_BG}
+                  style={styles.field}
                 />
               </View>
             </View>
@@ -370,15 +419,17 @@ export default function DriverProfileScreen() {
                   onChangeText={(v) => setField("postcode", v)}
                   placeholder={t("Postcode")}
                   backgroundColor={EDITABLE_INPUT_BG}
+                  style={styles.field}
                 />
               </View>
-              <View style={styles.rowItem}>
+              <View style={styles.rowItemWide}>
                 <Input
                   title={t("City")}
                   value={form.city}
                   onChangeText={(v) => setField("city", v)}
                   placeholder={t("City")}
                   backgroundColor={EDITABLE_INPUT_BG}
+                  style={styles.field}
                 />
               </View>
             </View>
@@ -388,7 +439,7 @@ export default function DriverProfileScreen() {
               <Text style={{ color: Colors.red }}> *</Text>
             </Text>
             <Dropdown
-              style={[styles.dropdown, { marginTop: 8 }]}
+              style={styles.dropdown}
               containerStyle={styles.dropdownList}
               data={countryOptions}
               labelField="label"
@@ -405,7 +456,9 @@ export default function DriverProfileScreen() {
               <Text style={styles.error}>{errors.country_id}</Text>
             ) : null}
 
-            <Text style={[styles.label, { marginTop: 10 }]}>
+            <View style={styles.divider} />
+
+            <Text style={styles.label}>
               {t("Mobile / WhatsApp Number")}
               <Text style={{ color: Colors.red }}> *</Text>
             </Text>
@@ -439,19 +492,31 @@ export default function DriverProfileScreen() {
               keyboardType="email-address"
               error={errors.email}
               backgroundColor={EDITABLE_INPUT_BG}
+              style={styles.field}
             />
           </View>
-
-          <ButtonComponent
-            title={t("Save")}
-            onPress={onSave}
-            marginTop={4}
-            disabled={!hasChanges || loading}
-            backgroundColor={
-              !hasChanges || loading ? Colors.inActive : Colors.primary
-            }
-          />
         </KeyboardAwareScrollView>
+
+        <View
+          style={[
+            styles.footer,
+            { paddingBottom: Math.max(insets.bottom, 12) },
+          ]}
+        >
+          <TouchableOpacity
+            style={[styles.saveBtn, saveDisabled && styles.saveBtnDisabled]}
+            activeOpacity={0.85}
+            onPress={onSave}
+            disabled={saveDisabled}
+          >
+            <Ionicons
+              name="checkmark-circle-outline"
+              size={20}
+              color={Colors.white}
+            />
+            <Text style={styles.saveBtnText}>{t("Save")}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
       <LoadingModal visible={loading} message={t("Please wait…")} />
       <ProfilePhotoPickerModal
