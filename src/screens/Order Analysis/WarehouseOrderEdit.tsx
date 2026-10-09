@@ -104,6 +104,9 @@ const resolveRoutesForOrder = (regions: any[], order: any) => {
   };
 };
 
+const isFixedDeliverDate = (order: any) =>
+  Number(order?.is_fixed_deliver_date) === 1;
+
 const getOriginalFormValues = (order: any) => ({
   pickup_date: ApiFormatDate(order?.pickup_date) || '',
   deliver_date: ApiFormatDate(order?.deliver_date) || '',
@@ -122,13 +125,18 @@ const buildChangedUpdatePayload = (
     deliver_region_id: number | null;
     status: number | null;
   },
+  lockDeliverDate = false,
 ) => {
   const changes: Record<string, string | number> = {};
 
   if (current.pickup_date && current.pickup_date !== original.pickup_date) {
     changes.pickup_date = current.pickup_date;
   }
-  if (current.deliver_date && current.deliver_date !== original.deliver_date) {
+  if (
+    !lockDeliverDate &&
+    current.deliver_date &&
+    current.deliver_date !== original.deliver_date
+  ) {
     changes.deliver_date = current.deliver_date;
   }
   if (
@@ -195,6 +203,7 @@ const {top,bottom} = useSafeAreaInsets();
     orderData,
     UserData?.user?.role,
   );
+  const isDeliveryDateFixed = isFixedDeliverDate(orderData);
 
   const applyOrderToForm = useCallback((order: any) => {
     if (!order) return;
@@ -402,13 +411,17 @@ const {top,bottom} = useSafeAreaInsets();
     const formattedPickupDate = ApiFormatDate(pickupDate);
     const formattedDeliveryDate = ApiFormatDate(deliveryDate);
 
-    const changedFields = buildChangedUpdatePayload(originalFormRef.current, {
-      pickup_date: formattedPickupDate,
-      deliver_date: formattedDeliveryDate,
-      pickup_region_id: Number(pickupRoute?.id) || null,
-      deliver_region_id: Number(deliveryRoute?.id) || null,
-      status: Number(selectedStatus?.id) || null,
-    });
+    const changedFields = buildChangedUpdatePayload(
+      originalFormRef.current,
+      {
+        pickup_date: formattedPickupDate,
+        deliver_date: formattedDeliveryDate,
+        pickup_region_id: Number(pickupRoute?.id) || null,
+        deliver_region_id: Number(deliveryRoute?.id) || null,
+        status: Number(selectedStatus?.id) || null,
+      },
+      isDeliveryDateFixed,
+    );
 
     if (Object.keys(changedFields).length === 0) {
       setToast({
@@ -528,8 +541,17 @@ console.log("payloadpayloadpayloadpayloadpayloadpayload",payload);
               ContainerStyle={styles.routeDropdown}
             />
 
-            <Text style={styles.label}>{t('Delivery date')}</Text>
-            <CalenderDate date={deliveryDate} setDate={setDeliveryDate} />
+            <View style={styles.labelRow}>
+              <Text style={[styles.label, styles.labelInRow]}>{t('Delivery date')}</Text>
+              {isDeliveryDateFixed && (
+                <Ionicons name="star" size={16} color="#F5A623" />
+              )}
+            </View>
+            <CalenderDate
+              date={deliveryDate}
+              setDate={setDeliveryDate}
+              disabled={isDeliveryDateFixed || isEditLocked}
+            />
 
             <Text style={styles.label}>{t('Delivery route')}</Text>
             <DropDownBox
@@ -640,6 +662,15 @@ const styles = StyleSheet.create({
   },
   routeDropdown: {
     zIndex: 20,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+  },
+  labelInRow: {
+    marginTop: 0,
   },
   label: {
     fontSize: 14,

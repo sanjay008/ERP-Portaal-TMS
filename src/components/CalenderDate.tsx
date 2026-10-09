@@ -13,6 +13,7 @@ import { formatDate, toApiDateString } from "./DateFormate";
 type Props = {
   date: string | any;
   setDate?: any;
+  disabled?: boolean;
 };
 
 const SUPPORTED_LOCALES = ["en", "nl", "ar"];
@@ -99,7 +100,7 @@ const calendarTheme = {
   },
 } as any;
 
-export default function CalenderDate({ date, setDate }: Props) {
+export default function CalenderDate({ date, setDate, disabled = false }: Props) {
   const [IsVisible, setVisible] = useState<boolean>(false);
   const { t } = useTranslation();
   const {
@@ -122,14 +123,14 @@ export default function CalenderDate({ date, setDate }: Props) {
   }, [resolvedLocale]);
 
   useEffect(() => {
-    if (!date && setDate) {
-      const today = getDateByTimezone(effectiveTimeZone);
-      setDate(today);
-      if (!SelectActiveDate) {
-        setSelectActiveDate(today);
-      }
+    if (disabled || date || !setDate) return;
+
+    const today = getDateByTimezone(effectiveTimeZone);
+    setDate(today);
+    if (!SelectActiveDate) {
+      setSelectActiveDate(today);
     }
-  }, [date, effectiveTimeZone, setDate, SelectActiveDate, setSelectActiveDate]);
+  }, [date, disabled, effectiveTimeZone, setDate, SelectActiveDate, setSelectActiveDate]);
 
   const applyTodayIfNeeded = () => {
     if (!date && setDate) {
@@ -147,8 +148,11 @@ export default function CalenderDate({ date, setDate }: Props) {
         style={[
           styles.DateShowContainer,
           { borderColor: date ? Colors.primary : Colors.Boxgray },
+          disabled && styles.disabled,
         ]}
+        disabled={disabled}
         onPress={() => {
+          if (disabled) return;
           applyTodayIfNeeded();
           requestAnimationFrame(() => setVisible(true));
         }}
@@ -180,6 +184,7 @@ export default function CalenderDate({ date, setDate }: Props) {
           {IsVisible ? (
             <Calendar
               onDayPress={(day) => {
+                if (disabled || !setDate) return;
                 setDate(day.dateString);
                 setSelectActiveDate(day.dateString);
                 setVisible(false);
@@ -206,6 +211,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+  },
+  disabled: {
+    opacity: 0.55,
+    backgroundColor: Colors.litegray1 || Colors.litegray,
   },
   DateShowContainer: {
     flex: 1,

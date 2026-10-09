@@ -291,7 +291,31 @@ import { FONTS } from "../utils/storeData";
 
 const PHOTO_WIDTH = 460;
 const PHOTO_HEIGHT = 960;
-const PHOTO_QUALITY = 70;
+const PHOTO_QUALITY = 100;
+const SHARPEN_AMOUNT = 0.25;
+
+/** Resizes with expo-image-manipulator only; used when Skia is unavailable. */
+async function resizeWithManipulator(
+  uri: string,
+  width: number,
+  height: number,
+): Promise<string | null> {
+  const context = ImageManipulator.manipulate(uri);
+  try {
+    context.resize({ width, height });
+    const rendered = await context.renderAsync();
+    const result = await rendered.saveAsync({
+      compress: PHOTO_QUALITY / 100,
+      format: SaveFormat.JPEG,
+    });
+    rendered.release();
+    return result.uri || null;
+  } catch {
+    return null;
+  } finally {
+    context.release();
+  }
+}
 
 /**
  * Saves the photo as exactly 460×960: scaled down to fit (never cropped or stretched)
@@ -300,7 +324,9 @@ const PHOTO_QUALITY = 70;
  */
 async function resizePhotoToFixedSize(uri: string): Promise<string> {
   const context = ImageManipulator.manipulate(uri);
-  let fitted: { uri: string; base64?: string; width: number; height: number };
+  let intermediate: { uri: string; base64?: string };
+  let targetWidth: number;
+  let targetHeight: number;
   try {
     const original = await context.renderAsync();
     const scale = Math.min(
@@ -308,12 +334,22 @@ async function resizePhotoToFixedSize(uri: string): Promise<string> {
       PHOTO_HEIGHT / original.height,
       1,
     );
-    context.resize({
-      width: Math.max(1, Math.round(original.width * scale)),
-      height: Math.max(1, Math.round(original.height * scale)),
-    });
+    targetWidth = Math.max(1, Math.round(original.width * scale));
+    targetHeight = Math.max(1, Math.round(original.height * scale));
+
+    // Halving in steps keeps edges smooth; one large bilinear jump aliases on Android.
+    let stepWidth = original.width;
+    let stepHeight = original.height;
+    while (stepWidth / 2 >= targetWidth * 2) {
+      stepWidth /= 2;
+      stepHeight /= 2;
+      context.resize({
+        width: Math.max(1, Math.round(stepWidth)),
+        height: Math.max(1, Math.round(stepHeight)),
+      });
+    }
     const resized = await context.renderAsync();
-    fitted = await resized.saveAsync({
+    intermediate = await resized.saveAsync({
       base64: true,
       compress: 1,
       format: SaveFormat.JPEG,
@@ -326,38 +362,75 @@ async function resizePhotoToFixedSize(uri: string): Promise<string> {
     context.release();
   }
 
+  const fallback = async () =>
+    (await resizeWithManipulator(intermediate.uri, targetWidth, targetHeight)) ||
+    intermediate.uri ||
+    uri;
+
   try {
-    if (!fitted.base64) return fitted.uri || uri;
-    // Required lazily so builds without the Skia native module still get the fitted photo.
-    const { Skia, ImageFormat } =
+    if (!intermediate.base64) return await fallback();
+    // Required lazily so builds without the Skia native module still get a resized photo.
+    const { Skia, ImageFormat, FilterMode, MipmapMode, TileMode } =
       require("@shopify/react-native-skia") as typeof import("@shopify/react-native-skia");
-    const image = Skia.Image.MakeImageFromEncoded(Skia.Data.fromBase64(fitted.base64));
+    const image = Skia.Image.MakeImageFromEncoded(
+      Skia.Data.fromBase64(intermediate.base64),
+    );
+    const scaledSurface = Skia.Surface.Make(targetWidth, targetHeight);
     const surface = Skia.Surface.Make(PHOTO_WIDTH, PHOTO_HEIGHT);
-    if (!image || !surface) return fitted.uri || uri;
+    if (!image || !scaledSurface || !surface) return await fallback();
+
+    scaledSurface.getCanvas().drawImageRectOptions(
+      image,
+      Skia.XYWHRect(0, 0, image.width(), image.height()),
+      Skia.XYWHRect(0, 0, targetWidth, targetHeight),
+      FilterMode.Linear,
+      MipmapMode.Linear,
+    );
+    scaledSurface.flush();
+    const scaled = scaledSurface.makeImageSnapshot();
+
+    // Mild sharpening restores the crispness lost while downscaling.
+    const sharpenPaint = Skia.Paint();
+    sharpenPaint.setImageFilter(
+      Skia.ImageFilter.MakeMatrixConvolution(
+        3,
+        3,
+        [0, -SHARPEN_AMOUNT, 0, -SHARPEN_AMOUNT, 1 + 4 * SHARPEN_AMOUNT, -SHARPEN_AMOUNT, 0, -SHARPEN_AMOUNT, 0],
+        1,
+        0,
+        1,
+        1,
+        TileMode.Clamp,
+        false,
+      ),
+    );
 
     const canvas = surface.getCanvas();
     canvas.drawColor(Skia.Color("black"));
     canvas.drawImage(
-      image,
-      Math.round((PHOTO_WIDTH - image.width()) / 2),
-      Math.round((PHOTO_HEIGHT - image.height()) / 2),
+      scaled,
+      Math.round((PHOTO_WIDTH - targetWidth) / 2),
+      Math.round((PHOTO_HEIGHT - targetHeight) / 2),
+      sharpenPaint,
     );
     surface.flush();
     const snapshot = surface.makeImageSnapshot();
     const jpegBase64 = snapshot.encodeToBase64(ImageFormat.JPEG, PHOTO_QUALITY);
     image.dispose();
+    scaled.dispose();
     snapshot.dispose();
+    scaledSurface.dispose();
     surface.dispose();
-    if (!jpegBase64) return fitted.uri || uri;
+    if (!jpegBase64) return await fallback();
 
     const outUri = `${FileSystem.cacheDirectory}photo_${Date.now()}_${Math.round(Math.random() * 1e6)}.jpg`;
     await FileSystem.writeAsStringAsync(outUri, jpegBase64, {
       encoding: FileSystem.EncodingType.Base64,
     });
-    FileSystem.deleteAsync(fitted.uri, { idempotent: true }).catch(() => {});
+    FileSystem.deleteAsync(intermediate.uri, { idempotent: true }).catch(() => {});
     return outUri;
   } catch {
-    return fitted.uri || uri;
+    return await fallback();
   }
 }
 

@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from 'expo-clipboard';
 import React, { useCallback, useContext } from "react";
 import { useTranslation } from "react-i18next";
@@ -97,6 +98,7 @@ export default function PickupProgressMap({
     regionTextStyle,
     showLineBelow,
     isSingleStop,
+    showStar = false,
   }: {
     icon: any;
     weekday: string;
@@ -108,6 +110,7 @@ export default function PickupProgressMap({
     regionTextStyle: object;
     showLineBelow: boolean;
     isSingleStop: boolean;
+    showStar?: boolean;
   }) => (
     <View style={[styles.row, isSingleStop ? styles.singleStopRow : styles.pickupRow]}>
       <View style={styles.iconCell}>
@@ -126,13 +129,18 @@ export default function PickupProgressMap({
         )}
       </View>
 
-      <View style={styles.labelCol}>
+      <View style={[styles.labelCol, showStar && styles.labelColWithStar]}>
         <Text style={styles.labelWeekday} numberOfLines={1}>
           {weekday}
         </Text>
-        <Text style={styles.labelDate} numberOfLines={1}>
-          {date || dateFallback}
-        </Text>
+        <View style={styles.dateStarRow}>
+          {showStar && (
+            <Ionicons name="star" size={14} color="#F5A623" />
+          )}
+          <Text style={styles.labelDate} numberOfLines={1}>
+            {date || dateFallback}
+          </Text>
+        </View>
       </View>
 
       <View style={[styles.addressCol, isSingleStop && styles.singleAddressCol]}>
@@ -187,6 +195,7 @@ export default function PickupProgressMap({
           regionTextStyle: styles.deliveryText,
           showLineBelow: false,
           isSingleStop: !showBothStops,
+          showStar: Number(ItemData?.is_fixed_deliver_date) === 1,
         })}
     </View>
   );
@@ -241,6 +250,15 @@ const styles = StyleSheet.create({
     marginLeft: 6,
     paddingTop: 1,
   },
+  labelColWithStar: {
+    width: 108,
+  },
+  dateStarRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    marginTop: 1,
+  },
   labelWeekday: {
     color: "#3730A3",
     fontFamily: FONTS.SemiBold,
@@ -250,7 +268,7 @@ const styles = StyleSheet.create({
     color: Colors.textgray,
     fontFamily: FONTS.Medium,
     fontSize: 12,
-    marginTop: 1,
+    flexShrink: 1,
   },
   etaWrap: {
     flex: 1,
