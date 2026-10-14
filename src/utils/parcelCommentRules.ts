@@ -54,6 +54,13 @@ export function shouldSendDamageForDeliveryLabel(
   return false;
 }
 
+/** Successful handover label from the delivery list (green Bezorgd). */
+export function isBezorgdDeliveryLabel(deliveryLabel: any): boolean {
+  const raw =
+    deliveryLabel?.title ?? deliveryLabel?.name ?? deliveryLabel?.status_name ?? '';
+  return String(raw).trim().toLowerCase() === 'bezorgd';
+}
+
 /** Delivery label must explicitly require a customer signature. */
 export function doesLabelRequireSignature(deliveryLabel: any): boolean {
   return Number(deliveryLabel?.signature_required) === 1;

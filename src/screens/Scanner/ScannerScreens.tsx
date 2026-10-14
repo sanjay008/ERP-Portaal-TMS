@@ -49,11 +49,13 @@ import {
 import { isDeliveryOrder } from "@/src/utils/orderStatus";
 import {
   buildAcceptanceSummaryModal,
+  buildBezorgdDeclarationModal,
   buildGiveScannerToDriverModal,
 } from "@/src/utils/parcelAcceptanceFlow";
 import {
   doesLabelRequireSignature,
   getSignatureIsDelivery,
+  isBezorgdDeliveryLabel,
   isSignatureAllowedAfterStatusUpdate,
   shouldSendDamageForDeliveryLabel,
   shouldShowDamageInCommentModal,
@@ -393,6 +395,10 @@ export default function ScannerScreens({ navigation, route }: any) {
   const deliveryTypeRef = useRef(false);
   const signatureReopenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const signatureLabelRef = useRef<any>(null);
+  const commentFunRef = useRef<
+    (options?: { skipComment?: boolean }) => Promise<void>
+  >(async () => {});
+  const [bezorgdFlow, setBezorgdFlow] = useState(false);
 
   const openSignatureFlow = useCallback((label: any) => {
     let fullLabel = label;
@@ -409,7 +415,12 @@ export default function ScannerScreens({ navigation, route }: any) {
         };
       }
     }
-    if (!doesLabelRequireSignature(fullLabel)) return;
+    if (
+      !doesLabelRequireSignature(fullLabel) &&
+      !isBezorgdDeliveryLabel(fullLabel)
+    ) {
+      return;
+    }
     signatureLabelRef.current = fullLabel ?? null;
     setShowSig(true);
   }, [AllDeliveyLabel]);
@@ -636,7 +647,12 @@ export default function ScannerScreens({ navigation, route }: any) {
                     prev,
                   ),
                 );
-                if (shouldSkipCommentAfterCamera(selectedLabel, selectDamageData)) {
+                if (isBezorgdDeliveryLabel(selectedLabel)) {
+                  setBezorgdFlow(true);
+                  setComment(false);
+                  setShowSig(false);
+                  void commentFunRef.current({ skipComment: true });
+                } else if (shouldSkipCommentAfterCamera(selectedLabel, selectDamageData)) {
                   setComment(false);
                 } else {
                   setComment(true);
@@ -946,7 +962,12 @@ export default function ScannerScreens({ navigation, route }: any) {
         queueCameraProofImages(data, "camera_done");
         const label =
           selectCurrentDeliveryLabelRef.current ?? SelectCurrentDeliveryLabel;
-        if (shouldSkipCommentAfterCamera(label, selectDamageData)) {
+        if (isBezorgdDeliveryLabel(label)) {
+          setBezorgdFlow(true);
+          setComment(false);
+          setShowSig(false);
+          void commentFunRef.current({ skipComment: true });
+        } else if (shouldSkipCommentAfterCamera(label, selectDamageData)) {
           setComment(false);
         } else {
           setComment(true);
@@ -1882,25 +1903,43 @@ const CustomerSignatureFun = async (
       getSliderDataFun();
     };
 
-    setSecondModal(
-      buildGiveScannerToDriverModal({
-        t,
-        image: Images.CustomerAfterCondirmImage,
-        onGoToOverview: () => {
-          setSecondModal(
-            buildAcceptanceSummaryModal({
-              t,
-              message: summaryMessage,
-              color:
-                GloblyTypeSlide === "outbound_scan"
-                  ? Colors.primary
-                  : Colors.green,
-              onClose: closeToList,
-            }),
-          );
-        },
-      }),
-    );
+    const bezorgdHandoff = isBezorgdDeliveryLabel(labelForSig);
+    const showDriverHandoff = () => {
+      setSecondModal(
+        buildGiveScannerToDriverModal({
+          t,
+          image: Images.CustomerAfterCondirmImage,
+          buttonText: bezorgdHandoff ? t("Next") : undefined,
+          onGoToOverview: () => {
+            setSecondModal(
+              buildAcceptanceSummaryModal({
+                t,
+                message: summaryMessage,
+                color:
+                  GloblyTypeSlide === "outbound_scan"
+                    ? Colors.primary
+                    : Colors.green,
+                onClose: () => {
+                  setBezorgdFlow(false);
+                  closeToList();
+                },
+              }),
+            );
+          },
+        }),
+      );
+    };
+
+    if (bezorgdHandoff) {
+      setSecondModal(
+        buildBezorgdDeclarationModal({
+          t,
+          onNext: showDriverHandoff,
+        }),
+      );
+    } else {
+      showDriverHandoff();
+    }
   } catch (error) {
     const handledError = ErrorHandle(error);
 
@@ -1918,7 +1957,8 @@ const CustomerSignatureFun = async (
 };
 
 
-  const CommentFun = async () => {
+  const CommentFun = async (options?: { skipComment?: boolean }) => {
+    const skipComment = options?.skipComment === true;
     const isDeliveryMultiDamage =
       isDeliveryOrder(ItemsData) &&
       ProductDamageList?.length > 0 &&
@@ -1949,8 +1989,9 @@ const CustomerSignatureFun = async (
       }
     }
     setCommentLoader(true);
+    if (skipComment) setIsLoading(true);
     try {
-      if (!isCommentOptional && !Description.trim()) {
+      if (!skipComment && !isCommentOptional && !Description.trim()) {
         setCommentError(t("Please enter a comment"));
         return;
       }
@@ -2143,10 +2184,11 @@ const CustomerSignatureFun = async (
           NoParcelItemIds,
           SelectPlace?.item_id,
         );
-        const isSignatureAllowed = isSignatureAllowedAfterStatusUpdate(
-          res,
-          savedDeliveryLabel,
-        );
+        const bezorgd = isBezorgdDeliveryLabel(savedDeliveryLabel);
+        setBezorgdFlow(bezorgd);
+        const isSignatureAllowed =
+          bezorgd ||
+          isSignatureAllowedAfterStatusUpdate(res, savedDeliveryLabel);
 
         clearDeliveryLabelSelection();
         deliveryLabelModalPendingRef.current = false;
@@ -2168,8 +2210,9 @@ const CustomerSignatureFun = async (
 
             if (isSignatureAllowed) {
               buttons.push({
-                text:
-                  ProductDamageList?.length > 0
+                text: bezorgd
+                  ? t("Next")
+                  : ProductDamageList?.length > 0
                     ? t("Go to overview")
                     : t("Signature"),
                 type: "primary",
@@ -2193,9 +2236,8 @@ const CustomerSignatureFun = async (
               visible: true,
               title: t("All Parcels Scanned Successfully!"),
               message: t(res?.remaining_item_message) || "",
-              hint: isSignatureAllowed
-                ? t("GIVE SCANNER TO CUSTOMER")
-                : undefined,
+              hint: isSignatureAllowed ? t("GIVE SCANNER TO CUSTOMER") : undefined,
+              hintAtTop: isSignatureAllowed,
               image: isSignatureAllowed
                 ? Images.DriverConfirmCustomerImage
                 : undefined,
@@ -2245,8 +2287,9 @@ const CustomerSignatureFun = async (
           }
         } else if (isSignatureAllowed) {
           const buttons: any[] = [{
-            text:
-              ProductDamageList?.length > 0
+            text: bezorgd
+              ? t("Next")
+              : ProductDamageList?.length > 0
                 ? t("Go to overview")
                 : t("Signature"),
             type: "primary",
@@ -2260,6 +2303,7 @@ const CustomerSignatureFun = async (
             title: t("Confirm Delivery"),
             message: t("Delivery completed. Please provide your signature to confirm successful handover."),
             hint: t("GIVE SCANNER TO CUSTOMER"),
+            hintAtTop: true,
             image: Images.DriverConfirmCustomerImage,
             buttons: buttons,
             color: Colors.green,
@@ -2286,8 +2330,10 @@ const CustomerSignatureFun = async (
       });
     } finally {
       setCommentLoader(false);
+      if (skipComment) setIsLoading(false);
     }
   };
+  commentFunRef.current = CommentFun;
 
   const GetIdByOrderFun = async (order_id?: string) => {
     const id = order_id || ItemsData?.id || ItemsData?.order_data?.id;
@@ -2867,6 +2913,8 @@ const CustomerSignatureFun = async (
         visible={showSig}
         defaultName={ItemsData?.display_name}
         ProductDamageList={ProductDamageList}
+        skipOverview={bezorgdFlow}
+        actionLabel={bezorgdFlow ? t("Next") : undefined}
         onClose={() => setShowSig(false)}
         onPress={() => {
           deliveryTypeRef.current = true;

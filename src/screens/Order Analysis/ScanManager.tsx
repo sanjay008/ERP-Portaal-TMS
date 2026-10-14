@@ -1,8 +1,8 @@
 import apiConstants from '@/src/api/apiConstants';
 import { Images } from '@/src/assets/images';
-import { useErrorHandle } from '@/src/components/ErrorHandle';
 import AddWarehouseProductModal from '@/src/components/AddWarehouseProductModal';
 import { formatDate, toApiDateString } from '@/src/components/DateFormate';
+import { useErrorHandle } from '@/src/components/ErrorHandle';
 import WarehouseOrderSheet from '@/src/components/WarehouseOrderSheet';
 import { goBackOrPopTo } from '@/src/components/goBackOrPopTo';
 import { GlobalContextData } from '@/src/context/GlobalContext';
@@ -11,8 +11,8 @@ import { DropboxContext } from '@/src/context/UploadProider';
 import ApiService from '@/src/utils/Apiservice';
 import { getDateByTimezone, resolveAppTimeZone } from '@/src/utils/appDateTime';
 import { Colors } from '@/src/utils/colors';
-import { isProductActionLockedForRole } from '@/src/utils/orderStatus';
 import { appendToLocalUploadQueue } from '@/src/utils/localUploadQueue';
+import { isProductActionLockedForRole } from '@/src/utils/orderStatus';
 import { FONTS, height, width } from '@/src/utils/storeData';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useIsFocused, useNavigation } from '@react-navigation/native';
@@ -133,7 +133,7 @@ export default function ScanManager({ route }: any) {
   }, [isFocused, unlockScanner]);
 
   const fetchOrderById = useCallback(
-    async (orderId: string | number) => {
+    async (orderId: string | number,data=null) => {
       setSheetLoading(true);
       setActiveOrderId(orderId);
       try {
@@ -144,13 +144,13 @@ export default function ScanManager({ route }: any) {
             relaties_id: UserData?.relaties?.id,
             user_id: UserData?.user?.id,
             order_id: orderId,
+            qr_data:data,
             type: slideType,
             ...(slideType === WAREHOUSE_TYPE && planningDate
               ? { date: planningDate }
               : {}),
           },
         });
-
 
         if (res?.status) {
           setOrderData(res?.data);
@@ -576,6 +576,7 @@ export default function ScanManager({ route }: any) {
 
       isVerifyingScanRef.current = true;
       lastScannedRef.current = data;
+console.log("QR CODE",data);
 
       let parsed: any;
       try {
@@ -608,7 +609,7 @@ export default function ScanManager({ route }: any) {
       setSheetMode('scan');
       setSheetVisible(true);
 
-      fetchOrderById(orderId).then((ok) => {
+      fetchOrderById(orderId,data).then((ok) => {
         if (!ok) {
           setSheetVisible(false);
           unlockScanner();

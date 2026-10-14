@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   Extrapolation,
   interpolate,
@@ -25,6 +26,7 @@ const SecondCustomModal = ({
   SecondModal,
 }: any) => {
   const progress = useSharedValue(0);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (SecondModal?.visible) {
@@ -72,8 +74,56 @@ const SecondCustomModal = ({
     return null;
   }
 
+  if (SecondModal?.variant === 'declaration') {
+    return (
+      <View pointerEvents="auto" style={styles.root}>
+        <Animated.View
+          style={[
+            StyleSheet.absoluteFillObject,
+            { backgroundColor: SecondModal?.color || '#128C3E' },
+            backdropStyle,
+          ]}
+        >
+          <ScrollView
+            style={styles.declarationList}
+            bounces={false}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={[
+              styles.declarationScroll,
+              {
+                paddingTop: Math.max(insets.top, 24) + 12,
+                paddingBottom: Math.max(insets.bottom, 16) + 20,
+              },
+            ]}
+          >
+            {SecondModal?.title ? (
+              <Text style={styles.declarationTitle}>{SecondModal.title}</Text>
+            ) : null}
+            {SecondModal?.message ? (
+              <Text style={styles.declarationMessage}>{SecondModal.message}</Text>
+            ) : null}
+            {SecondModal?.highlight ? (
+              <Text style={styles.declarationHighlight}>{SecondModal.highlight}</Text>
+            ) : null}
+            {SecondModal?.buttons?.map((btn: any, index: number) => (
+              <TouchableOpacity
+                key={index}
+                style={styles.declarationButton}
+                onPress={btn.onPress}
+                activeOpacity={0.88}
+              >
+                <Text style={styles.declarationButtonText}>{btn.text}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </Animated.View>
+      </View>
+    );
+  }
+
   const hasImage = Boolean(SecondModal?.image);
   const hasHint = Boolean(SecondModal?.hint);
+  const hintAtTop = Boolean(SecondModal?.hintAtTop);
   const isSignaturePopup = hasImage || hasHint;
   const hasTitle = Boolean(SecondModal?.title);
   const hasMessage = Boolean(SecondModal?.message);
@@ -97,8 +147,18 @@ const SecondCustomModal = ({
         <ScrollView
           bounces={false}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              paddingTop: Math.max(insets.top, 16) + 8,
+              paddingBottom: Math.max(insets.bottom, 12) + 16,
+            },
+          ]}
         >
+          {hasHint && hintAtTop ? (
+            <Text style={styles.hintTop}>{SecondModal.hint}</Text>
+          ) : null}
+
           {hasImage ? (
             <View style={styles.heroWrap}>
               <Image
@@ -184,7 +244,7 @@ const SecondCustomModal = ({
             </Animated.View>
           ) : null}
 
-          {hasHint ? (
+          {hasHint && !hintAtTop ? (
             <Text style={styles.hint}>{SecondModal.hint}</Text>
           ) : null}
         </ScrollView>
@@ -308,5 +368,57 @@ const styles = StyleSheet.create({
     letterSpacing: 0.7,
     textAlign: "center",
     paddingHorizontal: 16,
+  },
+  declarationList: {
+    flex: 1,
+  },
+  declarationScroll: {
+    flexGrow: 1,
+    paddingHorizontal: 22,
+  },
+  declarationTitle: {
+    fontSize: 22,
+    fontFamily: FONTS.SemiBold,
+    color: '#FFE14A',
+    textAlign: 'center',
+    marginBottom: 18,
+  },
+  declarationMessage: {
+    fontSize: 15,
+    fontFamily: FONTS.Regular,
+    color: Colors.white,
+    lineHeight: 22,
+    textAlign: 'left',
+  },
+  declarationHighlight: {
+    marginTop: 16,
+    fontSize: 15,
+    fontFamily: FONTS.SemiBold,
+    color: '#FFE14A',
+    lineHeight: 22,
+    textAlign: 'left',
+  },
+  hintTop: {
+    marginBottom: 18,
+    fontSize: 22,
+    fontFamily: FONTS.SemiBold,
+    color: Colors.white,
+    letterSpacing: 0.4,
+    textAlign: 'center',
+    paddingHorizontal: 12,
+  },
+  declarationButton: {
+    marginTop: 28,
+    minHeight: 52,
+    borderRadius: 12,
+    backgroundColor: Colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  declarationButtonText: {
+    fontSize: 16,
+    fontFamily: FONTS.SemiBold,
+    color: '#128C3E',
   },
 });

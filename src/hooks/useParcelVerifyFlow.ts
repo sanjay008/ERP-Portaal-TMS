@@ -32,11 +32,13 @@ import {
 } from '@/src/utils/deviceMeta';
 import {
   buildAcceptanceSummaryModal,
+  buildBezorgdDeclarationModal,
   buildGiveScannerToDriverModal,
 } from '@/src/utils/parcelAcceptanceFlow';
 import {
   doesLabelRequireSignature,
   getSignatureIsDelivery,
+  isBezorgdDeliveryLabel,
   isSignatureAllowedAfterStatusUpdate,
   isDescriptionOptional,
   shouldSendDamageForDeliveryLabel,
@@ -267,6 +269,10 @@ export function useParcelVerifyFlow({
   /** Locked at label select — survives stub overwrites so signature button still shows. */
   const signatureRequiredRef = useRef(false);
   const signatureLabelRef = useRef<any>(null);
+  const commentFunRef = useRef<
+    (options?: { skipComment?: boolean }) => Promise<void>
+  >(async () => {});
+  const [bezorgdFlow, setBezorgdFlow] = useState(false);
 
   const openSignatureFlow = useCallback((label: any) => {
     let fullLabel = label;
@@ -283,7 +289,12 @@ export function useParcelVerifyFlow({
         };
       }
     }
-    if (!doesLabelRequireSignature(fullLabel)) return;
+    if (
+      !doesLabelRequireSignature(fullLabel) &&
+      !isBezorgdDeliveryLabel(fullLabel)
+    ) {
+      return;
+    }
     signatureLabelRef.current = fullLabel ?? null;
     setShowSig(true);
   }, [AllDeliveyLabel]);
@@ -443,6 +454,7 @@ export function useParcelVerifyFlow({
   const clearDeliveryLabelForNextParcel = softClearDeliveryLabelUi;
 
   const handleGoToListPage = useCallback(() => {
+    setBezorgdFlow(false);
     setSecondModal((prev: any) => ({ ...prev, visible: false }));
     clearParcelVerifySession();
     if (onGoToListPage) {
@@ -701,7 +713,12 @@ export function useParcelVerifyFlow({
                 ),
               );
               const damage = selectDamageDataRef.current ?? selectDamageData;
-              if (shouldSkipCommentAfterCamera(selectedLabel, damage)) {
+              if (isBezorgdDeliveryLabel(selectedLabel)) {
+                setBezorgdFlow(true);
+                setComment(false);
+                setShowSig(false);
+                void commentFunRef.current({ skipComment: true });
+              } else if (shouldSkipCommentAfterCamera(selectedLabel, damage)) {
                 setComment(false);
               } else {
                 setComment(true);
@@ -1383,25 +1400,40 @@ export function useParcelVerifyFlow({
             .filter(Boolean)
             .join('\n\n');
 
-          setSecondModal(
-            buildGiveScannerToDriverModal({
-              t,
-              image: Images.CustomerAfterCondirmImage,
-              onGoToOverview: () => {
-                setSecondModal(
-                  buildAcceptanceSummaryModal({
-                    t,
-                    message: summaryMessage,
-                    color:
-                      GloblyTypeSlide === 'outbound_scan'
-                        ? Colors.primary
-                        : Colors.green,
-                    onClose: handleGoToListPage,
-                  }),
-                );
-              },
-            }),
-          );
+          const bezorgdHandoff = isBezorgdDeliveryLabel(labelForSig);
+          const showDriverHandoff = () => {
+            setSecondModal(
+              buildGiveScannerToDriverModal({
+                t,
+                image: Images.CustomerAfterCondirmImage,
+                buttonText: bezorgdHandoff ? t('Next') : undefined,
+                onGoToOverview: () => {
+                  setSecondModal(
+                    buildAcceptanceSummaryModal({
+                      t,
+                      message: summaryMessage,
+                      color:
+                        GloblyTypeSlide === 'outbound_scan'
+                          ? Colors.primary
+                          : Colors.green,
+                      onClose: handleGoToListPage,
+                    }),
+                  );
+                },
+              }),
+            );
+          };
+
+          if (bezorgdHandoff) {
+            setSecondModal(
+              buildBezorgdDeclarationModal({
+                t,
+                onNext: showDriverHandoff,
+              }),
+            );
+          } else {
+            showDriverHandoff();
+          }
           await onSuccess?.();
         } else {
           setToast({
@@ -1448,7 +1480,8 @@ export function useParcelVerifyFlow({
     ],
   );
 
-  const commentFun = useCallback(async () => {
+  const commentFun = useCallback(async (options?: { skipComment?: boolean }) => {
+    const skipComment = options?.skipComment === true;
     const effectiveType = slideType ?? GloblyTypeSlide;
     // Snapshot first — module store / fallback survive Filter focus clears.
     const activeDeliveryLabel = resolveDeliveryLabel();
@@ -1487,8 +1520,9 @@ export function useParcelVerifyFlow({
     }
 
     setCommentLoader(true);
+    if (skipComment) setIsLoading(true);
     try {
-      if (!commentOptionalNow && !description.trim()) {
+      if (!skipComment && !commentOptionalNow && !description.trim()) {
         setCommentError(t('Please enter a comment'));
         return;
       }
@@ -1598,11 +1632,14 @@ export function useParcelVerifyFlow({
         res?.data?.tms_current_status ??
         res?.data?.data?.tms_current_status,
       );
+      const bezorgd = isBezorgdDeliveryLabel(savedDeliveryLabel);
+      setBezorgdFlow(bezorgd);
       const labelNeedsSignature =
-        savedDeliveryLabel != null
+        bezorgd ||
+        (savedDeliveryLabel != null
           ? doesLabelRequireSignature(savedDeliveryLabel)
-          : signatureRequiredRef.current === true;
-      const isSignatureAllowed = isSignatureAllowedAfterStatusUpdate(
+          : signatureRequiredRef.current === true);
+      const isSignatureAllowed = bezorgd || isSignatureAllowedAfterStatusUpdate(
         res,
         savedDeliveryLabel ??
           (signatureRequiredRef.current
@@ -1760,8 +1797,9 @@ export function useParcelVerifyFlow({
 
           if (isSignatureAllowed) {
             buttons.push({
-              text:
-                productDamageList?.length > 0
+              text: bezorgd
+                ? t('Next')
+                : productDamageList?.length > 0
                   ? t('Go to overview')
                   : t('Signature'),
               type: 'primary',
@@ -1782,9 +1820,8 @@ export function useParcelVerifyFlow({
             visible: true,
             title: t('All Parcels Scanned Successfully!'),
             message: t(res?.remaining_item_message) || '',
-            hint: isSignatureAllowed
-              ? t('GIVE SCANNER TO CUSTOMER')
-              : undefined,
+            hint: isSignatureAllowed ? t('GIVE SCANNER TO CUSTOMER') : undefined,
+            hintAtTop: isSignatureAllowed,
             image: isSignatureAllowed
               ? Images.DriverConfirmCustomerImage
               : undefined,
@@ -1835,11 +1872,13 @@ export function useParcelVerifyFlow({
             'Delivery completed. Please provide your signature to confirm successful handover.',
           ),
           hint: t('GIVE SCANNER TO CUSTOMER'),
+          hintAtTop: true,
           image: Images.DriverConfirmCustomerImage,
           buttons: [
             {
-              text:
-                productDamageList?.length > 0
+              text: bezorgd
+                ? t('Next')
+                : productDamageList?.length > 0
                   ? t('Go to overview')
                   : t('Signature'),
               type: 'primary',
@@ -1863,6 +1902,7 @@ export function useParcelVerifyFlow({
       });
     } finally {
       setCommentLoader(false);
+      if (skipComment) setIsLoading(false);
     }
   }, [
     SelectCurrentDeliveryLabel,
@@ -1900,6 +1940,8 @@ export function useParcelVerifyFlow({
     setPickUpDataSave,
     openSignatureFlow,
   ]);
+
+  commentFunRef.current = commentFun;
 
   const handleSignatureCameraPress = useCallback(() => {
     deliveryTypeRef.current = true;
@@ -2021,7 +2063,12 @@ export function useParcelVerifyFlow({
           persistDeliveryLabel(label);
         }
         const damage = selectDamageDataRef.current ?? selectDamageData;
-        if (shouldSkipCommentAfterCamera(label, damage)) {
+        if (isBezorgdDeliveryLabel(label)) {
+          setBezorgdFlow(true);
+          setComment(false);
+          setShowSig(false);
+          void commentFunRef.current({ skipComment: true });
+        } else if (shouldSkipCommentAfterCamera(label, damage)) {
           setComment(false);
         } else {
           setComment(true);
@@ -2076,6 +2123,7 @@ export function useParcelVerifyFlow({
     commentError,
     commentLoader,
     showSig,
+    bezorgdFlow,
     signatureLoader,
     secondModal,
     allDeliveyLabel: AllDeliveyLabel,

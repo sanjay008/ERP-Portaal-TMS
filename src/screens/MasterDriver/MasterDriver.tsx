@@ -134,7 +134,7 @@ export default function MasterDriver() {
   }, [isFocused, unlockScanner]);
 
   const fetchOrderById = useCallback(
-    async (orderId: string | number, silent = false) => {
+    async (orderId: string | number, silent = false,scan_data=null) => {
       const res = await ApiService(apiConstants.get_order_data_by_id, {
         customData: {
           token: UserData?.user?.verify_token,
@@ -143,6 +143,7 @@ export default function MasterDriver() {
           user_id: UserData?.user?.id,
           order_id: orderId,
           type: API_TYPE,
+          qr_data:scan_data
         },
       });
 
@@ -220,13 +221,13 @@ export default function MasterDriver() {
   );
 
   const processScannedOrder = useCallback(
-    async (orderId: string | number) => {
+    async (orderId: string | number,scan_data) => {
       setSheetLoading(true);
       setOrderData(null);
       setSheetVisible(true);
 
       try {
-        const order = await fetchOrderById(orderId);
+        const order = await fetchOrderById(orderId,scan_data);
         if (!order) {
           setSheetVisible(false);
           unlockScanner();
@@ -327,7 +328,7 @@ export default function MasterDriver() {
         return;
       }
 
-      processScannedOrder(orderId);
+      processScannedOrder(orderId,data);
     },
     [cameraReady, isFocused, processScannedOrder, setToast, t, unlockScanner],
   );

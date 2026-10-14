@@ -56,7 +56,7 @@ export default function ScanDetails({ route }: any) {
         setQRcodeSearch?.(parsed?.order_id);
 
         setTimeout(() => {
-          navigate("OrderDetails", { order_id: parsed?.order_id, type: GloblyTypeSlide });
+          navigate("OrderDetails", { order_id: parsed?.order_id, type: GloblyTypeSlide,qr_data:parsed });
           isProcessingRef.current = false;
         }, 1500);
       } catch (err) {

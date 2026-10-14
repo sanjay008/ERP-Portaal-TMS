@@ -211,7 +211,7 @@ export default function ScannerInfoModal({
       ? personData
       : null);
   const showUnauthorizedPickUpBox =
-    bgColor === Colors.red && !!pickupOrderData;
+    !!pickupOrderData;
 
   const firstNonEmptyItems = (...lists: any[][]) => {
     for (const list of lists) {

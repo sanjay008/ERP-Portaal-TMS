@@ -87,6 +87,8 @@ export interface SignatureModalProps {
   IsLoading?: boolean;
   defaultName?: string | null;
   ProductDamageList?: any[];
+  skipOverview?: boolean;
+  actionLabel?: string;
 }
 
 const SignatureModal: React.FC<SignatureModalProps> = ({
@@ -101,6 +103,8 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
   IsLoading = false,
   defaultName = "",
   ProductDamageList = [],
+  skipOverview = false,
+  actionLabel,
 }) => {
   const { t } = useTranslation();
   const signatureRef = useRef<SignatureViewRef>(null);
@@ -180,7 +184,7 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
         setAcceptanceParcels(
           initAcceptanceParcels(ProductDamageList, AllDamageListReason ?? []),
         );
-        setStep("overview");
+        setStep(skipOverview ? "signature" : "overview");
       } else {
         setAcceptanceParcels([]);
         setStep("signature");
@@ -479,8 +483,6 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
         </Text>
         <Text style={styles.overviewCtaSub}>{t("Signature")}</Text>
       </TouchableOpacity>
-
-      <Text style={styles.overviewHint}>{t("GIVE SCANNER TO CUSTOMER")}</Text>
     </View>
   );
 
@@ -540,11 +542,13 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
   const renderSignatureStep = () => {
     const acceptedCount = acceptanceParcels.filter((p) => p.accepted).length;
     const rejectedCount = acceptanceParcels.filter((p) => !p.accepted).length;
-    const summaryTitle = hasParcelDamageList
-      ? `${rejectedCount} ${t("rejected")}  ·  ${acceptedCount} ${t("accepted")}`
-      : title !== ""
-        ? title
-        : t("Signature");
+    const summaryTitle = skipOverview
+      ? t("Signature")
+      : hasParcelDamageList
+        ? `${rejectedCount} ${t("rejected")}  ·  ${acceptedCount} ${t("accepted")}`
+        : title !== ""
+          ? title
+          : t("Signature");
 
     return (
     <>
@@ -576,7 +580,7 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
         </Pressable>
       )}
 
-      {hasParcelDamageList ? (
+      {hasParcelDamageList && !skipOverview ? (
         <TouchableOpacity
           style={styles.backToOverview}
           onPress={() =>
@@ -697,7 +701,7 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
         ) : (
           <>
             <Ionicons name="checkmark" size={16} color={Colors.white} />
-            <Text style={styles.saveBtnText}>{t("Save")}</Text>
+            <Text style={styles.saveBtnText}>{actionLabel || t("Save")}</Text>
           </>
         )}
       </TouchableOpacity>
@@ -716,7 +720,7 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
       />
 
       <View style={styles.centerContainer} pointerEvents="box-none">
-        {step === "overview" && hasParcelDamageList && renderOverview()}
+        {step === "overview" && hasParcelDamageList && !skipOverview && renderOverview()}
         {step === "comment" && hasParcelDamageList && renderCommentStep()}
         {step === "signature" && renderSignatureStep()}
       </View>

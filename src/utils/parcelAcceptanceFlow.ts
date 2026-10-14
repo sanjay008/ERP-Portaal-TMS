@@ -182,25 +182,69 @@ export function buildParcelDamageAcceptPayload(
 
 type TranslateFn = (key: string, ...args: any[]) => any;
 
+export const BEZORGD_DECLARATION_TEXT = [
+  'Met mijn handtekening bevestig ik dat ik de order bij aflevering heb gecontroleerd en dat deze zonder zichtbare schade is geleverd.',
+  'Ik ga akkoord met de zichtbare staat van de pakketten op het moment van levering.',
+  '',
+  'Uw melding hier in de APP dient als bewijs van de zichtbare en schadevrije staat van de levering bij aflevering.',
+  '',
+  'De wettelijke consumentenrechten blijven van kracht, waaronder de bepalingen over conformiteit in artikel 7:17 BW en artikel 7:18 BW.',
+  '',
+  'Deze verklaring geldt voor de leverancier/opdrachtgever van GE-SU Dienstverlening & Service, Nederland.',
+].join('\n');
+
+export const BEZORGD_DECLARATION_HIGHLIGHT = [
+  'Heeft u zichtbare schade, vul dan het formulier in. Deze kunt u krijgen bij de Chauffeur.',
+  '',
+  'Ook moet u een email sturen naar schade@ge-su.nl',
+].join('\n');
+
+export function buildBezorgdDeclarationModal({
+  t,
+  onNext,
+}: {
+  t: TranslateFn;
+  onNext: () => void;
+}) {
+  return {
+    visible: true,
+    variant: 'declaration' as const,
+    title: 'Verklaring',
+    message: BEZORGD_DECLARATION_TEXT,
+    highlight: BEZORGD_DECLARATION_HIGHLIGHT,
+    color: '#128C3E',
+    buttons: [
+      {
+        text: t('Next'),
+        type: 'primary' as const,
+        onPress: onNext,
+      },
+    ],
+  };
+}
+
 export function buildGiveScannerToDriverModal({
   t,
   image,
   onGoToOverview,
+  buttonText,
 }: {
   t: TranslateFn;
   image: any;
   onGoToOverview: () => void;
+  buttonText?: string;
 }) {
   return {
     visible: true,
     title: '',
     message: '',
     hint: t('GIVE SCANNER TO DRIVER'),
+    hintAtTop: true,
     image,
     color: '#000000',
     buttons: [
       {
-        text: t('Go to overview'),
+        text: buttonText || t('Go to overview'),
         type: 'primary' as const,
         onPress: onGoToOverview,
       },

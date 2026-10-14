@@ -57,7 +57,7 @@ const mapTmsCommentForView = (comment: any, isPrivate = false) => ({
 });
 
 export default function OrderDetails({ navigation, route }: any) {
-    const { item, order_id, type } = route?.params || {};
+    const { item, order_id, type,qr_data } = route?.params || {};
     const { ErrorHandle } = useErrorHandle();
     const {
         UserData,
@@ -127,6 +127,7 @@ export default function OrderDetails({ navigation, route }: any) {
                     user_id: UserData?.user?.id,
                     order_id: order_id ?? ItemsData?.id ?? ItemsData?.order_data?.id,
                     type: type,
+                    qr_data:JSON.stringify(qr_data)
                 },
             });
             if (res?.status) {

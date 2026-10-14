@@ -49,6 +49,54 @@ function getCurrentVersion(): string {
   );
 }
 
+/** Client builds use YY.M.D, for example 26.10.7. App Store is still 2.7. */
+function isClientDateVersion(version: string): boolean {
+  return /^\d{2}\.\d{1,2}\.\d{1,2}$/.test(version);
+}
+
+function dateVersionStamp(version: string): number {
+  const [year, month, day] = version.split('.').map((part) => Number(part) || 0);
+  return year * 10000 + month * 100 + day;
+}
+
+/**
+ * Library calls this as (storeVersion, appVersion).
+ * Return 1 when the user should install the App Store build.
+ */
+function compareIosStoreVersion(
+  storeVersion: string,
+  appVersion: string,
+): -1 | 0 | 1 {
+  const store = String(storeVersion || '').trim();
+  const app = String(appVersion || '').trim();
+  if (!store || !app || store === app) return 0;
+
+  if (isClientDateVersion(store) && isClientDateVersion(app)) {
+    const diff = dateVersionStamp(store) - dateVersionStamp(app);
+    if (diff > 0) return 1;
+    if (diff < 0) return -1;
+    return 0;
+  }
+
+  // 2.7 on the store and 26.10.7 in the app are different schemes.
+  if (isClientDateVersion(app) !== isClientDateVersion(store)) {
+    return 1;
+  }
+
+  const toParts = (value: string) =>
+    value.split('.').map((part) => Number(part) || 0);
+  const storeParts = toParts(store);
+  const appParts = toParts(app);
+  const length = Math.max(storeParts.length, appParts.length);
+  for (let index = 0; index < length; index += 1) {
+    const storePart = storeParts[index] ?? 0;
+    const appPart = appParts[index] ?? 0;
+    if (storePart > appPart) return 1;
+    if (storePart < appPart) return -1;
+  }
+  return 0;
+}
+
 function resolveIosStoreUrl(other: unknown): string {
   const extras = (other ?? {}) as {
     trackViewUrl?: string;
@@ -248,6 +296,7 @@ export function usePlayStoreInAppUpdate() {
         const result = await client.checkNeedsUpdate({
           curVersion: getCurrentVersion(),
           bundleId: IOS_BUNDLE_ID,
+          customVersionComparator: compareIosStoreVersion,
         });
 
         if (!result?.shouldUpdate) return;
