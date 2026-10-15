@@ -759,7 +759,14 @@ export default function RejectionScanner({ route }: any) {
         };
 
         logRejectionApi("verify", "REQ", payload);
-        await attachScanLocationForVerify(payload, orderId);
+        await attachScanLocationForVerify(payload, orderId, (freshFix) => {
+          void pingDriverLiveLocation(
+            LIVE_LOCATION_REASON.SCAN_REJECTION,
+            UserData,
+            orderId,
+            freshFix,
+          );
+        });
         let res: any;
         try {
           res = await ApiService(apiConstants.Verify_status, {

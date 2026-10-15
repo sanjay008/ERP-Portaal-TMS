@@ -157,7 +157,14 @@ export async function runParcelVerifyFlow(
 
     const verifyPayload: Record<string, any> = { ...payload };
     try {
-      await attachScanLocationForVerify(verifyPayload, data?.order_id);
+      await attachScanLocationForVerify(verifyPayload, data?.order_id, (freshFix) => {
+        void pingDriverLiveLocation(
+          LIVE_LOCATION_REASON.SCAN_PARCEL,
+          deps.userData,
+          data?.order_id,
+          freshFix,
+        );
+      });
     } catch (locationError) {
 
       if (Platform.OS !== 'ios') {

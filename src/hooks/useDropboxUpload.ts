@@ -4,9 +4,9 @@ import * as BackgroundTask from "expo-background-task";
 import Constants from "expo-constants";
 import * as Device from "expo-device";
 import * as FileSystem from "expo-file-system/legacy";
-import * as TaskManager from "expo-task-manager";
+import NetInfo from "@react-native-community/netinfo";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
-import { Platform } from "react-native";
+import { AppState, Platform } from "react-native";
 import apiConstants from "../api/apiConstants";
 import { GlobalContextData } from "../context/GlobalContext";
 import { DropboxContext } from "../context/UploadProider";
@@ -17,8 +17,8 @@ import {
   toPositiveId,
 } from "../utils/localUploadQueue";
 
-const TASK_NAME = "DROPBOX_BACKGROUND_UPLOAD";
 const STORAGE_QUEUE_KEY = "LOCAL_UPLOAD_QUEUE";
+const TASK_NAME = "DROPBOX_BACKGROUND_UPLOAD";
 const STORAGE_ERROR_KEY = "FAILED_UPLOAD_QUEUE";
 const STORAGE_API_QUEUE_KEY = "DROPBOX_API_QUEUE";
 const STORAGE_API_ERROR_KEY = "FAILED_API_QUEUE";
@@ -62,7 +62,7 @@ export interface FileUploadResult {
 
 type UploadSingleFileOutcome =
   | { ok: true; data: FileUploadResult }
-  | { ok: false; error: string; file: string };
+  | { ok: false; error: string; file: string; userMessage: string };
 
 export interface LocalUploadItem {
   order_id: number | null;
@@ -146,6 +146,7 @@ const UPLOAD_TOAST = {
     "Photo upload failed. Storage connection expired. Please try again.",
   noPermission:
     "Photo upload failed. App does not have permission to upload. Contact support.",
+  noInternet: "No internet connection. Uploads are on hold and will resume automatically when internet is back.",
   tooManyRequests:
     "Too many upload requests. Please wait a moment and try again.",
   fileConflict:
@@ -261,6 +262,7 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
 
   const [loading, setLoading] = useState<boolean>(false);
   const [restored, setRestored] = useState<boolean>(false);
+  const [networkAvailable, setNetworkAvailable] = useState<boolean | null>(null);
 
   const accessTokenRef = useRef<string>(AccessToken || "");
   const isProcessingRef = useRef<boolean>(false);
@@ -271,6 +273,8 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
   const localRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const processingLocalKeysRef = useRef<Set<string>>(new Set());
   const processingApiKeysRef = useRef<Set<string>>(new Set());
+  const shownUploadFailureKeysRef = useRef<Set<string>>(new Set());
+  const networkToastShownRef = useRef(false);
 
   const latestQueueRef = useRef<LocalUploadItem[]>([]);
   const latestApiQueueRef = useRef<DropboxQueueItem[]>([]);
@@ -285,6 +289,34 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
       visible: true,
     });
   }, [setToast, t]);
+
+  const showUploadErrorOnce = useCallback((key: string, message: string) => {
+    if (shownUploadFailureKeysRef.current.has(key)) return;
+    shownUploadFailureKeysRef.current.add(key);
+    showToast(message);
+  }, [showToast]);
+
+  const notifyOfflineOnce = useCallback(() => {
+    if (networkToastShownRef.current) return;
+    networkToastShownRef.current = true;
+    showToast(t(UPLOAD_TOAST.noInternet));
+  }, [showToast, t]);
+
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      const available = state.isConnected === true && state.isInternetReachable !== false;
+      setNetworkAvailable(available);
+      if (available) {
+        networkToastShownRef.current = false;
+      } else if (
+        (latestQueueRef.current.length > 0 || latestApiQueueRef.current.length > 0) &&
+        state.isConnected === false
+      ) {
+        notifyOfflineOnce();
+      }
+    });
+    return unsubscribe;
+  }, [notifyOfflineOnce]);
 
   useEffect(() => {
     accessTokenRef.current = AccessToken || "";
@@ -333,10 +365,9 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         error: e,
       });
 
-      showToast(t(UPLOAD_TOAST.tokenRefreshFailed));
       throw e;
     }
-  }, [RefreshToken, ClientId, ClientSecret, setAccessToken, showToast, t]);
+  }, [RefreshToken, ClientId, ClientSecret, setAccessToken]);
 
   const uploadSingleFile = useCallback(
     async (
@@ -363,8 +394,12 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
             uri: sanitizeFileUri(uri),
             errorMessage,
           });
-          showToast(t(UPLOAD_TOAST.unsupportedFile));
-          return { ok: false, error: errorMessage, file: originalFileName };
+          return {
+            ok: false,
+            error: errorMessage,
+            file: originalFileName,
+            userMessage: t(UPLOAD_TOAST.unsupportedFile),
+          };
         }
 
         let token = accessTokenRef.current;
@@ -446,13 +481,7 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
             dropboxError: parseDropboxErrorBody(uploadRes.body),
           });
 
-          if (retry < 3) {
-            await new Promise<void>((resolve) => setTimeout(resolve, 2000));
-            return uploadSingleFile(uri, folder, retry + 1);
-          }
-
-          showToast(userMessage);
-          return { ok: false, error: errorMessage, file: originalFileName };
+          return { ok: false, error: errorMessage, file: originalFileName, userMessage };
         }
 
         const uploadData = JSON.parse(uploadRes.body);
@@ -533,16 +562,10 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
           name: e?.name ?? null,
         });
 
-        if (retry < 3) {
-          await new Promise<void>((resolve) => setTimeout(resolve, 2000));
-          return uploadSingleFile(uri, folder, retry + 1);
-        }
-
-        showToast(userMessage);
-        return { ok: false, error: errorMessage, file: originalFileName };
+        return { ok: false, error: errorMessage, file: originalFileName, userMessage };
       }
     },
-    [refreshAccessToken, showToast, t]
+    [refreshAccessToken, t]
   );
 
   const saveQueueToStorage = useCallback(async (queue: LocalUploadItem[]): Promise<void> => {
@@ -567,24 +590,25 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
     }
   }, []);
 
-  const saveErrorToStorage = useCallback(async (item: LocalUploadItem): Promise<void> => {
-    try {
-      const existing = await AsyncStorage.getItem(STORAGE_ERROR_KEY);
-      const errors: LocalUploadItem[] = existing ? JSON.parse(existing) : [];
-      errors.push(item);
-      await AsyncStorage.setItem(STORAGE_ERROR_KEY, JSON.stringify(errors));
-    } catch (e) {
-    }
-  }, []);
-
   const saveApiErrorToStorage = useCallback(async (item: DropboxQueueItem, message: string): Promise<void> => {
     try {
       const existing = await AsyncStorage.getItem(STORAGE_API_ERROR_KEY);
       const errors: { item: DropboxQueueItem; message: string; time: string }[] = existing
         ? JSON.parse(existing)
         : [];
-      errors.push({ item, message, time: new Date().toISOString() });
-      await AsyncStorage.setItem(STORAGE_API_ERROR_KEY, JSON.stringify(errors));
+      const itemKey = item.batchId || `${item.order_id}_${item.item_id ?? "none"}_${item.image_data.map((image) => image.dropbox_id || image.file_path).join("|")}`;
+      const existingIndex = errors.findIndex((entry) => {
+        const queued = entry.item;
+        const queuedKey = queued.batchId || `${queued.order_id}_${queued.item_id ?? "none"}_${queued.image_data.map((image) => image.dropbox_id || image.file_path).join("|")}`;
+        return queuedKey === itemKey;
+      });
+      const nextEntry = { item, message, time: new Date().toISOString() };
+      if (existingIndex >= 0) errors[existingIndex] = nextEntry;
+      else errors.push(nextEntry);
+      await AsyncStorage.setItem(
+        STORAGE_API_ERROR_KEY,
+        JSON.stringify(errors.slice(-100)),
+      );
     } catch (e) {
     }
   }, []);
@@ -615,7 +639,9 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         formData.append("relaties_id", String(UserData.relaties?.id ?? ""));
         formData.append("user_id", String(UserData.user.id ?? ""));
         formData.append("order_id", String(orderId));
-        formData.append("order_log_id", String(item.commentId ?? ""));
+        if (item.commentId != null) {
+          formData.append("order_log_id", String(item.commentId));
+        }
         // formData.append("qr_data", item.qr_data ?? "null");
 
         const itemId = toPositiveId(item.item_id);
@@ -631,8 +657,6 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
           formData.append(`images[${index}][shared_link]`, image?.shared_link ?? "");
         });
 
-        console.log("formData dropbox upload", formData);
-        
         const response = await axios.post(apiConstants.store_tms_comment_img_new, formData, {
           headers: { "Content-Type": "multipart/form-data" },
           transformRequest: (data) => data,
@@ -647,11 +671,10 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
       } catch (e: any) {
         const message =
           e?.response?.data?.message || e?.message || "Unknown API error";
-        showToast(message);
         return { success: false, message };
       }
     },
-    [UserData, t, showToast]
+    [UserData, t]
   );
 
   const reportImageUploadError = useCallback(
@@ -676,7 +699,9 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         formData.append("relaties_id", String(UserData.relaties?.id ?? ""));
         formData.append("user_id", String(UserData.user.id ?? ""));
         formData.append("order_id", String(params.order_id ?? ""));
-        formData.append("order_log_id", String(params.order_log_id ?? ""));
+        if (params.order_log_id != null) {
+          formData.append("order_log_id", String(params.order_log_id));
+        }
         formData.append("error", params.error);
         formData.append("file", params.file);
         formData.append("qr_data", params.qr_data ?? "null");
@@ -761,10 +786,77 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
     [setDropBoxUploadImageDataQues, saveApiQueueToStorage]
   );
 
+  const persistMediaBeforeUpload = useCallback(async (item: LocalUploadItem): Promise<LocalUploadItem> => {
+    const root = FileSystem.documentDirectory;
+    if (!root) throw new Error("App storage is unavailable; media remains queued.");
+
+    const queued = withBatchId(item);
+    const directory = `${root}pending_uploads/${encodeURIComponent(queued.batchId!)}/`;
+    await FileSystem.makeDirectoryAsync(directory, { intermediates: true });
+
+    const durableUris: string[] = [];
+    for (const [index, uri] of queued.image_data.entries()) {
+      if (!uri) continue;
+      if (uri.startsWith(root)) {
+        durableUris.push(uri);
+        continue;
+      }
+
+      const name = sanitizeFileUri(uri) || `media_${index}`;
+      const destination = `${directory}${index}_${name}`;
+      const [existing, sourceInfo] = await Promise.all([
+        FileSystem.getInfoAsync(destination),
+        FileSystem.getInfoAsync(uri),
+      ]);
+      const incompleteCopy = existing.exists &&
+        typeof existing.size === "number" &&
+        typeof sourceInfo.size === "number" &&
+        existing.size !== sourceInfo.size;
+      if (incompleteCopy) {
+        await FileSystem.deleteAsync(destination, { idempotent: true });
+      }
+      if (!existing.exists || incompleteCopy) {
+        await FileSystem.copyAsync({ from: uri, to: destination });
+      }
+      durableUris.push(destination);
+    }
+
+    const durableItem = { ...queued, image_data: durableUris };
+    const originalKey = getQueueItemKey(item);
+    let persistedQueue: LocalUploadItem[] = [];
+    try {
+      const stored = await AsyncStorage.getItem(STORAGE_QUEUE_KEY);
+      persistedQueue = stored ? JSON.parse(stored) : [];
+    } catch {
+      persistedQueue = [];
+    }
+    const nextQueue = [...persistedQueue];
+    latestQueueRef.current.forEach((entry) => {
+      if (!nextQueue.some((queuedItem) => getQueueItemKey(queuedItem) === getQueueItemKey(entry))) {
+        nextQueue.push(entry);
+      }
+    });
+    const index = nextQueue.findIndex((entry) => getQueueItemKey(entry) === originalKey);
+    if (index >= 0) nextQueue[index] = durableItem;
+    else if (!nextQueue.some((entry) => getQueueItemKey(entry) === getQueueItemKey(durableItem))) {
+      nextQueue.push(durableItem);
+    }
+
+    // Persist the durable file paths before allowing the upload worker to run.
+    await AsyncStorage.setItem(STORAGE_QUEUE_KEY, JSON.stringify(nextQueue));
+    latestQueueRef.current = nextQueue;
+    setLocalImagesUploadbeforeData?.(nextQueue);
+    return durableItem;
+  }, [setLocalImagesUploadbeforeData]);
+
   const processApiQueue = useCallback(
     async (queue: DropboxQueueItem[]): Promise<void> => {
       if (!setDropBoxUploadImageDataQues) return;
       if (isApiProcessingRef.current || queue.length === 0) return;
+      if (networkAvailable !== true) {
+        if (networkAvailable === false) notifyOfflineOnce();
+        return;
+      }
 
       if (apiStoppedRef.current) {
         return;
@@ -798,10 +890,12 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
 
         if (result.success) {
           apiErrorCountRef.current = 0;
+          shownUploadFailureKeysRef.current.delete(`api:${getQueueItemKey(item)}`);
           syncApiQueue(latestApiQueueRef.current.filter((q) => !isSameQueueItem(q, item)));
         } else {
           apiErrorCountRef.current += 1;
           const errorMessage = result.message || t("something_went_wrong");
+          showUploadErrorOnce(`api:${getQueueItemKey(item)}`, errorMessage);
           await saveApiErrorToStorage(item, errorMessage);
 
           if (apiRetryTimerRef.current) {
@@ -843,7 +937,10 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
       storeImageToDatabase,
       saveApiErrorToStorage,
       syncApiQueue,
+      showUploadErrorOnce,
       t,
+      networkAvailable,
+      notifyOfflineOnce,
     ]
   );
 
@@ -891,16 +988,26 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         const results = await Promise.all(uris.map((uri) => uploadSingleFile(uri, folder)));
 
         const uploaded: FileUploadResult[] = [];
-        const failed: { error: string; file: string }[] = [];
+        const failed: { error: string; file: string; userMessage: string }[] = [];
 
         for (const result of results) {
           if (!result) continue;
           if (result.ok === false) {
-            failed.push({ error: result.error, file: result.file });
+            failed.push({ error: result.error, file: result.file, userMessage: result.userMessage });
           } else {
             uploaded.push(result.data);
+            shownUploadFailureKeysRef.current.delete(
+              `file:${batchItem.order_id}:${batchItem.item_id ?? "none"}:${result.data.file}`,
+            );
           }
         }
+
+        failed.forEach((failure) => {
+          showUploadErrorOnce(
+            `file:${batchItem.order_id}:${batchItem.item_id ?? "none"}:${failure.file}`,
+            failure.userMessage || t(UPLOAD_TOAST.generic),
+          );
+        });
 
         const finishedAt = Date.now();
         const deviceMeta = await getDeviceMeta();
@@ -1109,24 +1216,25 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
           ...latestQueueRef.current.filter((q) => !isSameLocalItem(q, batchItem)),
           batchItem,
         ]);
-        showToast(userMessage);
+        showUploadErrorOnce(
+          `queue:${batchItem.batchId || itemKey}`,
+          userMessage,
+        );
         return false;
       }
     },
-    [uploadSingleFile, reportImageUploadError, setDropBoxUploadImageDataQues, setLocalImagesUploadbeforeData, syncLocalQueue, syncApiQueue, showToast, t]
+    [uploadSingleFile, reportImageUploadError, setDropBoxUploadImageDataQues, setLocalImagesUploadbeforeData, syncLocalQueue, syncApiQueue, showUploadErrorOnce, t]
   );
 
   const processQueue = useCallback(
     async (queue: LocalUploadItem[]): Promise<void> => {
       if (!setLocalImagesUploadbeforeData) return;
       if (isProcessingRef.current || queue.length === 0) return;
-      if (!AccessToken && !RefreshToken) return;
 
       isProcessingRef.current = true;
       setLoading(true);
 
       try {
-        const errorItems: LocalUploadItem[] = [];
         const snapshot = latestQueueRef.current
           .filter((item) => !processingLocalKeysRef.current.has(getQueueItemKey(item)))
           .filter(
@@ -1134,15 +1242,28 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
               arr.findIndex((q) => getQueueItemKey(q) === getQueueItemKey(item)) === index
           );
 
+        const durableItems: LocalUploadItem[] = [];
         for (const item of snapshot) {
-          const success = await processQueueItem(item);
-          if (!success) errorItems.push(item);
+          try {
+            durableItems.push(await persistMediaBeforeUpload(item));
+          } catch (error: any) {
+            console.error("[DropboxUpload] Could not persist queued media", {
+              order_id: item.order_id,
+              item_id: item.item_id,
+              batch_id: item.batchId ?? null,
+              message: error?.message ?? String(error),
+            });
+          }
         }
 
-        if (errorItems.length > 0) {
-          for (const errItem of errorItems) {
-            await saveErrorToStorage(errItem);
-          }
+        if (networkAvailable !== true) {
+          if (networkAvailable === false && snapshot.length > 0) notifyOfflineOnce();
+          return;
+        }
+        if (!AccessToken && !RefreshToken) return;
+
+        for (const item of durableItems) {
+          await processQueueItem(item);
         }
 
       } catch (e) {
@@ -1158,36 +1279,12 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         }
       }
     },
-    [AccessToken, RefreshToken, processQueueItem, saveErrorToStorage, setLocalImagesUploadbeforeData]
+    [AccessToken, RefreshToken, processQueueItem, persistMediaBeforeUpload, setLocalImagesUploadbeforeData, networkAvailable, notifyOfflineOnce]
   );
 
   useEffect(() => {
     processQueueFnRef.current = processQueue;
   }, [processQueue]);
-
-  const retryErrorQueue = useCallback(async (): Promise<void> => {
-    try {
-      const existing = await AsyncStorage.getItem(STORAGE_ERROR_KEY);
-      if (!existing) return;
-
-      const errors: LocalUploadItem[] = JSON.parse(existing);
-      if (errors.length === 0) return;
-      await AsyncStorage.removeItem(STORAGE_ERROR_KEY);
-
-      const stillFailed: LocalUploadItem[] = [];
-
-      for (const item of errors) {
-        const success = await processQueueItem(item);
-        if (!success) stillFailed.push(item);
-      }
-
-      if (stillFailed.length > 0) {
-        await AsyncStorage.setItem(STORAGE_ERROR_KEY, JSON.stringify(stillFailed));
-      }
-
-    } catch (e) {
-    }
-  }, [processQueueItem]);
 
   useEffect(() => {
     if (!setLocalImagesUploadbeforeData || !setDropBoxUploadImageDataQues) return;
@@ -1200,12 +1297,6 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         const storedApiQueue = await AsyncStorage.getItem(STORAGE_API_QUEUE_KEY);
         const storedErrors = await AsyncStorage.getItem(STORAGE_ERROR_KEY);
         const storedApiErrors = await AsyncStorage.getItem(STORAGE_API_ERROR_KEY);
-
-        if (storedErrors) {
-          const errors: LocalUploadItem[] = JSON.parse(storedErrors);
-          if (errors.length > 0) {
-          }
-        }
 
         if (storedApiErrors) {
           const apiErrors = JSON.parse(storedApiErrors);
@@ -1228,20 +1319,27 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
           }
         }
 
-        if (storedQueue) {
-          const queue: LocalUploadItem[] = JSON.parse(storedQueue);
-          if (queue.length > 0) {
-            setLocalImagesUploadbeforeData((prev: LocalUploadItem[]) => {
-              const merged = [...(prev || [])];
-              queue.forEach((item) => {
-                if (!merged.some((q) => isSameLocalItem(q, item))) {
-                  merged.push(item);
-                }
-              });
-              return merged;
-            });
+        const persistedQueue: LocalUploadItem[] = storedQueue ? JSON.parse(storedQueue) : [];
+        const legacyErrors: LocalUploadItem[] = storedErrors ? JSON.parse(storedErrors) : [];
+        const mergedQueue = [...persistedQueue];
+        legacyErrors.forEach((item) => {
+          if (!mergedQueue.some((queued) => isSameLocalItem(queued, item))) {
+            mergedQueue.push(item);
           }
+        });
+        if (mergedQueue.length > 0) {
+          // Promote legacy failures into the durable active queue before
+          // clearing their old storage, so restart cannot lose pending media.
+          await AsyncStorage.setItem(STORAGE_QUEUE_KEY, JSON.stringify(mergedQueue));
+          setLocalImagesUploadbeforeData((prev: LocalUploadItem[]) => {
+            const current = [...(prev || [])];
+            mergedQueue.forEach((item) => {
+              if (!current.some((q) => isSameLocalItem(q, item))) current.push(item);
+            });
+            return current;
+          });
         }
+        if (storedErrors) await AsyncStorage.removeItem(STORAGE_ERROR_KEY);
 
       } catch (e) {
       } finally {
@@ -1257,10 +1355,8 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
 
     if (LocalImagesUploadbeforeData?.length > 0 && !isProcessingRef.current) {
       processQueue(LocalImagesUploadbeforeData);
-    } else if (LocalImagesUploadbeforeData?.length === 0 && !isProcessingRef.current) {
-      retryErrorQueue();
     }
-  }, [LocalImagesUploadbeforeData, processQueue, retryErrorQueue, restored, AccessToken, RefreshToken]);
+  }, [LocalImagesUploadbeforeData, processQueue, restored, AccessToken, RefreshToken, networkAvailable]);
 
   useEffect(() => {
     if (!restored) return;
@@ -1268,44 +1364,27 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
     if (DropBoxUploadImageDataQues?.length > 0 && !isApiProcessingRef.current && !apiStoppedRef.current) {
       processApiQueue(DropBoxUploadImageDataQues);
     }
-  }, [DropBoxUploadImageDataQues, processApiQueue, restored, UserData]);
+  }, [DropBoxUploadImageDataQues, processApiQueue, restored, UserData, networkAvailable]);
 
   useEffect(() => {
-    const registerBackgroundTask = async (): Promise<void> => {
-      const isRegistered = await TaskManager.isTaskRegisteredAsync(TASK_NAME);
-      if (isRegistered) return;
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state !== "active" || networkAvailable !== true) return;
+      if (latestQueueRef.current.length > 0) {
+        processQueueFnRef.current?.(latestQueueRef.current);
+      }
+      if (latestApiQueueRef.current.length > 0) {
+        processApiQueueFnRef.current?.(latestApiQueueRef.current);
+      }
+    });
+    return () => subscription.remove();
+  }, [networkAvailable]);
 
-      TaskManager.defineTask(TASK_NAME, async () => {
-        try {
-          const storedQueue = await AsyncStorage.getItem(STORAGE_QUEUE_KEY);
-
-          if (storedQueue) {
-            const queue: LocalUploadItem[] = JSON.parse(storedQueue);
-
-            if (queue.length > 0) {
-              for (const item of queue) {
-                const uris = item.image_data.filter(Boolean);
-                const folder =
-                  item.folder ||
-                  (item.order_id != null
-                    ? buildDropboxOrderFolder(item.order_id)
-                    : "photos");
-                await Promise.all(uris.map((uri) => uploadSingleFile(uri, folder)));
-              }
-            }
-          }
-
-          return BackgroundTask.BackgroundTaskResult.Success;
-        } catch {
-          return BackgroundTask.BackgroundTaskResult.Failed;
-        }
-      });
-
-      await BackgroundTask.registerTaskAsync(TASK_NAME, { minimumInterval: 15 * 60 });
-    };
-
-    registerBackgroundTask();
-  }, [uploadSingleFile]);
+  useEffect(() => {
+    // The previous task uploaded to Dropbox without saving the database stage,
+    // which could create duplicate remote files. Pending jobs resume through
+    // the durable queue when the app is active again.
+    void BackgroundTask.unregisterTaskAsync(TASK_NAME).catch(() => {});
+  }, []);
 
   useEffect(() => {
     return () => {

@@ -388,12 +388,6 @@ export default function ScanManager({ route }: any) {
           commentId: null,
         });
 
-        setToast({
-          top: 45,
-          text: t('Image uploaded successfully'),
-          type: 'success',
-          visible: true,
-        });
         return true;
       } catch (error) {
         setToast({

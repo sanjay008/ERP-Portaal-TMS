@@ -370,12 +370,6 @@ export default function DriverPhotosScanner({ route }: any) {
             qr_data: qrData ? JSON.stringify(qrData) : undefined,
           });
 
-          setToast({
-            top: 45,
-            text: t(res?.data?.message) || t("Success"),
-            type: "success",
-            visible: true,
-          });
         } else {
           appendToLocalUploadQueue(setLocalImagesUploadbeforeData, {
             order_id: orderId,
@@ -385,12 +379,6 @@ export default function DriverPhotosScanner({ route }: any) {
             qr_data: qrData ? JSON.stringify(qrData) : undefined,
           });
 
-          setToast({
-            top: 45,
-            text: t("Image uploaded successfully"),
-            type: "success",
-            visible: true,
-          });
         }
 
     setCommentVisible(false);

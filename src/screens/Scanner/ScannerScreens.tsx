@@ -16,9 +16,11 @@ import SecondCustomModal from "@/src/components/SecondCustomModal";
 import SignatureModal from "@/src/components/SignatureModal";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import {
+  clearRememberedDeliveryLabel,
   getRememberedDeliveryLabel,
   setLatestDeliveryCameraSetData,
   setLatestPickupCameraSetData,
+  useParcelVerifySession,
 } from "@/src/context/ParcelVerifySessionContext";
 import { DropboxContext } from "@/src/context/UploadProider";
 import {
@@ -67,6 +69,7 @@ import {
   unlockParcelCameraCallback,
 } from "@/src/utils/parcelVerifyCameraReturn";
 import {
+  clearActiveVerifyDeliveryLabel,
   getActiveVerifyDeliveryLabel,
   setActiveVerifyDeliveryLabel,
 } from "@/src/utils/parcelVerifyDeliveryLabelStore";
@@ -130,6 +133,7 @@ import Modal from "react-native-modal";
 import ReAnimated, { FadeIn } from "react-native-reanimated";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 export default function ScannerScreens({ navigation, route }: any) {
+  const { setSessionDeliveryLabel } = useParcelVerifySession();
   const {
     fun = () => { },
     type,
@@ -415,15 +419,12 @@ export default function ScannerScreens({ navigation, route }: any) {
         };
       }
     }
-    if (
-      !doesLabelRequireSignature(fullLabel) &&
-      !isBezorgdDeliveryLabel(fullLabel)
-    ) {
+    if (!isDeliveryOrder(ItemsData) || !doesLabelRequireSignature(fullLabel)) {
       return;
     }
     signatureLabelRef.current = fullLabel ?? null;
     setShowSig(true);
-  }, [AllDeliveyLabel]);
+  }, [AllDeliveyLabel, ItemsData]);
 
   const reopenSignatureAfterCamera = useCallback((data: any[]) => {
     if (!data?.length) return;
@@ -599,8 +600,16 @@ export default function ScannerScreens({ navigation, route }: any) {
   const clearDeliveryLabelSelection = useCallback(() => {
     pendingDeliveryLabelRef.current = null;
     selectCurrentDeliveryLabelRef.current = null;
+    setSelectCurrentDeliveryLabel(null);
+    setSessionDeliveryLabel(null);
     clearPinnedDeliveryLabel?.();
-  }, [clearPinnedDeliveryLabel]);
+    clearRememberedDeliveryLabel();
+    clearActiveVerifyDeliveryLabel();
+  }, [
+    clearPinnedDeliveryLabel,
+    setSelectCurrentDeliveryLabel,
+    setSessionDeliveryLabel,
+  ]);
 
   const closeDeliveryLabelModalAndUnlockScan = useCallback(() => {
     deliveryLabelModalPendingRef.current = false;
@@ -1602,7 +1611,6 @@ export default function ScannerScreens({ navigation, route }: any) {
         setCommentId(orderLogId);
         if (
           image_data.length > 0 &&
-          orderLogId != null &&
           !proofQueuedFromCameraRef.current
         ) {
           const binding =
@@ -1630,12 +1638,6 @@ export default function ScannerScreens({ navigation, route }: any) {
         setPickUpDataSave([]);
         setDeliveyDataSave([]);
         setDescrition('');
-        setToast({
-          top: 45,
-          text: t(res?.data?.message),
-          type: 'success',
-          visible: true,
-        });
         refreshCamera();
         await GetIdByOrderFun();
 
@@ -1834,9 +1836,10 @@ const CustomerSignatureFun = async (
     }
 
     signatureLabelRef.current = null;
+    clearDeliveryLabelSelection();
     setProductDamageList([]);
 
-    if (Array.isArray(AllSelectImage) && AllSelectImage.length > 0 && CommentId != null) {
+    if (Array.isArray(AllSelectImage) && AllSelectImage.length > 0) {
       if (!proofQueuedFromCameraRef.current) {
         const binding =
           cameraProofBindingRef.current ??
@@ -2197,7 +2200,8 @@ const CommentFun = async (options?: { skipComment?: boolean }) => {
     const bezorgd = isBezorgdDeliveryLabel(savedDeliveryLabel);
     setBezorgdFlow(bezorgd);
     const isSignatureAllowed =
-      bezorgd || isSignatureAllowedAfterStatusUpdate(res, savedDeliveryLabel);
+      isDeliveryOrder(ItemsData) &&
+      isSignatureAllowedAfterStatusUpdate(res, savedDeliveryLabel);
  
     clearDeliveryLabelSelection();
     deliveryLabelModalPendingRef.current = false;
@@ -2205,7 +2209,10 @@ const CommentFun = async (options?: { skipComment?: boolean }) => {
  
     if (deliveryMoreParcelsNoPathRef.current) {
       deliveryMoreParcelsNoPathRef.current = false;
-      if (doesLabelRequireSignature(savedDeliveryLabel)) {
+      if (
+        isDeliveryOrder(ItemsData) &&
+        doesLabelRequireSignature(savedDeliveryLabel)
+      ) {
         setSecondModal((p: any) => ({ ...p, visible: false }));
         openSignatureFlow(savedDeliveryLabel);
         return;
@@ -2476,10 +2483,12 @@ commentFunRef.current = CommentFun;
         if (!backorderParcelsRemaining) {
           const buttons: any[] = [];
 
-          const isSignatureAllowed = isSignatureAllowedAfterStatusUpdate(
-            res?.data,
-            SelectCurrentDeliveryLabel ?? getSessionDeliveryLabel(),
-          );
+          const isSignatureAllowed =
+            isDeliveryOrder(ItemsData) &&
+            isSignatureAllowedAfterStatusUpdate(
+              res?.data,
+              SelectCurrentDeliveryLabel ?? getSessionDeliveryLabel(),
+            );
 
           if (isSignatureAllowed) {
             buttons.push({
@@ -2920,7 +2929,11 @@ commentFunRef.current = CommentFun;
         ProductDamageList={ProductDamageList}
         skipOverview={bezorgdFlow}
         actionLabel={bezorgdFlow ? t("Next") : undefined}
-        onClose={() => setShowSig(false)}
+        onClose={() => {
+          signatureLabelRef.current = null;
+          setShowSig(false);
+          clearDeliveryLabelSelection();
+        }}
         onPress={() => {
           deliveryTypeRef.current = true;
           setShowSig(false);

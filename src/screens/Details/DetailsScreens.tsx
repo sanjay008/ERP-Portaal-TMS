@@ -18,7 +18,10 @@ import SecondCustomModal from "@/src/components/SecondCustomModal";
 import SignatureModal from "@/src/components/SignatureModal";
 import TwoTypeButton from "@/src/components/TwoTypeButton";
 import { GlobalContextData } from "@/src/context/GlobalContext";
-import { setLatestPickupCameraSetData } from "@/src/context/ParcelVerifySessionContext";
+import {
+  clearRememberedDeliveryLabel,
+  setLatestPickupCameraSetData,
+} from "@/src/context/ParcelVerifySessionContext";
 import { DropboxContext } from "@/src/context/UploadProider";
 import { useParcelVerifyFlow } from "@/src/hooks/useParcelVerifyFlow";
 import ApiService from "@/src/utils/Apiservice";
@@ -38,7 +41,10 @@ import {
   lockParcelCameraCallback,
   unlockParcelCameraCallback,
 } from "@/src/utils/parcelVerifyCameraReturn";
-import { setActiveVerifyDeliveryLabel } from "@/src/utils/parcelVerifyDeliveryLabelStore";
+import {
+  clearActiveVerifyDeliveryLabel,
+  setActiveVerifyDeliveryLabel,
+} from "@/src/utils/parcelVerifyDeliveryLabelStore";
 import { isBlankSignatureData } from "@/src/utils/signatureValidation";
 import { FONTS, ScanPlatFormId, Stop_PickupType } from "@/src/utils/storeData";
 import { useIsFocused } from "@react-navigation/native";
@@ -128,10 +134,10 @@ export default function DetailsScreens({ navigation, route }: any) {
         };
       }
     }
-    if (!doesLabelRequireSignature(fullLabel)) return;
+    if (!isDeliveryOrder(ItemsData) || !doesLabelRequireSignature(fullLabel)) return;
     signatureLabelRef.current = fullLabel ?? null;
     setShowSig(true);
-  }, [AllDeliveyLabel]);
+  }, [AllDeliveyLabel, ItemsData]);
 
 
   const [AllDestinationRegionData, setAllDestinationRegionData] = useState<
@@ -524,7 +530,7 @@ export default function DetailsScreens({ navigation, route }: any) {
           order_id;
         const imageUris = [...(imagesToSend || [])].filter(Boolean);
 
-        if (imageUris.length > 0 && orderLogId != null && orderId != null) {
+        if (imageUris.length > 0 && orderId != null) {
           appendToLocalUploadQueue(setLocalImagesUploadbeforeData, {
             order_id: orderId,
             image_data: imageUris,
@@ -536,12 +542,6 @@ export default function DetailsScreens({ navigation, route }: any) {
         setPickUpDataSave([]);
         setDeliveyDataSave([]);
         setAllSelectImage([]);
-        setToast({
-          top: 45,
-          text: t(res?.data?.message),
-          type: "success",
-          visible: true,
-        });
         await GetIdByOrderFun();
         return true;
       } else {
@@ -602,10 +602,9 @@ export default function DetailsScreens({ navigation, route }: any) {
         ""
       );
 
-      formData.append(
-        "order_log_id",
-        OrderLogId
-      );
+      if (OrderLogId != null && String(OrderLogId).trim() !== "") {
+        formData.append("order_log_id", String(OrderLogId));
+      }
 
 
       if (
@@ -668,12 +667,6 @@ export default function DetailsScreens({ navigation, route }: any) {
         );
       }
       setDropBoxUploadImageData([]);
-
-      setToast({
-        text: t(data?.message || t("Image uploaded successfully")),
-        type: "success",
-        visible: true,
-      });
 
     } catch (error) {
 
@@ -816,10 +809,12 @@ export default function DetailsScreens({ navigation, route }: any) {
 
         if (Number(res?.data.remaining_item) == 0) {
           const buttons: any[] = [];
-          const isSignatureAllowed = isSignatureAllowedAfterStatusUpdate(
-            res?.data,
-            SelectCurrentDeliveryLabel,
-          );
+          const isSignatureAllowed =
+            isDeliveryOrder(ItemsData) &&
+            isSignatureAllowedAfterStatusUpdate(
+              res?.data,
+              SelectCurrentDeliveryLabel,
+            );
 
           if (isSignatureAllowed) {
             openSignatureFlow(SelectCurrentDeliveryLabel);
@@ -965,6 +960,10 @@ export default function DetailsScreens({ navigation, route }: any) {
 
       if (res?.status) {
         signatureLabelRef.current = null;
+        parcelVerifyFlow.closeSignatureFlow();
+        setSelectCurrentDeliveryLabel(null);
+        clearRememberedDeliveryLabel();
+        clearActiveVerifyDeliveryLabel();
         setShowSig(false);
         setSecondModal(p => ({ ...p, visible: false }));
         setToast({
@@ -1517,7 +1516,14 @@ export default function DetailsScreens({ navigation, route }: any) {
         IsLoading={SignatureLoader}
         visible={showSig}
         defaultName={ItemsData?.display_name}
-        onClose={() => setShowSig(false)}
+        onClose={() => {
+          signatureLabelRef.current = null;
+          setShowSig(false);
+          parcelVerifyFlow.closeSignatureFlow();
+          setSelectCurrentDeliveryLabel(null);
+          clearRememberedDeliveryLabel();
+          clearActiveVerifyDeliveryLabel();
+        }}
         onSave={(base64, name) => {
           CustomerSignatureFun(base64, name)
 

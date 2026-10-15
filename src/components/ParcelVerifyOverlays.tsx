@@ -138,7 +138,7 @@ export default function ParcelVerifyOverlays({ flow, navigation }: Props) {
         ProductDamageList={flow.productDamageList}
         skipOverview={flow.bezorgdFlow}
         actionLabel={flow.bezorgdFlow ? t('Next') : undefined}
-        onClose={() => flow.setShowSig(false)}
+        onClose={flow.closeSignatureFlow}
         onPress={flow.handleSignatureCameraPress}
         onSave={flow.customerSignatureFun}
         onClear={() => {}}

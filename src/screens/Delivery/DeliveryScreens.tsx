@@ -285,12 +285,6 @@ export default function DeliveryScreens({ route, navigation }: any) {
       if (Boolean(res?.data?.status)) {
         setDescrition("");
         await GetIdByOrderFun();
-        setToast({
-          top: 45,
-          text: res?.data?.message,
-          type: "success",
-          visible: true,
-        });
       } else {
         setToast({
           top: 45,
@@ -318,7 +312,7 @@ export default function DeliveryScreens({ route, navigation }: any) {
       setToast({
         top: 45,
         text: t("Permission required to access gallery"),
-        type: "success",
+        type: "error",
         visible: true,
       });
       return;

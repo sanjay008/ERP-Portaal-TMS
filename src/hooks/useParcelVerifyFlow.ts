@@ -267,8 +267,6 @@ export function useParcelVerifyFlow({
   const selectDamageDataRef = useRef<any>(null);
   const deliveryTypeRef = useRef(false);
   const signatureReopenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /** Locked at label select — survives stub overwrites so signature button still shows. */
-  const signatureRequiredRef = useRef(false);
   const signatureLabelRef = useRef<any>(null);
   const commentFunRef = useRef<
     (options?: { skipComment?: boolean }) => Promise<void>
@@ -290,15 +288,12 @@ export function useParcelVerifyFlow({
         };
       }
     }
-    if (
-      !doesLabelRequireSignature(fullLabel) &&
-      !isBezorgdDeliveryLabel(fullLabel)
-    ) {
+    if (!isDeliveryOrder(itemsData) || !doesLabelRequireSignature(fullLabel)) {
       return;
     }
     signatureLabelRef.current = fullLabel ?? null;
     setShowSig(true);
-  }, [AllDeliveyLabel]);
+  }, [AllDeliveyLabel, itemsData]);
 
   useEffect(() => {
     selectCurrentDeliveryLabelRef.current = SelectCurrentDeliveryLabel;
@@ -444,7 +439,6 @@ export function useParcelVerifyFlow({
     pendingDeliveryLabelRef.current = null;
     selectCurrentDeliveryLabelRef.current = null;
     deliveryLabelSnapshotRef.current = null;
-    signatureRequiredRef.current = false;
     setLockedDeliveryLabel(null);
     clearPinnedDeliveryLabel();
     setSessionDeliveryLabel(null);
@@ -981,12 +975,10 @@ export function useParcelVerifyFlow({
           fullLabel = { ...fromList, ...labelItem };
         }
       }
-      signatureRequiredRef.current = doesLabelRequireSignature(fullLabel);
       console.log('[DirectFlow] persistDeliveryLabel', {
         id: fullLabel?.id,
         signature_required: fullLabel?.signature_required,
         signature_rejected: fullLabel?.signature_rejected,
-        signatureRequiredRef: signatureRequiredRef.current,
       });
       // Global pin first (survives soft null). Then module store + local refs.
       setSelectCurrentDeliveryLabel(fullLabel);
@@ -1173,7 +1165,6 @@ export function useParcelVerifyFlow({
           setCommentId(orderLogId);
           if (
             image_data.length > 0 &&
-            orderLogId != null &&
             !proofQueuedFromCameraRef.current
           ) {
             const binding =
@@ -1348,8 +1339,10 @@ export function useParcelVerifyFlow({
 
         if (res?.status) {
           signatureLabelRef.current = null;
+          // Signature success completes this label flow; prevent reuse on later scans.
+          clearDeliveryLabelSelection();
           setProductDamageList([]);
-          if (allSelectImage?.length > 0 && CommentId != null) {
+          if (allSelectImage?.length > 0) {
             if (!proofQueuedFromCameraRef.current) {
               const binding =
                 cameraProofBindingRef.current ??
@@ -1646,17 +1639,12 @@ export function useParcelVerifyFlow({
       const bezorgd = isBezorgdDeliveryLabel(savedDeliveryLabel);
       setBezorgdFlow(bezorgd);
       const labelNeedsSignature =
-        bezorgd ||
-        (savedDeliveryLabel != null
-          ? doesLabelRequireSignature(savedDeliveryLabel)
-          : signatureRequiredRef.current === true);
-      const isSignatureAllowed = bezorgd || isSignatureAllowedAfterStatusUpdate(
-        res,
-        savedDeliveryLabel ??
-          (signatureRequiredRef.current
-            ? { signature_required: 1, signature_rejected: 0 }
-            : null),
-      );
+        isDeliveryOrder(itemsData) &&
+        savedDeliveryLabel != null &&
+        doesLabelRequireSignature(savedDeliveryLabel);
+      const isSignatureAllowed =
+        isDeliveryOrder(itemsData) &&
+        isSignatureAllowedAfterStatusUpdate(res, savedDeliveryLabel);
 
       console.log('[DirectFlow] commentFun signature check', {
         savedDeliveryLabel: {
@@ -1664,7 +1652,6 @@ export function useParcelVerifyFlow({
           signature_required: savedDeliveryLabel?.signature_required,
           signature_rejected: savedDeliveryLabel?.signature_rejected,
         },
-        signatureRequiredRef: signatureRequiredRef.current,
         tms_current_status: statusForSignature,
       });
 
@@ -1776,7 +1763,6 @@ export function useParcelVerifyFlow({
           statusForSignature,
           signature_required_eq_1: savedDeliveryLabel?.signature_required == 1,
           signature_rejected_eq_1: savedDeliveryLabel?.signature_rejected == 1,
-          signatureRequiredRef: signatureRequiredRef.current,
         },
       });
 
@@ -1958,6 +1944,12 @@ export function useParcelVerifyFlow({
 
   commentFunRef.current = commentFun;
 
+  const closeSignatureFlow = useCallback(() => {
+    signatureLabelRef.current = null;
+    setShowSig(false);
+    clearDeliveryLabelSelection();
+  }, [clearDeliveryLabelSelection]);
+
   const handleSignatureCameraPress = useCallback(() => {
     deliveryTypeRef.current = true;
     setShowSig(false);
@@ -2013,15 +2005,9 @@ export function useParcelVerifyFlow({
       lockedDeliveryLabel ??
       pendingDeliveryLabelRef.current ??
       getRememberedDeliveryLabel();
-    // Do NOT fall back to id-only stub here — that wipes signature_required.
+    // Restore only an actual label object. Never synthesize the required flag
+    // from a ref, because that ref may outlive the scan that selected it.
     if (snap == null) return;
-    if (
-      snap?.signature_required == null &&
-      signatureRequiredRef.current &&
-      snap?.id != null
-    ) {
-      snap.signature_required = 1;
-    }
     setSelectCurrentDeliveryLabel(snap);
     setSessionDeliveryLabel(snap);
     setLockedDeliveryLabel(snap);
@@ -2167,6 +2153,7 @@ export function useParcelVerifyFlow({
     setselectDamageData,
     setSecondModal,
     setShowSig,
+    closeSignatureFlow,
     setEvetyTimeShowDeliveryLabelList,
   };
 }
