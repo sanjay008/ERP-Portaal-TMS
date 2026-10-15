@@ -129,8 +129,16 @@ import {
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
-import Modal from "react-native-modal";
-import ReAnimated, { FadeIn } from "react-native-reanimated";
+import ReAnimated, {
+  Easing,
+  FadeIn,
+  interpolate,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 export default function ScannerScreens({ navigation, route }: any) {
   const { setSessionDeliveryLabel } = useParcelVerifySession();
@@ -203,6 +211,10 @@ export default function ScannerScreens({ navigation, route }: any) {
   const [Commenterror, setCommentError] = useState<string>("");
   const [SelectPlace, setSelectPlace] = useState<object | any>(null);
   const [comment, setComment] = useState<boolean | any>(false);
+  const [commentPopupMounted, setCommentPopupMounted] = useState(false);
+  const commentPopupProgress = useSharedValue(0);
+  const commentPopupAnimationToken = useRef(0);
+  const commentPopupVisibleRef = useRef(Boolean(comment));
   const [AllSelectImage, setAllSelectImage] = useState<any[]>([]);
   const [ProductDamageList, setProductDamageList] = useState<any[]>([]);
   const [AllSlideData, setAllSlideData] = useState([]);
@@ -353,6 +365,53 @@ export default function ScannerScreens({ navigation, route }: any) {
       initParcelDamageSelections(ProductDamageList, AllDamageListReason, prev),
     );
   }, [comment, ProductDamageList, AllDamageListReason, ItemsData]);
+
+  const finishCommentPopupHide = useCallback((animationToken: number) => {
+    if (
+      commentPopupAnimationToken.current === animationToken &&
+      !commentPopupVisibleRef.current
+    ) {
+      setCommentPopupMounted(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    commentPopupVisibleRef.current = Boolean(comment);
+    const animationToken = ++commentPopupAnimationToken.current;
+
+    if (comment) {
+      setCommentPopupMounted(true);
+      commentPopupProgress.value = withSpring(1, {
+        damping: 20,
+        stiffness: 220,
+        mass: 0.8,
+      });
+      return;
+    }
+
+    if (commentPopupMounted) {
+      commentPopupProgress.value = withTiming(
+        0,
+        { duration: 220, easing: Easing.out(Easing.quad) },
+        (finished) => {
+          if (finished) {
+            runOnJS(finishCommentPopupHide)(animationToken);
+          }
+        },
+      );
+    }
+  }, [comment, commentPopupMounted, commentPopupProgress, finishCommentPopupHide]);
+
+  const commentPopupBackdropStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(commentPopupProgress.value, [0, 1], [0, 1]),
+  }));
+  const commentPopupCardStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(commentPopupProgress.value, [0, 1], [0, 1]),
+    transform: [
+      { translateY: interpolate(commentPopupProgress.value, [0, 1], [32, 0]) },
+      { scale: interpolate(commentPopupProgress.value, [0, 1], [0.97, 1]) },
+    ],
+  }));
 
   const getSessionDeliveryLabel = useCallback(
     () =>
@@ -1639,7 +1698,9 @@ export default function ScannerScreens({ navigation, route }: any) {
         setDeliveyDataSave([]);
         setDescrition('');
         refreshCamera();
-        await GetIdByOrderFun();
+        // Order refresh is secondary; do not hold comment submission and the
+        // subsequent status update open while this request is pending.
+        void GetIdByOrderFun();
 
         if (!options?.skipClose) {
           setComment(false);
@@ -1960,6 +2021,7 @@ const CustomerSignatureFun = async (
 
 const CommentFun = async (options?: { skipComment?: boolean }) => {
   const skipComment = options?.skipComment === true;
+  let statusUpdateSucceeded = false;
   
   const isDeliveryMultiDamage =
   isDeliveryOrder(ItemsData) &&
@@ -2082,6 +2144,7 @@ const CommentFun = async (options?: { skipComment?: boolean }) => {
       });
       return;
     }
+    statusUpdateSucceeded = true;
  
     let savedDeliveryLabel =
       sessionDeliveryLabel ??
@@ -2169,7 +2232,6 @@ const CommentFun = async (options?: { skipComment?: boolean }) => {
       });
     }
  
-    setComment(false);
     setParcelDamageSelections({});
  
     if (!hadCommentText && AllSelectImage?.length > 0) {
@@ -2327,7 +2389,9 @@ const CommentFun = async (options?: { skipComment?: boolean }) => {
         : [...prev, SelectPlace?.order_id],
     );
  
-    await GetScanedOrderDataLatestFun([
+    // This list refresh is secondary to the successful status update. Keep it
+    // out of the submit loader/close path in case the refresh endpoint stalls.
+    void GetScanedOrderDataLatestFun([
       ...AllRecentScanData,
       SelectPlace?.order_id,
     ]);
@@ -2340,6 +2404,9 @@ const CommentFun = async (options?: { skipComment?: boolean }) => {
     });
   } finally {
     setCommentLoader(false);
+    if (!skipComment && statusUpdateSucceeded) {
+      setComment(false);
+    }
     if (skipComment) setIsLoading(false);
   }
 };
@@ -3059,23 +3126,21 @@ commentFunRef.current = CommentFun;
           });
         }}
       />
-      <Modal
-        isVisible={comment}
-        style={{ margin: 0 }}
-        animationIn="bounceInUp"
-        animationOut="bounceOutDown"
-        propagateSwipe={true}
-
-        avoidKeyboard={false} // important for Modal + keyboard
-      >
-        <View style={{ flex: 1 }}>
-          <SafeAreaView />
+      {commentPopupMounted ? (
+        <View style={styles.commentPopupHost} pointerEvents="auto">
+          <ReAnimated.View
+            pointerEvents="none"
+            style={[styles.commentPopupBackdrop, commentPopupBackdropStyle]}
+          />
+          <SafeAreaView style={styles.commentPopupSafeArea}>
+            <ReAnimated.View
+              style={[styles.commentPopupCard, commentPopupCardStyle]}
+            >
           <KeyboardAwareScrollView
             style={{ flex: 1 }}
             contentContainerStyle={{
-              flex: 1,
+              flexGrow: 1,
               justifyContent: "center",
-              backgroundColor: Colors.green,
             }}
             enableOnAndroid={true}
             extraHeight={200}
@@ -3281,7 +3346,10 @@ commentFunRef.current = CommentFun;
 <TouchableOpacity
   style={styles.ButtonSubmit}
   disabled={CommentLoader}
-  onPress={() => CommentFun()}
+  onPress={() => {
+    Keyboard.dismiss();
+    void CommentFun();
+  }}
 >                  {
                     CommentLoader ? (
                       <ActivityIndicator size="small" color={Colors.white} />
@@ -3294,8 +3362,10 @@ commentFunRef.current = CommentFun;
 
             </View>
           </KeyboardAwareScrollView>
+            </ReAnimated.View>
+          </SafeAreaView>
         </View>
-      </Modal>
+      ) : null}
 
 
       <ConformationModal
@@ -3521,6 +3591,24 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: Colors.white,
   },
+  commentPopupHost: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1000,
+    elevation: 1000,
+    justifyContent: "center",
+  },
+  commentPopupBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: Colors.green,
+  },
+  commentPopupSafeArea: {
+    flex: 1,
+    justifyContent: "center",
+  },
+  commentPopupCard: {
+    flex: 1,
+    width: "100%",
+  },
   TextArea: {
     borderRadius: 10,
     padding: 10,
@@ -3571,7 +3659,7 @@ const styles = StyleSheet.create({
   CommentBox: {
     width: "90%",
     padding: 15,
-    marginHorizontal: "auto",
+    alignSelf: "center",
     // height:'80%',
     backgroundColor: Colors.background,
     borderRadius: 10,

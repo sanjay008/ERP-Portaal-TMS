@@ -1,4 +1,7 @@
-import { setChauffeurLocation } from '@/src/utils/chauffeurLocationCache';
+import {
+  getChauffeurLocation,
+  setChauffeurLocation,
+} from '@/src/utils/chauffeurLocationCache';
 import { REQUIRED_CHAUFFEUR_ROLE } from '@/src/utils/driverLocationApi';
 import { driverLocLog, driverLocWarn } from '@/src/utils/driverLocLog';
 import type { NativeDriverCoordinate } from 'expo-driver-location';
@@ -370,7 +373,27 @@ export async function attachScanLocationForVerify(
       if (young) return young.coord;
       const published = await readPublished();
       if (published) return published.coord;
-      return lastFresh && isUsable(lastFresh.coord) ? lastFresh.coord : null;
+      if (lastFresh && isUsable(lastFresh.coord)) return lastFresh.coord;
+
+      // The API location cache can outlive the native module's in-memory
+      // request state. Reuse its most recent coordinate as a final scan
+      // fallback so an iOS location refresh does not strand status submission.
+      const apiCache = getChauffeurLocation();
+      const cacheAge = Date.now() - apiCache.updatedAt;
+      if (
+        isUsable(apiCache) &&
+        apiCache.updatedAt > 0 &&
+        cacheAge <= 15 * 60 * 1000
+      ) {
+        return {
+          latitude: apiCache.latitude,
+          longitude: apiCache.longitude,
+          capturedAtMs: apiCache.updatedAt,
+          source: 'published_cache',
+        };
+      }
+
+      return null;
     };
     // Read fallback in parallel so cache I/O consumes the same four-second cap.
     const fallbackPromise = readFallback().catch(() => null);
@@ -456,21 +479,28 @@ export async function awaitScanFreshLocationForStatusUpdate(
   return resolveScanLocation(orderId);
 }
 
-/** Mutates payload with required scan lat/lon; the API call must not proceed without it. */
+/** Adds scan coordinates when available; GPS must not block the status API call. */
 export async function attachScanFreshCoordsToPayload(
   payload: Record<string, any>,
 ): Promise<void> {
-  const fresh = await awaitScanFreshLocationForStatusUpdate(
+  // Reuse the scan's bounded location resolver here too. The status update
+  // runs after comment save, so an iOS native location/cache read must never
+  // leave the submit loader waiting indefinitely. It prefers a fresh fix and
+  // falls back to the latest cached coordinate within the same 4-second cap.
+  const location = await attachScanLocationForVerify(
+    payload,
     payload?.order_id ?? payload?.orderId,
   );
-  if (!fresh) {
-    throw new Error('Current location is required to scan. Please enable location permission and try again.');
+  if (!location) {
+    driverLocWarn('status_coords', {
+      decision: 'continue_without_location',
+      order: payload?.order_id ?? payload?.orderId ?? '-',
+    });
+    return;
   }
-  payload.latitude = String(fresh.latitude);
-  payload.longitude = String(fresh.longitude);
   driverLocLog('status_coords', {
     order: payload?.order_id ?? payload?.orderId ?? '-',
-    lat: fresh.latitude,
-    lon: fresh.longitude,
+    lat: location.latitude,
+    lon: location.longitude,
   });
 }
