@@ -7,6 +7,7 @@ import CalenderDate from "@/src/components/CalenderDate";
 import DetailsHeader from "@/src/components/DetailsHeader";
 import DropDownBox from "@/src/components/DropDownBox";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
+import GpsPermissionSheet from "@/src/components/GpsPermissionSheet";
 import GpsTrackingStartPopup from "@/src/components/GpsTrackingStartPopup";
 import Loader from "@/src/components/loading";
 import ParcelVerifyOverlays from "@/src/components/ParcelVerifyOverlays";
@@ -19,11 +20,13 @@ import {
   openAppSettings,
   recheckLocationAccess,
   resolveLocationAccess,
+  resolveScanLocationAccess,
   retryLocationPermission,
   type LocationAccessStatus,
 } from "@/src/hooks/useUserGPS";
 import ApiService from "@/src/utils/Apiservice";
 import { getChauffeurLocation } from "@/src/utils/chauffeurLocationCache";
+import { prefetchScanFreshLocation, setScanLocationRole } from "@/src/utils/scanFreshLocation";
 import { Colors } from "@/src/utils/colors";
 import {
   LIVE_LOCATION_REASON,
@@ -47,7 +50,7 @@ import {
 } from "@/src/utils/shiftSession";
 import { Ionicons } from "@expo/vector-icons";
 import { useIsFocused } from "@react-navigation/native";
-import React, { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   AppState,
@@ -118,6 +121,7 @@ export default function FilterScreen({ navigation, route }: any) {
   const [bulkCommentVisible, setBulkCommentVisible] = useState(false);
   const [deviceLocationStatus, setDeviceLocationStatus] =
     useState<LocationAccessStatus>('denied');
+  const pendingShiftStartRef = useRef(false);
 
   const isPickupDropoffChauffeur = useMemo(
     () =>
@@ -127,6 +131,29 @@ export default function FilterScreen({ navigation, route }: any) {
   );
 
   const isDeviceLocationReady = deviceLocationStatus === 'granted';
+
+  useEffect(() => {
+    if (!Focused || !UserData?.user?.role) return;
+    let cancelled = false;
+    setScanLocationRole(UserData.user.role);
+
+    const prepareScanLocation = async () => {
+      const status = await resolveScanLocationAccess();
+      if (cancelled) return;
+      setDeviceLocationStatus(status);
+      if (status !== 'granted') {
+        setGpsPermissionSheet({ visible: true, reason: status });
+      }
+      if (status === 'granted') {
+        prefetchScanFreshLocation();
+      }
+    };
+
+    void prepareScanLocation();
+    return () => {
+      cancelled = true;
+    };
+  }, [Focused, UserData?.user?.role]);
 
   const isShiftReadyForRegion = useMemo(
     () => isShiftActiveForRegion(activeShift, selectRegionData?.id),
@@ -158,13 +185,24 @@ export default function FilterScreen({ navigation, route }: any) {
       if (status === 'granted') {
         setGpsPermissionSheet({ visible: false, reason: null });
         syncTrackingFlag('granted', isShiftReadyForRegion);
+        if (pendingShiftStartRef.current) {
+          pendingShiftStartRef.current = false;
+          if (selectRegionData) {
+            setGpsTrackingStartDate(SelectDate || '');
+            setGpsTrackingStartTime(getCurrentTimeString());
+            setGpsStartPopupVisible(true);
+          } else {
+            setTooltipMessage(selectRegionFirstMessage);
+            setTooltipVisible(true);
+          }
+        }
         return;
       }
 
       syncTrackingFlag(status, isShiftReadyForRegion);
       setGpsPermissionSheet({ visible: true, reason: status });
     },
-    [isShiftReadyForRegion, syncTrackingFlag],
+    [isShiftReadyForRegion, syncTrackingFlag, selectRegionData, SelectDate, selectRegionFirstMessage],
   );
 
   const handleLocationIconPress = useCallback(async () => {
@@ -179,6 +217,7 @@ export default function FilterScreen({ navigation, route }: any) {
 
   const handleShiftIconPress = useCallback(async () => {
     if (!isDeviceLocationReady) {
+      pendingShiftStartRef.current = true;
       await handleLocationIconPress();
       return;
     }
@@ -1261,14 +1300,16 @@ export default function FilterScreen({ navigation, route }: any) {
         onClose={() => setGpsStartPopupVisible(false)}
         onConfirm={handleGpsStartConfirm}
       />
-      {/* 
       <GpsPermissionSheet
         visible={gpsPermissionSheet.visible}
         reason={gpsPermissionSheet.reason}
         loading={isGpsPermissionLoading}
-        onClose={() => setGpsPermissionSheet({ visible: false, reason: null })}
+        onClose={() => {
+          pendingShiftStartRef.current = false;
+          setGpsPermissionSheet({ visible: false, reason: null });
+        }}
         onPrimaryAction={handleGpsSheetPrimaryAction}
-      /> */}
+      />
 
       <AddCommentModal
         IsVisible={bulkCommentVisible}

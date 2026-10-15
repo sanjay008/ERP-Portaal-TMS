@@ -70,6 +70,7 @@ export const Colors = {
   FullRed: "#FF0004",
   MapLine: "#06C167",
   error: "red",
+  Orrange: "#FFA500",
   errorGradient1: "#FF2C2C",
   errorGradient2: "#D20000",
   successGradient1: "#5CB85C",

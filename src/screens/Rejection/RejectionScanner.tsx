@@ -1002,7 +1002,7 @@ export default function RejectionScanner({ route }: any) {
     async (comment: string) => {
       const session = getRejectionSession();
       const orderId = session.orderId;
-      if (!orderId) return;
+      if (!orderId) return false;
       if (!session.photoSaved) {
         setToast({
           top: 45,
@@ -1012,7 +1012,7 @@ export default function RejectionScanner({ route }: any) {
         });
         setCommentVisible(false);
         openProofCameraRef.current();
-        return;
+        return false;
       }
       const trimmed = comment.trim();
       if (!trimmed) {
@@ -1023,7 +1023,7 @@ export default function RejectionScanner({ route }: any) {
           visible: true,
         });
         setCommentVisible(true);
-        return;
+        return false;
       }
 
       setCommentLoader(true);
@@ -1070,7 +1070,7 @@ export default function RejectionScanner({ route }: any) {
             visible: true,
           });
           setCommentVisible(true);
-          return;
+          return false;
         }
 
         patchRejectionSession({
@@ -1085,6 +1085,7 @@ export default function RejectionScanner({ route }: any) {
           visible: true,
         });
         navigation.navigate("RejectionReview");
+        return true;
       } catch (error: any) {
         logRejectionApi(
           "store-comment",
@@ -1098,6 +1099,7 @@ export default function RejectionScanner({ route }: any) {
           visible: true,
         });
         setCommentVisible(true);
+        return false;
       } finally {
         setCommentLoader(false);
       }

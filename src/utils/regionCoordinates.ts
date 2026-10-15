@@ -14,26 +14,55 @@ type ResolveArgs = {
   orderData?: Record<string, unknown> | null | any;
 };
 
+
 export function resolveOrderNavigationDestination({
   orderData = null,
 }: ResolveArgs): LatLng | null {
   if (!orderData) return null;
 
-  const stopType = orderData?.stop_data?.stop_type;
+  const stopData = orderData.stop_data;
+  const stopType = stopData?.stop_type;
 
-  if (stopType === "pickup") {
-    const latitude = parseCoordinate(orderData?.pickup_ad_latitude);
-    const longitude = parseCoordinate(orderData?.pickup_ad_longitude);
-    if (latitude == null || longitude == null) return null;
-    return { latitude, longitude };
+  let latitude: number | null = null;
+  let longitude: number | null = null;
+
+  switch (stopType) {
+    case "pickup": {
+      latitude = parseCoordinate(
+        stopData?.depot?.latitude ?? orderData.pickup_ad_latitude,
+      );
+
+      longitude = parseCoordinate(
+        stopData?.depot?.longitude ?? orderData.pickup_ad_longitude,
+      );
+      break;
+    }
+
+    case "deliver": {
+      latitude = parseCoordinate(
+        stopData?.depot?.latitude ?? orderData.delivery_ad_latitude,
+      );
+
+      longitude = parseCoordinate(
+        stopData?.depot?.longitude ?? orderData.delivery_ad_longitude,
+      );
+      break;
+    }
+
+    default:
+      return null;
   }
 
-  if (stopType === "deliver") {
-    const latitude = parseCoordinate(orderData?.delivery_ad_latitude);
-    const longitude = parseCoordinate(orderData?.delivery_ad_longitude);
-    if (latitude == null || longitude == null) return null;
-    return { latitude, longitude };
+  if (latitude == null || longitude == null) return null;
+
+  if (
+    latitude < -90 ||
+    latitude > 90 ||
+    longitude < -180 ||
+    longitude > 180
+  ) {
+    return null;
   }
 
-  return null;
+  return { latitude, longitude };
 }

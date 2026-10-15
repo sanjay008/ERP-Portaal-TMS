@@ -22,7 +22,7 @@ import { FONTS, height, SimpleFlex } from "../utils/storeData";
 type Props = {
   IsVisible: boolean;
   setIsVisible: (value: boolean) => void;
-  fun?: (value: string) => void;
+  fun?: (value: string) => void | boolean | Promise<void | boolean>;
   imageLoad?: boolean;
 };
 
@@ -31,18 +31,30 @@ export default function AddCommentModal({ IsVisible, setIsVisible, fun, imageLoa
   const [comment, setComment] = useState<string>("");
   const [Description, setDescrition] = useState<string>("");
   const [Commenterror, setCommentError] = useState<string>("")
+  const [submitting, setSubmitting] = useState(false);
   const { UserData, setUserData } = useContext(GlobalContextData);
 
 
   const CommentFun = async () => {
+    if (submitting) return;
     setCommentError("");
-    if (Description.trim() == "") {
+    const trimmedComment = Description.trim();
+    if (trimmedComment === "") {
       setCommentError(t("Enter a comment"))
       return
     }
-    fun?.(Description);
-    setDescrition("");
-    setIsVisible(false)
+
+    setSubmitting(true);
+    try {
+      const result = await fun?.(trimmedComment);
+      if (result === false) return;
+      setDescrition("");
+      setIsVisible(false);
+    } catch (error: any) {
+      setCommentError(error?.message || t("Something went wrong"));
+    } finally {
+      setSubmitting(false);
+    }
   }
   
   return (
@@ -127,10 +139,14 @@ export default function AddCommentModal({ IsVisible, setIsVisible, fun, imageLoa
                 <ActivityIndicator size="small" color={Colors.primary} />
               </View>
             }
-            <TouchableOpacity style={styles.Button} onPress={CommentFun}>
-              <Text style={[styles.Text, { color: Colors.white }]}>
-                {t("Submit")}
-              </Text>
+            <TouchableOpacity style={[styles.Button, submitting && { opacity: 0.65 }]} onPress={CommentFun} disabled={submitting}>
+              {submitting ? (
+                <ActivityIndicator size="small" color={Colors.white} />
+              ) : (
+                <Text style={[styles.Text, { color: Colors.white }]}>
+                  {t("Submit")}
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
         </SafeAreaView>

@@ -10,6 +10,7 @@ import {
   openAppSettings,
   recheckLocationAccess,
   resolveLocationAccess,
+  resolveScanLocationAccess,
   retryLocationPermission,
 } from "@/src/hooks/useUserGPS";
 import {
@@ -99,6 +100,7 @@ export default function HomeScreens({ navigation, route }: any) {
   const [tripOffPopupVisible, setTripOffPopupVisible] = useState(false);
   const [isTripOffSubmitting, setIsTripOffSubmitting] = useState(false);
   const pendingFilterItemRef = useRef<any>(null);
+  const pendingScanActionRef = useRef<(() => void) | null>(null);
   const isMountedRef = useRef(true);
   const hasFetchedRef = useRef(false);
   const [CurrentVersion, setCurrentVersion] = useState<string>("1");
@@ -253,6 +255,9 @@ export default function HomeScreens({ navigation, route }: any) {
         if (pendingItem) {
           navigateToFilterScreen(pendingItem);
         }
+        const pendingScanAction = pendingScanActionRef.current;
+        pendingScanActionRef.current = null;
+        pendingScanAction?.();
         return;
       }
 
@@ -315,32 +320,63 @@ export default function HomeScreens({ navigation, route }: any) {
   }, [gpsPermissionSheet.visible, handleGpsPermissionResult]);
 
   const handleSlidePress = useCallback(
-    (slideItem: any) => {
-      setGloblyTypeSlide(slideItem?.type);
-      setGloblySlideTitle(slideItem?.item_title || "");
-      if (slideItem?.type == "outbound_scan") {
-        navigation.navigate("Scanner", { item: slideItem });
-      } else if (slideItem?.type == REJECTION_SLIDE_TYPE) {
-        setGloblyTypeSlide(REJECTION_SLIDE_TYPE);
-        resetRejectionSession();
-        navigation.navigate("RejectionScanner", {
-          item: slideItem,
-          type: REJECTION_SLIDE_TYPE,
-        });
-      } else if (slideItem?.type == "driver_photos") {
-        navigation.navigate("DriverPhotosScanner", {
-          type: "driver_photos",
-          item: slideItem,
-        });
-      } else if (slideItem?.type == "AllOrder") {
-        navigation.navigate("ScanDetails", { Type: slideItem?.type });
-      } else if (slideItem?.type == "warehouse_change") {
-        navigation.navigate("ScanManager", { item: slideItem });
-      } else {
-        navigation.navigate("FilterScreen", { item: slideItem });
+    async (slideItem: any) => {
+      const navigateToSlide = () => {
+        setGloblyTypeSlide(slideItem?.type);
+        setGloblySlideTitle(slideItem?.item_title || "");
+        if (slideItem?.type == "outbound_scan") {
+          navigation.navigate("Scanner", { item: slideItem });
+        } else if (slideItem?.type == REJECTION_SLIDE_TYPE) {
+          setGloblyTypeSlide(REJECTION_SLIDE_TYPE);
+          resetRejectionSession();
+          navigation.navigate("RejectionScanner", {
+            item: slideItem,
+            type: REJECTION_SLIDE_TYPE,
+          });
+        } else if (slideItem?.type == "driver_photos") {
+          navigation.navigate("DriverPhotosScanner", {
+            type: "driver_photos",
+            item: slideItem,
+          });
+        } else if (slideItem?.type == "AllOrder") {
+          navigation.navigate("ScanDetails", { Type: slideItem?.type });
+        } else if (slideItem?.type == "warehouse_change") {
+          navigation.navigate("ScanManager", { item: slideItem });
+        } else {
+          navigation.navigate("FilterScreen", { item: slideItem });
+        }
+      };
+
+      const locationRequiredTypes = [
+        "outbound_scan",
+        REJECTION_SLIDE_TYPE,
+        "driver_photos",
+        "AllOrder",
+        "warehouse_change",
+      ];
+      if (!locationRequiredTypes.includes(slideItem?.type)) {
+        navigateToSlide();
+        return;
+      }
+
+      // Scanning needs a current location. Keep the requested action pending
+      // while the permission sheet is shown, then continue after access returns.
+      pendingScanActionRef.current = navigateToSlide;
+      setIsGpsPermissionLoading(true);
+      try {
+        const status = await resolveScanLocationAccess();
+        if (!isMountedRef.current) return;
+        if (status === "granted") {
+          pendingScanActionRef.current = null;
+          navigateToSlide();
+          return;
+        }
+        handleGpsPermissionResult(status);
+      } finally {
+        if (isMountedRef.current) setIsGpsPermissionLoading(false);
       }
     },
-    [navigation, setGloblyTypeSlide, setGloblySlideTitle],
+    [handleGpsPermissionResult, navigation, setGloblyTypeSlide, setGloblySlideTitle],
   );
 
   const handleTripOffConfirm = useCallback(
@@ -482,6 +518,7 @@ export default function HomeScreens({ navigation, route }: any) {
 
   const handleGpsSheetClose = useCallback(() => {
     pendingFilterItemRef.current = null;
+    pendingScanActionRef.current = null;
     setGpsPermissionSheet({ visible: false, reason: null });
   }, []);
 

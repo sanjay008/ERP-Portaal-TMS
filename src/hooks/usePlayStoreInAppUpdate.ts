@@ -49,42 +49,22 @@ function getCurrentVersion(): string {
   );
 }
 
-/** Client builds use YY.M.D, for example 26.10.7. App Store is still 2.7. */
-function isClientDateVersion(version: string): boolean {
-  return /^\d{2}\.\d{1,2}\.\d{1,2}$/.test(version);
-}
-
-function dateVersionStamp(version: string): number {
-  const [year, month, day] = version.split('.').map((part) => Number(part) || 0);
-  return year * 10000 + month * 100 + day;
-}
-
 /**
  * Library calls this as (storeVersion, appVersion).
- * Return 1 when the user should install the App Store build.
+ * App Store marketing versions (for example 2.6) are independent of the
+ * date-based client build version (for example 26.10.7). Compare only
+ * App Store versions; unknown/mismatched schemes fail closed.
  */
 function compareIosStoreVersion(
   storeVersion: string,
-  appVersion: string,
+  installedStoreVersion: string,
 ): -1 | 0 | 1 {
   const store = String(storeVersion || '').trim();
-  const app = String(appVersion || '').trim();
-  if (!store || !app || store === app) return 0;
+  const app = String(installedStoreVersion || '').trim();
+  const validVersion = /^\d+(?:\.\d+)*$/.test;
+  if (!validVersion(store) || !validVersion(app)) return 0;
 
-  if (isClientDateVersion(store) && isClientDateVersion(app)) {
-    const diff = dateVersionStamp(store) - dateVersionStamp(app);
-    if (diff > 0) return 1;
-    if (diff < 0) return -1;
-    return 0;
-  }
-
-  // 2.7 on the store and 26.10.7 in the app are different schemes.
-  if (isClientDateVersion(app) !== isClientDateVersion(store)) {
-    return 1;
-  }
-
-  const toParts = (value: string) =>
-    value.split('.').map((part) => Number(part) || 0);
+  const toParts = (value: string) => value.split('.').map(Number);
   const storeParts = toParts(store);
   const appParts = toParts(app);
   const length = Math.max(storeParts.length, appParts.length);
@@ -97,7 +77,7 @@ function compareIosStoreVersion(
   return 0;
 }
 
-function resolveIosStoreUrl(other: unknown): string {
+function resolveIosStoreUrl(other: unknown): string | null {
   const extras = (other ?? {}) as {
     trackViewUrl?: string;
     trackId?: number;
@@ -111,7 +91,8 @@ function resolveIosStoreUrl(other: unknown): string {
     return `itms-apps://apps.apple.com/app/id${extras.trackId}`;
   }
 
-  return `https://apps.apple.com/us/search?term=${encodeURIComponent(IOS_BUNDLE_ID)}`;
+  // Do not show an update prompt if we cannot open the exact app listing.
+  return null;
 }
 
 async function openPlayStoreListing() {
@@ -142,6 +123,10 @@ export function usePlayStoreInAppUpdate() {
 
   const storeName = Platform.OS === 'ios' ? 'App Store' : 'Play Store';
   const currentVersion = useMemo(() => getCurrentVersion(), []);
+  const iosStoreVersions = (Constants.expoConfig?.extra?.iosStoreVersions ??
+    {}) as Record<string, string>;
+  const iosInstalledStoreVersion =
+    iosStoreVersions[getCurrentVersion()] ?? '';
 
   const showReadyPrompt = useCallback(() => {
     if (promptedReadyRef.current) return;
@@ -293,17 +278,32 @@ export function usePlayStoreInAppUpdate() {
           return;
         }
 
+        // The app's date version (YY.M.D) cannot be compared to the App Store
+        // marketing version (2.x). Only check when this exact binary version
+        // has an explicit App Store version mapping.
+        if (!iosInstalledStoreVersion) {
+          console.log(
+            `[StoreInAppUpdate] no App Store version mapping for ${getCurrentVersion()}`,
+          );
+          return;
+        }
+
         const result = await client.checkNeedsUpdate({
-          curVersion: getCurrentVersion(),
+          curVersion: iosInstalledStoreVersion,
           bundleId: IOS_BUNDLE_ID,
           customVersionComparator: compareIosStoreVersion,
         });
 
         if (!result?.shouldUpdate) return;
 
-        iosStoreUrlRef.current = resolveIosStoreUrl(
+        const storeUrl = resolveIosStoreUrl(
           'other' in result ? result.other : null,
         );
+        if (!storeUrl) {
+          console.log('[StoreInAppUpdate] exact App Store listing unavailable');
+          return;
+        }
+        iosStoreUrlRef.current = storeUrl;
 
         lastPromptAtRef.current = Date.now();
         setPrompt({

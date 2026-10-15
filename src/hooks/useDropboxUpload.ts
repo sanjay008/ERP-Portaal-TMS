@@ -23,6 +23,7 @@ const STORAGE_ERROR_KEY = "FAILED_UPLOAD_QUEUE";
 const STORAGE_API_QUEUE_KEY = "DROPBOX_API_QUEUE";
 const STORAGE_API_ERROR_KEY = "FAILED_API_QUEUE";
 const API_RETRY_DELAY_MS = 2 * 60 * 1000;
+const LOCAL_RETRY_DELAY_MS = 2 * 60 * 1000;
 
 const EXTENSION_TO_MIME: Record<string, string> = {
   jpg: "image/jpeg",
@@ -267,6 +268,7 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
   const apiErrorCountRef = useRef<number>(0);
   const apiStoppedRef = useRef<boolean>(false);
   const apiRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const localRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const processingLocalKeysRef = useRef<Set<string>>(new Set());
   const processingApiKeysRef = useRef<Set<string>>(new Set());
 
@@ -456,29 +458,53 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         const uploadData = JSON.parse(uploadRes.body);
         let sharedLink: string | null = null;
 
-        const linkResponse = await fetch(
-          "https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings",
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              path: uploadData.path_display,
-              settings: {
-                requested_visibility: "public",
-                audience: "public",
-                access: "viewer",
+        let lastLinkError = "Dropbox shared link could not be created";
+        for (let attempt = 0; attempt < 4 && !sharedLink; attempt += 1) {
+          const linkResponse = await fetch(
+            "https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings",
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
               },
-            }),
+              body: JSON.stringify({
+                path: uploadData.path_display,
+                settings: {
+                  requested_visibility: "public",
+                  audience: "public",
+                  access: "viewer",
+                },
+              }),
+            }
+          );
+          const linkData = await linkResponse.json().catch(() => ({}));
+          if (linkResponse.ok && linkData?.url) {
+            sharedLink = linkData.url;
+            break;
           }
-        );
 
-        if (linkResponse.ok) {
-          const linkData = await linkResponse.json();
-          sharedLink = linkData?.url || null;
+          lastLinkError = linkData?.error_summary || linkData?.error?.error_summary || lastLinkError;
+          if (String(lastLinkError).includes("shared_link_already_exists")) {
+            const existingResponse = await fetch(
+              "https://api.dropboxapi.com/2/sharing/list_shared_links",
+              {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ path: uploadData.path_display, direct_only: true }),
+              },
+            );
+            const existingData = await existingResponse.json().catch(() => ({}));
+            sharedLink = existingData?.links?.[0]?.url || null;
+          }
+          if (!sharedLink && attempt < 3) {
+            await new Promise<void>((resolve) => setTimeout(resolve, 2000));
+          }
         }
+        if (!sharedLink) throw new Error(lastLinkError);
 
         const fileJson: FileUploadResult = {
           file_path: uploadData.path_display,
@@ -778,11 +804,6 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
           const errorMessage = result.message || t("something_went_wrong");
           await saveApiErrorToStorage(item, errorMessage);
 
-          if (apiErrorCountRef.current >= 2) {
-            apiStoppedRef.current = true;
-            return;
-          }
-
           if (apiRetryTimerRef.current) {
             clearTimeout(apiRetryTimerRef.current);
           }
@@ -858,7 +879,6 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
       }
 
       processingLocalKeysRef.current.add(itemKey);
-      syncLocalQueue(latestQueueRef.current.filter((q) => !isSameLocalItem(q, batchItem)));
 
       try {
         const uris = item.image_data.filter(Boolean);
@@ -953,6 +973,20 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
           dropbox_tracking_meta_data,
         });
 
+        // Retry only the files that did not finish the Dropbox upload + link step.
+        // Successfully uploaded files continue to the API queue below.
+        if (failed.length > 0) {
+          const failedUris = uris.filter((uri) =>
+            failed.some((failure) => failure.file === sanitizeFileUri(uri)),
+          );
+          if (failedUris.length > 0) {
+            syncLocalQueue([
+              ...latestQueueRef.current.filter((q) => !isSameLocalItem(q, batchItem)),
+              { ...batchItem, batchId: createBatchId(), image_data: failedUris },
+            ]);
+          }
+        }
+
         if (uploaded.length === 0) {
           logDropboxUploadError("processQueueItem all files failed", {
             step: "process_queue_item",
@@ -963,7 +997,7 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
             folder,
           });
           processingLocalKeysRef.current.delete(itemKey);
-          return true;
+          return failed.length > 0;
         }
 
         const doneItem: DropboxQueueItem = withBatchId({
@@ -984,6 +1018,7 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
           apiErrorCountRef.current = 0;
           syncApiQueue([...apiQueue, doneItem]);
         }
+        syncLocalQueue(latestQueueRef.current.filter((q) => !isSameLocalItem(q, batchItem)));
         processingLocalKeysRef.current.delete(itemKey);
 
         return true;
@@ -1070,7 +1105,10 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         });
 
         processingLocalKeysRef.current.delete(itemKey);
-        syncLocalQueue([...latestQueueRef.current, batchItem]);
+        syncLocalQueue([
+          ...latestQueueRef.current.filter((q) => !isSameLocalItem(q, batchItem)),
+          batchItem,
+        ]);
         showToast(userMessage);
         return false;
       }
@@ -1111,6 +1149,13 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
       } finally {
         isProcessingRef.current = false;
         setLoading(false);
+        if (latestQueueRef.current.length > 0 && !localRetryTimerRef.current) {
+          localRetryTimerRef.current = setTimeout(() => {
+            localRetryTimerRef.current = null;
+            const pending = latestQueueRef.current;
+            if (pending.length > 0) processQueueFnRef.current?.(pending);
+          }, LOCAL_RETRY_DELAY_MS);
+        }
       }
     },
     [AccessToken, RefreshToken, processQueueItem, saveErrorToStorage, setLocalImagesUploadbeforeData]
@@ -1266,6 +1311,9 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
     return () => {
       if (apiRetryTimerRef.current) {
         clearTimeout(apiRetryTimerRef.current);
+      }
+      if (localRetryTimerRef.current) {
+        clearTimeout(localRetryTimerRef.current);
       }
     };
   }, []);

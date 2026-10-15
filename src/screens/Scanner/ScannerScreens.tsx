@@ -783,8 +783,6 @@ export default function ScannerScreens({ navigation, route }: any) {
     wasCameraPausedByOverlayRef.current = false;
   }, [shouldPauseCameraPreview, Focused]);
 
-  // Do NOT clear isVerifyingScan when modal opens — that let a 2nd QR overwrite QRData
-  // while Confirm still held the 1st parcel payload (item_id / qr_data mismatch).
 
   useEffect(() => {
     if (isScannerBlockedByModal) return;
@@ -1957,336 +1955,269 @@ const CustomerSignatureFun = async (
 };
 
 
-  const CommentFun = async (options?: { skipComment?: boolean }) => {
-    const skipComment = options?.skipComment === true;
-    const isDeliveryMultiDamage =
-      isDeliveryOrder(ItemsData) &&
-      ProductDamageList?.length > 0 &&
-      Object.keys(parcelDamageSelections).length > 0;
-
-    if (
-      Number(ItemsData?.tmsstatus?.id ?? ItemsData?.status) === 4 &&
-      SelectCurrentDeliveryLabel &&
-      SelectCurrentDeliveryLabel?.damaged_required == 1 &&
-      !isDeliveryMultiDamage &&
-      selectDamageData == null
-    ) {
+const CommentFun = async (options?: { skipComment?: boolean }) => {
+  const skipComment = options?.skipComment === true;
+  
+  const isDeliveryMultiDamage =
+  isDeliveryOrder(ItemsData) &&
+  ProductDamageList?.length > 0 &&
+  Object.keys(parcelDamageSelections).length > 0;
+  
+  if (
+    Number(ItemsData?.tmsstatus?.id ?? ItemsData?.status) === 4 &&
+    SelectCurrentDeliveryLabel &&
+    SelectCurrentDeliveryLabel?.damaged_required == 1 &&
+    !isDeliveryMultiDamage &&
+    selectDamageData == null
+  ) {
+    setCommentError(t("Choose  Damaged"));
+    return;
+  }
+  
+ 
+  if (
+    isDeliveryMultiDamage &&
+    SelectCurrentDeliveryLabel?.damaged_required == 1
+  ) {
+    const missing = ProductDamageList.some(
+      (parcel: any) => parcelDamageSelections[String(parcel?.id)] == null,
+    );
+    if (missing) {
       setCommentError(t("Choose  Damaged"));
-
-      return
+      return;
     }
+  }
 
-    if (
-      isDeliveryMultiDamage &&
-      SelectCurrentDeliveryLabel?.damaged_required == 1
-    ) {
-      const missing = ProductDamageList.some(
-        (parcel: any) => parcelDamageSelections[String(parcel?.id)] == null,
-      );
-      if (missing) {
-        setCommentError(t("Choose  Damaged"));
-        return;
-      }
+  setCommentLoader(true);
+  if (skipComment) setIsLoading(true);
+  
+  try {
+    if (!skipComment && !isCommentOptional && !Description.trim()) {
+      setCommentError(t("Please enter a comment"));
+      return;
     }
-    setCommentLoader(true);
-    if (skipComment) setIsLoading(true);
-    try {
-      if (!skipComment && !isCommentOptional && !Description.trim()) {
-        setCommentError(t("Please enter a comment"));
-        return;
-      }
-
-      if (!SelectPlace?.item_id || !SelectPlace?.order_id) {
+ 
+    console.log('skipComment',SelectPlace);
+    if (!SelectPlace?.item_id || !SelectPlace?.order_id) {
+      setToast({
+        top: 45,
+        text: t("Invalid or missing order details. Please rescan."),
+        type: "error",
+        visible: true,
+      });
+      return;
+    }
+    if (isNoParcelFlow) {
+      await BackOrderFun(ConformationModalOpen?.ProductItem || []);
+      setIsNoParcelFlow(false);
+      setComment(false);
+      return;
+    }
+ 
+    const hadCommentText = Boolean(Description.trim());
+    if (hadCommentText) {
+      const commentOk = await AddImageOrCommentFun("", [], {
+        skipClose: true,
+        manageLoader: false,
+      });
+      if (!commentOk) {
         setToast({
           top: 45,
-          text: t("Invalid or missing order details. Please rescan."),
+          text: t("Failed to save comment. Please try again."),
           type: "error",
           visible: true,
         });
         return;
       }
-
-      if (isNoParcelFlow) {
-        await BackOrderFun(ConformationModalOpen?.ProductItem || []);
-        setIsNoParcelFlow(false);
-        setComment(false);
-        return;
-      }
-
-      // Comment text → store_tms_comment first (images go with comment log), then status_update.
-      // Optional + empty comment → direct status_update.
-      const hadCommentText = Boolean(Description.trim());
-      if (hadCommentText) {
-        const commentOk = await AddImageOrCommentFun("", [], {
-          skipClose: true,
-          manageLoader: false,
-        });
-        if (!commentOk) {
-          return;
-        }
-      }
-
-      const sessionDeliveryLabel = getSessionDeliveryLabel();
-      const payload: any = {
-        token: UserData?.user?.verify_token,
-        role: UserData?.user?.role,
-        relaties_id: UserData?.relaties?.id,
-        user_id: UserData?.user?.id,
-        item_id: SelectPlace?.item_id,
-        order_id: SelectPlace?.order_id,
-        type: GloblyTypeSlide,
-        platform:ScanPlatFormId,
-        qr_data: JSON.stringify(QRData),
-        // Delivery label only at delivery time — not on pickup
-        ...(sessionDeliveryLabel != null &&
-          GloblyTypeSlide == "pickup_dropoff" &&
-          isDeliveryOrder(ItemsData) && {
+    }
+ 
+    const sessionDeliveryLabel = getSessionDeliveryLabel();
+    const payload: any = {
+      token: UserData?.user?.verify_token,
+      role: UserData?.user?.role,
+      relaties_id: UserData?.relaties?.id,
+      user_id: UserData?.user?.id,
+      item_id: SelectPlace?.item_id,
+      order_id: SelectPlace?.order_id,
+      type: GloblyTypeSlide,
+      platform: ScanPlatFormId,
+      qr_data: JSON.stringify(QRData),
+      ...(sessionDeliveryLabel != null &&
+        GloblyTypeSlide == "pickup_dropoff" &&
+        isDeliveryOrder(ItemsData) && {
           delivered_lable_id: sessionDeliveryLabel?.id,
         }),
-      };
-
-      const canSendDeliveryDamage = shouldSendDamageForDeliveryLabel(
-        sessionDeliveryLabel,
-        ItemsData,
-      );
-      if (isDeliveryMultiDamage && canSendDeliveryDamage) {
-        payload.is_damage = buildIsDamagePayload(parcelDamageSelections);
-      } else if (
-        canSendDeliveryDamage &&
-        (GloblyTypeSlide === "pickup_dropoff" ||
-          GloblyTypeSlide === "additional_address") &&
-        selectDamageData
-      ) {
-        payload.is_damage = selectDamageData?.id;
-      }
-
-      await attachScanFreshCoordsToPayload(payload);
-
-      const res = await ApiService(apiConstants.status_update, {
-        customData: await withDeviceMeta(payload),
+    };
+ 
+    const canSendDeliveryDamage = shouldSendDamageForDeliveryLabel(
+      sessionDeliveryLabel,
+      ItemsData,
+    );
+    if (isDeliveryMultiDamage && canSendDeliveryDamage) {
+      payload.is_damage = buildIsDamagePayload(parcelDamageSelections);
+    } else if (
+      canSendDeliveryDamage &&
+      (GloblyTypeSlide === "pickup_dropoff" ||
+        GloblyTypeSlide === "additional_address") &&
+      selectDamageData
+    ) {
+      payload.is_damage = selectDamageData?.id;
+    }
+ 
+    await attachScanFreshCoordsToPayload(payload);
+ 
+    const res = await ApiService(apiConstants.status_update, {
+      customData: await withDeviceMeta(payload),
+    });
+ 
+    if (!res?.status) {
+      setToast({
+        top: 45,
+        text: res?.message || t("Something went wrong"),
+        type: "error",
+        visible: true,
       });
-
-      if (res?.status) {
-        let savedDeliveryLabel =
-          sessionDeliveryLabel ??
-          SelectCurrentDeliveryLabel ??
-          getSessionDeliveryLabel();
-        if (savedDeliveryLabel?.id != null && AllDeliveyLabel?.length) {
-          const fromList = AllDeliveyLabel.find(
-            (item: any) => Number(item?.id) === Number(savedDeliveryLabel.id),
+      return;
+    }
+ 
+    let savedDeliveryLabel =
+      sessionDeliveryLabel ??
+      SelectCurrentDeliveryLabel ??
+      getSessionDeliveryLabel();
+ 
+    if (savedDeliveryLabel?.id != null && AllDeliveyLabel?.length) {
+      const fromList = AllDeliveyLabel.find(
+        (item: any) => Number(item?.id) === Number(savedDeliveryLabel.id),
+      );
+      if (fromList) {
+        savedDeliveryLabel = {
+          ...fromList,
+          ...savedDeliveryLabel,
+          signature_required:
+            savedDeliveryLabel?.signature_required ??
+            fromList?.signature_required,
+          signature_rejected:
+            savedDeliveryLabel?.signature_rejected ??
+            fromList?.signature_rejected,
+        };
+      }
+    }
+ 
+    const savedDamageId = canSendDeliveryDamage
+      ? selectDamageData?.id
+      : undefined;
+    const damagePayload =
+      isDeliveryMultiDamage && canSendDeliveryDamage
+        ? buildIsDamagePayload(parcelDamageSelections)
+        : null;
+ 
+    if (damagePayload?.length) {
+      setProductDamageList((prev) => {
+        if (!prev?.length) return prev;
+        return prev.map((el: any) => {
+          const match = damagePayload.find(
+            (row) => Number(row.item_id) === Number(el?.id),
           );
-          if (fromList) {
-            // Keep selected flags if list entry is stale/missing them.
-            savedDeliveryLabel = {
-              ...fromList,
-              ...savedDeliveryLabel,
-              signature_required:
-                savedDeliveryLabel?.signature_required ??
-                fromList?.signature_required,
-              signature_rejected:
-                savedDeliveryLabel?.signature_rejected ??
-                fromList?.signature_rejected,
-            };
-          }
-        }
-        const savedDamageId = canSendDeliveryDamage
-          ? selectDamageData?.id
-          : undefined;
-        const damagePayload =
-          isDeliveryMultiDamage && canSendDeliveryDamage
-            ? buildIsDamagePayload(parcelDamageSelections)
-            : null;
-
-        if (damagePayload?.length) {
-          setProductDamageList((prev) => {
-            if (!prev?.length) return prev;
-            return prev.map((el: any) => {
-              const match = damagePayload.find(
-                (row) => Number(row.item_id) === Number(el?.id),
-              );
-              if (!match) return el;
-              return { ...el, is_damaged_delivery: match.damage_id, scan_qty: 1 };
-            });
-          });
-        } else if (savedDamageId != null && SelectPlace?.item_id != null) {
-          setProductDamageList((prev) => {
-            if (!prev?.length) return prev;
-
-            const itemId = Number(SelectPlace.item_id);
-            const orderItems =
-              ItemsData?.items ??
-              ItemsData?.order_data?.items ??
-              ConformationModalOpen?.ProductItem ??
-              [];
-            const matchedOrderItem = orderItems.find(
-              (el: any) => Number(el?.id) === itemId,
-            );
-            const existing = prev.find((el: any) => Number(el?.id) === itemId);
-
-            const isDelivery = isDeliveryOrder(ItemsData);
-            const updatedLastItem = {
-              ...(existing ?? { id: itemId }),
-              item_status_id:
-                existing?.item_status_id ?? matchedOrderItem?.item_status_id,
-              scan_qty: 1,
-              delivery_label:
-                existing?.delivery_label ?? matchedOrderItem?.delivery_label,
-              is_damaged_delivery: isDelivery
-                ? savedDamageId
-                : (existing?.is_damaged_delivery ?? null),
-              is_damaged_pickup: !isDelivery
-                ? savedDamageId
-                : (existing?.is_damaged_pickup ?? null),
-              tms_product_name:
-                existing?.tms_product_name ??
-                matchedOrderItem?.tms_product_name ??
-                "",
-            };
-
-            if (existing) {
-              return prev.map((el: any) =>
-                Number(el?.id) === itemId ? { ...el, ...updatedLastItem } : el,
-              );
-            }
-            return [...prev, updatedLastItem];
-          });
-        }
-
-        setComment(false);
-        setParcelDamageSelections({});
-        // Keep ProductDamageList for SignatureModal damage/undamaged boxes.
-        // Cleared after signature success in CustomerSignatureFun.
-
-        // No comment text: proof images queue without comment log (old behavior).
-        if (!hadCommentText && AllSelectImage?.length > 0) {
-          queueProofImagesOnly();
-          clearProofSession();
-          setPickUpDataSave([]);
-          setDeliveyDataSave([]);
-          setDescrition('');
-          setCommentError('');
-          refreshCamera();
-        } else if (!hadCommentText && isCommentOptional) {
-          clearProofSession();
-          setPickUpDataSave([]);
-          setDeliveyDataSave([]);
-          setDescrition('');
-          setCommentError('');
-          refreshCamera();
-        }
-
-        fun?.();
-        setComment(false);
-
-        const parcelsStillRemaining = hasRemainingParcelsToDeliver(
-          ItemsData,
-          res,
-          NoParcelItemIds,
-          SelectPlace?.item_id,
+          if (!match) return el;
+          return { ...el, is_damaged_delivery: match.damage_id, scan_qty: 1 };
+        });
+      });
+    } else if (savedDamageId != null && SelectPlace?.item_id != null) {
+      setProductDamageList((prev) => {
+        if (!prev?.length) return prev;
+ 
+        const itemId = Number(SelectPlace.item_id);
+        const orderItems =
+          ItemsData?.items ??
+          ItemsData?.order_data?.items ??
+          ConformationModalOpen?.ProductItem ??
+          [];
+        const matchedOrderItem = orderItems.find(
+          (el: any) => Number(el?.id) === itemId,
         );
-        const bezorgd = isBezorgdDeliveryLabel(savedDeliveryLabel);
-        setBezorgdFlow(bezorgd);
-        const isSignatureAllowed =
-          bezorgd ||
-          isSignatureAllowedAfterStatusUpdate(res, savedDeliveryLabel);
-
-        clearDeliveryLabelSelection();
-        deliveryLabelModalPendingRef.current = false;
-        setEvetyTimeShowDeliveryLabelList(false);
-
-        // Yes/No → No: skip remaining-parcel UI. Signature only if this label requires it.
-        if (deliveryMoreParcelsNoPathRef.current) {
-          deliveryMoreParcelsNoPathRef.current = false;
-          if (doesLabelRequireSignature(savedDeliveryLabel)) {
-            setSecondModal((p: any) => ({ ...p, visible: false }));
-            openSignatureFlow(savedDeliveryLabel);
-            return;
-          }
+        const existing = prev.find((el: any) => Number(el?.id) === itemId);
+ 
+        const isDelivery = isDeliveryOrder(ItemsData);
+        const updatedLastItem = {
+          ...(existing ?? { id: itemId }),
+          item_status_id:
+            existing?.item_status_id ?? matchedOrderItem?.item_status_id,
+          scan_qty: 1,
+          delivery_label:
+            existing?.delivery_label ?? matchedOrderItem?.delivery_label,
+          is_damaged_delivery: isDelivery
+            ? savedDamageId
+            : (existing?.is_damaged_delivery ?? null),
+          is_damaged_pickup: !isDelivery
+            ? savedDamageId
+            : (existing?.is_damaged_pickup ?? null),
+          tms_product_name:
+            existing?.tms_product_name ??
+            matchedOrderItem?.tms_product_name ??
+            "",
+        };
+ 
+        if (existing) {
+          return prev.map((el: any) =>
+            Number(el?.id) === itemId ? { ...el, ...updatedLastItem } : el,
+          );
         }
-
-        if (!(GloblyTypeSlide == "outbound_scan")) {
-          if (!parcelsStillRemaining) {
-            const buttons: any[] = [];
-
-            if (isSignatureAllowed) {
-              buttons.push({
-                text: bezorgd
-                  ? t("Next")
-                  : ProductDamageList?.length > 0
-                    ? t("Go to overview")
-                    : t("Signature"),
-                type: "primary",
-                onPress: () => {
-                  openSignatureFlow(savedDeliveryLabel);
-                },
-              });
-            } else {
-              buttons.push({
-                text: t("Go to List Page"),
-                type: "primary",
-                onPress: () => {
-                  setSecondModal(p => ({ ...p, visible: false }));
-                  setNoParcelItemIds([]);
-                  getSliderDataFun();
-                },
-              },)
-            }
-
-            setSecondModal({
-              visible: true,
-              title: t("All Parcels Scanned Successfully!"),
-              message: t(res?.remaining_item_message) || "",
-              hint: isSignatureAllowed ? t("GIVE SCANNER TO CUSTOMER") : undefined,
-              hintAtTop: isSignatureAllowed,
-              image: isSignatureAllowed
-                ? Images.DriverConfirmCustomerImage
-                : undefined,
-              buttons: buttons,
-              color: GloblyTypeSlide == "outbound_scan" ? Colors.primary : Colors.green
-
-            });
-          } else if (!(GloblyTypeSlide == "outbound_scan")) {
-            // Still items to scan — after No path with remaining parcels
-            setSecondModal({
-              visible: true,
-              title: t("There are Parcels Remaining"),
-              message: t(res?.remaining_item_message),
-              buttons: [
-                {
-                  text: t("No Parcel"),
-                  type: "secondary",
-                  onPress: async () => {
-                    setSecondModal((p: any) => ({ ...p, visible: false }));
-
-
-
-                    goBackOrPopTo(navigation, "Details", {
-                      type: "scanner_noparcel",
-                      item: ItemsData,
-                    })
-
-                    setNoParcelDetailsScreenEvent(true)
-
-
-                  },
-                },
-                {
-                  text: t("Open Scanner"),
-                  type: "primary",
-                  onPress: () => {
-                    setSecondModal((p: any) => ({ ...p, visible: false }));
-                    setSelectPlace(null);
-                    setDescrition("");
-                    setCommentError("");
-                    readyForNextParcelScan();
-                  },
-                },
-              ],
-              color: Colors.yellow
-            });
-          }
-        } else if (isSignatureAllowed) {
-          const buttons: any[] = [{
+        return [...prev, updatedLastItem];
+      });
+    }
+ 
+    setComment(false);
+    setParcelDamageSelections({});
+ 
+    if (!hadCommentText && AllSelectImage?.length > 0) {
+      queueProofImagesOnly();
+      clearProofSession();
+      setPickUpDataSave([]);
+      setDeliveyDataSave([]);
+      setDescrition("");
+      setCommentError("");
+      refreshCamera();
+    } else if (!hadCommentText && isCommentOptional) {
+      clearProofSession();
+      setPickUpDataSave([]);
+      setDeliveyDataSave([]);
+      setDescrition("");
+      setCommentError("");
+      refreshCamera();
+    }
+ 
+    fun?.();
+ 
+    const parcelsStillRemaining = hasRemainingParcelsToDeliver(
+      ItemsData,
+      res,
+      NoParcelItemIds,
+      SelectPlace?.item_id,
+    );
+    const bezorgd = isBezorgdDeliveryLabel(savedDeliveryLabel);
+    setBezorgdFlow(bezorgd);
+    const isSignatureAllowed =
+      bezorgd || isSignatureAllowedAfterStatusUpdate(res, savedDeliveryLabel);
+ 
+    clearDeliveryLabelSelection();
+    deliveryLabelModalPendingRef.current = false;
+    setEvetyTimeShowDeliveryLabelList(false);
+ 
+    if (deliveryMoreParcelsNoPathRef.current) {
+      deliveryMoreParcelsNoPathRef.current = false;
+      if (doesLabelRequireSignature(savedDeliveryLabel)) {
+        setSecondModal((p: any) => ({ ...p, visible: false }));
+        openSignatureFlow(savedDeliveryLabel);
+        return;
+      }
+    }
+ 
+    if (GloblyTypeSlide != "outbound_scan") {
+      if (!parcelsStillRemaining) {
+        const buttons: any[] = [];
+ 
+        if (isSignatureAllowed) {
+          buttons.push({
             text: bezorgd
               ? t("Next")
               : ProductDamageList?.length > 0
@@ -2296,44 +2227,118 @@ const CustomerSignatureFun = async (
             onPress: () => {
               openSignatureFlow(savedDeliveryLabel);
             },
-          }]
-
-          setSecondModal({
-            visible: true,
-            title: t("Confirm Delivery"),
-            message: t("Delivery completed. Please provide your signature to confirm successful handover."),
-            hint: t("GIVE SCANNER TO CUSTOMER"),
-            hintAtTop: true,
-            image: Images.DriverConfirmCustomerImage,
-            buttons: buttons,
-            color: Colors.green,
+          });
+        } else {
+          buttons.push({
+            text: t("Go to List Page"),
+            type: "primary",
+            onPress: () => {
+              setSecondModal((p: any) => ({ ...p, visible: false }));
+              setNoParcelItemIds([]);
+              getSliderDataFun();
+            },
           });
         }
-
-        setAllRecentScanData((prev) =>
-          prev.includes(SelectPlace?.order_id)
-            ? prev
-            : [...prev, SelectPlace?.order_id]
-        );
-
-        await GetScanedOrderDataLatestFun([
-          ...AllRecentScanData,
-          SelectPlace?.order_id,
-        ]);
+ 
+        setSecondModal({
+          visible: true,
+          title: t("All Parcels Scanned Successfully!"),
+          message: t(res?.remaining_item_message) || "",
+          hint: isSignatureAllowed ? t("GIVE SCANNER TO CUSTOMER") : undefined,
+          hintAtTop: isSignatureAllowed,
+          image: isSignatureAllowed
+            ? Images.DriverConfirmCustomerImage
+            : undefined,
+          buttons: buttons,
+          color: Colors.green,
+        });
+      } else {
+        setSecondModal({
+          visible: true,
+          title: t("There are Parcels Remaining"),
+          message: t(res?.remaining_item_message),
+          buttons: [
+            {
+              text: t("No Parcel"),
+              type: "secondary",
+              onPress: async () => {
+                setSecondModal((p: any) => ({ ...p, visible: false }));
+                goBackOrPopTo(navigation, "Details", {
+                  type: "scanner_noparcel",
+                  item: ItemsData,
+                });
+                setNoParcelDetailsScreenEvent(true);
+              },
+            },
+            {
+              text: t("Open Scanner"),
+              type: "primary",
+              onPress: () => {
+                setSecondModal((p: any) => ({ ...p, visible: false }));
+                setSelectPlace(null);
+                setDescrition("");
+                setCommentError("");
+                readyForNextParcelScan();
+              },
+            },
+          ],
+          color: Colors.yellow,
+        });
       }
-    } catch (error) {
-      setToast({
-        top: 45,
-        text: ErrorHandle(error).message,
-        type: "error",
+    } else if (isSignatureAllowed) {
+      const buttons: any[] = [
+        {
+          text: bezorgd
+            ? t("Next")
+            : ProductDamageList?.length > 0
+              ? t("Go to overview")
+              : t("Signature"),
+          type: "primary",
+          onPress: () => {
+            openSignatureFlow(savedDeliveryLabel);
+          },
+        },
+      ];
+ 
+      setSecondModal({
         visible: true,
+        title: t("Confirm Delivery"),
+        message: t(
+          "Delivery completed. Please provide your signature to confirm successful handover.",
+        ),
+        hint: t("GIVE SCANNER TO CUSTOMER"),
+        hintAtTop: true,
+        image: Images.DriverConfirmCustomerImage,
+        buttons: buttons,
+        color: Colors.green,
       });
-    } finally {
-      setCommentLoader(false);
-      if (skipComment) setIsLoading(false);
     }
-  };
-  commentFunRef.current = CommentFun;
+ 
+    setAllRecentScanData((prev) =>
+      prev.includes(SelectPlace?.order_id)
+        ? prev
+        : [...prev, SelectPlace?.order_id],
+    );
+ 
+    await GetScanedOrderDataLatestFun([
+      ...AllRecentScanData,
+      SelectPlace?.order_id,
+    ]);
+  } catch (error) {
+    setToast({
+      top: 45,
+      text: ErrorHandle(error).message,
+      type: "error",
+      visible: true,
+    });
+  } finally {
+    setCommentLoader(false);
+    if (skipComment) setIsLoading(false);
+  }
+};
+commentFunRef.current = CommentFun;
+ 
+ 
 
   const GetIdByOrderFun = async (order_id?: string) => {
     const id = order_id || ItemsData?.id || ItemsData?.order_data?.id;
@@ -3260,14 +3265,17 @@ const CustomerSignatureFun = async (
                 {Commenterror ? <Text style={styles.Error}>{Commenterror}</Text> : null}
               </View>
 
-              <TouchableOpacity style={styles.ButtonSubmit} disabled={CommentLoader} onPress={CommentFun}>
-                {
-                  CommentLoader ? (
-                    <ActivityIndicator size="small" color={Colors.white} />
-                  ) :
-                    <Text style={[styles.Text, { color: Colors.white }]}>{t("Submit")}</Text>
-                }
-              </TouchableOpacity>
+<TouchableOpacity
+  style={styles.ButtonSubmit}
+  disabled={CommentLoader}
+  onPress={() => CommentFun()}
+>                  {
+                    CommentLoader ? (
+                      <ActivityIndicator size="small" color={Colors.white} />
+                    ) :
+                      <Text style={[styles.Text, { color: Colors.white }]}>{t("Submit")}</Text>
+                  }
+                </TouchableOpacity>
 
 
 

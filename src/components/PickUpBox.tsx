@@ -448,6 +448,12 @@ function PickUpBox({
           <Text style={styles.labelText}>{additional_cost_label}</Text>
         </View>
       )}
+      {
+        ItemData?.stop_data?.depot?.name &&
+        <View style={styles.DepotBG}>
+          <Text style={styles.DepoText}>{'Depot :'} {ItemData?.stop_data?.depot?.name}</Text>
+        </View>
+      }
 
     </Pressable>
   );
@@ -473,6 +479,18 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontFamily: FONTS.Medium,
     color: Colors.black,
+  },
+  DepotBG: {
+    backgroundColor: Colors.Orrange,
+    borderRadius: 4,
+    marginTop: 10,
+    padding: 5,
+    paddingHorizontal: 10
+  },
+  DepoText: {
+    fontSize: 14,
+    color: Colors.black,
+    fontFamily: FONTS.Medium
   },
   OrderIdTextBig: {
     fontSize: 20,

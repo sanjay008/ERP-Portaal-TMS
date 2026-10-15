@@ -783,7 +783,7 @@ export default function DetailsScreens({ navigation, route }: any) {
         type: "error",
         visible: true,
       });
-      return;
+      return false;
     }
 
     setLableLoading(true);
@@ -807,7 +807,8 @@ export default function DetailsScreens({ navigation, route }: any) {
 
 
       if (res?.data?.status) {
-        await AddImageOrCommentFun(comment);
+        const commentSaved = await AddImageOrCommentFun(comment);
+        if (!commentSaved) return false;
         setNoParcelItemIds((prev: any) => [
           ...prev,
           ...selectedItems.map((item) => item.id),
@@ -898,6 +899,7 @@ export default function DetailsScreens({ navigation, route }: any) {
           type: "success",
           visible: true,
         });
+        return true;
       } else {
         setToast({
           top: 45,
@@ -905,6 +907,7 @@ export default function DetailsScreens({ navigation, route }: any) {
           type: "error",
           visible: true,
         });
+        return false;
       }
     } catch (error) {
       setToast({
@@ -913,6 +916,7 @@ export default function DetailsScreens({ navigation, route }: any) {
         type: "error",
         visible: true,
       });
+      return false;
     } finally {
       setLableLoading(false);
     }
@@ -1025,6 +1029,7 @@ export default function DetailsScreens({ navigation, route }: any) {
           visible: true,
         });
         GetIdByOrderFun();
+        return true;
       } else {
         console.log("Fails Status update",res);
         
@@ -1034,6 +1039,7 @@ export default function DetailsScreens({ navigation, route }: any) {
           type: "error",
           visible: true,
         });
+        return false;
       }
     } catch (error) {
         console.log("Error Status update",error);
@@ -1044,6 +1050,7 @@ export default function DetailsScreens({ navigation, route }: any) {
         type: "error",
         visible: true,
       });
+      return false;
     } finally {
       setIsLoading(false);
     }
@@ -1400,24 +1407,20 @@ export default function DetailsScreens({ navigation, route }: any) {
           }
           setComment(visible);
         }}
-        fun={(commentText: string) => {
+        fun={async (commentText: string) => {
           if (notAtHomeFlowRef.current) {
-            (async () => {
-              if (!AllSelectImage?.length) {
-                setToast({
-                  top: 45,
-                  text: t("Please take a photo"),
-                  type: "error",
-                  visible: true,
-                });
-                return;
-              }
-              const commentOk = await AddImageOrCommentFun(commentText);
-              if (commentOk) {
-                await StatusUpdateFun();
-              }
-            })();
-            return;
+            if (!AllSelectImage?.length) {
+              setToast({
+                top: 45,
+                text: t("Please take a photo"),
+                type: "error",
+                visible: true,
+              });
+              return false;
+            }
+            const commentOk = await AddImageOrCommentFun(commentText);
+            if (!commentOk) return false;
+            return StatusUpdateFun();
           }
 
           const itemsToSend = SelectedNoParcelItems?.length
@@ -1431,10 +1434,10 @@ export default function DetailsScreens({ navigation, route }: any) {
               type: "error",
               visible: true,
             });
-            return;
+            return false;
           }
 
-          BackOrderFun(
+          return BackOrderFun(
             ItemsData?.tmsstatus?.status_name == "Scheduled"
               ? "Backorder"
               : "Missed",

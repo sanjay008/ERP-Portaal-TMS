@@ -205,6 +205,7 @@ export function useParcelVerifyFlow({
   const deliveryMoreParcelsNoPathRef = useRef(false);
   const lastVerifyApiDataRef = useRef<any>(null);
   const proofQueuedFromCameraRef = useRef(false);
+  const pendingSavedCommentRef = useRef<{ orderId: string; text: string } | null>(null);
   /** Frozen at Camera open — Done/queue must never read live selectPlace. */
   const cameraProofBindingRef = useRef<CameraProofBinding | null>(null);
 
@@ -1195,7 +1196,7 @@ export function useParcelVerifyFlow({
           clearProofSession();
           setPickUpDataSave([]);
           setDeliveyDataSave([]);
-          setDescription('');
+          if (!options?.skipClose) setDescription('');
           if (!options?.skipClose) {
             setComment(false);
           }
@@ -1482,6 +1483,7 @@ export function useParcelVerifyFlow({
 
   const commentFun = useCallback(async (options?: { skipComment?: boolean }) => {
     const skipComment = options?.skipComment === true;
+    setCommentError('');
     const effectiveType = slideType ?? GloblyTypeSlide;
     // Snapshot first — module store / fallback survive Filter focus clears.
     const activeDeliveryLabel = resolveDeliveryLabel();
@@ -1539,7 +1541,11 @@ export function useParcelVerifyFlow({
 
       // Comment text → store_tms_comment first (images with comment log), then status_update.
       const hadCommentText = Boolean(description.trim());
-      if (hadCommentText) {
+      const currentOrderId = String(selectPlace.order_id);
+      const commentAlreadySaved =
+        pendingSavedCommentRef.current?.orderId === currentOrderId &&
+        pendingSavedCommentRef.current?.text === description.trim();
+      if (hadCommentText && !commentAlreadySaved) {
         const commentOk = await addImageOrCommentFun([], {
           skipClose: true,
           manageLoader: false,
@@ -1547,6 +1553,10 @@ export function useParcelVerifyFlow({
         if (!commentOk) {
           return;
         }
+        pendingSavedCommentRef.current = {
+          orderId: currentOrderId,
+          text: description.trim(),
+        };
       }
 
       const payload: any = {
@@ -1595,6 +1605,7 @@ export function useParcelVerifyFlow({
       });
 
       if (!res?.status) {
+        setCommentError(t(res?.message) || t('Failed to update status'));
         setToast({
           top: 45,
           text: t(res?.message) || t('Failed to update status'),
@@ -1729,6 +1740,9 @@ export function useParcelVerifyFlow({
       }
 
       setComment(false);
+      pendingSavedCommentRef.current = null;
+      setDescription('');
+      setCommentError('');
 
       if (!hadCommentText && allSelectImage?.length > 0) {
         queueProofImagesOnly();
@@ -1894,6 +1908,7 @@ export function useParcelVerifyFlow({
         clearDeliveryLabelSelection();
       }
     } catch (error) {
+      setCommentError(ErrorHandle(error).message || t('Something went wrong'));
       setToast({
         top: 45,
         text: ErrorHandle(error).message,

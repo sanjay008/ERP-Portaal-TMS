@@ -104,6 +104,19 @@ export async function resolveLocationAccess(): Promise<LocationAccessStatus> {
   return 'denied';
 }
 
+/** Foreground-only location access used by scan flows for every account role. */
+export async function resolveScanLocationAccess(): Promise<LocationAccessStatus> {
+  const { status, canAskAgain } = await Location.getForegroundPermissionsAsync();
+  if (status !== Location.PermissionStatus.GRANTED) {
+    if (!canAskAgain) return 'blocked';
+    const requested = await Location.requestForegroundPermissionsAsync();
+    if (requested.status !== Location.PermissionStatus.GRANTED) {
+      return requested.canAskAgain === false ? 'blocked' : 'denied';
+    }
+  }
+  return (await ensureLocationServicesEnabled()) ? 'granted' : 'services_disabled';
+}
+
 export async function retryLocationPermission(): Promise<LocationAccessStatus> {
   const current = await checkLocationPermission();
 

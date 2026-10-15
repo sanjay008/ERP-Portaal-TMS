@@ -15,6 +15,7 @@ import {
   ActivityIndicator,
   FlatList,
   Image,
+  Keyboard,
   Platform,
   Pressable,
   ScrollView,
@@ -121,7 +122,7 @@ export default function ParcelVerifyCommentModal({
           contentContainerStyle={styles.scrollContent}
           enableOnAndroid
           extraHeight={200}
-          keyboardShouldPersistTaps="handled"
+          keyboardShouldPersistTaps="always"
         >
           <View style={styles.commentBox}>
             <View>
@@ -256,7 +257,10 @@ export default function ParcelVerifyCommentModal({
             <TouchableOpacity
               style={styles.buttonSubmit}
               disabled={commentLoader}
-              onPress={onSubmit}
+              onPress={() => {
+                Keyboard.dismiss();
+                void onSubmit();
+              }}
             >
               {commentLoader ? (
                 <ActivityIndicator size="small" color={Colors.white} />
