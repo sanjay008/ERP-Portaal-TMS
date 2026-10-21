@@ -130,6 +130,57 @@ const parseDropboxErrorBody = (body: string | null | undefined): unknown => {
   }
 };
 
+const getDropboxRetryDelayMs = (
+  body: string | null | undefined,
+  headers?: Record<string, string> | Headers,
+  attempt = 0,
+): number => {
+  const parsed = parseDropboxErrorBody(body) as any;
+  let retryAfterSeconds = Number(parsed?.error?.retry_after ?? parsed?.retry_after);
+
+  if (!Number.isFinite(retryAfterSeconds) || retryAfterSeconds < 0) {
+    retryAfterSeconds = 0;
+  }
+
+  let headerRetryAfter = "";
+  if (headers && "get" in headers && typeof headers.get === "function") {
+    headerRetryAfter = headers.get("retry-after") || "";
+  } else if (headers) {
+    const retryHeader = Object.entries(headers).find(
+      ([key]) => key.toLowerCase() === "retry-after",
+    );
+    headerRetryAfter = retryHeader?.[1] || "";
+  }
+
+  const parsedHeaderSeconds = Number(headerRetryAfter);
+  if (Number.isFinite(parsedHeaderSeconds) && parsedHeaderSeconds >= 0) {
+    retryAfterSeconds = Math.max(retryAfterSeconds, parsedHeaderSeconds);
+  }
+
+  const exponentialBackoffMs = Math.min(60_000, 1_000 * 2 ** Math.min(attempt, 6));
+  const serverDelayMs = retryAfterSeconds * 1_000;
+  const jitterMs = Math.floor(Math.random() * 500);
+  return Math.max(serverDelayMs, exponentialBackoffMs) + jitterMs;
+};
+
+const waitForDropboxRetry = (delayMs: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, delayMs));
+
+const makeStableDropboxFilename = (uri: string, originalName: string): string => {
+  // Durable queue URIs remain stable across retries and app restarts. A stable
+  // suffix avoids collisions between different files with the same camera name.
+  let hash = 2166136261;
+  for (let index = 0; index < uri.length; index += 1) {
+    hash ^= uri.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  const dot = originalName.lastIndexOf(".");
+  const base = dot > 0 ? originalName.slice(0, dot) : originalName;
+  const extension = dot > 0 ? originalName.slice(dot) : "";
+  return `${base}_${(hash >>> 0).toString(16)}${extension}`;
+};
+
 const logDropboxUploadError = (
   context: string,
   details: Record<string, unknown>,
@@ -403,39 +454,13 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         }
 
         let token = accessTokenRef.current;
-        const dropboxPath = `/${folder}/${originalFileName}`;
+        const dropboxFileName = makeStableDropboxFilename(uri, originalFileName);
+        const dropboxPath = `/${folder}/${dropboxFileName}`;
+        let uploadRes: Awaited<ReturnType<typeof FileSystem.uploadAsync>>;
+        let rateLimitAttempt = 0;
+        let tokenWasRefreshed = false;
 
-        let uploadRes = await FileSystem.uploadAsync(
-          "https://content.dropboxapi.com/2/files/upload",
-          uri,
-          {
-            httpMethod: "POST",
-            uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-            headers: {
-              Authorization: `Bearer ${token?.trim()}`,
-              "Dropbox-API-Arg": JSON.stringify({
-                path: dropboxPath,
-                mode: "add",
-                autorename: true,
-                mute: false,
-              }),
-              "Content-Type": "application/octet-stream",
-            },
-          }
-        );
-
-        if (uploadRes.status === 401) {
-          logDropboxUploadError("uploadSingleFile token expired", {
-            step: "dropbox_files_upload",
-            retry,
-            httpStatus: uploadRes.status,
-            fileName: originalFileName,
-            dropboxPath,
-            dropboxError: parseDropboxErrorBody(uploadRes.body),
-          });
-
-          token = await refreshAccessToken();
-
+        while (true) {
           uploadRes = await FileSystem.uploadAsync(
             "https://content.dropboxapi.com/2/files/upload",
             uri,
@@ -446,14 +471,52 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
                 Authorization: `Bearer ${token?.trim()}`,
                 "Dropbox-API-Arg": JSON.stringify({
                   path: dropboxPath,
-                  mode: "add",
-                  autorename: true,
+                  // Same queued file always targets the same Dropbox path. If
+                  // the app loses the response after Dropbox accepted it, a
+                  // retry replaces that file instead of autorenaming a copy.
+                  mode: "overwrite",
+                  autorename: false,
                   mute: false,
                 }),
                 "Content-Type": "application/octet-stream",
               },
-            }
+            },
           );
+
+          if (uploadRes.status === 401 && !tokenWasRefreshed) {
+            logDropboxUploadError("uploadSingleFile token expired", {
+              step: "dropbox_files_upload",
+              retry,
+              httpStatus: uploadRes.status,
+              fileName: originalFileName,
+              dropboxPath,
+              dropboxError: parseDropboxErrorBody(uploadRes.body),
+            });
+            token = await refreshAccessToken();
+            tokenWasRefreshed = true;
+            continue;
+          }
+
+          if (uploadRes.status === 429) {
+            const delayMs = getDropboxRetryDelayMs(
+              uploadRes.body,
+              uploadRes.headers,
+              rateLimitAttempt,
+            );
+            logDropboxUploadError("Dropbox write rate limited; retrying", {
+              step: "dropbox_files_upload",
+              retry: rateLimitAttempt + 1,
+              retryInMs: delayMs,
+              fileName: originalFileName,
+              dropboxPath,
+              dropboxError: parseDropboxErrorBody(uploadRes.body),
+            });
+            rateLimitAttempt += 1;
+            await waitForDropboxRetry(delayMs);
+            continue;
+          }
+
+          break;
         }
 
         if (uploadRes.status !== 200) {
@@ -488,7 +551,9 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         let sharedLink: string | null = null;
 
         let lastLinkError = "Dropbox shared link could not be created";
-        for (let attempt = 0; attempt < 4 && !sharedLink; attempt += 1) {
+        let linkRateLimitAttempt = 0;
+        let linkOtherErrorAttempt = 0;
+        while (!sharedLink) {
           const linkResponse = await fetch(
             "https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings",
             {
@@ -514,6 +579,25 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
           }
 
           lastLinkError = linkData?.error_summary || linkData?.error?.error_summary || lastLinkError;
+
+          if (linkResponse.status === 429) {
+            const delayMs = getDropboxRetryDelayMs(
+              JSON.stringify(linkData),
+              linkResponse.headers,
+              linkRateLimitAttempt,
+            );
+            logDropboxUploadError("Dropbox shared-link rate limited; retrying", {
+              step: "dropbox_shared_link",
+              retry: linkRateLimitAttempt + 1,
+              retryInMs: delayMs,
+              dropboxPath: uploadData.path_display,
+              dropboxError: linkData,
+            });
+            linkRateLimitAttempt += 1;
+            await waitForDropboxRetry(delayMs);
+            continue;
+          }
+
           if (String(lastLinkError).includes("shared_link_already_exists")) {
             const existingResponse = await fetch(
               "https://api.dropboxapi.com/2/sharing/list_shared_links",
@@ -528,9 +612,14 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
             );
             const existingData = await existingResponse.json().catch(() => ({}));
             sharedLink = existingData?.links?.[0]?.url || null;
+            if (sharedLink) break;
           }
-          if (!sharedLink && attempt < 3) {
+
+          linkOtherErrorAttempt += 1;
+          if (linkOtherErrorAttempt < 4) {
             await new Promise<void>((resolve) => setTimeout(resolve, 2000));
+          } else {
+            break;
           }
         }
         if (!sharedLink) throw new Error(lastLinkError);
@@ -985,7 +1074,12 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         }
 
         const folder = resolveBoundDropboxFolder(boundOrderId, batchItem.folder);
-        const results = await Promise.all(uris.map((uri) => uploadSingleFile(uri, folder)));
+        const results: (UploadSingleFileOutcome | null)[] = [];
+        // Dropbox limits concurrent writes in a namespace. Upload each file
+        // and resolve its shared link before starting the next file.
+        for (const uri of uris) {
+          results.push(await uploadSingleFile(uri, folder));
+        }
 
         const uploaded: FileUploadResult[] = [];
         const failed: { error: string; file: string; userMessage: string }[] = [];

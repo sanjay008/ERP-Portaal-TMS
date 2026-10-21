@@ -57,6 +57,7 @@ import {
   hasRemainingParcelsToDeliver,
 } from '@/src/utils/pickupPlanned';
 import { attachScanFreshCoordsToPayload } from '@/src/utils/scanFreshLocation';
+import { buildScanInfo } from '@/src/utils/scanInfo';
 import {
   type DeliveryScanContinueContext,
   type ParcelVerifyScanPayload,
@@ -486,6 +487,7 @@ export function useParcelVerifyFlow({
           user_id: UserData?.user?.id,
           item_id: data?.item_id,
           order_id: data?.order_id,
+          scan_info: buildScanInfo(data),
           platform: ScanPlatFormId,
           type: slideType ?? GloblyTypeSlide,
           // Delivery label only for delivery orders — never on pickup
@@ -1559,6 +1561,7 @@ export function useParcelVerifyFlow({
         user_id: UserData?.user?.id,
         item_id: selectPlace?.item_id,
         order_id: selectPlace?.order_id,
+        scan_info: buildScanInfo(selectPlace),
         type: effectiveType,
         platform: ScanPlatFormId,
         // Delivery label only at delivery time — not on pickup

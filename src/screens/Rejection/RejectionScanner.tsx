@@ -1357,6 +1357,12 @@ export default function RejectionScanner({ route }: any) {
           unlockScanner();
           restartScannerPreview();
         }}
+        onEnterManually={() => {
+          setShowQRError(false);
+          setQrErrorMessage(null);
+          unlockScanner();
+          setManualEntryOpen(true);
+        }}
         onGoBack={() => {
           setShowQRError(false);
           resetRejectionSession();

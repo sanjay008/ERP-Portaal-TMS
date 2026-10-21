@@ -49,6 +49,7 @@ import {
   type CameraProofBinding,
 } from "@/src/utils/localUploadQueue";
 import { isDeliveryOrder } from "@/src/utils/orderStatus";
+import { buildScanInfo } from "@/src/utils/scanInfo";
 import {
   buildAcceptanceSummaryModal,
   buildBezorgdDeclarationModal,
@@ -1335,6 +1336,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         user_id: UserData?.user?.id,
         item_id: scanPayload?.item_id,
         order_id: scanPayload?.order_id,
+        scan_info: buildScanInfo(scanPayload),
         platform: ScanPlatFormId,
         qr_data: JSON.stringify(scanPayload),
         type: type ?? GloblyTypeSlide,
@@ -2737,6 +2739,7 @@ commentFunRef.current = CommentFun;
       await QuestiongetApi({
         order_id: orderId,
         item_id: itemId,
+        scan_source: 'manual_entry',
       });
       setManualEntryOpen(false);
       setManualItemId("");
@@ -3407,6 +3410,13 @@ commentFunRef.current = CommentFun;
           setQrErrorMessage(null);
           lastDetectedBarcodeRef.current = "";
           setLastDetectedBarcode("");
+        }}
+        onEnterManually={() => {
+          setShowQRError(false);
+          setQrErrorMessage(null);
+          lastDetectedBarcodeRef.current = "";
+          setLastDetectedBarcode("");
+          setManualEntryOpen(true);
         }}
         onGoBack={() => {
           setShowQRError(false);

@@ -38,6 +38,7 @@ import {
   consumeUnsentFreshFix,
 } from '@/src/utils/scanFreshLocation';
 import { Platform } from 'react-native';
+import { buildScanInfo } from '@/src/utils/scanInfo';
 
 const REGION_MISMATCH_QUESTION =
   'this parcel is not for your region';
@@ -53,6 +54,7 @@ function isRegionMismatchQuestion(question?: string | null): boolean {
 export type ParcelVerifyScanPayload = {
   order_id: number | string;
   item_id: number | string;
+  scan_source?: 'manual_entry' | 'barcode_scan';
   /** Tapped parcel from PickUpBox — used to seed delivery_label fallback. */
   item?: any;
 };
@@ -282,6 +284,7 @@ export async function runParcelVerifyFlow(
     deps.setSelectPlace({
       item_id: resItemId,
       order_id: resOrderId,
+      scan_info: buildScanInfo(data),
     });
 
     // Seed delivery_label fallback from verify response / tapped item.

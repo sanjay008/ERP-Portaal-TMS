@@ -124,16 +124,35 @@ const ApiService = async (endpoint, options = {}) => {
 
         if (value == null) return;
 
-        requestData.append(key, value);
+        // Nested objects must be JSON strings for RN FormData.
+        if (typeof value === "object") {
+          if (value.uri) {
+            requestData.append(key, {
+              uri: value.uri,
+              name: value.name || "file.jpg",
+              type: value.type || "image/jpeg",
+            });
+            return;
+          }
+          try {
+            requestData.append(key, JSON.stringify(value));
+          } catch {
+            requestData.append(key, String(value));
+          }
+          return;
+        }
+
+        // Keep FormData values as strings (RN is strict about types).
+        requestData.append(key, typeof value === "boolean" ? (value ? "1" : "0") : String(value));
       });
     }
 
-console.log("requestData", requestData, endpoint);
+    console.log("requestData", requestData, endpoint);
 
     const response = await axios({
-      method: options.method || "POST", // Default to POST
+      method: options.method || "POST",
       url: endpoint,
-      data: requestData || undefined, // Only attach data if it exists
+      data: requestData || undefined,
       headers: {
         "Content-Type": requestData
           ? "multipart/form-data"

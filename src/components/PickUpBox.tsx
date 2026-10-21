@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { Image } from 'expo-image';
 import React, { useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -84,10 +85,13 @@ function PickUpBox({
   };
 
   const getPhoneNumber = () => {
-    const mobile = ItemData?.wa_whatsapp_number || "";
+    const mobile = '+'+ItemData?.wa_whatsapp_number || "";
     if (!mobile) return null;
     return mobile;
   };
+
+  console.log('ItemData',ItemData);
+  
 
   // const WhatsaapRedirectFun = async (type: number) => {
   //   try {
@@ -200,12 +204,25 @@ function PickUpBox({
   };
 
   const handleCall = async () => {
-    const phoneNumber = ItemData?.calling_number;
-    if (!phoneNumber) return;
+    const phoneNumber = '+' + ItemData?.calling_number || getPhoneNumber();
+    if (!phoneNumber) {
+      setToast({
+        top: 45,
+        text: t("Phone number not found."),
+        type: "error",
+        visible: true,
+      });
+      return;
+    }
     try {
-      await Linking.openURL(`tel:${phoneNumber}`);
+      await Linking.openURL(`tel:${String(phoneNumber).replace(/[^\d+]/g, "")}`);
     } catch (error) {
-      // call failed
+      setToast({
+        top: 45,
+        text: t("Unable to start a call."),
+        type: "error",
+        visible: true,
+      });
     }
   };
 
@@ -421,6 +438,15 @@ function PickUpBox({
             </TouchableOpacity>
             <TouchableOpacity
               activeOpacity={0.85}
+              onPress={handleCall}
+              accessibilityRole="button"
+              accessibilityLabel={t("Call contact")}
+              style={styles.contactAction}
+            >
+              <Ionicons name="call" size={24} color={Colors.green} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              activeOpacity={0.85}
               disabled={whatsappLoading || isWhatsAppLocked}
               onPress={() => WhatsaapRedirectFun(2)}
               style={isWhatsAppLocked ? { opacity: 0.4 } : undefined}
@@ -600,6 +626,10 @@ const styles = StyleSheet.create({
   Icon: {
     width: 28,
     height: 28,
+  },
+  contactAction: {
+    marginHorizontal: 8,
+    padding: 2,
   },
   scannerBtn: {
     width: 40,

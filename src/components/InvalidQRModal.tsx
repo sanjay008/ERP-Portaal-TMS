@@ -20,7 +20,7 @@ import Animated, {
 import { Colors } from '../utils/colors';
 import { FONTS } from '../utils/storeData';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const SPRING_CONFIG = {
     damping: 20,
@@ -33,9 +33,16 @@ type Props = {
     message?: string;
     onScanAgain: () => void;
     onGoBack: () => void;
+    onEnterManually?: () => void;
 };
 
-export default function InvalidQRModal({ visible, message, onScanAgain, onGoBack }: Props) {
+export default function InvalidQRModal({
+    visible,
+    message,
+    onScanAgain,
+    onGoBack,
+    onEnterManually,
+}: Props) {
     const { t } = useTranslation();
 
     const backdropOpacity = useSharedValue(0);
@@ -89,6 +96,11 @@ export default function InvalidQRModal({ visible, message, onScanAgain, onGoBack
         hide(onScanAgain);
     };
 
+    const handleEnterManually = () => {
+        if (!onEnterManually) return;
+        hide(onEnterManually);
+    };
+
     return (
         <View style={styles.overlay} pointerEvents={visible ? 'auto' : 'none'}>
             <Animated.View style={[styles.backdrop, backdropStyle]}>
@@ -105,10 +117,14 @@ export default function InvalidQRModal({ visible, message, onScanAgain, onGoBack
                     </View>
                 </View>
 
-                <Text style={styles.title}>{t('Invalid QR Code')}</Text>
+                <Text style={styles.title}>{t('QR code is damaged')}</Text>
                 <Text style={styles.message}>
-                    {message ??
-                        t('The QR code you scanned is not recognized or may be expired. Please try again with a valid code.')}
+                    {message?.trim()
+                        ? message
+                        : t('We cannot read the QR code.')}
+                </Text>
+                <Text style={styles.hint}>
+                    {t('If this problem persists, enter the code manually.')}
                 </Text>
 
                 <View style={styles.actions}>
@@ -123,6 +139,25 @@ export default function InvalidQRModal({ visible, message, onScanAgain, onGoBack
                         <Ionicons name="scan-outline" size={18} color="#fff" style={styles.btnIcon} />
                         <Text style={styles.primaryBtnText}>{t('Scan Again')}</Text>
                     </Pressable>
+
+                    {onEnterManually ? (
+                        <Pressable
+                            style={({ pressed }) => [
+                                styles.manualBtn,
+                                pressed && styles.manualBtnPressed,
+                            ]}
+                            onPress={handleEnterManually}
+                            android_ripple={{ color: 'rgba(226,75,74,0.12)', borderless: false }}
+                        >
+                            <Ionicons
+                                name="keypad-outline"
+                                size={18}
+                                color="#A32D2D"
+                                style={styles.btnIcon}
+                            />
+                            <Text style={styles.manualBtnText}>{t('Enter code manually')}</Text>
+                        </Pressable>
+                    ) : null}
 
                     <Pressable
                         style={({ pressed }) => [
@@ -213,7 +248,16 @@ const styles = StyleSheet.create({
         color: '#888780',
         textAlign: 'center',
         lineHeight: 20,
-        marginBottom: 28,
+        marginBottom: 8,
+        paddingHorizontal: 4,
+    },
+    hint: {
+        fontSize: 13,
+        fontFamily: FONTS.LexendMedium,
+        color: '#5C5A55',
+        textAlign: 'center',
+        lineHeight: 20,
+        marginBottom: 24,
         paddingHorizontal: 4,
     },
     actions: {
@@ -240,6 +284,26 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontFamily: FONTS.LexendSemiBold,
         color: '#fff',
+    },
+    manualBtn: {
+        height: 50,
+        borderRadius: 10,
+        borderWidth: 1.5,
+        borderColor: '#E24B4A',
+        backgroundColor: '#FFF5F5',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        overflow: 'hidden',
+    },
+    manualBtnPressed: {
+        backgroundColor: '#FCEBEB',
+    },
+    manualBtnText: {
+        fontSize: 14,
+        fontFamily: FONTS.LexendSemiBold,
+        color: '#A32D2D',
     },
     secondaryBtn: {
         height: 50,
