@@ -163,7 +163,7 @@ export default function PickupPlannedSheet({
               disabled={loading}
             >
              
-              <Text style={styles.btnTextDark}>{t('Cancel this pickup')}</Text>
+              <Text style={styles.btnTextDark}>{t('Back to menu')}</Text>
               
             </Pressable>
             {/* <Pressable

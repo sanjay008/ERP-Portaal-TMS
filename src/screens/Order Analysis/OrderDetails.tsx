@@ -95,7 +95,13 @@ export default function OrderDetails({ navigation, route }: any) {
             .filter((el: any) => Array.isArray(el?.tmsimgdata) && el.tmsimgdata.length > 0)
             .flatMap((el: any) => el.tmsimgdata)
             .map((img: any) => ({
+                ...img,
                 uri: img?.shared_link ? getDirectDropboxLink(img.shared_link) : img?.uri ?? "",
+                isDamage:
+                    Number(img?.is_damage) === 1 ||
+                    String(img?.photo_type || img?.image_type || img?.folder || img?.shared_link || "")
+                        .toLowerCase()
+                        .includes("damage"),
             }))
             .filter((img: any) => img.uri !== "");
         return [...backendImages];
@@ -302,6 +308,7 @@ console.log("url",url);
                                     : item?.uri;
                                 const isVideo = isVideoUrl(uri);
                                 return (
+                                    <View style={styles.photoItem}>
                                     <View style={styles.Image}>
                                         {uri ? (
                                             isVideo ? (
@@ -333,6 +340,10 @@ console.log("url",url);
                                                 <Text style={{ fontSize: 10, color: "#666" }}>{t("No Image")}</Text>
                                             </View>
                                         )}
+                                    </View>
+                                    {item?.isDamage ? (
+                                        <Text style={styles.damageLabel}>{t("Damage")}</Text>
+                                    ) : null}
                                     </View>
                                 );
                             }}
@@ -381,6 +392,17 @@ const styles = StyleSheet.create({
         width: 100,
         height: 100,
         borderRadius: 7,
+    },
+    photoItem: {
+        width: 100,
+        alignItems: "center",
+    },
+    damageLabel: {
+        marginTop: 4,
+        fontSize: 11,
+        fontFamily: FONTS.SemiBold,
+        color: "#E24B4A",
+        textAlign: "center",
     },
     Text: {
         fontSize: 14,

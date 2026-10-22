@@ -75,6 +75,7 @@ export interface LocalUploadItem {
   tracking_started_at?: number;
   picture_count?: number;
   source?: string;
+  type?: string;
   parcel_count?: number | null;
 }
 
@@ -85,6 +86,7 @@ export interface DropboxQueueItem {
   commentId: number | null;
   batchId?: string;
   qr_data?: string | null;
+  type?: string;
 }
 
 const createBatchId = (): string =>
@@ -737,6 +739,9 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
         if (itemId != null) {
           formData.append("item_id", String(itemId));
         }
+        if (item.type) {
+          formData.append("type", String(item.type));
+        }
 
         item.image_data.forEach((image, index) => {
           formData.append(`images[${index}][file_path]`, image?.file_path || "");
@@ -1208,6 +1213,7 @@ export default function useDropboxUpload(t): UseDropboxUploadReturn {
           commentId: batchItem.commentId,
           batchId: batchItem.batchId,
           qr_data: batchItem.qr_data ?? null,
+          type: batchItem.type,
         });
 
         const doneKey = getQueueItemKey(doneItem);

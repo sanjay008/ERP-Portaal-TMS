@@ -8,7 +8,11 @@ import { setLatestPickupCameraSetData } from "@/src/context/ParcelVerifySessionC
 import { DropboxContext } from "@/src/context/UploadProider";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
-import { appendToLocalUploadQueue } from "@/src/utils/localUploadQueue";
+import { goBackOrPopTo } from "@/src/components/goBackOrPopTo";
+import {
+  appendToLocalUploadQueue,
+  buildDropboxDamageFolder,
+} from "@/src/utils/localUploadQueue";
 import {
   lockParcelCameraCallback,
   unlockParcelCameraCallback,
@@ -37,7 +41,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 /**
  * Driver Photos only:
- * scan / manual entry → order PickUpBox → Cancel / Photos → min 3 photos → optional comment → save.
+ * scan / manual entry → order PickUpBox → Cancel / Photos → min 3 photos → required comment → save.
  */
 export default function DriverPhotosScanner({ route }: any) {
   const navigation = useNavigation<any>();
@@ -71,6 +75,7 @@ export default function DriverPhotosScanner({ route }: any) {
   const [isVerifyingManual, setIsVerifyingManual] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
+  const isDamagePhotos = route?.params?.type === "damage_photos";
   const lastScannedRef = useRef("");
   const isScanningRef = useRef(false);
   const orderIdRef = useRef<string | number | null>(null);
@@ -326,67 +331,90 @@ export default function DriverPhotosScanner({ route }: any) {
         return;
       }
 
+      const trimmed = commentText?.trim() || "";
+      if (!trimmed) {
+        setToast({
+          top: 45,
+          text: t("Please enter a comment"),
+          type: "error",
+          visible: true,
+        });
+        return;
+      }
+
       setCommentLoader(true);
       try {
-        const trimmed = commentText?.trim() || "";
+        const formData: any = new FormData();
+        formData.append("token", UserData?.user?.verify_token);
+        formData.append("role", UserData?.user?.role);
+        formData.append("relaties_id", UserData?.relaties?.id);
+        formData.append("user_id", UserData?.user?.id);
+        formData.append("order_comment", trimmed);
+        formData.append("order_id", String(orderId));
+        if (qrData) {
+          formData.append("qr_data", JSON.stringify(qrData));
+        }
+        await appendDeviceMetaToFormData(formData);
 
-        if (trimmed) {
-          const formData: any = new FormData();
-          formData.append("token", UserData?.user?.verify_token);
-          formData.append("role", UserData?.user?.role);
-          formData.append("relaties_id", UserData?.relaties?.id);
-          formData.append("user_id", UserData?.user?.id);
-          formData.append("order_comment", trimmed);
-          formData.append("order_id", String(orderId));
-          if (qrData) {
-            formData.append("qr_data", JSON.stringify(qrData));
-          }
-          await appendDeviceMetaToFormData(formData);
+        const res: any = await axios.post(
+          apiConstants.store_tms_comment,
+          formData,
+          {
+            headers: { "Content-Type": "multipart/form-data" },
+          },
+        );
 
-          const res: any = await axios.post(
-            apiConstants.store_tms_comment,
-            formData,
-            {
-              headers: { "Content-Type": "multipart/form-data" },
-            },
-          );
-
-          if (!Boolean(res?.data?.status)) {
-            setToast({
-              top: 45,
-              text: t(res?.data?.message) || t("Something went wrong"),
-              type: "error",
-              visible: true,
-            });
-            return;
-          }
-
-          const orderLogId = res?.data?.data?.order_log_id;
-          appendToLocalUploadQueue(setLocalImagesUploadbeforeData, {
-            order_id: orderId,
-            image_data: [...imageData],
-            item_id: itemId,
-            commentId: orderLogId ?? null,
-            qr_data: qrData ? JSON.stringify(qrData) : undefined,
+        if (!Boolean(res?.data?.status)) {
+          setToast({
+            top: 45,
+            text: t(res?.data?.message) || t("Something went wrong"),
+            type: "error",
+            visible: true,
           });
-
-        } else {
-          appendToLocalUploadQueue(setLocalImagesUploadbeforeData, {
-            order_id: orderId,
-            image_data: [...imageData],
-            item_id: itemId,
-            commentId: null,
-            qr_data: qrData ? JSON.stringify(qrData) : undefined,
-          });
-
+          return;
         }
 
-    setCommentVisible(false);
-    setDescription("");
-    setPhotos([]);
-    setKeyboardHeight(0);
-    setPickUpDataSave([]);
-    resetSession();
+        const orderLogId = res?.data?.data?.order_log_id;
+        const queued = appendToLocalUploadQueue(setLocalImagesUploadbeforeData, {
+          order_id: orderId,
+          image_data: [...imageData],
+          item_id: itemId,
+          commentId: orderLogId ?? null,
+          qr_data: qrData ? JSON.stringify(qrData) : undefined,
+          ...(isDamagePhotos
+            ? {
+                folder: buildDropboxDamageFolder(orderId),
+                source: "damage_photos",
+                type: route?.params?.type || "damage_photos",
+              }
+            : {}),
+        });
+
+        if (!queued) {
+          setToast({
+            top: 45,
+            text: t("Something went wrong"),
+            type: "error",
+            visible: true,
+          });
+          return;
+        }
+
+        setCommentVisible(false);
+        setDescription("");
+        setPhotos([]);
+        setKeyboardHeight(0);
+        setPickUpDataSave([]);
+        resetSession();
+        if (isDamagePhotos) {
+          setToast({
+            top: 45,
+            text: t("Damage photos saved"),
+            type: "success",
+            visible: true,
+          });
+          goBackOrPopTo(navigation, "BottomTabs");
+        }
       } catch (error) {
         setToast({
           top: 45,
@@ -402,6 +430,9 @@ export default function DriverPhotosScanner({ route }: any) {
       selectPlace,
       qrData,
       UserData,
+      isDamagePhotos,
+      navigation,
+      route?.params?.type,
       setLocalImagesUploadbeforeData,
       setPickUpDataSave,
       setToast,
@@ -621,7 +652,9 @@ export default function DriverPhotosScanner({ route }: any) {
               activeOpacity={0.85}
               onPress={openCamera}
             >
-              <Text style={styles.orderPopupPhotosText}>{t("Photos")}</Text>
+              <Text style={styles.orderPopupPhotosText}>
+                {isDamagePhotos ? t("Damage photos") : t("Photos")}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -661,9 +694,7 @@ export default function DriverPhotosScanner({ route }: any) {
             ]}
           >
             <View style={styles.commentHeader}>
-              <Text style={styles.commentTitle}>
-                {t("Write Comment")} ({t("Optional")})
-              </Text>
+              <Text style={styles.commentTitle}>{t("Write Comment")}</Text>
               <TouchableOpacity
                 style={styles.commentClose}
                 onPress={() => {
@@ -693,7 +724,10 @@ export default function DriverPhotosScanner({ route }: any) {
             />
 
             <TouchableOpacity
-              style={styles.commentSubmit}
+              style={[
+                styles.commentSubmit,
+                !description.trim() && { opacity: 0.5 },
+              ]}
               disabled={commentLoader}
               onPress={() => {
                 Keyboard.dismiss();

@@ -13,6 +13,7 @@ export type LocalUploadQueueItem = {
   tracking_started_at?: number;
   picture_count?: number;
   source?: string;
+  type?: string;
   parcel_count?: number | null;
 };
 
@@ -50,6 +51,11 @@ export const buildDropboxOrderFolder = (
     String(orderId).trim().replace(/[\\/]+/g, "_") || "unknown";
   return `${formatDropboxDateFolder(date)}/${safeOrderId}`;
 };
+
+export const buildDropboxDamageFolder = (
+  orderId: string | number,
+  date?: Date | string | number | null,
+): string => `${buildDropboxOrderFolder(orderId, date)}/damage`;
 
 /** Positive finite id only — rejects null / NaN / 0 / junk. */
 export const toPositiveId = (value: unknown): number | null => {
@@ -133,11 +139,17 @@ export const resolveBoundDropboxFolder = (
   folder?: string | null,
 ): string => {
   const expected = buildDropboxOrderFolder(orderId);
+  const damageFolder = `${expected}/damage`;
   const raw = folder != null ? String(folder).trim() : "";
   if (!raw) return expected;
   const normalized = raw.replace(/^\/+|\/+$/g, "");
   const expectedNorm = expected.replace(/^\/+|\/+$/g, "");
-  if (normalized === expectedNorm || normalized.endsWith(`/${orderId}`)) {
+  if (
+    normalized === expectedNorm ||
+    normalized === damageFolder ||
+    normalized.endsWith(`/${orderId}`) ||
+    normalized.endsWith(`/${orderId}/damage`)
+  ) {
     return normalized;
   }
   return expected;
@@ -177,6 +189,7 @@ export const appendToLocalUploadQueue = (
     tracking_started_at: item.tracking_started_at ?? Date.now(),
     picture_count: item.picture_count ?? image_data.length,
     source: item.source ?? "queue",
+    type: item.type,
     parcel_count: item.parcel_count ?? null,
   };
 

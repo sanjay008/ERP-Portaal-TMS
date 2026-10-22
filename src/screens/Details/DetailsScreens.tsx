@@ -712,9 +712,15 @@ export default function DetailsScreens({ navigation, route }: any) {
       )
       .flatMap((el: any) => el.tmsimgdata)
       .map((img: any) => ({
+        ...img,
         uri: img?.shared_link
           ? getDirectDropboxLink(img.shared_link)
           : img?.uri ?? "",
+        isDamage:
+          Number(img?.is_damage) === 1 ||
+          String(img?.photo_type || img?.image_type || img?.folder || img?.shared_link || "")
+            .toLowerCase()
+            .includes("damage"),
       }))
       .filter((img: any) => img.uri !== "");
     // 
@@ -1294,6 +1300,7 @@ export default function DetailsScreens({ navigation, route }: any) {
                 const isVideo = isVideoUrl(uri);
 
                 return (
+                  <View style={{ width: 100, alignItems: "center" }}>
                   <View style={styles.Image}>
                     {uri ? (
                       isVideo ? (
@@ -1382,6 +1389,20 @@ export default function DetailsScreens({ navigation, route }: any) {
                         </Text>
                       </View>
                     )}
+                  </View>
+                  {item?.isDamage ? (
+                    <Text
+                      style={{
+                        marginTop: 4,
+                        fontSize: 11,
+                        fontFamily: FONTS.SemiBold,
+                        color: "#E24B4A",
+                        textAlign: "center",
+                      }}
+                    >
+                      {t("Damage")}
+                    </Text>
+                  ) : null}
                   </View>
                 );
               }}

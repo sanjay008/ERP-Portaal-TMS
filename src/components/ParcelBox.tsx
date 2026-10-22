@@ -55,6 +55,7 @@ export default function ParcelBox({
 }: Props) {
   const { t } = useTranslation();
   const { UserData, isGpsTracking, GloblyTypeSlide, setToast } = useContext(GlobalContextData);
+  const isWarehouseChange = GloblyTypeSlide === "warehouse_change";
   const isProductActionLocked = isProductActionLockedForRole(
     orderData,
     UserData?.user?.role,
@@ -258,6 +259,7 @@ const isCustomerCountryPrice = useCallback(
               style={[
                 styles.itemLable,
                 { backgroundColor: Colors.primary },
+                isWarehouseChange && styles.warehouseSwitchBtn,
                 isProductActionLocked && styles.disabledAction,
               ]}
               onPress={openProductModal}
@@ -267,7 +269,7 @@ const isCustomerCountryPrice = useCallback(
             >
               <Image
                 source={Images.ExchangeIcon}
-                style={{ width: 18, height: 18 }}
+                style={isWarehouseChange ? styles.warehouseSwitchIcon : { width: 18, height: 18 }}
                 tintColor={Colors.white}
               />
             </Pressable>
@@ -285,6 +287,7 @@ const isCustomerCountryPrice = useCallback(
               />
             </View>
           )}
+          {!isWarehouseChange && (
           <View
             style={[
               styles.Status,
@@ -302,6 +305,7 @@ const isCustomerCountryPrice = useCallback(
               transition={200}
             />
           </View>
+          )}
           {showManualVerify && (
             <View ref={manualVerifyRef} collapsable={false}>
               <Pressable
@@ -533,6 +537,15 @@ const styles = StyleSheet.create({
     borderRadius: 7,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  warehouseSwitchBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 8,
+  },
+  warehouseSwitchIcon: {
+    width: 24,
+    height: 24,
   },
   ManualVerifyBtn: {
     width: 30,

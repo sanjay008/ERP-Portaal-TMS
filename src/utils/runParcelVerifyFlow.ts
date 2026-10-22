@@ -140,7 +140,8 @@ export async function runParcelVerifyFlow(
       region_id:deps?.selectRegionData?.id,
       qr_data: JSON.stringify(data ?? null),
       date:
-        deps.globlyTypeSlide === 'outbound_scan'
+        deps.globlyTypeSlide === 'outbound_scan' ||
+        slideType === 'additional_address'
           ? ApiFormatDate(new Date())
           : ApiFormatDate(deps.selectCurrentDate),
       type: slideType,

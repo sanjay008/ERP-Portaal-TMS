@@ -1,5 +1,6 @@
 import LayoutHeader from "@/src/components/_LayoutHeader";
 import { StoreInAppUpdateGate } from "@/src/components/StoreUpdatePopup";
+import ApiInspector from "@/src/dev/ApiInspector";
 import GlobalContext from "@/src/context/GlobalContext";
 import { ParcelVerifySessionProvider } from "@/src/context/ParcelVerifySessionContext";
 import DropboxProvider from "@/src/context/UploadProider";
@@ -70,6 +71,7 @@ export default function RootLayout() {
                   }}
                 />
                 <StoreInAppUpdateGate />
+                <ApiInspector />
               </LayoutHeader>
             </ParcelVerifySessionProvider>
           </GlobalContext>

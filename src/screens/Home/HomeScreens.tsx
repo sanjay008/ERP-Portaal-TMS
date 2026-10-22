@@ -324,7 +324,10 @@ export default function HomeScreens({ navigation, route }: any) {
       const navigateToSlide = () => {
         setGloblyTypeSlide(slideItem?.type);
         setGloblySlideTitle(slideItem?.item_title || "");
-        if (slideItem?.type == "outbound_scan") {
+        if (
+          slideItem?.type == "outbound_scan" ||
+          slideItem?.type == "additional_address"
+        ) {
           navigation.navigate("Scanner", { item: slideItem });
         } else if (slideItem?.type == REJECTION_SLIDE_TYPE) {
           setGloblyTypeSlide(REJECTION_SLIDE_TYPE);
@@ -333,9 +336,12 @@ export default function HomeScreens({ navigation, route }: any) {
             item: slideItem,
             type: REJECTION_SLIDE_TYPE,
           });
-        } else if (slideItem?.type == "driver_photos") {
+        } else if (
+          slideItem?.type == "driver_photos" ||
+          slideItem?.type == "damage_photos"
+        ) {
           navigation.navigate("DriverPhotosScanner", {
-            type: "driver_photos",
+            type: slideItem.type,
             item: slideItem,
           });
         } else if (slideItem?.type == "AllOrder") {
@@ -349,8 +355,10 @@ export default function HomeScreens({ navigation, route }: any) {
 
       const locationRequiredTypes = [
         "outbound_scan",
+        "additional_address",
         REJECTION_SLIDE_TYPE,
         "driver_photos",
+        "damage_photos",
         "AllOrder",
         "warehouse_change",
       ];
