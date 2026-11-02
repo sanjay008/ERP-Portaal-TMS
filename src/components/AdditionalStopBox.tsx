@@ -80,8 +80,9 @@ export default function AdditionalStopBox({ item, index = 0, onPress }: Props) {
     return start || end || null;
   }, [item?.time_start, item?.time_end]);
 
-  const driverNote = item?.driver_note?.trim() || '';
-  const driverMessage = item?.driver_message?.trim() || '';
+  // AA banner: prefer driver_message; fall back to driver_note. Show only one.
+  const driverBannerText =
+    item?.driver_message?.trim() || item?.driver_note?.trim() || '';
 
   const address =
     item?.address?.trim() ||
@@ -198,15 +199,9 @@ export default function AdditionalStopBox({ item, index = 0, onPress }: Props) {
           </View>
         </View>
 
-        {!!driverNote && (
-          <View style={styles.noteBanner}>
-            <Text style={styles.messageText}>{driverNote}</Text>
-          </View>
-        )}
-
-        {!!driverMessage && (
+        {!!driverBannerText && (
           <View style={styles.messageBanner}>
-            <Text style={styles.messageText}>{driverMessage}</Text>
+            <Text style={styles.messageText}>{driverBannerText}</Text>
           </View>
         )}
 
@@ -352,12 +347,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: FONTS.Medium,
     color: Colors.darkText,
-  },
-  noteBanner: {
-    backgroundColor: '#595959',
-    borderRadius: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
   },
   messageBanner: {
     backgroundColor: Colors.black,
