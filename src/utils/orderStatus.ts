@@ -18,7 +18,7 @@ export function isProductActionLockedForRole(
 }
 
 export function isPickupOrder(order: any): boolean {
-  return getOrderStatusId(order) === 1 || getOrderStatusId(order) === 37 || getOrderStatusId(order) === 42;
+  return getOrderStatusId(order) === 1 || getOrderStatusId(order) === 37 || getOrderStatusId(order) === 42 || getOrderStatusId(order) === 60;
 }
 
 export function isDeliveryOrder(order: any): boolean {

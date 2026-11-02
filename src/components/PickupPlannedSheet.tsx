@@ -1,5 +1,6 @@
 import PickUpBox from '@/src/components/PickUpBox';
 import { Colors } from '@/src/utils/colors';
+import { isReadyForPickupSlide } from '@/src/utils/pickupPlanned';
 import { FONTS } from '@/src/utils/storeData';
 import React, { useContext, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -28,6 +29,7 @@ type Props = {
   orderData: any;
   scanItemId?: number | string | null;
   loading?: boolean;
+  errorMessage?: string | null;
   onPickupWithPhoto: () => void;
   onCancelAndNewScan: () => void;
   onCancelPickup: () => void;
@@ -38,6 +40,7 @@ export default function PickupPlannedSheet({
   visible,
   orderData,
   loading = false,
+  errorMessage = null,
   onPickupWithPhoto,
   onCancelAndNewScan,
   onCancelPickup,
@@ -47,10 +50,10 @@ export default function PickupPlannedSheet({
   const insets = useSafeAreaInsets();
   const progress = useSharedValue(0);
   const [mounted, setMounted] = useState(false);
-  const {
-    GloblyTypeSlide,
-    setGloblyTypeSlide,
-  } = useContext(GlobalContextData);
+  const { GloblyTypeSlide } = useContext(GlobalContextData);
+  const isReadyForPickup = isReadyForPickupSlide(GloblyTypeSlide, GloblyTypeSlide);
+  const hasError = Boolean(errorMessage);
+
   useEffect(() => {
     if (visible) {
       setMounted(true);
@@ -126,20 +129,29 @@ export default function PickupPlannedSheet({
             external_order_id={orderData?.external_order_id}
             statusData={orderData?.tmsstatus}
             contact={true}
+            is_whatsapp_btn={!isReadyForPickup}
           />
 
+          {hasError ? (
+            <View style={styles.errorBox}>
+              <Text style={styles.errorText}>{errorMessage}</Text>
+            </View>
+          ) : null}
+
           <View style={styles.actions}>
-            <Pressable
-              style={({ pressed }) => [
-                styles.actionBtn,
-                styles.btnBlack,
-                { opacity: pressed || loading ? 0.85 : 1 },
-              ]}
-              onPress={onPickupWithPhoto}
-              disabled={loading}
-            >
-              <Text style={styles.btnTextLight}>{t('Pickup with photo')}</Text>
-            </Pressable>
+            {!hasError ? (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.actionBtn,
+                  styles.btnBlack,
+                  { opacity: pressed || loading ? 0.85 : 1 },
+                ]}
+                onPress={onPickupWithPhoto}
+                disabled={loading}
+              >
+                <Text style={[styles.btnTextLight]}>{isReadyForPickup ? t('Ready met foto') :t('pickup with photo')}</Text>
+              </Pressable>
+            ) : null}
 
             <Pressable
               style={({ pressed }) => [
@@ -162,27 +174,12 @@ export default function PickupPlannedSheet({
               onPress={onCancelPickup}
               disabled={loading}
             >
-             
-              <Text style={styles.btnTextDark}>{t('Back to menu')}</Text>
-              
+              <Text style={styles.btnTextDark}>
+                {isReadyForPickup ? t('Go to menu') : t('Back to menu')}
+              </Text>
             </Pressable>
-            {/* <Pressable
-              style={({ pressed }) => [
-                styles.actionBtn,
-                styles.btnGrey,
-                { opacity: pressed || loading ? 0.85 : 1 },
-              ]}
-              onPress={onCancelPickup}
-              disabled={loading}
-            >
-              {
-                GloblyTypeSlide == "additional_address" ?
-                <Text style={styles.btnTextDark}>{t('Stop')}</Text>
-                :
-              <Text style={styles.btnTextDark}>{t('Cancel this pickup')}</Text>
-              }
-            </Pressable> */}
-           
+
+            {!hasError ? (
               <Pressable
                 style={({ pressed }) => [
                   styles.actionBtn,
@@ -195,10 +192,10 @@ export default function PickupPlannedSheet({
                 {loading ? (
                   <ActivityIndicator color={Colors.white} />
                 ) : (
-                  <Text style={styles.btnTextLight}>{t('Pickup & next scan')}</Text>
+                  <Text style={styles.btnTextLight}>{isReadyForPickup ? t('Ready volgende scan') :t('pickup & next scan')}</Text>
                 )}
               </Pressable>
-          
+            ) : null}
           </View>
         </ScrollView>
       </Animated.View>
@@ -220,6 +217,21 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 15,
     paddingBottom: 8,
+  },
+  errorBox: {
+    marginTop: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderRadius: 7,
+    backgroundColor: Colors.diclinelite,
+    borderWidth: 1,
+    borderColor: Colors.red,
+  },
+  errorText: {
+    color: Colors.red,
+    fontSize: 14,
+    fontFamily: FONTS.Medium,
+    textAlign: 'center',
   },
   actions: {
     marginTop: 16,

@@ -32,7 +32,7 @@ type ArrayProps = {
 };
 
 const ITEM_HEIGHT = 64;
-const HEADER_HEIGHT = 90;
+const HEADER_HEIGHT = 120;
 
 type AnimatedProfileRowProps = {
   item: ArrayProps;
@@ -110,11 +110,17 @@ function AnimatedProfileHeader({
   });
 
   return (
-    <Animated.View style={[styles.SimpleFlex, animatedStyle]}>
-      <ProfileImageViewer imageUri={imageUri} />
-      <View style={{ gap: 5 }}>
-        <Text style={styles.Text}>{username}</Text>
-        <Text style={styles.darkText}>{companyName}</Text>
+    <Animated.View style={[styles.ProfileHeader, animatedStyle]}>
+      <ProfileImageViewer imageUri={imageUri} size={78} showRing />
+      <View style={styles.ProfileMeta}>
+        <Text style={styles.ProfileName} numberOfLines={1}>
+          {username}
+        </Text>
+        {!!companyName && (
+          <Text style={styles.ProfileCompany} numberOfLines={1}>
+            {String(companyName)}
+          </Text>
+        )}
       </View>
     </Animated.View>
   );
@@ -277,11 +283,7 @@ export default function Profile({ navigation }: any) {
       Background: Colors.primary,
       Icon: Images.Phone,
       Title: t("Contact Us"),
-      onPress: () =>
-        navigation.navigate("WebViewScreeens", {
-          title: "Contact Us",
-          url: "",
-        }),
+      onPress: () => navigation.navigate("ContactUs"),
     },
     {
       id: 5,

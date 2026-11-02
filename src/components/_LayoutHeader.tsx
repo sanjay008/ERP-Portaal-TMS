@@ -20,6 +20,7 @@ export default function LayoutHeader({ children }: LayoutHeaderProps) {
         visible={Toast.visible}
         text={Toast.text}
         top={Toast.top}
+        bottom={Toast.bottom}
       />
       <ToastAnimated />
       {children}

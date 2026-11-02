@@ -1,4 +1,5 @@
 import BottomTabs from "@/src/bottomTabs/BottomTabs";
+import ApiInspector from "@/src/dev/ApiInspector";
 import AccountSwitcherGate from "@/src/components/AccountSwitcherGate";
 import AdminBaseUrlGate from "@/src/components/AdminBaseUrlGate";
 import LayoutHeader from "@/src/components/_LayoutHeader";
@@ -37,6 +38,7 @@ import SplashScreens from "@/src/screens/SplashScreens/SplashScreens";
 import i18n from "@/src/screens/Translation/i18n";
 import DocumentUploadScreen from "@/src/screens/UploadDocuments/DocumentUploadScreen";
 import UploadDocumentsScreen from "@/src/screens/UploadDocuments/UploadDocumentsScreen";
+import ContactUsScreen from "@/src/screens/ContactUs/ContactUsScreen";
 import WebViewScreeens from "@/src/screens/WebView/WebViewScreeens";
 import { Colors } from "@/src/utils/colors";
 import NetInfo from "@react-native-community/netinfo";
@@ -122,6 +124,7 @@ const DriverProfileWithHeader = withLayoutHeader(DriverProfileScreen);
 const DocumentUploadWithHeader = withLayoutHeader(DocumentUploadScreen);
 const DeliveryWithHeader = withLayoutHeader(DeliveryScreens);
 const WebViewWithHeader = withLayoutHeader(WebViewScreeens);
+const ContactUsWithHeader = withLayoutHeader(ContactUsScreen);
 const HomeWithHeader = withLayoutHeader(HomeScreens);
 const FilterScreenWithHeader = withLayoutHeader(FilterScreen);
 const CameraWithHeader = withLayoutHeader(CustomCamera);
@@ -296,6 +299,10 @@ export default function index() {
                   component={WebViewWithHeader}
                 />
                 <Stack.Screen
+                  name="ContactUs"
+                  component={ContactUsWithHeader}
+                />
+                <Stack.Screen
                   name="Home"
                   component={HomeWithHeader}
                 />
@@ -327,6 +334,7 @@ export default function index() {
                 <OfflineStack.Screen name="NoInternet" component={NoInternet} />
               </OfflineStack.Navigator>
             )}
+            <ApiInspector />
             </View>
             </AccountSwitcherGate>
             </AdminBaseUrlGate>

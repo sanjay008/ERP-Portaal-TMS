@@ -2,7 +2,6 @@ import apiConstants from "@/src/api/apiConstants";
 import { Images } from "@/src/assets/images";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
 import LoadingModal from "@/src/components/LoadingModal";
-import PickUpBox from "@/src/components/PickUpBox";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import { setLatestPickupCameraSetData } from "@/src/context/ParcelVerifySessionContext";
 import { DropboxContext } from "@/src/context/UploadProider";
@@ -29,7 +28,6 @@ import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Keyboard,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -40,8 +38,8 @@ import Modal from "react-native-modal";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 /**
- * Driver Photos only:
- * scan / manual entry → order PickUpBox → Cancel / Photos → min 3 photos → required comment → save.
+ * driver_photos / damage_photos only:
+ * scan / manual entry → camera (min 3) → required comment → menu.
  */
 export default function DriverPhotosScanner({ route }: any) {
   const navigation = useNavigation<any>();
@@ -58,13 +56,11 @@ export default function DriverPhotosScanner({ route }: any) {
   const [flashEnabled, setFlashEnabled] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [orderData, setOrderData] = useState<any>(null);
   const [selectPlace, setSelectPlace] = useState<{
     order_id: string | number;
     item_id: string | number | null;
   } | null>(null);
   const [qrData, setQrData] = useState<any>(null);
-  const [infoVisible, setInfoVisible] = useState(false);
   const [photos, setPhotos] = useState<any[]>([]);
   const [commentVisible, setCommentVisible] = useState(false);
   const [description, setDescription] = useState("");
@@ -120,9 +116,7 @@ export default function DriverPhotosScanner({ route }: any) {
   }, [isFocused, unlockScanner]);
 
   const resetSession = useCallback(() => {
-    setInfoVisible(false);
     setCommentVisible(false);
-    setOrderData(null);
     setSelectPlace(null);
     setQrData(null);
     setPhotos([]);
@@ -131,6 +125,32 @@ export default function DriverPhotosScanner({ route }: any) {
     itemIdRef.current = null;
     unlockScanner();
   }, [unlockScanner]);
+
+  const openCamera = useCallback(() => {
+    const orderId = orderIdRef.current;
+    if (orderId == null) return;
+
+    lockParcelCameraCallback();
+    const setData = async (media: any[]) => {
+      try {
+        if (media?.length > 0) {
+          setPhotos(media);
+          setCommentVisible(true);
+        } else {
+          unlockScanner();
+        }
+      } finally {
+        unlockParcelCameraCallback();
+      }
+    };
+    setLatestPickupCameraSetData(setData);
+    setPickUpDataSave({ setData });
+    navigation.navigate("Camera", {
+      from: "Pickup",
+      minPhotos: 3,
+      photoOnly: true,
+    });
+  }, [navigation, setPickUpDataSave, unlockScanner]);
 
   const fetchOrderById = useCallback(
     async (orderId: string | number, itemId: string | number | null, parsed: any) => {
@@ -149,11 +169,10 @@ export default function DriverPhotosScanner({ route }: any) {
         });
 
         if (res?.status) {
-          setOrderData(res?.data);
           setSelectPlace({ order_id: orderId, item_id: itemId });
           orderIdRef.current = orderId;
           itemIdRef.current = itemId;
-          setInfoVisible(true);
+          openCamera();
           return true;
         }
 
@@ -178,7 +197,15 @@ export default function DriverPhotosScanner({ route }: any) {
         setIsLoading(false);
       }
     },
-    [UserData, route?.params?.type, setToast, t, ErrorHandle, unlockScanner],
+    [
+      UserData,
+      route?.params?.type,
+      setToast,
+      t,
+      ErrorHandle,
+      unlockScanner,
+      openCamera,
+    ],
   );
 
   const onBarcodeScanned = useCallback(
@@ -187,7 +214,6 @@ export default function DriverPhotosScanner({ route }: any) {
         !data ||
         !cameraReady ||
         isScanningRef.current ||
-        infoVisible ||
         commentVisible ||
         manualEntryOpen ||
         !isFocused
@@ -231,7 +257,6 @@ export default function DriverPhotosScanner({ route }: any) {
     },
     [
       cameraReady,
-      infoVisible,
       commentVisible,
       manualEntryOpen,
       isFocused,
@@ -278,33 +303,6 @@ export default function DriverPhotosScanner({ route }: any) {
     setToast,
     t,
   ]);
-
-  const openCamera = useCallback(() => {
-    const orderId = orderIdRef.current;
-    if (orderId == null) return;
-
-    setInfoVisible(false);
-    lockParcelCameraCallback();
-    const setData = async (media: any[]) => {
-      try {
-        if (media?.length > 0) {
-          setPhotos(media);
-          setCommentVisible(true);
-        } else {
-          unlockScanner();
-        }
-      } finally {
-        unlockParcelCameraCallback();
-      }
-    };
-    setLatestPickupCameraSetData(setData);
-    setPickUpDataSave({ setData });
-    navigation.navigate("Camera", {
-      from: "Pickup",
-      minPhotos: 3,
-      photoOnly: true,
-    });
-  }, [navigation, setPickUpDataSave, unlockScanner]);
 
   const savePhotosAndComment = useCallback(
     async (commentText: string) => {
@@ -406,15 +404,15 @@ export default function DriverPhotosScanner({ route }: any) {
         setKeyboardHeight(0);
         setPickUpDataSave([]);
         resetSession();
-        if (isDamagePhotos) {
-          setToast({
-            top: 45,
-            text: t("Damage photos saved"),
-            type: "success",
-            visible: true,
-          });
-          goBackOrPopTo(navigation, "BottomTabs");
-        }
+        setToast({
+          top: 45,
+          text: isDamagePhotos
+            ? t("Damage photos saved")
+            : t("Photos saved"),
+          type: "success",
+          visible: true,
+        });
+        goBackOrPopTo(navigation, "BottomTabs");
       } catch (error) {
         setToast({
           top: 45,
@@ -461,7 +459,7 @@ export default function DriverPhotosScanner({ route }: any) {
 
   return (
     <View style={styles.container}>
-      {isFocused && !infoVisible && !commentVisible && (
+      {isFocused && !commentVisible && (
         <CameraView
           style={StyleSheet.absoluteFill}
           facing="back"
@@ -512,7 +510,7 @@ export default function DriverPhotosScanner({ route }: any) {
         </TouchableOpacity>
       </View>
 
-      {manualEntryOpen && !infoVisible && !commentVisible ? (
+      {manualEntryOpen && !commentVisible ? (
         <View
           style={[
             styles.manualEntryPanel,
@@ -589,76 +587,6 @@ export default function DriverPhotosScanner({ route }: any) {
           </TouchableOpacity>
         </View>
       ) : null}
-
-      <Modal
-        isVisible={infoVisible}
-        animationIn="slideInUp"
-        animationOut="slideOutDown"
-        style={{ margin: 0, justifyContent: "flex-end" }}
-        onBackdropPress={() => {
-          setInfoVisible(false);
-          unlockScanner();
-        }}
-        onBackButtonPress={() => {
-          setInfoVisible(false);
-          unlockScanner();
-        }}
-        useNativeDriver={false}
-        hideModalContentWhileAnimating
-      >
-        <View style={[styles.orderPopup, { paddingBottom: Math.max(bottom, 16) + 8 }]}>
-          <ScrollView
-            bounces={false}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 12 }}
-          >
-            {orderData ? (
-              <PickUpBox
-                AllisCollapsed={true}
-                downButton={true}
-                index={0}
-                LableStatus={orderData?.tmsstatus?.status_name}
-                OrderId={orderData?.id || selectPlace?.order_id}
-                ProductItem={orderData?.items || []}
-                driver_note={orderData?.driver_note || null}
-                LableBackground={orderData?.tmsstatus?.color}
-                start={orderData?.pickup_location}
-                end={orderData?.deliver_location}
-                ItemData={orderData}
-                additional_cost_label={orderData?.additional_cost_label}
-                customerData={orderData?.customer}
-                external_platform_data={orderData?.display_name}
-                external_order_id={orderData?.external_order_id}
-                statusData={orderData?.tmsstatus}
-                LacationProgress={true}
-                contact={false}
-              />
-            ) : null}
-          </ScrollView>
-
-          <View style={styles.orderPopupActions}>
-            <TouchableOpacity
-              style={[styles.orderPopupBtn, styles.orderPopupCancel]}
-              activeOpacity={0.85}
-              onPress={() => {
-                setInfoVisible(false);
-                unlockScanner();
-              }}
-            >
-              <Text style={styles.orderPopupCancelText}>{t("Cancel")}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.orderPopupBtn, styles.orderPopupPhotos]}
-              activeOpacity={0.85}
-              onPress={openCamera}
-            >
-              <Text style={styles.orderPopupPhotosText}>
-                {isDamagePhotos ? t("Damage photos") : t("Photos")}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
 
       <Modal
         isVisible={commentVisible}
@@ -879,42 +807,6 @@ const styles = StyleSheet.create({
   manualEntrySubmitText: {
     fontSize: 14,
     fontFamily: FONTS.Medium,
-    color: Colors.white,
-  },
-  orderPopup: {
-    maxHeight: height * 0.85,
-    backgroundColor: Colors.background,
-    borderTopLeftRadius: 14,
-    borderTopRightRadius: 14,
-    paddingHorizontal: 15,
-    paddingTop: 15,
-  },
-  orderPopupActions: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 12,
-  },
-  orderPopupBtn: {
-    flex: 1,
-    height: 48,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  orderPopupCancel: {
-    backgroundColor: Colors.Boxgray,
-  },
-  orderPopupPhotos: {
-    backgroundColor: Colors.primary,
-  },
-  orderPopupCancelText: {
-    fontFamily: FONTS.SemiBold,
-    fontSize: 14,
-    color: Colors.black,
-  },
-  orderPopupPhotosText: {
-    fontFamily: FONTS.SemiBold,
-    fontSize: 14,
     color: Colors.white,
   },
   commentOverlay: {

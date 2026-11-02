@@ -12,7 +12,8 @@
     "apk-OTA": "npx eas update --branch preview --message 'Test update'",
     "prod:OTA": "npx eas update --branch production --message 'Production update'",
     "build:preview": "npx eas build --profile preview --platform android",
-    "build:prod": "npx eas build --profile production --platform android"
+    "build:prod": "npx eas build --profile production --platform android",
+    "full-ota": "node scripts/ota-production.js"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

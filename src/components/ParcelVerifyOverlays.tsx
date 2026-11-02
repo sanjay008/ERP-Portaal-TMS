@@ -4,6 +4,7 @@ import LoadingModal from '@/src/components/LoadingModal';
 import ParcelVerifyCommentModal from '@/src/components/ParcelVerifyCommentModal';
 import PickupPlannedSheet from '@/src/components/PickupPlannedSheet';
 import ScannerInfoModal from '@/src/components/ScannerInfoModal';
+import VerifyErrorSheet from '@/src/components/VerifyErrorSheet';
 import SecondCustomModal from '@/src/components/SecondCustomModal';
 import SignatureModal from '@/src/components/SignatureModal';
 import { Colors } from '@/src/utils/colors';
@@ -44,10 +45,17 @@ export default function ParcelVerifyOverlays({ flow, navigation }: Props) {
         orderData={flow.pickupPlannedSheetOpen.orderData}
         scanItemId={flow.pickupPlannedSheetOpen.scanPayload?.item_id}
         loading={flow.isLoading}
+        errorMessage={flow.pickupPlannedSheetOpen.errorMessage}
         onPickupWithPhoto={flow.handlePickupWithPhoto}
         onCancelAndNewScan={flow.closePickupPlannedSheet}
         onCancelPickup={flow.closePickupPlannedSheet}
         onPickupNextScan={flow.handlePickupNextScan}
+      />
+
+      <VerifyErrorSheet
+        visible={flow.verifyErrorSheet.visible}
+        message={flow.verifyErrorSheet.message}
+        onClose={flow.closeVerifyErrorSheet}
       />
 
       <ScannerInfoModal

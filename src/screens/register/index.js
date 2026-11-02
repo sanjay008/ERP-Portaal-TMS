@@ -6,12 +6,13 @@ import {
   Alert,
   Dimensions,
   Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
   StatusBar,
   Text,
-  TextInput,
   View,
 } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { RFValue } from "react-native-responsive-fontsize";
 import { SafeAreaView } from "react-native-safe-area-context";
 import MyCountryPiker from "../../components/CountryPicker";
@@ -20,7 +21,6 @@ import { Images } from "../../assets/images";
 import ButtonComponent from "../../components/buttonComponent.tsx";
 import { useErrorHandle } from "../../components/ErrorHandle";
 import Input from "../../components/input";
-import Loader from "../../components/loading";
 import ToastMessage from "../../components/ToastMessage";
 import ApiService from "../../utils/Apiservice";
 import { Colors } from "../../utils/colors";
@@ -80,18 +80,17 @@ const Register = ({ navigation, route }) => {
   };
 
   const onRegisterCompany = async () => {
-    setLoding(true);
+    if (loading) return;
     if (commpny?.trim() === "") {
       setCompnyError(t("Voer bedrijfsnaam in"));
-      setLoding(false);
       return;
     }
+    setLoding(true);
     try {
       const data = await ApiService(apiConstants.companyLogin, {
         customData: { company_login: commpny?.trim() },
       });
       if (data?.status) {
-        console.log("Company Data:", data);
         setAccessToken(data?.data?.default_company?.company_api_dropbox_access_token || "");
         setRefreshToken(data?.data?.default_company?.company_api_dropbox_refresh_token || "");
         setClientId(data?.data?.default_company?.company_api_dropbox_client_id || "");
@@ -107,27 +106,25 @@ const Register = ({ navigation, route }) => {
         storeData("GOOGLE_API_KEY", googleKey);
         setcompanylogo(logoUrl);
         setLogo(logoUrl);
-        setTimeout(() => {
-          setLoding(false);
-          setComplate(true);
-        }, 1000);
+        setComplate(true);
+        setLoding(false);
       } else {
         setLoding(false);
         setCompnyError(t("Voer een geldige bedrijfsnaam in"));
       }
     } catch (err) {
       console.log("Error fetching connections:", err);
-      setTimeout(() => setLoding(false), 1000);
+      setLoding(false);
     }
   };
 
   const onRegisterNumber = async () => {
-    setLoding(true);
+    if (loading) return;
     if (number.trim() === "") {
       setNumbererror(t("Voer nummer in"));
-      setLoding(false);
       return;
     }
+    setLoding(true);
     try {
       const company = await getData("COMPANYLOGIN");
       const data = await ApiService(apiConstants.register, {
@@ -139,28 +136,27 @@ const Register = ({ navigation, route }) => {
       });
       if (data.status) {
         storeData("USERDATA", data);
-        setTimeout(() => {
-          setLoding(false);
-          navigation.navigate("Otp", {
-            register: "true",
-            logo: logo,
-            userId: data.data.id,
-            verify_token: data.data.verify_token,
-          });
-        }, 1000);
+        setLoding(false);
+        navigation.navigate("Otp", {
+          register: "true",
+          logo: logo,
+          userId: data.data.id,
+          verify_token: data.data.verify_token,
+        });
       } else {
-        setTimeout(() => setLoding(false), 1000);
+        setLoding(false);
         Alert.alert("Oops!", data.message, [
           { text: "OK", onPress: () => console.log("OK Pressed") },
         ]);
       }
     } catch (err) {
       console.log("Error fetching connections:", err);
-      setTimeout(() => setLoding(false), 1000);
+      setLoding(false);
     }
   };
 
   const onLogin = async () => {
+    if (loading) return;
     if (showEmail) {
       if (email.trim() === "") {
         setEmailError(t("Voer e-mailadres in"));
@@ -179,13 +175,10 @@ const Register = ({ navigation, route }) => {
 
     setLoding(true);
     try {
-
       const company = await getData("COMPANYLOGIN");
-
       const payload = {
         company_login: company,
         country_code: countryCode,
-
         ...(showEmail
           ? { email: email.trim(), whatsapp_number: "" }
           : { whatsapp_number: number.trim(), email: "" }),
@@ -197,8 +190,8 @@ const Register = ({ navigation, route }) => {
 
       if (data?.status) {
         await storeData("USERDATA", data);
+        setLoding(false);
         if (data?.data?.user?.enable_2fa == 1) {
-          setTimeout(() => setLoding(false), 1000);
           navigation.navigate("Otp", {
             login: "true",
             logo: logo,
@@ -206,7 +199,6 @@ const Register = ({ navigation, route }) => {
             userId: data?.data?.user?.id,
           });
         } else if (data?.data?.user?.enable_2fa == 0) {
-          setTimeout(() => setLoding(false), 1000);
           navigation.navigate("Password", {
             logo: logo,
             verify_token: data?.data?.user?.verify_token,
@@ -215,12 +207,11 @@ const Register = ({ navigation, route }) => {
             number: data?.data?.user?.whatsapp_number,
           });
         } else {
-          setTimeout(() => setLoding(false), 1000);
           storeData("AUTH", true);
           navigation.replace("BottomTabs");
         }
       } else {
-        setTimeout(() => setLoding(false), 1000);
+        setLoding(false);
         setToast({
           top: 45,
           text:
@@ -233,7 +224,7 @@ const Register = ({ navigation, route }) => {
       }
     } catch (err) {
       console.log("Error fetching connections:", err);
-      setTimeout(() => setLoding(false), 1000);
+      setLoding(false);
       setToast({
         top: 45,
         text: ErrorHandle(err).message,
@@ -252,140 +243,148 @@ const Register = ({ navigation, route }) => {
         text={Toast?.text}
         top={Toast?.top}
       />
-      {loading && <Loader color={Colors.pink} />}
-      <KeyboardAwareScrollView
-        bounces={false}
-        enableOnAndroid
-        nestedScrollEnabled
-        scrollEnabled={!countryPickerOpen}
-        extraScrollHeight={100}
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAvoidingView
         style={styles.subContainer}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={0}
       >
-        <Image
-          resizeMode="contain"
-          source={logo ? { uri: logo } : Images.logo}
-          style={[
-            styles.logo,
-            {
-              width: logo ? width * 0.7 : 260,
-              height: logo ? RFValue(50) : 25,
-            },
-          ]}
-        />
-        <View style={styles.container}>
-          <Text style={styles.wellcome}>{t("Welkom bij ERP TMS Driver")}</Text>
-          <Text style={styles.dis}>
-            {t("Smart Solutions for Modern Businesses")}
-          </Text>
+        <ScrollView
+          bounces={false}
+          keyboardShouldPersistTaps="handled"
+          scrollEnabled={!countryPickerOpen}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ flexGrow: 1 }}
+        >
+          <Image
+            resizeMode="contain"
+            source={logo ? { uri: logo } : Images.logo}
+            style={[
+              styles.logo,
+              {
+                width: logo ? width * 0.7 : 260,
+                height: logo ? RFValue(50) : 25,
+              },
+            ]}
+          />
+          <View style={styles.container}>
+            <Text style={styles.wellcome}>{t("Welkom bij ERP TMS Driver")}</Text>
+            <Text style={styles.dis}>
+              {t("Smart Solutions for Modern Businesses")}
+            </Text>
 
-          {complate == true && typee === "Register" && (
-            <>
-              <Text style={[styles.title, { alignSelf: "flex-start" }]}>{t("WhatsApp nummer")}</Text>
-              <View style={styles.country}>
-                <MyCountryPiker
-                  value={number}
-                  setValue={handleTextChange}
-                  countryCode={countryCode}
-                  onSelect={selectedValue}
-                  onOpenChange={setCountryPickerOpen}
-                  placeholder={t("Enter phone number")}
-                  ContainerStyle={{ flex: 1, width: '100%' }}
-                />
-              </View>
-              <Text style={styles.error}>{numbererror}</Text>
-            </>
-          )}
-
-          <>
-            {complate == false ? (
-              <Input
-                value={commpny}
-                onChangeText={(txt) => { setcommpny(txt); setCompnyError(""); }}
-                title={t("company")}
-                error={CompnyError}
-                iconSource={Images.company}
-                autoCapitalize="none"
-                keyboardType="default"
-                required
-              />
-            ) : (
+            {complate == true && typee === "Register" && (
               <>
-                {typee === "Login" && showWhatsApp && !showEmail && (
-                  <>
-                    <Text style={[styles.title, { alignSelf: "flex-start" }]}>{t("WhatsApp nummer")}</Text>
-                    <View style={styles.country}>
-                      <MyCountryPiker
-                        value={number}
-                        setValue={handleTextChange}
-                        countryCode={countryCode}
-                        onSelect={selectedValue}
-                        onOpenChange={setCountryPickerOpen}
-                        placeholder={t("Enter phone number")}
-                        ContainerStyle={{ flex: 1, width: '100%' }}
-                      />
-                    </View>
-                    <Text style={[styles.error, { textAlign: 'center' }]}>{numbererror}</Text>
-                  </>
-                )}
-
-                {typee === "Login" && showEmail && !showWhatsApp && (
-                  <Input
-                    value={email}
-                    onChangeText={(txt) => { setEmail(txt); setEmailError(""); }}
-                    title={"E-mail"}
-                    iconSource={Images.mail}
-                    error={emailError}
+                <Text style={[styles.title, { alignSelf: "flex-start" }]}>{t("WhatsApp nummer")}</Text>
+                <View style={styles.country}>
+                  <MyCountryPiker
+                    value={number}
+                    setValue={handleTextChange}
+                    countryCode={countryCode}
+                    onSelect={selectedValue}
+                    onOpenChange={setCountryPickerOpen}
+                    placeholder={t("Enter phone number")}
+                    ContainerStyle={{ flex: 1, width: '100%' }}
                   />
-                )}
+                </View>
+                <Text style={styles.error}>{numbererror}</Text>
               </>
             )}
 
-            <ButtonComponent
-              onPress={() => {
-                if (complate == true) {
-                  if (typee == "Login") {
-                    onLogin();
-                  } else {
-                    onRegisterNumber();
-                  }
-                } else {
-                  onRegisterCompany();
-                }
-              }}
-              marginTop={RFValue(25)}
-              title={typee == "Login" ? t("Login") : t("Register")}
-            />
-          </>
-        </View>
+            <>
+              {complate == false ? (
+                <Input
+                  value={commpny}
+                  onChangeText={(txt) => { setcommpny(txt); setCompnyError(""); }}
+                  title={t("company")}
+                  error={CompnyError}
+                  iconSource={Images.company}
+                  autoCapitalize="none"
+                  keyboardType="default"
+                  required
+                />
+              ) : (
+                <>
+                  {typee === "Login" && showWhatsApp && !showEmail && (
+                    <>
+                      <Text style={[styles.title, { alignSelf: "flex-start" }]}>{t("WhatsApp nummer")}</Text>
+                      <View style={styles.country}>
+                        <MyCountryPiker
+                          value={number}
+                          setValue={handleTextChange}
+                          countryCode={countryCode}
+                          onSelect={selectedValue}
+                          onOpenChange={setCountryPickerOpen}
+                          placeholder={t("Enter phone number")}
+                          ContainerStyle={{ flex: 1, width: '100%' }}
+                        />
+                      </View>
+                      <Text style={[styles.error, { textAlign: 'center' }]}>{numbererror}</Text>
+                    </>
+                  )}
 
-        {typee === "Login" && complate == true && showWhatsApp && !showEmail && (
-          <Text
-            onPress={() => {
-              setShowEmail(true);
-              setShowWhatsapp(false);
-              setNumber("");
-              setNumbererror("");
-            }}
-            style={styles.loginwithemail}
-          >
-            {t("Login Met E-mail Adres")}
-          </Text>
-        )}
-        {typee === "Login" && complate == true && showEmail && (
-          <Text
-            onPress={() => {
-              setShowWhatsapp(true);
-              setShowEmail(false);
-              setEmail("");
-              setEmailError("");
-            }}
-            style={styles.loginwithphone}
-          >
-            {t("Login Met WhatsApp Nummer")}
-          </Text>
-        )}
-      </KeyboardAwareScrollView>
+                  {typee === "Login" && showEmail && !showWhatsApp && (
+                    <Input
+                      value={email}
+                      onChangeText={(txt) => { setEmail(txt); setEmailError(""); }}
+                      title={"E-mail"}
+                      iconSource={Images.mail}
+                      error={emailError}
+                    />
+                  )}
+                </>
+              )}
+
+              <ButtonComponent
+                onPress={() => {
+                  if (loading) return;
+                  if (complate == true) {
+                    if (typee == "Login") {
+                      onLogin();
+                    } else {
+                      onRegisterNumber();
+                    }
+                  } else {
+                    onRegisterCompany();
+                  }
+                }}
+                marginTop={RFValue(25)}
+                title={typee == "Login" ? t("Login") : t("Register")}
+                loading={loading}
+                disabled={loading}
+              />
+            </>
+          </View>
+
+          {typee === "Login" && complate == true && showWhatsApp && !showEmail && (
+            <Text
+              onPress={() => {
+                if (loading) return;
+                setShowEmail(true);
+                setShowWhatsapp(false);
+                setNumber("");
+                setNumbererror("");
+              }}
+              style={styles.loginwithemail}
+            >
+              {t("Login Met E-mail Adres")}
+            </Text>
+          )}
+          {typee === "Login" && complate == true && showEmail && (
+            <Text
+              onPress={() => {
+                if (loading) return;
+                setShowWhatsapp(true);
+                setShowEmail(false);
+                setEmail("");
+                setEmailError("");
+              }}
+              style={styles.loginwithphone}
+            >
+              {t("Login Met WhatsApp Nummer")}
+            </Text>
+          )}
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };

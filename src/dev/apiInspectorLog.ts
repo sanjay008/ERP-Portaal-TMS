@@ -1,5 +1,9 @@
 import axios from "axios";
 import { getApiBaseUrl } from "@/src/utils/apiBaseUrl";
+import {
+  readApiInspectorIdentity as readStoredIdentity,
+  shouldShowApiInspector,
+} from "@/src/dev/apiInspectorAccess";
 
 const MAX_ENTRIES = 5;
 const MAX_TEXT = 50000;
@@ -23,8 +27,6 @@ export type ApiLogEntry = {
   at: number;
 };
 
-const ALLOWED_PRODUCTION_USER_IDS = new Set(["719", "785"]);
-
 let identity: ApiInspectorIdentity | null = null;
 let entries: ApiLogEntry[] = [];
 const listeners = new Set<() => void>();
@@ -32,19 +34,13 @@ let installed = false;
 let seq = 0;
 
 export function readApiInspectorIdentity(raw: any): ApiInspectorIdentity {
-  const root = raw?.user ? raw : raw?.data?.user ? raw.data : raw?.data ?? raw;
-  return {
-    userId: root?.user?.id ?? root?.user_id ?? root?.id ?? null,
-    role: root?.user?.role ?? root?.role ?? null,
-    relatiesId: root?.relaties?.id ?? root?.relaties_id ?? null,
-  };
+  return readStoredIdentity(raw);
 }
 
 export function isApiInspectorAllowed(
   next: ApiInspectorIdentity | null = identity,
 ): boolean {
-  if (__DEV__) return true;
-  return ALLOWED_PRODUCTION_USER_IDS.has(String(next?.userId ?? ""));
+  return shouldShowApiInspector(next?.userId);
 }
 
 export function setApiInspectorIdentity(next: ApiInspectorIdentity | null): void {

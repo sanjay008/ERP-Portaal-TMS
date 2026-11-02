@@ -19,6 +19,7 @@ import {
 } from "@/src/screens/Rejection/rejectionSession";
 import ApiService from "@/src/utils/Apiservice";
 import { bootstrapAppDateTime } from "@/src/utils/appDateTime";
+import { getOtaVersionLine } from "@/src/utils/appVersionMeta";
 import { getChauffeurLocation } from "@/src/utils/chauffeurLocationCache";
 import { Colors } from "@/src/utils/colors";
 import {
@@ -38,8 +39,8 @@ import {
   isShiftActive,
   wipeShiftLocalData,
 } from "@/src/utils/shiftSession";
-import { getOtaVersionLine } from "@/src/utils/appVersionMeta";
 import { getData } from "@/src/utils/storeData";
+import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -55,31 +56,76 @@ import {
 } from "react-native";
 import { styles } from "./styles";
 
+const PREMIUM_HOME_USER_IDS = new Set(["785"]);
+
 const SlideItem = React.memo(
-  function SlideItem({ item, onPress }: { item: any; onPress: (item: any) => void }) {
+  function SlideItem({
+    item,
+    onPress,
+    premium,
+  }: {
+    item: any;
+    onPress: (item: any) => void;
+    premium: boolean;
+  }) {
     const { t } = useTranslation();
 
     const handlePress = useCallback(() => {
       onPress(item);
     }, [item, onPress]);
 
+    if (!premium) {
+      return (
+        <Pressable
+          style={[
+            styles.SlideContainer,
+            { backgroundColor: item?.color_code || Colors.Boxgray },
+          ]}
+          onPress={handlePress}
+        >
+          <Image
+            source={item?.item_image ? { uri: item?.item_image } : Images.userblanck}
+            style={styles.SlideIcon}
+            tintColor={Colors.white}
+          />
+          <Text style={styles.SlideText}>{t(item?.item_title)}</Text>
+        </Pressable>
+      );
+    }
+
+    const accent = item?.color_code || Colors.primary;
+    const softAccent =
+      typeof accent === "string" && /^#([0-9A-Fa-f]{6})$/.test(accent.trim())
+        ? `${accent.trim()}1A`
+        : "rgba(15, 23, 42, 0.06)";
+
     return (
       <Pressable
-        style={[
-          styles.SlideContainer,
-          { backgroundColor: item?.color_code || Colors.Boxgray },
+        style={({ pressed }) => [
+          styles.SlideContainerPremium,
+          pressed && styles.SlidePressed,
         ]}
         onPress={handlePress}
       >
-        <Image
-          source={item?.item_image ? { uri: item?.item_image } : Images.userblanck}
-          style={[styles.Icon]}
-        />
-        <Text style={[styles.Text]}>{t(item?.item_title)}</Text>
+        <View style={[styles.SlideAccent, { backgroundColor: accent }]} />
+        <View style={[styles.IconWrap, { backgroundColor: accent }]}>
+          <Image
+            source={item?.item_image ? { uri: item?.item_image } : Images.userblanck}
+            style={styles.Icon}
+            tintColor={Colors.white}
+          />
+        </View>
+        <Text style={styles.Text} numberOfLines={2}>
+          {t(item?.item_title)}
+        </Text>
+        <View style={[styles.SlideChevron, { backgroundColor: softAccent }]}>
+          <Ionicons name="chevron-forward" size={16} color={accent} />
+        </View>
       </Pressable>
     );
   },
   (prevProps, nextProps) =>
+    prevProps.premium === nextProps.premium &&
     prevProps.item?.id === nextProps.item?.id &&
     prevProps.item?.color_code === nextProps.item?.color_code &&
     prevProps.item?.item_image === nextProps.item?.item_image &&
@@ -122,6 +168,7 @@ export default function HomeScreens({ navigation, route }: any) {
   const verifyToken = UserData?.user?.verify_token;
   const userRole = UserData?.user?.role;
   const relatiesId = UserData?.relaties?.id;
+  const isPremiumHomeUi = PREMIUM_HOME_USER_IDS.has(String(userId ?? ""));
   const showTripOffButton =
     userRole === REQUIRED_CHAUFFEUR_ROLE && doesShiftBelongToUser(activeShift, UserData);
 
@@ -326,7 +373,9 @@ export default function HomeScreens({ navigation, route }: any) {
         setGloblySlideTitle(slideItem?.item_title || "");
         if (
           slideItem?.type == "outbound_scan" ||
-          slideItem?.type == "additional_address"
+          slideItem?.type == "additional_address" ||
+          slideItem?.type == "warehouse_unload" ||
+          slideItem?.type == "ready_for_pickup"
         ) {
           navigation.navigate("Scanner", { item: slideItem });
         } else if (slideItem?.type == REJECTION_SLIDE_TYPE) {
@@ -356,6 +405,8 @@ export default function HomeScreens({ navigation, route }: any) {
       const locationRequiredTypes = [
         "outbound_scan",
         "additional_address",
+        "warehouse_unload",
+        "ready_for_pickup",
         REJECTION_SLIDE_TYPE,
         "driver_photos",
         "damage_photos",
@@ -493,8 +544,10 @@ export default function HomeScreens({ navigation, route }: any) {
   const keyExtractor = useCallback((item: any) => item?.id, []);
 
   const renderItem = useCallback(
-    ({ item }: any) => <SlideItem item={item} onPress={handleSlidePress} />,
-    [handleSlidePress],
+    ({ item }: any) => (
+      <SlideItem item={item} onPress={handleSlidePress} premium={isPremiumHomeUi} />
+    ),
+    [handleSlidePress, isPremiumHomeUi],
   );
 
   const ListEmptyComponent = useCallback(() => {
@@ -510,10 +563,10 @@ export default function HomeScreens({ navigation, route }: any) {
     if (!IsLoading) return (
       <View style={{ marginTop: 15, marginBottom: 8 }}>
         <Text
-          style={[styles.Text, { textAlign: "center", color: Colors.black }]}
+          style={[styles.SlideText, { textAlign: "center", color: Colors.black }]}
         >{`${CurrentVersion}`}</Text>
         <Text
-          style={[styles.Text, { textAlign: "center", marginTop: 4, color: Colors.black }]}
+          style={[styles.SlideText, { textAlign: "center", marginTop: 4, color: Colors.black }]}
         >{getOtaVersionLine()}</Text>
       </View>
     );
@@ -538,7 +591,9 @@ export default function HomeScreens({ navigation, route }: any) {
         ListFooterComponent={ListFooterComponent}
         keyExtractor={keyExtractor}
         contentContainerStyle={[
-          styles.ContentContainerStyle,
+          isPremiumHomeUi
+            ? styles.ContentContainerPremium
+            : styles.ContentContainerStyle,
           showTripOffButton ? { paddingBottom: 24 } : null,
         ]}
         renderItem={renderItem}

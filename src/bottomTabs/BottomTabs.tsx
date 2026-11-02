@@ -1,10 +1,10 @@
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { Ionicons } from "@expo/vector-icons";
 import React, { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Image, View } from "react-native";
+import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import apiConstants from "../api/apiConstants";
-import { Images } from "../assets/images";
 import CustomHeader from "../components/CustomHeader";
 import Loader from "../components/loading";
 import { GlobalContextData } from "../context/GlobalContext";
@@ -14,9 +14,30 @@ import Parcel from "../screens/Parcel/Parcel";
 import Profile from "../screens/Profile/Profile";
 import ApiService from "../utils/Apiservice";
 import { Colors } from "../utils/colors";
+import { getStoredUserLanguage } from "../utils/languagePreference";
 import { FONTS, getData, height } from "../utils/storeData";
 
 const Tab = createBottomTabNavigator();
+
+function TabIcon({
+  focused,
+  color,
+  active,
+  inactive,
+}: {
+  focused: boolean;
+  color: string;
+  active: keyof typeof Ionicons.glyphMap;
+  inactive: keyof typeof Ionicons.glyphMap;
+}) {
+  return (
+    <Ionicons
+      name={focused ? active : inactive}
+      size={24}
+      color={color}
+    />
+  );
+}
 
 export default function BottomTabs({ navigation }: any) {
   const { t } = useTranslation();
@@ -37,8 +58,8 @@ export default function BottomTabs({ navigation }: any) {
     const getUserData = async () => {
       let compay = await getData("COMPANYLOGIN");
       if (!SelectLanguage) {
-        let languagesData = await getData("userLanguage");
-        setSelectLanguage(languagesData);
+        const languagesData = await getStoredUserLanguage();
+        if (languagesData) setSelectLanguage(languagesData);
       }
       setCompanysData(compay);
       try {
@@ -122,11 +143,12 @@ export default function BottomTabs({ navigation }: any) {
             options={{
               title: t("Home"),
               tabBarLabel: t("Home"),
-              tabBarIcon: ({ color }) => (
-                <Image
-                  source={Images.Home}
-                  style={{ width: 25, height: 25 }}
-                  tintColor={color}
+              tabBarIcon: ({ color, focused }) => (
+                <TabIcon
+                  focused={focused}
+                  color={color}
+                  active="home"
+                  inactive="home-outline"
                 />
               ),
             }}
@@ -147,11 +169,12 @@ export default function BottomTabs({ navigation }: any) {
               options={{
                 title: t("Loaded"),
                 tabBarLabel: t("Loaded"),
-                tabBarIcon: ({ color }) => (
-                  <Image
-                    source={Images.Loading}
-                    style={{ width: 25, height: 25 }}
-                    tintColor={color}
+                tabBarIcon: ({ color, focused }) => (
+                  <TabIcon
+                    focused={focused}
+                    color={color}
+                    active="file-tray-full"
+                    inactive="file-tray-outline"
                   />
                 ),
               }}
@@ -173,11 +196,12 @@ export default function BottomTabs({ navigation }: any) {
               options={{
                 title: t("Parcel"),
                 tabBarLabel: t("Parcel"),
-                tabBarIcon: ({ color }) => (
-                  <Image
-                    source={Images.Parcel}
-                    style={{ width: 25, height: 25 }}
-                    tintColor={color}
+                tabBarIcon: ({ color, focused }) => (
+                  <TabIcon
+                    focused={focused}
+                    color={color}
+                    active="cube"
+                    inactive="cube-outline"
                   />
                 ),
               }}
@@ -199,11 +223,12 @@ export default function BottomTabs({ navigation }: any) {
             options={{
               title: t("Profile"),
               tabBarLabel: t("Profile"),
-              tabBarIcon: ({ color }) => (
-                <Image
-                  source={Images.user}
-                  style={{ width: 25, height: 25 }}
-                  tintColor={color}
+              tabBarIcon: ({ color, focused }) => (
+                <TabIcon
+                  focused={focused}
+                  color={color}
+                  active="person"
+                  inactive="person-outline"
                 />
               ),
             }}

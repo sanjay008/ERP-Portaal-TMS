@@ -5,7 +5,8 @@ import { DropboxContext } from "@/src/context/UploadProider";
 import ApiService from "@/src/utils/Apiservice";
 import { bootstrapAppDateTime } from "@/src/utils/appDateTime";
 import {
-  getStoredUserLanguage,
+  DEFAULT_LANGUAGE,
+  ensureLanguageReady,
   hasCompletedLanguageSelection,
 } from "@/src/utils/languagePreference";
 import { getData } from "@/src/utils/storeData";
@@ -57,7 +58,7 @@ export default function SplashScreens({ navigation }: any) {
     try {
       const [languages, languageReady, auth, company, logo, companyData, fullcompany] =
         await Promise.all([
-          getStoredUserLanguage(),
+          ensureLanguageReady(),
           hasCompletedLanguageSelection(),
           getData("AUTH"),
           getData("USERDATA"),
@@ -66,34 +67,34 @@ export default function SplashScreens({ navigation }: any) {
           getData("COMPANYDATA"),
         ]);
 
-      if (languages) {
-        await i18n.changeLanguage(languages);
-        setSelectLanguage(languages);
+      const languageCode = languages || (languageReady ? DEFAULT_LANGUAGE : "");
+
+      if (languageCode) {
+        try {
+          await i18n.changeLanguage(languageCode);
+        } catch {}
+        setSelectLanguage(languageCode);
       }
 
       if (companyData) {
         setCompanysData(companyData);
-       
       }
-      if(fullcompany){   
-        if (fullcompany?.default_company) {
-          setAccessToken(fullcompany?.default_company?.company_api_dropbox_access_token || "");
-          setRefreshToken(fullcompany?.default_company?.company_api_dropbox_refresh_token || "");
-          setClientId(fullcompany?.default_company?.company_api_dropbox_client_id || "");
-          setClientSecret(fullcompany?.default_company?.company_api_dropbox_secret_id || "");
-          bootstrapAppDateTime(
-            fullcompany?.default_company?.timezone,
-            setTimeZone,
-            setSelectActiveDate,
-            SelectActiveDate,
-          );
-        }
+      if (fullcompany?.default_company) {
+        setAccessToken(fullcompany?.default_company?.company_api_dropbox_access_token || "");
+        setRefreshToken(fullcompany?.default_company?.company_api_dropbox_refresh_token || "");
+        setClientId(fullcompany?.default_company?.company_api_dropbox_client_id || "");
+        setClientSecret(fullcompany?.default_company?.company_api_dropbox_secret_id || "");
+        bootstrapAppDateTime(
+          fullcompany?.default_company?.timezone,
+          setTimeZone,
+          setSelectActiveDate,
+          SelectActiveDate,
+        );
       }
-
 
       if (logo) setCompanyLogo(logo);
 
-      if (!languageReady || !languages) {
+      if (!languageReady && !languageCode) {
         navigation.replace("Select");
         return;
       }
@@ -107,39 +108,33 @@ export default function SplashScreens({ navigation }: any) {
       if (!client) {
         navigation.replace("OnBoarding");
         return;
-      } else {
-        if (company) {
-          
-          let permissionData;
-          try {
-            permissionData = await ApiService(apiConstants.permission, {
-              customData: {
-                token: client.verify_token,
-                role: client.role,
-                relaties_id: company?.data?.relaties?.id,
-                user_id: client.id,
-              },
-            });
-          } catch (apiError) {
-            navigation.replace("BottomTabs");
-            return;
-          }
-
-          if (permissionData?.status) {
-            const Permission = permissionData.data;
-            setPermission(Permission);
-
-
-            navigation.replace("BottomTabs");
-            return;
-
-          }
-
-          navigation.replace("BottomTabs");
-        }
       }
+
+      try {
+        const permissionData = await ApiService(apiConstants.permission, {
+          customData: {
+            token: client.verify_token,
+            role: client.role,
+            relaties_id: company?.data?.relaties?.id,
+            user_id: client.id,
+          },
+        });
+        if (permissionData?.status) {
+          setPermission(permissionData.data);
+        }
+      } catch {}
+
+      navigation.replace("BottomTabs");
     } catch (error) {
-      // auth bootstrap failed
+      try {
+        const auth = await getData("AUTH");
+        const company = await getData("USERDATA");
+        if (auth && company?.data?.user) {
+          navigation.replace("BottomTabs");
+          return;
+        }
+      } catch {}
+      navigation.replace("OnBoarding");
     }
   };
 

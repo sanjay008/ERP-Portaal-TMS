@@ -60,7 +60,7 @@ interface AccountSwitcherGateProps {
 const TAP_ZONE = 56;
 const TAP_TIMEOUT_MS = 2500;
 const REQUIRED_TAPS = 6;
-const RELOAD_TIMEOUT_MS = 4000;
+const RELOAD_TIMEOUT_MS = 2500;
 const EMAIL_REGEX = /^[\w+.-]+@[\w.-]+\.[a-zA-Z]{2,}$/;
 const PASSWORD_REGEX = /^(?=.*[a-zA-Z]).*$/;
 const SCREEN_H = Dimensions.get("window").height;
@@ -69,37 +69,36 @@ type ModalView = "list" | "add";
 type AddStep = "company" | "contact" | "secret";
 type SecretMode = "password" | "otp" | null;
 
-async function reloadAppSafely(): Promise<void> {
-  if (__DEV__) {
-    try {
-      DevSettings.reload();
-      await new Promise(() => {});
-      return;
-    } catch {
-      // fall through
-    }
-  }
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
+/** Returns false if JS is still alive after reload attempt (reload failed). */
+async function reloadAppSafely(): Promise<boolean> {
   try {
-    await Promise.race([
-      Updates.reloadAsync(),
-      new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error("reload_timeout")), RELOAD_TIMEOUT_MS);
-      }),
-    ]);
+    if (__DEV__) {
+      DevSettings.reload();
+    } else {
+      await Updates.reloadAsync();
+    }
   } catch {
     try {
-      await Updates.reloadAsync();
+      if (__DEV__) {
+        DevSettings.reload();
+      } else {
+        await Updates.reloadAsync();
+      }
     } catch {
       try {
         DevSettings.reload();
       } catch {
-        // ignore
+        return false;
       }
     }
   }
 
-  await new Promise(() => {});
+  await delay(RELOAD_TIMEOUT_MS);
+  return false;
 }
 
 export default function AccountSwitcherGate({
@@ -108,7 +107,19 @@ export default function AccountSwitcherGate({
 }: AccountSwitcherGateProps) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
-  const { UserData, CompanysData, CompanyLogo } = useContext(GlobalContextData);
+  const {
+    UserData,
+    CompanysData,
+    CompanyLogo,
+    setUserData,
+    setCompanysData,
+    setCompanyLogo,
+    setPermission,
+    setGOOGLE_API_KEY,
+    setActiveShift,
+    setIsGpsTracking,
+    setToast,
+  } = useContext(GlobalContextData);
   const {
     setAccessToken,
     setRefreshToken,
@@ -117,6 +128,7 @@ export default function AccountSwitcherGate({
   } = useContext(DropboxContext);
 
   const isLoggedIn = Boolean(UserData?.user?.id);
+  const switchingRef = useRef(false);
   const sheetMaxHeight = useMemo(
     () => Math.min(SCREEN_H * 0.78, SCREEN_H - insets.top - 24),
     [insets.top],
@@ -362,39 +374,140 @@ export default function AccountSwitcherGate({
     return () => clearInterval(id);
   }, [timerActive, secretMode]);
 
-  const finishWithAccount = useCallback(async (account: SavedAccount): Promise<boolean> => {
-    setSwitching(true);
-    try {
-      await ensureCurrentAccountSaved();
-      await upsertSavedAccount(account);
-      await applyAccountSession(account);
-      await reloadAppSafely();
-      return true;
-    } catch {
-      setSwitching(false);
-      setFormError(t("Something went wrong. Please try again."));
-      return false;
-    }
-  }, [t]);
+  const applyDropboxFromCompanyData = useCallback(
+    (companyData: any) => {
+      const dc = companyData?.default_company;
+      setAccessToken(dc?.company_api_dropbox_access_token || "");
+      setRefreshToken(dc?.company_api_dropbox_refresh_token || "");
+      setClientId(dc?.company_api_dropbox_client_id || "");
+      setClientSecret(dc?.company_api_dropbox_secret_id || "");
+    },
+    [setAccessToken, setRefreshToken, setClientId, setClientSecret],
+  );
+
+  const softActivateAccount = useCallback(
+    async (account: SavedAccount) => {
+      const session = account.session;
+      const rawUser = session?.USERDATA;
+      const nextUserData = rawUser?.data?.user
+        ? rawUser.data
+        : rawUser?.user
+          ? rawUser
+          : rawUser?.data ?? rawUser;
+
+      setUserData(nextUserData || null);
+      setCompanysData(String(session?.COMPANYLOGIN || ""));
+      setCompanyLogo(session?.COMPANYLOGO || null);
+      setGOOGLE_API_KEY(
+        String(session?.GOOGLE_API_KEY || session?.google_maps_api_key || ""),
+      );
+      setActiveShift(null);
+      setIsGpsTracking(false);
+      applyDropboxFromCompanyData(session?.COMPANYDATA);
+
+      const user = nextUserData?.user;
+      const relatiesId = nextUserData?.relaties?.id;
+      if (user?.verify_token && user?.id != null) {
+        try {
+          const permissionData = await ApiService(apiConstants.permission, {
+            customData: {
+              token: user.verify_token,
+              role: user.role,
+              relaties_id: relatiesId,
+              user_id: user.id,
+            },
+          });
+          if (permissionData?.status) {
+            setPermission(permissionData?.data || []);
+          } else {
+            setPermission([]);
+          }
+        } catch {
+          setPermission([]);
+        }
+      } else {
+        setPermission([]);
+      }
+
+      setActiveId(account.id);
+      setAccounts((prev) => {
+        const index = prev.findIndex((item) => item.id === account.id);
+        if (index < 0) return [account, ...prev];
+        const next = [...prev];
+        next[index] = { ...next[index], ...account, updatedAt: Date.now() };
+        return next;
+      });
+      setVisible(false);
+      setView("list");
+      resetAddForm();
+      setToast({
+        top: 45,
+        text: t("Account switched"),
+        type: "success",
+        visible: true,
+      });
+    },
+    [
+      applyDropboxFromCompanyData,
+      resetAddForm,
+      setActiveShift,
+      setCompanysData,
+      setCompanyLogo,
+      setGOOGLE_API_KEY,
+      setIsGpsTracking,
+      setPermission,
+      setToast,
+      setUserData,
+      t,
+    ],
+  );
+
+  const activateAccount = useCallback(
+    async (account: SavedAccount, options?: { upsert?: boolean }) => {
+      if (switchingRef.current) return false;
+      switchingRef.current = true;
+      setSwitching(true);
+      setFormError("");
+      try {
+        await ensureCurrentAccountSaved();
+        if (options?.upsert) {
+          await upsertSavedAccount(account);
+        }
+        await applyAccountSession(account);
+        const reloaded = await reloadAppSafely();
+        if (!reloaded) {
+          await softActivateAccount(account);
+        }
+        return true;
+      } catch {
+        setFormError(t("Something went wrong. Please try again."));
+        return false;
+      } finally {
+        switchingRef.current = false;
+        setSwitching(false);
+        setLoading(false);
+      }
+    },
+    [softActivateAccount, t],
+  );
+
+  const finishWithAccount = useCallback(
+    async (account: SavedAccount): Promise<boolean> => {
+      return activateAccount(account, { upsert: true });
+    },
+    [activateAccount],
+  );
 
   const onSelectAccount = useCallback(
     async (account: SavedAccount) => {
-      if (switching) return;
+      if (switchingRef.current || switching) return;
       if (account.id === activeId) {
         closePopup();
         return;
       }
-      setSwitching(true);
-      try {
-        await ensureCurrentAccountSaved();
-        await applyAccountSession(account);
-        await reloadAppSafely();
-      } catch {
-        setSwitching(false);
-        setFormError(t("Something went wrong. Please try again."));
-      }
+      await activateAccount(account);
     },
-    [activeId, closePopup, switching, t],
+    [activateAccount, activeId, closePopup, switching],
   );
 
   const goToAdd = useCallback(() => {

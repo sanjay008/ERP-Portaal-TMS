@@ -1,12 +1,11 @@
-/** Pickup scheduled / planned — tmsstatus.id must be exactly 1 */
-export const PICKUP_PLANNED_STATUS_ID = [1,8];
+/** Pickup planned sheet — allowed order/item tmsstatus ids */
+export const PICKUP_PLANNED_STATUS_ID = [1, 8, 59];
 
 export const DELIVERY_STATUS_ID = 4;
 
 export function getOrderTmsStatusId(order: any): number {
   if (!order) return NaN;
 
-  
   const raw =
     order?.items?.[0]?.tmsstatus?.id ??
     order?.tmsstatus?.id ??
@@ -15,8 +14,33 @@ export function getOrderTmsStatusId(order: any): number {
   return Number.isFinite(parsed) ? parsed : NaN;
 }
 
+export function getItemTmsStatusId(item: any): number {
+  if (!item) return NaN;
+  const raw =
+    item?.tmsstatus?.id ??
+    item?.tms_status_id ??
+    item?.item_status_id ??
+    item?.status;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : NaN;
+}
+
+export function isPickupPlannedStatusId(statusId: number): boolean {
+  return PICKUP_PLANNED_STATUS_ID.includes(statusId);
+}
+
 export function isPickupPlannedOrder(order: any): boolean {
-  return  PICKUP_PLANNED_STATUS_ID?.includes(getOrderTmsStatusId(order));
+  return isPickupPlannedStatusId(getOrderTmsStatusId(order));
+}
+
+export function isReadyForPickupSlide(
+  slideType?: string | null,
+  globalSlideType?: string | null,
+): boolean {
+  return (
+    slideType === 'ready_for_pickup' ||
+    globalSlideType === 'ready_for_pickup'
+  );
 }
 
 export function isPickupDropoffSlide(
@@ -69,11 +93,21 @@ export function shouldOpenPickupPlannedModal(
   slideType?: string | null,
   globalSlideType?: string | null,
 ): boolean {
+  if (isReadyForPickupSlide(slideType, globalSlideType)) {
+    return Boolean(verifyData?.order_data);
+  }
+
   if (!isPickupDropoffSlide(slideType, globalSlideType)) return false;
   if (verifyData?.error_key) return false;
-  if (!isPickupPlannedOrder(verifyData?.order_data)) return false;
 
   const matchedItem = getScannedOrderItem(verifyData, scanPayload);
+  const statusAllowed =
+    isPickupPlannedOrder(verifyData?.order_data) ||
+    (matchedItem != null &&
+      isPickupPlannedStatusId(getItemTmsStatusId(matchedItem)));
+
+  if (!statusAllowed) return false;
+
   if (matchedItem != null) {
     return Number(matchedItem.scan_qty ?? 0) === 0;
   }

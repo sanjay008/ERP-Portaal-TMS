@@ -3,62 +3,125 @@ import { FONTS, height } from "@/src/utils/storeData";
 import { StyleSheet } from "react-native";
 
 export const styles = StyleSheet.create({
-    container:{
-        flex:1,
-        backgroundColor:Colors.background,
-    },
-    ContentContainerStyle:{
-        paddingBottom:50,
-        gap:15,
-        padding:15
-    },
-    EmptyComponents:{
-        width:'100%',
-        height:height * 0.4,
-        justifyContent:'center',
-        alignItems:'center'
-    },
-    SlideContainer:{
-        width:'100%',
-        paddingVertical:20,
-        paddingHorizontal:15,
-        flexDirection:'row',
-        alignItems:'center',
-        gap:10,
-        borderRadius:4,
-        borderWidth:1,
-        borderColor:Colors.border
-    },
-    Icon:{
-        width:25,
-        height:25,
-        resizeMode:'contain'
-    },
-    Text:{
-        fontSize:14,
-        color:Colors.white,
-        fontFamily:FONTS.Medium,
-      
-    },
-    TripOffFooter: {
-        paddingHorizontal: 15,
-        paddingTop: 10,
-        paddingBottom: 16,
-        backgroundColor: Colors.background,
-        borderTopWidth: 1,
-        borderTopColor: Colors.border,
-    },
-    TripOffButton: {
-        width: '100%',
-        paddingVertical: 14,
-        borderRadius: 6,
-        backgroundColor: Colors.red,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    TripOffButtonText: {
-        fontSize: 15,
-        color: Colors.white,
-        fontFamily: FONTS.Medium,
-    },
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  ContentContainerStyle: {
+    paddingBottom: 50,
+    gap: 15,
+    padding: 15,
+  },
+  ContentContainerPremium: {
+    paddingBottom: 50,
+    gap: 12,
+    paddingHorizontal: 15,
+    paddingTop: 12,
+  },
+  EmptyComponents: {
+    width: "100%",
+    height: height * 0.4,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  SlideContainer: {
+    width: "100%",
+    paddingVertical: 20,
+    paddingHorizontal: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  SlideText: {
+    fontSize: 14,
+    color: Colors.white,
+    fontFamily: FONTS.Medium,
+  },
+  SlideIcon: {
+    width: 25,
+    height: 25,
+    resizeMode: "contain",
+  },
+  SlideContainerPremium: {
+    width: "100%",
+    minHeight: 68,
+    paddingVertical: 12,
+    paddingRight: 12,
+    paddingLeft: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderRadius: 7,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: "rgba(15, 23, 42, 0.06)",
+    overflow: "hidden",
+    shadowColor: "#0F172A",
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  SlidePressed: {
+    opacity: 0.92,
+    transform: [{ scale: 0.985 }],
+  },
+  SlideAccent: {
+    width: 4,
+    alignSelf: "stretch",
+    borderTopRightRadius: 2,
+    borderBottomRightRadius: 2,
+  },
+  IconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 7,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 12,
+  },
+  Icon: {
+    width: 22,
+    height: 22,
+    resizeMode: "contain",
+  },
+  Text: {
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 20,
+    color: "#0F172A",
+    fontFamily: FONTS.SemiBold,
+    letterSpacing: 0.1,
+  },
+  SlideChevron: {
+    width: 26,
+    height: 26,
+    borderRadius: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  TripOffFooter: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 16,
+    backgroundColor: Colors.background,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  TripOffButton: {
+    width: "100%",
+    paddingVertical: 14,
+    borderRadius: 7,
+    backgroundColor: Colors.red,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  TripOffButtonText: {
+    fontSize: 15,
+    color: Colors.white,
+    fontFamily: FONTS.Medium,
+  },
 });

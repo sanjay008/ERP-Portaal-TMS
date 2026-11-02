@@ -168,6 +168,11 @@ export function useParcelVerifyFlow({
     visible: false,
     orderData: null as any,
     scanPayload: null as ParcelVerifyScanPayload | null,
+    errorMessage: null as string | null,
+  });
+  const [verifyErrorSheet, setVerifyErrorSheet] = useState({
+    visible: false,
+    message: '',
   });
   const [alertModalOpen, setAlerModalOpen] = useState<any>({
     visible: false,
@@ -544,6 +549,26 @@ export function useParcelVerifyFlow({
           return;
         }
 
+        if (slideType === 'ready_for_pickup') {
+          setSecondModal({
+            visible: true,
+            title: t('Success'),
+            message: t(res?.message) || t('Parcel scanned successfully'),
+            buttons: [
+              {
+                text: t('New scan'),
+                type: 'primary',
+                onPress: () => {
+                  setSecondModal((prev: any) => ({ ...prev, visible: false }));
+                  unlockScanner?.();
+                },
+              },
+            ],
+            color: Colors.green,
+          });
+          return;
+        }
+
         const parcelsStillRemaining = hasRemainingParcelsToDeliver(
           itemsData,
           res,
@@ -842,6 +867,7 @@ export function useParcelVerifyFlow({
       setAllSelectImage,
       setComment,
       setPickupPlannedSheetOpen,
+      setVerifyErrorSheet,
       deliveryLabelModalPendingRef,
       pickupPlannedModalPendingRef,
       pendingPickupScanRef,
@@ -904,6 +930,10 @@ export function useParcelVerifyFlow({
   );
 
   const handlePickupWithPhoto = useCallback(() => {
+    const scanData =
+      pendingPickupScanRef.current ?? pickupPlannedSheetOpen.scanPayload;
+    const isReadyForPickup = slideType === 'ready_for_pickup';
+
     pickupPlannedModalPendingRef.current = false;
     setPickupPlannedSheetOpen((prev) => ({ ...prev, visible: false }));
     pendingPickupScanRef.current = null;
@@ -916,8 +946,14 @@ export function useParcelVerifyFlow({
         if (data?.length > 0) {
           setAllSelectImage(data);
           queueCameraProofImages(data, 'pickup_camera_done');
-          console.log('[DirectFlow] open comment (pickup camera return)');
-          setComment(true);
+          if (isReadyForPickup) {
+            setComment(false);
+            if (scanData) {
+              await statusUpdateFun(scanData, true);
+            }
+          } else {
+            setComment(true);
+          }
         }
       } finally {
         unlockParcelCameraCallback();
@@ -933,8 +969,11 @@ export function useParcelVerifyFlow({
     lockCameraProofBinding,
     queueCameraProofImages,
     pickupPlannedSheetOpen.orderData,
+    pickupPlannedSheetOpen.scanPayload,
     responseOrderData,
     itemsData,
+    slideType,
+    statusUpdateFun,
   ]);
 
   const handlePickupNextScan = useCallback(async () => {
@@ -946,6 +985,7 @@ export function useParcelVerifyFlow({
       visible: false,
       orderData: null,
       scanPayload: null,
+      errorMessage: null,
     });
     pendingPickupScanRef.current = null;
     await statusUpdateFun(scanData, true);
@@ -953,7 +993,12 @@ export function useParcelVerifyFlow({
 
   const closePickupPlannedSheet = useCallback(() => {
     pickupPlannedModalPendingRef.current = false;
-    setPickupPlannedSheetOpen({ visible: false, orderData: null, scanPayload: null });
+    setPickupPlannedSheetOpen({
+      visible: false,
+      orderData: null,
+      scanPayload: null,
+      errorMessage: null,
+    });
     pendingPickupScanRef.current = null;
     unlockScanner?.();
   }, [unlockScanner]);
@@ -1251,7 +1296,7 @@ export function useParcelVerifyFlow({
     ) => {
       if (isBlankSignatureData(signature)) {
         setToast({
-          top: 45,
+          bottom: 40,
           text: t('Signature is required'),
           type: 'error',
           visible: true,
@@ -1369,12 +1414,6 @@ export function useParcelVerifyFlow({
           setShowSig(false);
           clearParcelVerifySession();
           setSecondModal((prev: any) => ({ ...prev, visible: false }));
-          setToast({
-            top: 45,
-            text: res?.message,
-            type: 'success',
-            visible: true,
-          });
 
           if (deliveryMoreParcelsNoPathRef.current) {
             deliveryMoreParcelsNoPathRef.current = false;
@@ -1433,7 +1472,7 @@ export function useParcelVerifyFlow({
           await onSuccess?.();
         } else {
           setToast({
-            top: 45,
+            bottom: 40,
             text: res?.message,
             type: 'error',
             visible: true,
@@ -1441,7 +1480,7 @@ export function useParcelVerifyFlow({
         }
       } catch (error) {
         setToast({
-          top: 45,
+          bottom: 40,
           text: ErrorHandle(error).message,
           type: 'error',
           visible: true,
@@ -2042,7 +2081,11 @@ export function useParcelVerifyFlow({
         }
         setAllSelectImage(data);
         queueCameraProofImages(data, 'pickup_camera_done');
-        setComment(true);
+        if (slideType === 'ready_for_pickup') {
+          setComment(false);
+        } else {
+          setComment(true);
+        }
       }
     };
     setLatestPickupCameraSetData(pickupSetData);
@@ -2110,6 +2153,7 @@ export function useParcelVerifyFlow({
     responseOrderData,
     itemsData,
     persistDeliveryLabel,
+    slideType,
   ]);
 
   return {
@@ -2121,6 +2165,11 @@ export function useParcelVerifyFlow({
     conformationModal,
     evetyTimeShowDeliveryLabelList,
     pickupPlannedSheetOpen,
+    verifyErrorSheet,
+    closeVerifyErrorSheet: () => {
+      setVerifyErrorSheet({ visible: false, message: '' });
+      unlockScanner?.();
+    },
     alertModalOpen,
     comment,
     description,

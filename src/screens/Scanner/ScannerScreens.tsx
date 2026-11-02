@@ -12,6 +12,7 @@ import NoParcelModal from "@/src/components/NoParcelModal";
 import PickUpBox from "@/src/components/PickUpBox";
 import PickupPlannedSheet from "@/src/components/PickupPlannedSheet";
 import ScannerInfoModal from "@/src/components/ScannerInfoModal";
+import VerifyErrorSheet from "@/src/components/VerifyErrorSheet";
 import SecondCustomModal from "@/src/components/SecondCustomModal";
 import SignatureModal from "@/src/components/SignatureModal";
 import { GlobalContextData } from "@/src/context/GlobalContext";
@@ -226,7 +227,12 @@ export default function ScannerScreens({ navigation, route }: any) {
     visible: boolean;
     orderData: any;
     scanPayload: any;
-  }>({ visible: false, orderData: null, scanPayload: null });
+    errorMessage?: string | null;
+  }>({ visible: false, orderData: null, scanPayload: null, errorMessage: null });
+  const [verifyErrorSheet, setVerifyErrorSheet] = useState<{
+    visible: boolean;
+    message: string;
+  }>({ visible: false, message: "" });
   const pendingPickupScanRef = useRef<any>(null);
   const pickupPlannedModalPendingRef = useRef(false);
   const pendingDeliveryLabelRef = useRef<any>(null);
@@ -639,7 +645,12 @@ export default function ScannerScreens({ navigation, route }: any) {
 
   const closePickupPlannedSheetAndUnlockScan = useCallback(() => {
     pickupPlannedModalPendingRef.current = false;
-    setPickupPlannedSheetOpen({ visible: false, orderData: null, scanPayload: null });
+    setPickupPlannedSheetOpen({
+      visible: false,
+      orderData: null,
+      scanPayload: null,
+      errorMessage: null,
+    });
     pendingPickupScanRef.current = null;
     setIsVerifyingScan(false);
     isVerifyingScanRef.current = false;
@@ -650,7 +661,12 @@ export default function ScannerScreens({ navigation, route }: any) {
 
   const closePickupPlannedSheetAndGoBack = useCallback(() => {
     pickupPlannedModalPendingRef.current = false;
-    setPickupPlannedSheetOpen({ visible: false, orderData: null, scanPayload: null });
+    setPickupPlannedSheetOpen({
+      visible: false,
+      orderData: null,
+      scanPayload: null,
+      errorMessage: null,
+    });
     pendingPickupScanRef.current = null;
     setIsVerifyingScan(false);
     isVerifyingScanRef.current = false;
@@ -1013,7 +1029,14 @@ export default function ScannerScreens({ navigation, route }: any) {
         }
         setAllSelectImage(data);
         queueCameraProofImages(data, "pickup_camera_done");
-        setComment(true);
+        if (
+          type === "ready_for_pickup" ||
+          GloblyTypeSlide === "ready_for_pickup"
+        ) {
+          setComment(false);
+        } else {
+          setComment(true);
+        }
       }
     };
     setLatestPickupCameraSetData(pickupSetData);
@@ -1068,6 +1091,8 @@ export default function ScannerScreens({ navigation, route }: any) {
     queueCameraProofImages,
     ReposonseOrderData,
     ItemsData,
+    type,
+    GloblyTypeSlide,
   ]);
 
   const onBarcodeScanned = useCallback(
@@ -1233,6 +1258,7 @@ export default function ScannerScreens({ navigation, route }: any) {
         setAllSelectImage,
         setComment,
         setPickupPlannedSheetOpen,
+        setVerifyErrorSheet,
         deliveryLabelModalPendingRef,
         pickupPlannedModalPendingRef,
         pendingPickupScanRef,
@@ -1396,7 +1422,32 @@ export default function ScannerScreens({ navigation, route }: any) {
         if (scanPayload?.item_id != null) {
           completedItemIdsRef.current.add(String(scanPayload.item_id));
         }
-        readyForNextParcelScan();
+
+        const isReadyForPickup =
+          type === "ready_for_pickup" || GloblyTypeSlide === "ready_for_pickup";
+
+        if (isReadyForPickup) {
+          setSecondModal({
+            visible: true,
+            title: t("Success"),
+            message:
+              t(res?.message) || t("Parcel scanned successfully"),
+            buttons: [
+              {
+                text: t("New scan"),
+                type: "primary",
+                onPress: () => {
+                  setSecondModal((p: any) => ({ ...p, visible: false }));
+                  readyForNextParcelScan();
+                },
+              },
+            ],
+            color: Colors.green,
+          });
+        } else {
+          readyForNextParcelScan();
+        }
+
         await GetScanedOrderDataLatestFun([
           ...AllRecentScanData,
           scanPayload?.order_id ?? data?.order_id,
@@ -1445,6 +1496,11 @@ export default function ScannerScreens({ navigation, route }: any) {
   };
 
   const handlePickupWithPhoto = useCallback(() => {
+    const scanData =
+      pendingPickupScanRef.current ?? PickupPlannedSheetOpen.scanPayload;
+    const isReadyForPickup =
+      type === "ready_for_pickup" || GloblyTypeSlide === "ready_for_pickup";
+
     pickupPlannedModalPendingRef.current = false;
     setPickupPlannedSheetOpen((prev) => ({ ...prev, visible: false }));
     pendingPickupScanRef.current = null;
@@ -1457,7 +1513,14 @@ export default function ScannerScreens({ navigation, route }: any) {
         if (data?.length > 0) {
           setAllSelectImage(data);
           queueCameraProofImages(data, "pickup_camera_done");
-          setComment(true);
+          if (isReadyForPickup) {
+            setComment(false);
+            if (scanData) {
+              await StatusUpdateFun(scanData, true);
+            }
+          } else {
+            setComment(true);
+          }
         }
       } finally {
         unlockParcelCameraCallback();
@@ -1472,8 +1535,12 @@ export default function ScannerScreens({ navigation, route }: any) {
     lockCameraProofBinding,
     queueCameraProofImages,
     PickupPlannedSheetOpen.orderData,
+    PickupPlannedSheetOpen.scanPayload,
     ReposonseOrderData,
     ItemsData,
+    type,
+    GloblyTypeSlide,
+    StatusUpdateFun,
   ]);
 
   const handlePickupNextScan = useCallback(async () => {
@@ -1482,7 +1549,12 @@ export default function ScannerScreens({ navigation, route }: any) {
     if (!scanData) return;
 
     pickupPlannedModalPendingRef.current = false;
-    setPickupPlannedSheetOpen({ visible: false, orderData: null, scanPayload: null });
+    setPickupPlannedSheetOpen({
+      visible: false,
+      orderData: null,
+      scanPayload: null,
+      errorMessage: null,
+    });
     pendingPickupScanRef.current = null;
     await StatusUpdateFun(scanData, true);
   }, [PickupPlannedSheetOpen.scanPayload]);
@@ -1751,7 +1823,7 @@ const CustomerSignatureFun = async (
 ) => {
   if (isBlankSignatureData(signature)) {
     setToast({
-      top: 45,
+      bottom: 40,
       text: t("Signature is required"),
       type: "error",
       visible: true,
@@ -1767,7 +1839,7 @@ const CustomerSignatureFun = async (
 
   if (!token || !role || relatiesId == null || userId == null || orderId == null) {
     setToast({
-      top: 45,
+      bottom: 40,
       text: t("Something went wrong. Please try again."),
       type: "error",
       visible: true,
@@ -1888,7 +1960,7 @@ const CustomerSignatureFun = async (
 
     if (!res?.status) {
       setToast({
-        top: 45,
+        bottom: 40,
         text:
           res?.message ||
           t("Something went wrong. Please try again."),
@@ -1934,13 +2006,6 @@ const CustomerSignatureFun = async (
       ...prev,
       visible: false,
     }));
-
-    setToast({
-      top: 45,
-      text: res?.message || t("Success"),
-      type: "success",
-      visible: true,
-    });
 
     if (deliveryMoreParcelsNoPathRef.current) {
       deliveryMoreParcelsNoPathRef.current = false;
@@ -2008,7 +2073,7 @@ const CustomerSignatureFun = async (
     const handledError = ErrorHandle(error);
 
     setToast({
-      top: 45,
+      bottom: 40,
       text:
         handledError?.message ||
         t("Something went wrong. Please try again."),
@@ -2915,10 +2980,24 @@ commentFunRef.current = CommentFun;
         orderData={PickupPlannedSheetOpen.orderData}
         scanItemId={PickupPlannedSheetOpen.scanPayload?.item_id}
         loading={IsLoading}
+        errorMessage={PickupPlannedSheetOpen.errorMessage}
         onPickupWithPhoto={handlePickupWithPhoto}
         onCancelAndNewScan={closePickupPlannedSheetAndUnlockScan}
         onCancelPickup={closePickupPlannedSheetAndGoBack}
         onPickupNextScan={handlePickupNextScan}
+      />
+
+      <VerifyErrorSheet
+        visible={verifyErrorSheet.visible}
+        message={verifyErrorSheet.message}
+        onClose={() => {
+          setVerifyErrorSheet({ visible: false, message: "" });
+          setIsVerifyingScan(false);
+          isVerifyingScanRef.current = false;
+          lastDetectedBarcodeRef.current = "";
+          setLastDetectedBarcode("");
+          restartScannerPreview();
+        }}
       />
 
       <ScannerInfoModal

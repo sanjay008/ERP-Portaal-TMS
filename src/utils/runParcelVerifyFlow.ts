@@ -30,6 +30,7 @@ import {
   isDeliveryItemAlreadyScanned,
   itemNeedsDeliveryLabelSelection,
   mergeParcelIntoDamageList,
+  isReadyForPickupSlide,
   shouldOpenPickupPlannedModal,
 } from '@/src/utils/pickupPlanned';
 import { playErrorSound } from '@/src/utils/playScanSound';
@@ -103,6 +104,10 @@ export type ParcelVerifyFlowDeps = {
   setAllSelectImage: (value: any[]) => void;
   setComment: (value: boolean) => void;
   setPickupPlannedSheetOpen: (value: any) => void;
+  setVerifyErrorSheet?: (value: {
+    visible: boolean;
+    message: string;
+  }) => void;
   deliveryLabelModalPendingRef: { current: boolean };
   pickupPlannedModalPendingRef: { current: boolean };
   pendingPickupScanRef: { current: ParcelVerifyScanPayload | null };
@@ -123,6 +128,25 @@ export type ParcelVerifyFlowDeps = {
   onDeliveryLabeledParcelReady?: (ctx: DeliveryScanContinueContext) => void;
 };
 
+function openReadyForPickupError(
+  deps: ParcelVerifyFlowDeps,
+  message: string,
+): void {
+  const text =
+    String(message || "").trim() ||
+    deps.t("Something went wrong. Please try again.");
+  if (deps.setVerifyErrorSheet) {
+    deps.setVerifyErrorSheet({ visible: true, message: text });
+    return;
+  }
+  deps.setToast({
+    top: 45,
+    text,
+    type: "error",
+    visible: true,
+  });
+}
+
 export async function runParcelVerifyFlow(
   data: ParcelVerifyScanPayload,
   deps: ParcelVerifyFlowDeps,
@@ -141,7 +165,11 @@ export async function runParcelVerifyFlow(
       qr_data: JSON.stringify(data ?? null),
       date:
         deps.globlyTypeSlide === 'outbound_scan' ||
-        slideType === 'additional_address'
+        slideType === 'additional_address' ||
+        slideType === 'warehouse_unload' ||
+        deps.globlyTypeSlide === 'warehouse_unload' ||
+        slideType === 'ready_for_pickup' ||
+        deps.globlyTypeSlide === 'ready_for_pickup'
           ? ApiFormatDate(new Date())
           : ApiFormatDate(deps.selectCurrentDate),
       type: slideType,
@@ -204,8 +232,27 @@ export async function runParcelVerifyFlow(
           ? res.data.items
           : null) ||
         [];
-        console.log("productItems",productItems);
-        
+      console.log("productItems", productItems);
+
+      if (isReadyForPickupSlide(slideType, deps.globlyTypeSlide)) {
+        const errorText =
+          deps.t(res?.message) ||
+          deps.t('Invalid QR code. Please try again.');
+        if (orderData) {
+          deps.pickupPlannedModalPendingRef.current = true;
+          deps.pendingPickupScanRef.current = data;
+          deps.setPickupPlannedSheetOpen({
+            visible: true,
+            orderData,
+            scanPayload: data,
+            errorMessage: errorText,
+          });
+          return;
+        }
+        openReadyForPickupError(deps, errorText);
+        return;
+      }
+
       deps.setConformationModal({
         visible: true,
         Icon: Images.InValidScanner,
@@ -481,11 +528,29 @@ export async function runParcelVerifyFlow(
     if (isPickupPlannedFlow) {
       deps.pickupPlannedModalPendingRef.current = true;
       deps.pendingPickupScanRef.current = data;
+      const readyError =
+        isReadyForPickupSlide(slideType, deps.globlyTypeSlide) &&
+        Boolean(res?.data?.error_key)
+          ? deps.t(res?.data?.quetion ?? res?.data?.question ?? res?.message) ||
+            deps.t('Something went wrong')
+          : null;
       deps.setPickupPlannedSheetOpen({
         visible: true,
         orderData: res?.data?.order_data,
         scanPayload: data,
+        errorMessage: readyError,
       });
+      return;
+    }
+
+    if (
+      isReadyForPickupSlide(slideType, deps.globlyTypeSlide) &&
+      Boolean(res?.data?.error_key)
+    ) {
+      const readyError =
+        deps.t(res?.data?.quetion ?? res?.data?.question ?? res?.message) ||
+        deps.t('Something went wrong');
+      openReadyForPickupError(deps, readyError);
       return;
     }
 
@@ -568,9 +633,14 @@ export async function runParcelVerifyFlow(
   } catch (error) {
     void playErrorSound();
     deps.unlockScanner?.();
+    const message = deps.errorHandle(error).message;
+    if (isReadyForPickupSlide(slideType, deps.globlyTypeSlide)) {
+      openReadyForPickupError(deps, message);
+      return;
+    }
     deps.setToast({
       top: 45,
-      text: deps.errorHandle(error).message,
+      text: message,
       type: 'error',
       visible: true,
     });

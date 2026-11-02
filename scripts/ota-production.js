@@ -89,4 +89,13 @@ if (failedVersion) {
   console.error("Fail:", failedVersion);
   process.exit(1);
 }
-console.log("Sab versions pe OTA ho gaya.");
+console.log(
+  "\n" +
+    "╔══════════════════════════════════════════╗\n" +
+    "║           ✅ OTA DEPLOYMENT DONE          ║\n" +
+    "╠══════════════════════════════════════════╣\n" +
+    "║  👨‍💻 Tushar Sir                           ║\n" +
+    "║  🚀 OTA Successfully Updated              ║\n" +
+    "║  📦 Status: All Versions Completed        ║\n" +
+    "╚══════════════════════════════════════════╝\n"
+);

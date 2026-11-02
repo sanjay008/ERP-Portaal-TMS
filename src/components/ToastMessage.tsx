@@ -9,10 +9,12 @@ import Animated, {
 import { Images } from "../assets/images";
 import { GlobalContextData } from "../context/GlobalContext";
 import { Colors } from "../utils/colors";
-import { clearAllData, FONTS } from "../utils/storeData";
+import { clearUserSessionStorage } from "@/src/utils/logoutSession";
+import { FONTS } from "../utils/storeData";
 
 type Props = {
   top?: number;
+  bottom?: number;
   text?: string;
   type?: "error" | "success" | "info";
   visible?: boolean;
@@ -21,6 +23,7 @@ type Props = {
 
 export default function ToastMessage({
   top = 45,
+  bottom,
   text = "Text Message",
   type = "success",
   visible = false,
@@ -29,7 +32,9 @@ export default function ToastMessage({
   const [isVisible, setIsVisible] = useState(visible);
   const { setUserData } = useContext(GlobalContextData);
   const navigation = useNavigation<any>();
-  const translateY = useSharedValue(-150);
+  const isBottom = bottom != null;
+  const hiddenOffset = isBottom ? 150 : -150;
+  const translateY = useSharedValue(hiddenOffset);
   const lineWidth = useSharedValue(0);
   const { setToast } = useContext(GlobalContextData);
 
@@ -43,7 +48,7 @@ export default function ToastMessage({
 
   const LogOut = async () => {
     try {
-      await clearAllData();
+      await clearUserSessionStorage();
       setUserData(null);
       navigation.reset({
         index: 0,
@@ -57,12 +62,13 @@ export default function ToastMessage({
   useEffect(() => {
     if (visible) {
       setIsVisible(true);
+      translateY.value = hiddenOffset;
 
       translateY.value = withTiming(0, { duration: 400 });
       lineWidth.value = withTiming(120, { duration: 3000 });
 
       const timer = setTimeout(() => {
-        translateY.value = withTiming(-150, { duration: 400 });
+        translateY.value = withTiming(hiddenOffset, { duration: 400 });
         lineWidth.value = withTiming(0, { duration: 300 });
 
         setTimeout(() => {
@@ -71,6 +77,7 @@ export default function ToastMessage({
             text: "",
             type: "success",
             top: 45,
+            bottom: undefined,
           });
           setIsVisible(false);
           onClose?.();
@@ -83,15 +90,21 @@ export default function ToastMessage({
 
       return () => clearTimeout(timer);
     } else {
-      translateY.value = withTiming(-150, { duration: 400 });
+      translateY.value = withTiming(hiddenOffset, { duration: 400 });
       setTimeout(() => setIsVisible(false), 400);
     }
-  }, [visible]);
+  }, [visible, hiddenOffset]);
 
   if (!isVisible) return null;
 
   return (
-    <Animated.View style={[styles.container, containerStyle]}>
+    <Animated.View
+      style={[
+        styles.container,
+        isBottom ? { top: undefined, bottom } : { top },
+        containerStyle,
+      ]}
+    >
       <View style={styles.flex}>
         {type === "success" && <Image source={Images.Success} style={styles.icon} />}
         {type === "error" && <Image source={Images.WrongIcon} style={styles.icon} />}
@@ -123,7 +136,6 @@ export default function ToastMessage({
 const styles = StyleSheet.create({
   container: {
     position: "absolute",
-    top: 45,
     alignSelf: "center",
     width: "90%",
     backgroundColor: Colors.white,

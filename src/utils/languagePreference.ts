@@ -2,45 +2,101 @@ import { getData, storeData } from "@/src/utils/storeData";
 
 export const USER_LANGUAGE_KEY = "userLanguage";
 export const LANGUAGE_SELECTED_KEY = "languageSelected";
+export const DEFAULT_LANGUAGE = "nl";
 
 export function isValidLanguageCode(value: unknown): value is string {
   if (typeof value !== "string") return false;
   const code = value.trim();
   if (!code) return false;
-  // Accept short codes like nl, en, ar and optional region like en-US
   return /^[a-z]{2}(-[A-Za-z]{2})?$/i.test(code);
 }
 
+function normalizeLanguageCode(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value === "string") {
+    const code = value.trim().replace(/^"+|"+$/g, "");
+    return isValidLanguageCode(code) ? code.toLowerCase() : null;
+  }
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    return (
+      normalizeLanguageCode(obj.language_shortname) ||
+      normalizeLanguageCode(obj.shortname) ||
+      normalizeLanguageCode(obj.code) ||
+      normalizeLanguageCode(obj.language)
+    );
+  }
+  return null;
+}
+
 export async function getStoredUserLanguage(): Promise<string | null> {
-  const value = await getData(USER_LANGUAGE_KEY);
-  return isValidLanguageCode(value) ? value.trim() : null;
+  try {
+    const value = await getData(USER_LANGUAGE_KEY);
+    return normalizeLanguageCode(value);
+  } catch {
+    return null;
+  }
 }
 
 export async function hasCompletedLanguageSelection(): Promise<boolean> {
-  const language = await getStoredUserLanguage();
-  if (!language) return false;
+  try {
+    const language = await getStoredUserLanguage();
+    if (language) {
+      try {
+        const selected = await getData(LANGUAGE_SELECTED_KEY);
+        if (selected !== true) {
+          await storeData(LANGUAGE_SELECTED_KEY, true);
+        }
+      } catch {}
+      return true;
+    }
 
-  const selected = await getData(LANGUAGE_SELECTED_KEY);
-  if (selected === true) return true;
+    const selected = await getData(LANGUAGE_SELECTED_KEY);
+    if (selected === true) {
+      try {
+        await storeData(USER_LANGUAGE_KEY, DEFAULT_LANGUAGE);
+      } catch {}
+      return true;
+    }
 
-  // Legacy installs already had userLanguage before this flag existed.
-  // Migrate once so existing users are not forced back to Select.
-  if (selected == null) {
-    await storeData(LANGUAGE_SELECTED_KEY, true);
-    return true;
+    return false;
+  } catch {
+    return false;
   }
-
-  return false;
 }
 
 export async function persistLanguageSelection(
   languageShortname: string,
 ): Promise<string> {
-  const code = String(languageShortname || "").trim();
-  if (!isValidLanguageCode(code)) {
+  const code = normalizeLanguageCode(languageShortname);
+  if (!code) {
     throw new Error("Invalid language code");
   }
   await storeData(USER_LANGUAGE_KEY, code);
   await storeData(LANGUAGE_SELECTED_KEY, true);
   return code;
+}
+
+export async function ensureLanguageReady(): Promise<string> {
+  try {
+    const existing = await getStoredUserLanguage();
+    if (existing) {
+      try {
+        await storeData(LANGUAGE_SELECTED_KEY, true);
+      } catch {}
+      return existing;
+    }
+
+    const selected = await getData(LANGUAGE_SELECTED_KEY);
+    if (selected === true) {
+      try {
+        await storeData(USER_LANGUAGE_KEY, DEFAULT_LANGUAGE);
+      } catch {}
+      return DEFAULT_LANGUAGE;
+    }
+
+    return "";
+  } catch {
+    return "";
+  }
 }

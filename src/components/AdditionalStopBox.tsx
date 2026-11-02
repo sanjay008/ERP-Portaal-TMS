@@ -20,6 +20,7 @@ type AdditionalStopItem = {
   pickup_location?: string | null;
   deliver_location?: string | null;
   driver_note?: string | null;
+  driver_message?: string | null;
   time_start?: string | null;
   time_end?: string | null;
   route_name?: string | null;
@@ -73,14 +74,14 @@ export default function AdditionalStopBox({ item, index = 0, onPress }: Props) {
       : index + 1;
 
   const timeWindow = useMemo(() => {
-    const note = item?.driver_note?.trim();
-    if (note) return note;
-
     const start = item?.time_start?.trim();
     const end = item?.time_end?.trim();
     if (start && end) return `${start} - ${end}`;
     return start || end || null;
-  }, [item]);
+  }, [item?.time_start, item?.time_end]);
+
+  const driverNote = item?.driver_note?.trim() || '';
+  const driverMessage = item?.driver_message?.trim() || '';
 
   const address =
     item?.address?.trim() ||
@@ -196,6 +197,18 @@ export default function AdditionalStopBox({ item, index = 0, onPress }: Props) {
             </View>
           </View>
         </View>
+
+        {!!driverNote && (
+          <View style={styles.noteBanner}>
+            <Text style={styles.messageText}>{driverNote}</Text>
+          </View>
+        )}
+
+        {!!driverMessage && (
+          <View style={styles.messageBanner}>
+            <Text style={styles.messageText}>{driverMessage}</Text>
+          </View>
+        )}
 
         <View style={styles.footer}>
           {!!routeName && (
@@ -339,6 +352,24 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: FONTS.Medium,
     color: Colors.darkText,
+  },
+  noteBanner: {
+    backgroundColor: '#595959',
+    borderRadius: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  messageBanner: {
+    backgroundColor: Colors.black,
+    borderRadius: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  messageText: {
+    fontSize: 13,
+    fontFamily: FONTS.Medium,
+    color: '#FFEA00',
+    lineHeight: 18,
   },
   metricsCol: {
     gap: 8,

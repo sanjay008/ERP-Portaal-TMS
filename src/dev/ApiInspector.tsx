@@ -1,6 +1,5 @@
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import {
-  ApiInspectorIdentity,
   ApiLogEntry,
   getApiLogEntries,
   installApiInspector,
@@ -9,7 +8,6 @@ import {
   setApiInspectorIdentity,
   subscribeApiLog,
 } from "@/src/dev/apiInspectorLog";
-import { getData } from "@/src/utils/storeData";
 import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   Modal,
@@ -52,18 +50,10 @@ export default function ApiInspector() {
     y: Math.max(12, height - BUTTON - 150),
   });
   const [origin, setOrigin] = useState(position.current);
-  const [storedIdentity, setStoredIdentity] = useState<ApiInspectorIdentity | null>(null);
   const dragStart = useRef(position.current);
   const moved = useRef(false);
 
-  const contextIdentity = readApiInspectorIdentity(UserData);
-  const identity = isApiInspectorAllowed(contextIdentity)
-    ? contextIdentity
-    : isApiInspectorAllowed(storedIdentity)
-      ? storedIdentity
-      : contextIdentity?.userId
-        ? contextIdentity
-        : storedIdentity;
+  const identity = readApiInspectorIdentity(UserData);
   const allowed = isApiInspectorAllowed(identity);
   const identityKey = `${identity?.userId ?? ""}|${identity?.role ?? ""}|${identity?.relatiesId ?? ""}|${allowed ? 1 : 0}`;
   const appliedIdentity = useRef("");
@@ -71,19 +61,6 @@ export default function ApiInspector() {
     appliedIdentity.current = identityKey;
     setApiInspectorIdentity(allowed ? identity : null);
   }
-
-  useEffect(() => {
-    let alive = true;
-    getData("USERDATA")
-      .then((stored: any) => {
-        if (!alive) return;
-        setStoredIdentity(readApiInspectorIdentity(stored));
-      })
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, [UserData]);
 
   useEffect(() => {
     installApiInspector();

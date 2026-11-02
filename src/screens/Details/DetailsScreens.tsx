@@ -938,7 +938,7 @@ export default function DetailsScreens({ navigation, route }: any) {
   const CustomerSignatureFun = async (signature: string | null = null, name: string | null = null,) => {
     if (isBlankSignatureData(signature)) {
       setToast({
-        top: 45,
+        bottom: 40,
         text: t("Signature is required"),
         type: "error",
         visible: true,
@@ -972,15 +972,9 @@ export default function DetailsScreens({ navigation, route }: any) {
         clearActiveVerifyDeliveryLabel();
         setShowSig(false);
         setSecondModal(p => ({ ...p, visible: false }));
-        setToast({
-          top: 45,
-          text: res?.message,
-          type: "success",
-          visible: true,
-        });
       } else {
         setToast({
-          top: 45,
+          bottom: 40,
           text: res?.message,
           type: "error",
           visible: true,
@@ -988,7 +982,7 @@ export default function DetailsScreens({ navigation, route }: any) {
       }
     } catch (error) {
       setToast({
-        top: 45,
+        bottom: 40,
         text: ErrorHandle(error).message,
         type: "error",
         visible: true,

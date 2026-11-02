@@ -3,12 +3,18 @@ import { initReactI18next } from "react-i18next";
 import apiConstants from "../../api/apiConstants";
 import ApiService from "../../utils/Apiservice";
 import { hydrateApiBaseUrl } from "../../utils/apiBaseUrl";
-import { getStoredUserLanguage } from "../../utils/languagePreference";
+import {
+  DEFAULT_LANGUAGE,
+  getStoredUserLanguage,
+} from "../../utils/languagePreference";
 
 const loadLanguage = async () => {
-  const storedLanguage = await getStoredUserLanguage();
-  // Fallback only for i18n init UI — does NOT write to storage
-  return storedLanguage || "nl";
+  try {
+    const storedLanguage = await getStoredUserLanguage();
+    return storedLanguage || DEFAULT_LANGUAGE;
+  } catch {
+    return DEFAULT_LANGUAGE;
+  }
 };
 
 export const languagedata = async () => {

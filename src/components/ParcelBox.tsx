@@ -17,6 +17,7 @@ import { Images } from '../assets/images';
 import { GlobalContextData } from '../context/GlobalContext';
 import ApiService from '../utils/Apiservice';
 import { Colors } from '../utils/colors';
+import { getContrastColor } from '../utils/contrastColor';
 import { isProductActionLockedForRole } from '../utils/orderStatus';
 import { FONTS } from '../utils/storeData';
 
@@ -56,6 +57,14 @@ export default function ParcelBox({
   const { t } = useTranslation();
   const { UserData, isGpsTracking, GloblyTypeSlide, setToast } = useContext(GlobalContextData);
   const isWarehouseChange = GloblyTypeSlide === "warehouse_change";
+  const statusBg =
+    data?.tmsstatus?.color ||
+    statusData?.color ||
+    Colors.background;
+  const statusFg = useMemo(
+    () => getContrastColor(statusBg, "#000000"),
+    [statusBg],
+  );
   const isProductActionLocked = isProductActionLockedForRole(
     orderData,
     UserData?.user?.role,
@@ -291,16 +300,20 @@ const isCustomerCountryPrice = useCallback(
           <View
             style={[
               styles.Status,
-              { backgroundColor: data?.tmsstatus?.color || Colors.background },
+              { backgroundColor: statusBg },
             ]}
           >
             <Image
               source={{
-                uri: Icon || getDirectDropboxLink(data?.tmsstatus?.shared_link),
+                uri:
+                  Icon ||
+                  getDirectDropboxLink(
+                    data?.tmsstatus?.shared_link || statusData?.shared_link,
+                  ),
               }}
-              style={styles.Icon}
+              style={[styles.Icon, { tintColor: statusFg }]}
               contentFit="contain"
-              tintColor={Colors.black}
+              tintColor={statusFg}
               cachePolicy="memory-disk"
               transition={200}
             />

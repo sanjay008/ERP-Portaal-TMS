@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from 'expo-image';
-import React, { useContext, useEffect, useRef, useState } from "react";
+import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
@@ -17,6 +17,7 @@ import { Images } from "../assets/images";
 import { GlobalContextData } from "../context/GlobalContext";
 import ApiService from "../utils/Apiservice";
 import { Colors } from "../utils/colors";
+import { getContrastColor } from "../utils/contrastColor";
 import { isDeliveryPhaseOrder, isProductActionLockedForRole } from "../utils/orderStatus";
 import { FONTS, SimpleFlex } from "../utils/storeData";
 import CustomCollapsible from "./CustomCollapsible";
@@ -56,6 +57,7 @@ function PickUpBox({
   showScannerButton = false,
   onScannerPress,
   onParcelManualVerify,
+  is_whatsapp_btn = true
 }: any) {
   const { t } = useTranslation();
   const { ErrorHandle } = useErrorHandle();
@@ -68,6 +70,11 @@ function PickUpBox({
   const isWhatsAppLocked = isProductActionLockedForRole(
     ItemData,
     UserData?.user?.role,
+  );
+  const statusBg = LableBackground || statusData?.color || Colors.Boxgray;
+  const statusFg = useMemo(
+    () => getContrastColor(statusBg, "#000000"),
+    [statusBg],
   );
 
   const getDirectDropboxLink = (sharedLink: string) => {
@@ -85,7 +92,7 @@ function PickUpBox({
   };
 
   const getPhoneNumber = () => {
-    const mobile = '+'+ItemData?.wa_whatsapp_number || "";
+    const mobile = ItemData?.wa_whatsapp_number ? '+'+ItemData?.wa_whatsapp_number : "";
     if (!mobile) return null;
     return mobile;
   };
@@ -285,7 +292,7 @@ function PickUpBox({
           style={[
             styles.LabelBox,
             {
-              backgroundColor: LableBackground || Colors.Boxgray,
+              backgroundColor: statusBg,
               maxWidth: "38%",
               alignItems: "center",
               justifyContent: "center",
@@ -298,7 +305,7 @@ function PickUpBox({
               {
                 textAlign: "center",
                 fontSize: 14,
-                color: Colors.black,
+                color: statusFg,
               },
             ]}
             numberOfLines={2}
@@ -436,6 +443,8 @@ function PickUpBox({
             <TouchableOpacity activeOpacity={0.85} onPress={handleCall}>
               <Text style={styles.Text}>{getPhoneNumber()}</Text>
             </TouchableOpacity>
+            {
+              getPhoneNumber() &&
             <TouchableOpacity
               activeOpacity={0.85}
               onPress={handleCall}
@@ -445,7 +454,8 @@ function PickUpBox({
             >
               <Ionicons name="call" size={24} color={Colors.green} />
             </TouchableOpacity>
-            <TouchableOpacity
+            }
+            {is_whatsapp_btn && <TouchableOpacity
               activeOpacity={0.85}
               disabled={whatsappLoading || isWhatsAppLocked}
               onPress={() => WhatsaapRedirectFun(2)}
@@ -457,6 +467,7 @@ function PickUpBox({
                 <Image source={Images.WhatsApp} style={styles.Icon} />
               )}
             </TouchableOpacity>
+            }
           </View>
         </View>
       )}

@@ -1,5 +1,10 @@
 import React from "react";
-import { StyleSheet, Text, TouchableOpacity } from "react-native";
+import {
+  ActivityIndicator,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+} from "react-native";
 import { RFValue } from "react-native-responsive-fontsize";
 import { Colors } from "../utils/colors";
 import { FONTS } from "../utils/storeData";
@@ -16,8 +21,9 @@ type typeProps = {
   top?: number | any;
   disabled?: boolean | any;
   fontSize?: number | any;
+  loading?: boolean;
   onPress?: () => void;
-}
+};
 
 const ButtonComponent = ({
   width,
@@ -30,11 +36,16 @@ const ButtonComponent = ({
   borderWidth,
   borderColor,
   top,
-  disabled,fontSize
-}:typeProps) => {
+  disabled,
+  fontSize,
+  loading = false,
+}: typeProps) => {
+  const isDisabled = !!disabled || !!loading;
+  const textColor = color ? color : Colors.white;
+
   return (
     <TouchableOpacity
-    disabled={disabled}
+      disabled={isDisabled}
       onPress={onPress}
       activeOpacity={0.85}
       style={{
@@ -49,11 +60,24 @@ const ButtonComponent = ({
         borderWidth: borderWidth,
         borderColor: borderColor,
         top: top,
+        opacity: isDisabled ? 0.85 : 1,
       }}
     >
-      <Text style={[styles.title, { color: color ? color : Colors.white,  fontSize: fontSize?fontSize:RFValue(15) }]}>
-        {title}
-      </Text>
+      {loading ? (
+        <ActivityIndicator color={textColor} size="small" />
+      ) : (
+        <Text
+          style={[
+            styles.title,
+            {
+              color: textColor,
+              fontSize: fontSize ? fontSize : RFValue(15),
+            },
+          ]}
+        >
+          {title}
+        </Text>
+      )}
     </TouchableOpacity>
   );
 };
@@ -64,6 +88,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: RFValue(15),
     fontFamily: FONTS.Medium,
-    textTransform:'capitalize'
+    textTransform: "capitalize",
   },
 });
