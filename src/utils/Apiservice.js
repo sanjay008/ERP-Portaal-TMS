@@ -4,11 +4,179 @@ import apiConstants from "../api/apiConstants";
 import { getData } from "../utils/storeData";
 import { getChauffeurCoordsForApi } from "./chauffeurLocationCache";
 
+const SENSITIVE_KEYS = new Set([
+  "password",
+  "token",
+  "verify_token",
+  "expo_token",
+]);
+
+function maskValue(key, value) {
+  if (!SENSITIVE_KEYS.has(String(key).toLowerCase())) return value;
+  const text = String(value ?? "");
+  if (text.length <= 8) return "***";
+  return `${text.slice(0, 4)}…${text.slice(-4)}`;
+}
+
+function formDataToObject(formData) {
+  if (!formData) return null;
+  const parts = formData?._parts;
+  if (!Array.isArray(parts)) return "[FormData]";
+
+  const out = {};
+  parts.forEach(([key, value]) => {
+    let next = value;
+    if (value && typeof value === "object" && value.uri) {
+      next = `[file:${value.name || "upload"}]`;
+    } else {
+      next = maskValue(key, value);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(out, key)) {
+      if (!Array.isArray(out[key])) out[key] = [out[key]];
+      out[key].push(next);
+      return;
+    }
+    out[key] = next;
+  });
+  return out;
+}
+
+function shortEndpoint(endpoint) {
+  if (!endpoint) return "-";
+  try {
+    const url = String(endpoint);
+    const idx = url.indexOf("/api/");
+    return idx >= 0 ? url.slice(idx) : url;
+  } catch {
+    return String(endpoint);
+  }
+}
+
+// Metro/Cursor terminal is plain text — click / arrow expand does NOT work.
+// false = short Response summary | true = full Response JSON in the box
+const SHOW_FULL_API_RESPONSE = false;
+
+const apiLogHistory = [];
+const API_LOG_HISTORY_MAX = 20;
+
+function toLogText(value) {
+  return typeof value === "string" ? value : JSON.stringify(value, null, 2);
+}
+
+function summarizeResponse(value) {
+  if (value == null || typeof value !== "object") return value;
+
+  const out = {};
+  const prefer = [
+    "status",
+    "success",
+    "message",
+    "msg",
+    "error",
+    "errors",
+    "code",
+  ];
+  prefer.forEach((key) => {
+    if (Object.prototype.hasOwnProperty.call(value, key)) {
+      out[key] = value[key];
+    }
+  });
+
+  Object.keys(value).forEach((key) => {
+    if (Object.prototype.hasOwnProperty.call(out, key)) return;
+    const child = value[key];
+    if (Array.isArray(child)) {
+      out[key] = `[Array(${child.length})]`;
+      return;
+    }
+    if (child && typeof child === "object") {
+      const keys = Object.keys(child);
+      out[key] = `{${keys.slice(0, 6).join(", ")}${
+        keys.length > 6 ? ", …" : ""
+      }}`;
+      return;
+    }
+    out[key] = child;
+  });
+
+  return out;
+}
+
+function rememberApiLog(entry) {
+  apiLogHistory.unshift(entry);
+  if (apiLogHistory.length > API_LOG_HISTORY_MAX) {
+    apiLogHistory.length = API_LOG_HISTORY_MAX;
+  }
+}
+
+function dumpApi(index = 0) {
+  const entry = apiLogHistory[index];
+  if (!entry) {
+    console.log("[API] dumpApi: no stored response");
+    return null;
+  }
+  logApiBlock(`API DUMP #${index} ${entry.title}`, [
+    { label: "Endpoint", value: entry.endpoint },
+    { label: "Response", value: entry.response },
+  ]);
+  return entry.response;
+}
+
+if (typeof globalThis !== "undefined") {
+  globalThis.dumpApi = dumpApi;
+  globalThis.API_LOG_FULL = globalThis.API_LOG_FULL ?? SHOW_FULL_API_RESPONSE;
+}
+
+function logApiBlock(title, lines) {
+  const border = "─".repeat(48);
+
+  console.log(`\n┌${border}`);
+  console.log(`│ ${title}`);
+  console.log(`├${border}`);
+
+  lines.forEach((line) => {
+    if (typeof line === "string") {
+      console.log(`│ ${line}`);
+      return;
+    }
+
+    console.log(`│ ${line.label}:`);
+    String(toLogText(line.value ?? null))
+      .split("\n")
+      .forEach((row) => console.log(`│   ${row}`));
+  });
+
+  console.log(`└${border}\n`);
+}
+
+function logApiResponseBlock(title, endpoint, responseValue) {
+  const wantFull =
+    Boolean(globalThis?.API_LOG_FULL) || SHOW_FULL_API_RESPONSE;
+  const display = wantFull
+    ? responseValue
+    : summarizeResponse(responseValue);
+
+  rememberApiLog({ title, endpoint, response: responseValue });
+
+  const lines = [
+    { label: "Endpoint", value: String(endpoint) },
+    { label: "Response", value: display },
+  ];
+
+  if (!wantFull) {
+    lines.push("Full → SHOW_FULL_API_RESPONSE=true in Apiservice.js");
+  }
+
+  logApiBlock(title, lines);
+}
+
 const ApiService = async (endpoint, options = {}) => {
+  let requestData;
+  let customData = options.customData;
+
   try {
     const verify_token = await getData("USERDATA");
-
-    let customData = options.customData;
 
     const isLiveLocationEndpoint =
       endpoint === apiConstants.update_driver_live_location;
@@ -23,11 +191,9 @@ const ApiService = async (endpoint, options = {}) => {
       }
     }
 
-    let requestData;
     if (options.includeToken || customData) {
       requestData = new FormData();
 
-      // Add token if requested
       if (options.includeToken) {
         requestData.append("token", verify_token.data.user.verify_token);
       }
@@ -113,7 +279,6 @@ const ApiService = async (endpoint, options = {}) => {
           return;
         }
 
-        // Primitive arrays (e.g. item_ids for rejection close)
         if (Array.isArray(value)) {
           value.forEach((item, index) => {
             if (item == null) return;
@@ -124,7 +289,6 @@ const ApiService = async (endpoint, options = {}) => {
 
         if (value == null) return;
 
-        // Nested objects must be JSON strings for RN FormData.
         if (typeof value === "object") {
           if (value.uri) {
             requestData.append(key, {
@@ -142,12 +306,21 @@ const ApiService = async (endpoint, options = {}) => {
           return;
         }
 
-        // Keep FormData values as strings (RN is strict about types).
-        requestData.append(key, typeof value === "boolean" ? (value ? "1" : "0") : String(value));
+        requestData.append(
+          key,
+          typeof value === "boolean" ? (value ? "1" : "0") : String(value),
+        );
       });
     }
 
-    console.log("requestData", requestData, endpoint);
+    const method = (options.method || "POST").toUpperCase();
+    logApiBlock(`API → ${method} ${shortEndpoint(endpoint)}`, [
+      { label: "Endpoint", value: String(endpoint) },
+      {
+        label: "Request",
+        value: formDataToObject(requestData) ?? customData ?? null,
+      },
+    ]);
 
     const response = await axios({
       method: options.method || "POST",
@@ -160,9 +333,45 @@ const ApiService = async (endpoint, options = {}) => {
       },
     });
 
+    logApiResponseBlock(
+      `API ✓ ${method} ${shortEndpoint(endpoint)}`,
+      endpoint,
+      response?.data ?? null,
+    );
+
     return response.data;
   } catch (error) {
-    console.error("ApiService Error:", error, endpoint);
+    const method = (options.method || "POST").toUpperCase();
+    const errorBody =
+      error?.response?.data ?? error?.message ?? String(error);
+    const wantFull =
+      Boolean(globalThis?.API_LOG_FULL) || SHOW_FULL_API_RESPONSE;
+
+    rememberApiLog({
+      title: `API ✗ ${method} ${shortEndpoint(endpoint)}`,
+      endpoint,
+      response: errorBody,
+    });
+
+    const lines = [
+      { label: "Endpoint", value: String(endpoint) },
+      {
+        label: "Request",
+        value: formDataToObject(requestData) ?? customData ?? null,
+      },
+      {
+        label: "Error",
+        value: wantFull ? errorBody : summarizeResponse(errorBody),
+      },
+      {
+        label: "Status",
+        value: error?.response?.status ?? "-",
+      },
+    ];
+    if (!wantFull) {
+      lines.push("Full → SHOW_FULL_API_RESPONSE=true in Apiservice.js");
+    }
+    logApiBlock(`API ✗ ${method} ${shortEndpoint(endpoint)}`, lines);
     throw error;
   }
 };

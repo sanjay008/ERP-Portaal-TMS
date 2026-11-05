@@ -43,7 +43,11 @@ import {
   appendDeviceMetaToFormData,
   withDeviceMeta,
 } from "@/src/utils/deviceMeta";
-import { REQUIRED_CHAUFFEUR_ROLE } from "@/src/utils/driverLocationApi";
+import {
+  LIVE_LOCATION_REASON,
+  pingDriverLiveLocation,
+  roleNeedsScanLocation,
+} from "@/src/utils/driverLocationApi";
 import {
   appendBoundProofToQueue,
   buildCameraProofBinding,
@@ -87,6 +91,7 @@ import {
   attachScanFreshCoordsToPayload,
   prefetchScanFreshLocation,
   SCAN_MAX_AGE_MS,
+  setScanLocationRole,
 } from "@/src/utils/scanFreshLocation";
 import { isBlankSignatureData } from "@/src/utils/signatureValidation";
 import { FONTS, height, ScanPlatFormId, width } from "@/src/utils/storeData";
@@ -933,10 +938,12 @@ export default function ScannerScreens({ navigation, route }: any) {
   }, [Focused, handleCameraPermissionResult]);
 
   useEffect(() => {
-    const isChauffeur = UserData?.user?.role === REQUIRED_CHAUFFEUR_ROLE;
-    if (!Focused || !isChauffeur) {
+    const role = UserData?.user?.role;
+    if (!Focused || !roleNeedsScanLocation(role)) {
       return;
     }
+
+    setScanLocationRole(role);
 
     let cancelled = false;
     let delayTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1034,6 +1041,11 @@ export default function ScannerScreens({ navigation, route }: any) {
           GloblyTypeSlide === "ready_for_pickup"
         ) {
           setComment(false);
+          const scanData =
+            pendingPickupScanRef.current ?? PickupPlannedSheetOpen.scanPayload;
+          if (scanData) {
+            await StatusUpdateFun(scanData, true);
+          }
         } else {
           setComment(true);
         }
@@ -1374,8 +1386,6 @@ export default function ScannerScreens({ navigation, route }: any) {
         }),
       };
      
-      console.log("StatusUpdateFun", payload);
-
       if (is_driver_unloading) {
         payload.is_driver_unloading = 1;
       }
@@ -1400,13 +1410,11 @@ export default function ScannerScreens({ navigation, route }: any) {
         return;
       }
 
-      await attachScanFreshCoordsToPayload(payload);
+      await attachScanFreshCoordsToPayload(payload, scanPayload);
 
       const res = await ApiService(apiConstants.status_update, {
         customData: await withDeviceMeta(payload),
       });
-      console.log("StatusUpdateFun", res);
-
       if (res?.status) {
         if (!options?.keepDeliveryLabel) {
           clearDeliveryLabelSelection();
@@ -1427,6 +1435,19 @@ export default function ScannerScreens({ navigation, route }: any) {
           type === "ready_for_pickup" || GloblyTypeSlide === "ready_for_pickup";
 
         if (isReadyForPickup) {
+          if (payload.latitude && payload.longitude) {
+            void pingDriverLiveLocation(
+              LIVE_LOCATION_REASON.SCAN_PARCEL,
+              UserData,
+              scanPayload?.order_id,
+              {
+                latitude: Number(payload.latitude),
+                longitude: Number(payload.longitude),
+                capturedAtMs: Date.now(),
+                source: 'status_update',
+              },
+            );
+          }
           setSecondModal({
             visible: true,
             title: t("Success"),
@@ -2196,7 +2217,10 @@ const CommentFun = async (options?: { skipComment?: boolean }) => {
       payload.is_damage = selectDamageData?.id;
     }
  
-    await attachScanFreshCoordsToPayload(payload);
+    await attachScanFreshCoordsToPayload(payload, {
+      ...(SelectPlace ?? {}),
+      ...(QRData ?? {}),
+    });
  
     const res = await ApiService(apiConstants.status_update, {
       customData: await withDeviceMeta(payload),

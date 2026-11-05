@@ -9,6 +9,11 @@ import { getData } from '@/src/utils/storeData';
 import type { LocationSource, NativeDriverCoordinate } from 'expo-driver-location';
 
 export const REQUIRED_CHAUFFEUR_ROLE = 'chauffeur';
+export const TMS_CLIENT_ROLE = 'tms-client';
+
+export function roleNeedsScanLocation(role?: string | null): boolean {
+  return role === REQUIRED_CHAUFFEUR_ROLE || role === TMS_CLIENT_ROLE;
+}
 
 /** Sent as `reason` on update-driver-live-location so the backend knows why it was called. */
 export const LIVE_LOCATION_REASON = {
@@ -205,8 +210,8 @@ export function buildAndValidateDriverPayload(
   }
 
   const role = userData.user.role;
-  if (role !== REQUIRED_CHAUFFEUR_ROLE) {
-    return { valid: false, reason: `Role is "${role}" — only "${REQUIRED_CHAUFFEUR_ROLE}" is allowed` };
+  if (!roleNeedsScanLocation(role)) {
+    return { valid: false, reason: `Role is "${role}" — scan location role required` };
   }
 
   const token = userData.user.verify_token;
@@ -224,7 +229,7 @@ export function buildAndValidateDriverPayload(
     return { valid: false, reason: 'relaties_id is missing' };
   }
 
-  if (!region_id) {
+  if (!region_id && role === REQUIRED_CHAUFFEUR_ROLE) {
     return { valid: false, reason: 'region_id is null/missing' };
   }
 
@@ -261,7 +266,7 @@ export function buildAndValidateDriverPayload(
       planning_date: String(planning_date ?? getTodayDate()),
       relaties_id: String(relaties_id),
       user_id: String(user_id),
-      region_id: String(region_id),
+      region_id: region_id != null && region_id !== '' ? String(region_id) : '',
       latitude: String(coord.latitude),
       longitude: String(coord.longitude),
       heading: coord.heading != null ? String(coord.heading) : '',
@@ -354,7 +359,6 @@ export async function sendDriverLocationUpdate(
     const res = await ApiService(apiConstants.update_driver_live_location, {
       customData,
     });
-    console.log('res', res, customData);
     if (res?.status) {
       driverLocLog('api', {
         ok: 1,
@@ -380,11 +384,6 @@ export async function sendDriverLocationUpdate(
   }
 }
 
-/**
- * Fire-and-forget: ping live location once (e.g. after successful Verify_status).
- * Uses the same 3-min scan cache rule + shared in-flight fetch as prefetch
- * (so parcel 2 while parcel 1 is still fetching joins the same GPS promise).
- */
 export async function pingDriverLiveLocation(
   reason: LiveLocationReason,
   userData?: UserDataShape | null,
@@ -393,7 +392,7 @@ export async function pingDriverLiveLocation(
 ): Promise<void> {
   try {
     const resolvedUser = userData ?? (await loadTrackingUserData());
-    if (!resolvedUser?.user || resolvedUser.user.role !== REQUIRED_CHAUFFEUR_ROLE) {
+    if (!resolvedUser?.user || !roleNeedsScanLocation(resolvedUser.user.role)) {
       return;
     }
 
@@ -407,12 +406,15 @@ export async function pingDriverLiveLocation(
       return;
     }
 
+    if (last.capturedAtMs == null || !Number.isFinite(Number(last.capturedAtMs))) {
+      last = { ...last, capturedAtMs: Date.now() };
+    }
+
     const coord = nativeCoordToDriverCoordinate(
       last,
       (last.source as LocationSource) ?? 'published_cache',
     );
 
-    // Absolute safety: never POST published_cache older than 20 min without a real fix.
     if (isLocationStale(coord.capturedAtMs)) {
       driverLocWarn('ping', {
         ok: 0,

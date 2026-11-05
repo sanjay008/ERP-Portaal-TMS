@@ -1,4 +1,4 @@
-import { REQUIRED_CHAUFFEUR_ROLE } from '@/src/utils/driverLocationApi';
+import { roleNeedsScanLocation } from '@/src/utils/driverLocationApi';
 
 const MIN_INTERVAL_MS = 15000;
 const MIN_DISTANCE_M = 25;
@@ -98,7 +98,8 @@ export function clearChauffeurLocation(): void {
 export function getChauffeurCoordsForApi(
   role: string | undefined,
 ): { latitude: string; longitude: string } | null {
-  if (role !== REQUIRED_CHAUFFEUR_ROLE) {
+  // chauffeur + tms-client: same auto-inject into ApiService payloads
+  if (!roleNeedsScanLocation(role)) {
     return null;
   }
 

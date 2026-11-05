@@ -250,11 +250,13 @@ export default function Profile({ navigation }: any) {
       Background: Colors.primary,
       Icon: Images.Info,
       Title: t("About Us"),
-      onPress: () =>
+      onPress: () => {
+        const version = Constants.expoConfig?.version || "Beta";
         navigation.navigate("WebViewScreeens", {
           title: "About Us",
-          url: `https://app.erpportaal.nl/about_app_info/${CurrentVersion}`,
-        }),
+          url: `https://app.erpportaal.nl/about_app_info/${encodeURIComponent(version)}`,
+        });
+      },
     },
     {
       id: 2,

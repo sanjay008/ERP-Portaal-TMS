@@ -3,6 +3,7 @@ import { Images } from '@/src/assets/images';
 import { ApiFormatDate } from '@/src/components/ApiFormatDate';
 import { setLatestDeliveryCameraSetData } from '@/src/context/ParcelVerifySessionContext';
 import ApiService from '@/src/utils/Apiservice';
+import { setChauffeurLocation } from '@/src/utils/chauffeurLocationCache';
 import { Colors } from '@/src/utils/colors';
 import { withDeviceMeta } from '@/src/utils/deviceMeta';
 import {
@@ -204,6 +205,25 @@ export async function runParcelVerifyFlow(
       console.warn('Scan location unavailable on iOS; continuing without coordinates.', locationError);
     }
 
+    // Keep verify GPS on the scan payload so ready_for_pickup / pickup-planned
+    // status_update can reuse it (same as pickup & delivery). Also seed the
+    // shared location cache so ApiService injects lat/lng for tms-client.
+    const scanWithLocation =
+      verifyPayload.latitude && verifyPayload.longitude
+        ? {
+            ...data,
+            latitude: verifyPayload.latitude,
+            longitude: verifyPayload.longitude,
+          }
+        : data;
+    if (verifyPayload.latitude && verifyPayload.longitude) {
+      setChauffeurLocation(
+        Number(verifyPayload.latitude),
+        Number(verifyPayload.longitude),
+        true,
+      );
+    }
+
     let res: any;
     try {
       res = await ApiService(apiConstants.Verify_status, {
@@ -220,7 +240,6 @@ export async function runParcelVerifyFlow(
         );
       }
     }
-    console.log("payload", res);
     if (!Boolean(res?.status)) {
       void playErrorSound();
       const orderData = res?.data?.order_data || null;
@@ -232,7 +251,6 @@ export async function runParcelVerifyFlow(
           ? res.data.items
           : null) ||
         [];
-      console.log("productItems", productItems);
 
       if (isReadyForPickupSlide(slideType, deps.globlyTypeSlide)) {
         const errorText =
@@ -240,11 +258,11 @@ export async function runParcelVerifyFlow(
           deps.t('Invalid QR code. Please try again.');
         if (orderData) {
           deps.pickupPlannedModalPendingRef.current = true;
-          deps.pendingPickupScanRef.current = data;
+          deps.pendingPickupScanRef.current = scanWithLocation;
           deps.setPickupPlannedSheetOpen({
             visible: true,
             orderData,
-            scanPayload: data,
+            scanPayload: scanWithLocation,
             errorMessage: errorText,
           });
           return;
@@ -422,7 +440,6 @@ export async function runParcelVerifyFlow(
       modalConfig.RColor = Colors.white;
     }
 
-    console.log('modalConfig',modalConfig);
     const sessionDeliveryLabel = deps.isManualDirectVerify
       ? null
       : deps.getSessionDeliveryLabel();
@@ -527,7 +544,7 @@ export async function runParcelVerifyFlow(
 
     if (isPickupPlannedFlow) {
       deps.pickupPlannedModalPendingRef.current = true;
-      deps.pendingPickupScanRef.current = data;
+      deps.pendingPickupScanRef.current = scanWithLocation;
       const readyError =
         isReadyForPickupSlide(slideType, deps.globlyTypeSlide) &&
         Boolean(res?.data?.error_key)
@@ -537,7 +554,7 @@ export async function runParcelVerifyFlow(
       deps.setPickupPlannedSheetOpen({
         visible: true,
         orderData: res?.data?.order_data,
-        scanPayload: data,
+        scanPayload: scanWithLocation,
         errorMessage: readyError,
       });
       return;

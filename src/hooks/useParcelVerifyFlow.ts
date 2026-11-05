@@ -56,6 +56,10 @@ import {
   getOrderTmsStatusId,
   hasRemainingParcelsToDeliver,
 } from '@/src/utils/pickupPlanned';
+import {
+  LIVE_LOCATION_REASON,
+  pingDriverLiveLocation,
+} from '@/src/utils/driverLocationApi';
 import { attachScanFreshCoordsToPayload } from '@/src/utils/scanFreshLocation';
 import { buildScanInfo } from '@/src/utils/scanInfo';
 import {
@@ -494,6 +498,7 @@ export function useParcelVerifyFlow({
           order_id: data?.order_id,
           scan_info: buildScanInfo(data),
           platform: ScanPlatFormId,
+          qr_data: JSON.stringify(data ?? null),
           type: slideType ?? GloblyTypeSlide,
           // Delivery label only for delivery orders — never on pickup
           ...(labelForStatus != null &&
@@ -520,7 +525,7 @@ export function useParcelVerifyFlow({
           payload.is_damage = selectDamageData?.id;
         }
 
-        await attachScanFreshCoordsToPayload(payload);
+        await attachScanFreshCoordsToPayload(payload, data);
 
         const res = await ApiService(apiConstants.status_update, {
           customData: await withDeviceMeta(payload),
@@ -550,6 +555,19 @@ export function useParcelVerifyFlow({
         }
 
         if (slideType === 'ready_for_pickup') {
+          if (payload.latitude && payload.longitude) {
+            void pingDriverLiveLocation(
+              LIVE_LOCATION_REASON.SCAN_PARCEL,
+              UserData,
+              data?.order_id,
+              {
+                latitude: Number(payload.latitude),
+                longitude: Number(payload.longitude),
+                capturedAtMs: Date.now(),
+                source: 'status_update',
+              },
+            );
+          }
           setSecondModal({
             visible: true,
             title: t('Success'),
@@ -1633,7 +1651,7 @@ export function useParcelVerifyFlow({
         is_damage: payload.is_damage,
       });
 
-      await attachScanFreshCoordsToPayload(payload);
+      await attachScanFreshCoordsToPayload(payload, selectPlace);
 
       const res = await ApiService(apiConstants.status_update, {
         customData: await withDeviceMeta(payload),
@@ -2083,6 +2101,11 @@ export function useParcelVerifyFlow({
         queueCameraProofImages(data, 'pickup_camera_done');
         if (slideType === 'ready_for_pickup') {
           setComment(false);
+          const scanData =
+            pendingPickupScanRef.current ?? pickupPlannedSheetOpen.scanPayload;
+          if (scanData) {
+            await statusUpdateFun(scanData, true);
+          }
         } else {
           setComment(true);
         }

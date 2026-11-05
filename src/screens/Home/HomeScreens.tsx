@@ -27,6 +27,7 @@ import {
   REQUIRED_CHAUFFEUR_ROLE,
   sendDriverLocationUpdate,
 } from "@/src/utils/driverLocationApi";
+import { setScanLocationRole } from "@/src/utils/scanFreshLocation";
 import { stopNativeDriverTracking } from "@/src/utils/nativeDriverLocation";
 import {
   buildDateTime,
@@ -371,6 +372,11 @@ export default function HomeScreens({ navigation, route }: any) {
       const navigateToSlide = () => {
         setGloblyTypeSlide(slideItem?.type);
         setGloblySlideTitle(slideItem?.item_title || "");
+        // Same as FilterScreen: role must be set before Scanner GPS resolve
+        // so tms-client ready_for_pickup also attaches lat/lng like delivery.
+        if (UserData?.user?.role) {
+          setScanLocationRole(UserData.user.role);
+        }
         if (
           slideItem?.type == "outbound_scan" ||
           slideItem?.type == "additional_address" ||
@@ -435,7 +441,13 @@ export default function HomeScreens({ navigation, route }: any) {
         if (isMountedRef.current) setIsGpsPermissionLoading(false);
       }
     },
-    [handleGpsPermissionResult, navigation, setGloblyTypeSlide, setGloblySlideTitle],
+    [
+      handleGpsPermissionResult,
+      navigation,
+      setGloblyTypeSlide,
+      setGloblySlideTitle,
+      UserData?.user?.role,
+    ],
   );
 
   const handleTripOffConfirm = useCallback(

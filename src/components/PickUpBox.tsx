@@ -97,7 +97,6 @@ function PickUpBox({
     return mobile;
   };
 
-  console.log('ItemData',ItemData);
   
 
   // const WhatsaapRedirectFun = async (type: number) => {

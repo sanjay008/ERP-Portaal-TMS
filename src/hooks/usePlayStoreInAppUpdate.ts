@@ -35,8 +35,7 @@ function loadInAppUpdates(): InAppUpdatesModule | null {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     return require('sp-react-native-in-app-updates') as InAppUpdatesModule;
-  } catch (e) {
-    console.log('[StoreInAppUpdate] module unavailable:', e);
+  } catch {
     return null;
   }
 }
@@ -170,8 +169,7 @@ export function usePlayStoreInAppUpdate() {
 
       await openPlayStoreListing();
       setPrompt(null);
-    } catch (e) {
-      console.log('[StoreInAppUpdate] confirm failed:', e);
+    } catch {
     } finally {
       setLoading(false);
     }
@@ -264,11 +262,7 @@ export function usePlayStoreInAppUpdate() {
           lastPromptAtRef.current = Date.now();
           try {
             await client.startUpdate({ updateType });
-          } catch (nativeErr) {
-            console.log(
-              '[StoreInAppUpdate] native Play UI failed, using custom:',
-              nativeErr,
-            );
+          } catch {
             setPrompt({
               mode: 'available',
               storeVersion: result.storeVersion,
@@ -282,9 +276,6 @@ export function usePlayStoreInAppUpdate() {
         // marketing version (2.x). Only check when this exact binary version
         // has an explicit App Store version mapping.
         if (!iosInstalledStoreVersion) {
-          console.log(
-            `[StoreInAppUpdate] no App Store version mapping for ${getCurrentVersion()}`,
-          );
           return;
         }
 
@@ -300,7 +291,6 @@ export function usePlayStoreInAppUpdate() {
           'other' in result ? result.other : null,
         );
         if (!storeUrl) {
-          console.log('[StoreInAppUpdate] exact App Store listing unavailable');
           return;
         }
         iosStoreUrlRef.current = storeUrl;
@@ -311,8 +301,7 @@ export function usePlayStoreInAppUpdate() {
           storeVersion: result.storeVersion,
           force: false,
         });
-      } catch (e) {
-        console.log('[StoreInAppUpdate] check failed:', e);
+      } catch {
       } finally {
         checkingRef.current = false;
       }

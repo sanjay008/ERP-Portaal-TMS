@@ -2,7 +2,10 @@ import {
   getChauffeurLocation,
   setChauffeurLocation,
 } from '@/src/utils/chauffeurLocationCache';
-import { REQUIRED_CHAUFFEUR_ROLE } from '@/src/utils/driverLocationApi';
+import {
+  REQUIRED_CHAUFFEUR_ROLE,
+  roleNeedsScanLocation,
+} from '@/src/utils/driverLocationApi';
 import { driverLocLog, driverLocWarn } from '@/src/utils/driverLocLog';
 import type { NativeDriverCoordinate } from 'expo-driver-location';
 import * as Location from 'expo-location';
@@ -57,6 +60,7 @@ function asNativeCoordinate(location: Location.LocationObject): NativeDriverCoor
 
 async function resolveNonDriverScanLocation(): Promise<NativeDriverCoordinate | null> {
   if (genericFresh && isUsable(genericFresh) && ageOfCoord(genericFresh) <= SCAN_MAX_AGE_MS) {
+    applyToChauffeurCache(genericFresh);
     return genericFresh;
   }
   if (genericInFlight) return genericInFlight;
@@ -68,6 +72,7 @@ async function resolveNonDriverScanLocation(): Promise<NativeDriverCoordinate | 
       const last = await Location.getLastKnownPositionAsync();
       if (last && Date.now() - last.timestamp <= SCAN_MAX_AGE_MS) {
         genericFresh = asNativeCoordinate(last);
+        applyToChauffeurCache(genericFresh);
         return genericFresh;
       }
       const position = await Promise.race([
@@ -78,6 +83,7 @@ async function resolveNonDriverScanLocation(): Promise<NativeDriverCoordinate | 
       const coord = asNativeCoordinate(position);
       if (ageOfCoord(coord) > SCAN_MAX_AGE_MS || !isUsable(coord)) return null;
       genericFresh = coord;
+      applyToChauffeurCache(coord);
       return coord;
     } catch (error) {
       driverLocWarn('scan_resolve', { decision: 'generic_fresh_fetch', ok: 0, reason: String(error) });
@@ -299,8 +305,13 @@ export async function resolveScanLocation(
 ): Promise<NativeDriverCoordinate | null> {
   const oid = normalizeOrderId(orderId);
 
+  // tms-client (and any non-chauffeur scan role) uses expo-location, but still
+  // writes the shared cache so ApiService can inject lat/lng like chauffeur.
   if (activeRole !== REQUIRED_CHAUFFEUR_ROLE) {
     const coord = await resolveNonDriverScanLocation();
+    if (isUsable(coord) && roleNeedsScanLocation(activeRole)) {
+      applyToChauffeurCache(coord);
+    }
     logScan(coord?.source === 'lastLocation' ? 'reuse_within_3min' : 'generic_scan_location', oid, coord,
       coord ? ageOfCoord(coord) : undefined);
     return coord;
@@ -479,9 +490,33 @@ export async function awaitScanFreshLocationForStatusUpdate(
   return resolveScanLocation(orderId);
 }
 
+/** Prefer GPS from the latest scan payload when a fresh fix is unavailable. */
+export function applyStashedScanCoordsToPayload(
+  payload: Record<string, any>,
+  scanData?: Record<string, any> | null,
+): boolean {
+  if (payload?.latitude && payload?.longitude) return true;
+  const lat = scanData?.latitude ?? scanData?.lat;
+  const lng = scanData?.longitude ?? scanData?.lng ?? scanData?.lon;
+  if (
+    lat == null ||
+    lng == null ||
+    Number(lat) === 0 ||
+    Number(lng) === 0 ||
+    !Number.isFinite(Number(lat)) ||
+    !Number.isFinite(Number(lng))
+  ) {
+    return false;
+  }
+  payload.latitude = String(lat);
+  payload.longitude = String(lng);
+  return true;
+}
+
 /** Adds scan coordinates when available; GPS must not block the status API call. */
 export async function attachScanFreshCoordsToPayload(
   payload: Record<string, any>,
+  scanData?: Record<string, any> | null,
 ): Promise<void> {
   // Reuse the scan's bounded location resolver here too. The status update
   // runs after comment save, so an iOS native location/cache read must never
@@ -492,6 +527,15 @@ export async function attachScanFreshCoordsToPayload(
     payload?.order_id ?? payload?.orderId,
   );
   if (!location) {
+    if (applyStashedScanCoordsToPayload(payload, scanData)) {
+      driverLocLog('status_coords', {
+        decision: 'stashed_scan_fallback',
+        order: payload?.order_id ?? payload?.orderId ?? '-',
+        lat: payload.latitude,
+        lon: payload.longitude,
+      });
+      return;
+    }
     driverLocWarn('status_coords', {
       decision: 'continue_without_location',
       order: payload?.order_id ?? payload?.orderId ?? '-',
