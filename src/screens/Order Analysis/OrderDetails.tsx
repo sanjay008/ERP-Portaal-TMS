@@ -1,14 +1,17 @@
 import apiConstants from "@/src/api/apiConstants";
+import { Images } from "@/src/assets/images";
 import CommentViewBox from "@/src/components/CommentViewBox";
 import DetailsHeader from "@/src/components/DetailsHeader";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
 import Loader from "@/src/components/loading";
 import LoadingModal from "@/src/components/LoadingModal";
+import OrderSectionAccordion from "@/src/components/OrderSectionAccordion";
 import PickUpBox from "@/src/components/PickUpBox";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import { DropboxContext } from "@/src/context/UploadProider";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
+import { getContrastColor } from "@/src/utils/contrastColor";
 import { FONTS, SimpleFlex } from "@/src/utils/storeData";
 import { StatusBar } from "expo-status-bar";
 import React, { useContext, useEffect, useMemo, useState } from "react";
@@ -57,23 +60,19 @@ const mapTmsCommentForView = (comment: any, isPrivate = false) => ({
 });
 
 export default function OrderDetails({ navigation, route }: any) {
-    const { item, order_id, type,qr_data } = route?.params || {};
+    const { item, order_id, type, qr_data } = route?.params || {};
     const { ErrorHandle } = useErrorHandle();
     const {
         UserData,
         setToast,
-        SelectActiveRegionData,
-        SelectActiveDate,
-        selectRegionData,
     } = useContext(GlobalContextData);
-    const { } = useContext(DropboxContext);
+    useContext(DropboxContext);
     const [ItemsData, setItemsData] = useState(item);
     const [IsLoading, setIsLoading] = useState<boolean>(false);
     const [DataLoading, setDataLoading] = useState<boolean>(false);
-    const [AllDestinationRegionData, setAllDestinationRegionData] = useState<any[]>([]);
-    const [LocationDataMessage, setLocationDataMessage] = useState(null);
     const { t } = useTranslation();
     const [EasyTransLink, setEasyTransLink] = useState<null | string>(null);
+
     const getDirectDropboxLink = (sharedLink: string) => {
         if (!sharedLink) return "";
         let url = sharedLink
@@ -115,15 +114,6 @@ export default function OrderDetails({ navigation, route }: any) {
 
     const GetIdByOrderFun = async () => {
         setDataLoading(true);
-        console.log("REQDATA",{
-                    token: UserData?.user?.verify_token,
-                    role: UserData?.user?.role,
-                    relaties_id: UserData?.relaties?.id,
-                    user_id: UserData?.user?.id,
-                    order_id: order_id ?? ItemsData?.id ?? ItemsData?.order_data?.id,
-                    type: type,
-                },);
-        
         try {
             let res = await ApiService(apiConstants.get_order_data_by_id, {
                 customData: {
@@ -133,11 +123,11 @@ export default function OrderDetails({ navigation, route }: any) {
                     user_id: UserData?.user?.id,
                     order_id: order_id ?? ItemsData?.id ?? ItemsData?.order_data?.id,
                     type: type,
-                    qr_data:JSON.stringify(qr_data)
+                    qr_data: JSON.stringify(qr_data),
                 },
             });
             if (res?.status) {
-                setEasyTransLink(res?.easytrans_link || null)
+                setEasyTransLink(res?.easytrans_link || null);
                 setItemsData(res?.data);
             } else {
                 setToast({
@@ -190,7 +180,6 @@ export default function OrderDetails({ navigation, route }: any) {
     const handleOpenEasyTransOrder = async () => {
         const url = EasyTransLink;
 
-console.log("url",url);
         if (!url) {
             setToast({
                 top: 45,
@@ -212,8 +201,43 @@ console.log("url",url);
             });
         }
     };
-    
-    
+
+    const statusName = ItemsData?.tmsstatus?.status_name || "";
+    const statusBg = ItemsData?.tmsstatus?.color || Colors.green;
+    const statusFg = getContrastColor(statusBg);
+    const customerEmail =
+        ItemsData?.customer?.email ||
+        ItemsData?.customer?.email_address ||
+        ItemsData?.email ||
+        "";
+
+    const handleSendEmail = async () => {
+        const email = String(customerEmail || "").trim();
+        if (!email) {
+            setToast({
+                top: 45,
+                text: t("something_went_wrong"),
+                type: "error",
+                visible: true,
+            });
+            return;
+        }
+        try {
+            await Linking.openURL(`mailto:${email}`);
+        } catch (error) {
+            setToast({
+                top: 45,
+                text: ErrorHandle(error).message,
+                type: "error",
+                visible: true,
+            });
+        }
+    };
+
+    const emptyText = (label: string) => (
+        <Text style={styles.emptySectionText}>{label}</Text>
+    );
+
     return (
         <SafeAreaView style={styles.container}>
             <StatusBar backgroundColor="white" />
@@ -229,6 +253,59 @@ console.log("url",url);
                     bounces={false}
                     overScrollMode="never"
                 >
+                    <View style={styles.orderHeaderCard}>
+                        <View style={styles.orderHeaderTop}>
+                            <Text style={styles.orderIdText}>
+                                {`${t("Order ID")}: ${ItemsData?.id ?? "-"}`}
+                            </Text>
+                            <TouchableOpacity
+                                activeOpacity={0.85}
+                                style={styles.headerIconBtn}
+                                onPress={GetIdByOrderFun}
+                            >
+                                <Image
+                                    source={Images.refresh}
+                                    style={styles.headerIcon}
+                                    tintColor={Colors.white}
+                                />
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.orderHeaderActions}>
+                            {!!statusName && (
+                                <View style={[styles.statusBadge, { backgroundColor: statusBg }]}>
+                                    <Text style={[styles.statusBadgeText, { color: statusFg }]}>
+                                        {t(statusName)}
+                                    </Text>
+                                </View>
+                            )}
+                            <View style={styles.headerActionsRight}>
+                                <TouchableOpacity
+                                    activeOpacity={0.85}
+                                    style={styles.headerIconBtn}
+                                    onPress={GetIdByOrderFun}
+                                >
+                                    <Image
+                                        source={Images.refresh}
+                                        style={styles.headerIcon}
+                                        tintColor={Colors.white}
+                                    />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    activeOpacity={0.85}
+                                    style={styles.headerIconBtn}
+                                    onPress={handleMenu}
+                                >
+                                    <Image
+                                        source={Images.menu}
+                                        style={styles.headerIcon}
+                                        tintColor={Colors.white}
+                                    />
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+
                     <PickUpBox
                         AllisCollapsed={true}
                         downButton={true}
@@ -254,36 +331,101 @@ console.log("url",url);
                         </View>
                     )}
 
-                    <View style={styles.metaCard}>
-                        {!!ItemsData?.created_info?.label && (
+                    <OrderSectionAccordion
+                        title={t("Dates")}
+                        icon={Images.calender}
+                        iconBg="#E74C3C"
+                    >
+                        {!!ItemsData?.created_info?.label ? (
                             <Text style={styles.metaLine}>
                                 <Text style={styles.metaLabel}>{t("Creation date / time")} : </Text>
                                 <Text style={styles.createdInfoLabel}>
                                     {ItemsData.created_info.label}
                                 </Text>
                             </Text>
+                        ) : (
+                            emptyText(t("No data available"))
                         )}
 
-                        {ItemsData?.external_order_id!==null && (
-                            <Text style={styles.metaLine}>
-                                <Text style={styles.metaLabel}>{t("EasyTrans ordernr")} : </Text>
-                                <TouchableOpacity
-                                    activeOpacity={0.7}
-                                    onPress={handleOpenEasyTransOrder}
-                                >
-                                    <Text style={styles.metaLink}>
+                        {ItemsData?.external_order_id !== null &&
+                            ItemsData?.external_order_id !== undefined && (
+                                <Text style={[styles.metaLine, { marginTop: 8 }]}>
+                                    <Text style={styles.metaLabel}>{t("EasyTrans ordernr")} : </Text>
+                                    <Text
+                                        style={styles.metaLink}
+                                        onPress={handleOpenEasyTransOrder}
+                                    >
                                         {ItemsData?.external_order_id}
                                     </Text>
-                                </TouchableOpacity>
-                            </Text>
-                        )}
-                    </View>
+                                </Text>
+                            )}
+                    </OrderSectionAccordion>
 
-                    {tmsComments.length > 0 && (
-                        <View style={styles.commentsMainBox}>
+                    <OrderSectionAccordion
+                        title={t("Comments")}
+                        icon={Images.comment}
+                        iconBg="#E67E22"
+                    >
+                        {tmsComments.length > 0 ? (
                             <CommentViewBox data={tmsComments} />
-                        </View>
-                    )}
+                        ) : (
+                            emptyText(t("No comments"))
+                        )}
+                    </OrderSectionAccordion>
+
+                    <OrderSectionAccordion
+                        title={t("Work Activity")}
+                        icon={Images.AllOrder}
+                        iconBg="#F1C40F"
+                    >
+                        {emptyText(t("No data available"))}
+                    </OrderSectionAccordion>
+
+                    <OrderSectionAccordion
+                        title={t("Products")}
+                        icon={Images.Parcel}
+                        iconBg="#27AE60"
+                    >
+                        {Array.isArray(ItemsData?.items) && ItemsData.items.length > 0
+                            ? emptyText(`${t("Total Parcel")}: ${ItemsData.items.length}`)
+                            : emptyText(t("No data available"))}
+                    </OrderSectionAccordion>
+
+                    <OrderSectionAccordion
+                        title={t("Grand Total")}
+                        icon={Images.OrderIcon}
+                        iconBg="#3498DB"
+                    >
+                        {ItemsData?.additional_cost_label ? (
+                            <Text style={styles.createdInfoLabel}>
+                                {ItemsData.additional_cost_label}
+                            </Text>
+                        ) : (
+                            emptyText(t("No data available"))
+                        )}
+                    </OrderSectionAccordion>
+
+                    <OrderSectionAccordion
+                        title={t("PDF Text")}
+                        icon={Images.pdflogo}
+                        iconBg="#9B59B6"
+                    >
+                        {emptyText(t("No data available"))}
+                    </OrderSectionAccordion>
+
+                    <OrderSectionAccordion
+                        title={t("Send Email")}
+                        icon={Images.plen}
+                        iconBg="#5B6ABF"
+                    >
+                        {customerEmail ? (
+                            <TouchableOpacity activeOpacity={0.85} onPress={handleSendEmail}>
+                                <Text style={styles.metaLink}>{customerEmail}</Text>
+                            </TouchableOpacity>
+                        ) : (
+                            emptyText(t("No data available"))
+                        )}
+                    </OrderSectionAccordion>
 
                     {getMergedImages(ItemsData)?.length > 0 && (
                         <FlatList
@@ -302,7 +444,7 @@ console.log("url",url);
                             })}
                             contentContainerStyle={{ gap: 10, paddingRight: 50, paddingLeft: 15 }}
                             data={getMergedImages(ItemsData)}
-                            renderItem={({ item, index }) => {
+                            renderItem={({ item }) => {
                                 const uri = item?.shared_link
                                     ? getDirectDropboxLink(item?.shared_link)
                                     : item?.uri;
@@ -386,7 +528,67 @@ const styles = StyleSheet.create({
         alignItems: "center",
     },
     ContainerStyle: {
-        gap: 15,
+        gap: 12,
+    },
+    orderHeaderCard: {
+        backgroundColor: Colors.white,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: Colors.Boxgray,
+        padding: 12,
+        gap: 12,
+    },
+    orderHeaderTop: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 10,
+    },
+    orderIdText: {
+        flex: 1,
+        fontSize: 16,
+        fontFamily: FONTS.SemiBold,
+        color: Colors.black,
+    },
+    orderHeaderActions: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 10,
+    },
+    headerActionsRight: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+    },
+    statusBadge: {
+        borderRadius: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        maxWidth: "48%",
+    },
+    statusBadgeText: {
+        fontSize: 13,
+        fontFamily: FONTS.SemiBold,
+    },
+    headerIconBtn: {
+        width: 36,
+        height: 36,
+        borderRadius: 6,
+        backgroundColor: Colors.primary,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    headerIcon: {
+        width: 18,
+        height: 18,
+    },
+    emptySectionText: {
+        fontSize: 13,
+        fontFamily: FONTS.Regular,
+        color: Colors.darkText,
+        textAlign: "center",
+        paddingVertical: 4,
     },
     Image: {
         width: 100,
@@ -409,15 +611,6 @@ const styles = StyleSheet.create({
         fontFamily: FONTS.SemiBold,
         color: Colors.black,
     },
-    metaCard: {
-        width: "100%",
-        backgroundColor: Colors.white,
-        borderRadius: 7,
-        borderWidth: 1,
-        borderColor: Colors.Boxgray,
-        padding: 15,
-        gap: 10,
-    },
     metaLine: {
         fontSize: 14,
         lineHeight: 21,
@@ -426,11 +619,6 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontFamily: FONTS.SemiBold,
         color: Colors.black,
-    },
-    metaValue: {
-        fontSize: 14,
-        fontFamily: FONTS.Regular,
-        color: Colors.darkText,
     },
     createdInfoLabel: {
         fontSize: 14,
@@ -443,14 +631,6 @@ const styles = StyleSheet.create({
         fontFamily: FONTS.Medium,
         color: Colors.primary,
         textDecorationLine: "underline",
-    },
-    commentsMainBox: {
-        width: "100%",
-        backgroundColor: Colors.white,
-        borderRadius: 7,
-        borderWidth: 1,
-        borderColor: Colors.Boxgray,
-        padding: 15,
     },
     OkButton: {
         width: "48%",
@@ -466,6 +646,6 @@ const styles = StyleSheet.create({
         color: Colors.white,
     },
     LastButton: {
-        padding: 15
-    }
+        padding: 15,
+    },
 });

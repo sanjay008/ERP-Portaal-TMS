@@ -48,7 +48,6 @@ export const registerForPushNotificationsAsync = async () => {
 
     if (Platform.OS === 'android') {
       // Android locks a channel's sound when the channel is first created, so
-      // devices that already have "default" also need the separate tms_notification channel.
       await Notifications.setNotificationChannelAsync(
         'default',
         {
