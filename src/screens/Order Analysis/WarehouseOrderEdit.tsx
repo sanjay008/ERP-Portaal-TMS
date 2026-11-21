@@ -217,21 +217,15 @@ const {top,bottom} = useSafeAreaInsets();
   }, []);
 
   const fetchRegions = useCallback(
-    async (dateValue: string) => {
-      const formattedDate = ApiFormatDate(dateValue);
-      if (!formattedDate || !UserData?.user?.verify_token) {
+    async (_dateValue?: string) => {
+      if (!UserData?.user?.verify_token) {
         return [];
       }
 
       try {
-        const res = await ApiService(apiConstants.getOrderByDriver, {
+        const res = await ApiService(apiConstants.getTmsRegionList, {
           customData: {
             token: UserData.user.verify_token,
-            role: UserData.user.role,
-            relaties_id: UserData.relaties?.id,
-            user_id: UserData.user.id,
-            date: formattedDate,
-            type,
           },
         });
 
@@ -244,7 +238,7 @@ const {top,bottom} = useSafeAreaInsets();
 
       return [];
     },
-    [UserData, type],
+    [UserData],
   );
 
   const syncRegionsAndRoutes = useCallback(

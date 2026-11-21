@@ -29,6 +29,7 @@ const paths = {
     country: 'get_country',
     countryList: 'country/list',
     getOrderByDriver: 'tms-driver/get-tms-order-by-region',
+    getTmsRegionList: 'tms-driver/get-tms-region-list',
     Verify_status: 'tms-driver/verify-order-item-status',
     status_update: 'tms-driver/update-order-item-status',
     status_list: 'tms-driver/get-tms-status-list',
