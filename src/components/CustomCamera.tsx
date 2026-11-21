@@ -262,11 +262,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo-camera";
 import * as FileSystem from "expo-file-system/legacy";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
+import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Image,
   StyleSheet,
@@ -288,6 +290,9 @@ import {
 import { Colors } from "../utils/colors";
 import { unlockParcelCameraCallback } from "../utils/parcelVerifyCameraReturn";
 import { FONTS } from "../utils/storeData";
+
+/** Soft cap so gallery multi-select stays responsive while processing/resizing. */
+const GALLERY_SELECTION_LIMIT = 10;
 
 const PHOTO_WIDTH = 460;
 const PHOTO_HEIGHT = 960;
@@ -453,9 +458,11 @@ export default function CustomCamera({ navigation, route }: any) {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [isCameraSwitching, setIsCameraSwitching] = useState(false);
+  const [isPickingGallery, setIsPickingGallery] = useState(false);
 
   const isRecordingRef = useRef(false);
   const isTakingPhotoRef = useRef(false);
+  const isPickingGalleryRef = useRef(false);
   const timerRef = useRef<any>(null);
   const switchLockRef = useRef<any>(null);
 
@@ -516,7 +523,8 @@ export default function CustomCamera({ navigation, route }: any) {
       !cameraRef.current ||
       isCameraSwitching ||
       isRecordingRef.current ||
-      isTakingPhotoRef.current
+      isTakingPhotoRef.current ||
+      isPickingGalleryRef.current
     ) {
       return;
     }
@@ -539,6 +547,74 @@ export default function CustomCamera({ navigation, route }: any) {
       isTakingPhotoRef.current = false;
     }
   }, [isCameraSwitching]);
+
+  /**
+   * Gallery picks merge into the same `photos` list as shutter captures so Done /
+   * upload queues stay unchanged for every Camera entry point (all TMS slides).
+   */
+  const pickFromGallery = useCallback(async () => {
+    if (
+      isRecordingRef.current ||
+      isCameraSwitching ||
+      isTakingPhotoRef.current ||
+      isPickingGalleryRef.current
+    ) {
+      return;
+    }
+
+    isPickingGalleryRef.current = true;
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          t("Permission required"),
+          t("Permission required to access gallery"),
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: true,
+        selectionLimit: GALLERY_SELECTION_LIMIT,
+        quality: 0.85,
+        exif: false,
+      });
+
+      if (result.canceled || !result.assets?.length) return;
+
+      // Show overlay only while resizing — not while the native picker is open.
+      setIsPickingGallery(true);
+      const resizedUris: string[] = [];
+      for (const asset of result.assets) {
+        if (!asset?.uri) continue;
+        try {
+          const resizedUri = await resizePhotoToFixedSize(asset.uri);
+          resizedUris.push(resizedUri);
+        } catch {
+          // skip failed asset; keep others
+        }
+      }
+
+      if (resizedUris.length > 0) {
+        setPhotos((prev) => [...prev, ...resizedUris]);
+      }
+    } catch (e) {
+      // gallery pick failed
+    } finally {
+      isPickingGalleryRef.current = false;
+      setIsPickingGallery(false);
+    }
+  }, [isCameraSwitching, t]);
+
+  const removeMedia = useCallback((uri: string, isVideo: boolean) => {
+    if (isVideo) {
+      setVideos((prev) => prev.filter((item) => item !== uri));
+    } else {
+      setPhotos((prev) => prev.filter((item) => item !== uri));
+    }
+  }, []);
+
   const startRecording = useCallback(async () => {
     if (!cameraRef.current || isRecordingRef.current || isCameraSwitching) return;
 
@@ -590,7 +666,7 @@ export default function CustomCamera({ navigation, route }: any) {
   }, []);
 
   const handleCapture = useCallback(() => {
-    if (isCameraSwitching) return;
+    if (isCameraSwitching || isPickingGalleryRef.current) return;
     if (isVideoMode) {
       if (isRecordingRef.current) {
         stopRecording();
@@ -696,9 +772,12 @@ export default function CustomCamera({ navigation, route }: any) {
         mode={isVideoMode ? "video" : "picture"}
       />
 
-      {isCameraSwitching && (
+      {(isCameraSwitching || isPickingGallery) && (
         <View style={styles.switchingOverlay}>
           <ActivityIndicator size="small" color={Colors.white} />
+          {isPickingGallery ? (
+            <Text style={styles.pickingText}>{t("Loading...")}</Text>
+          ) : null}
         </View>
       )}
 
@@ -706,7 +785,7 @@ export default function CustomCamera({ navigation, route }: any) {
         style={[styles.flashButton, { top: insets.top + 10 }]}
         onPress={() => setTorch((prev) => !prev)}
         activeOpacity={0.8}
-        disabled={isRecording}
+        disabled={isRecording || isPickingGallery}
       >
         <Ionicons
           name={torch ? "flash" : "flash-off"}
@@ -716,7 +795,7 @@ export default function CustomCamera({ navigation, route }: any) {
       </TouchableOpacity>
 
       <TouchableOpacity
-        disabled={!isDoneEnabled}
+        disabled={!isDoneEnabled || isPickingGallery}
         onPress={done}
         style={[
           styles.DoneBtn,
@@ -738,7 +817,7 @@ export default function CustomCamera({ navigation, route }: any) {
         </View>
       )}
 
-      {validationHint && !isRecording && (
+      {validationHint && !isRecording && !isPickingGallery && (
         <View style={[styles.validationHintContainer, { top: insets.top + 60 }]}>
           <Text style={styles.validationHintText}>{validationHint}</Text>
         </View>
@@ -748,20 +827,33 @@ export default function CustomCamera({ navigation, route }: any) {
         <FlatList
           data={allMediaList}
           horizontal
-          keyExtractor={(_, i) => i.toString()}
+          keyExtractor={(item, i) => `${item.isVideo ? "v" : "p"}-${item.uri}-${i}`}
           showsHorizontalScrollIndicator={false}
           bounces={false}
-          contentContainerStyle={{ paddingLeft: 10, paddingRight: 10 }}
+          contentContainerStyle={styles.thumbnailListContent}
           style={[styles.thumbnailList, { bottom: insets.bottom + 152 }]}
-          renderItem={({ item }: any) =>
-            item.isVideo ? (
-              <View style={[styles.AllClickImage, styles.videoThumb]}>
-                <Ionicons name="videocam" size={26} color={Colors.white} />
-              </View>
-            ) : (
-              <Image source={{ uri: item.uri }} style={styles.AllClickImage} />
-            )
-          }
+          renderItem={({ item }: any) => (
+            <View style={styles.thumbWrap}>
+              {item.isVideo ? (
+                <View style={[styles.AllClickImage, styles.videoThumb]}>
+                  <Ionicons name="videocam" size={26} color={Colors.white} />
+                </View>
+              ) : (
+                <Image source={{ uri: item.uri }} style={styles.AllClickImage} />
+              )}
+              <TouchableOpacity
+                style={styles.thumbRemoveBtn}
+                onPress={() => removeMedia(item.uri, item.isVideo)}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                activeOpacity={0.8}
+                disabled={isRecording || isPickingGallery}
+              >
+                <View style={styles.thumbRemoveInner}>
+                  <Ionicons name="close" size={14} color={Colors.white} />
+                </View>
+              </TouchableOpacity>
+            </View>
+          )}
         />
       )}
 
@@ -771,7 +863,7 @@ export default function CustomCamera({ navigation, route }: any) {
             onPress={toggleMode}
             activeOpacity={0.9}
             style={styles.switchTrack}
-            disabled={isRecording || isCameraSwitching}
+            disabled={isRecording || isCameraSwitching || isPickingGallery}
           >
             <Animated.View style={[styles.switchThumb, animatedThumb]} />
             <View style={styles.switchLabelLeft}>
@@ -808,28 +900,48 @@ export default function CustomCamera({ navigation, route }: any) {
         </View>
       ) : null}
 
-      <TouchableOpacity
-        onPress={handleCapture}
-        activeOpacity={0.8}
-        disabled={isCameraSwitching}
-        style={[
-          styles.captureOuter,
-          { bottom: insets.bottom + 24 },
-          isRecording && styles.captureRecording,
-          isCameraSwitching && { opacity: 0.4 },
-        ]}
-      >
-        {isRecording ? (
-          <View style={styles.stopInner} />
-        ) : (
-          <View
-            style={[
-              styles.captureInner,
-              isVideoMode && { backgroundColor: "#FF3B30" },
-            ]}
-          />
-        )}
-      </TouchableOpacity>
+      <View style={[styles.bottomControls, { bottom: insets.bottom + 24 }]}>
+        <TouchableOpacity
+          onPress={pickFromGallery}
+          activeOpacity={0.8}
+          disabled={isRecording || isCameraSwitching || isPickingGallery}
+          style={[
+            styles.galleryButton,
+            (isRecording || isCameraSwitching || isPickingGallery) && {
+              opacity: 0.4,
+            },
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel={t("Gallery")}
+        >
+          <Ionicons name="images" size={26} color={Colors.white} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={handleCapture}
+          activeOpacity={0.8}
+          disabled={isCameraSwitching || isPickingGallery}
+          style={[
+            styles.captureOuter,
+            isRecording && styles.captureRecording,
+            (isCameraSwitching || isPickingGallery) && { opacity: 0.4 },
+          ]}
+        >
+          {isRecording ? (
+            <View style={styles.stopInner} />
+          ) : (
+            <View
+              style={[
+                styles.captureInner,
+                isVideoMode && { backgroundColor: "#FF3B30" },
+              ]}
+            />
+          )}
+        </TouchableOpacity>
+
+        {/* Spacer keeps shutter centered opposite the gallery button */}
+        <View style={styles.galleryButtonSpacer} />
+      </View>
     </View>
   );
 }
@@ -842,9 +954,30 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 20,
   },
-  captureOuter: {
+  bottomControls: {
     position: "absolute",
-    alignSelf: "center",
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 36,
+  },
+  galleryButton: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.55)",
+  },
+  galleryButtonSpacer: {
+    width: 52,
+    height: 52,
+  },
+  captureOuter: {
     width: 60,
     height: 60,
     borderRadius: 40,
@@ -891,19 +1024,57 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 0,
     right: 0,
+    // Explicit height so padded close badges are never clipped by FlatList.
+    height: 98,
+  },
+  thumbnailListContent: {
+    paddingLeft: 12,
+    paddingRight: 12,
+    paddingTop: 8,
+    paddingBottom: 2,
+    alignItems: "flex-start",
+  },
+  thumbWrap: {
+    width: 88,
+    height: 88,
+    marginRight: 10,
+    position: "relative",
   },
   AllClickImage: {
     width: 80,
     height: 80,
-    marginRight: 8,
+    marginTop: 8,
     borderRadius: 10,
     borderWidth: 2,
     borderColor: Colors.white,
+  },
+  thumbRemoveBtn: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    zIndex: 2,
+    elevation: 3,
+  },
+  thumbRemoveInner: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "rgba(0,0,0,0.72)",
+    borderWidth: 1.5,
+    borderColor: Colors.white,
+    alignItems: "center",
+    justifyContent: "center",
   },
   videoThumb: {
     backgroundColor: "rgba(0,0,0,0.6)",
     justifyContent: "center",
     alignItems: "center",
+  },
+  pickingText: {
+    marginTop: 10,
+    color: Colors.white,
+    fontSize: 13,
+    fontFamily: FONTS.Medium,
   },
   DoneBtn: {
     position: "absolute",
@@ -928,6 +1099,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "rgba(0,0,0,0.35)",
+    zIndex: 20,
   },
   timerContainer: {
     position: "absolute",
