@@ -94,6 +94,16 @@ export default function SplashScreens({ navigation }: any) {
 
       if (logo) setCompanyLogo(logo);
 
+      // Hydrate Maps key saved at company login (used by Route map WebView).
+      try {
+        const mapsKey =
+          (await getData("GOOGLE_API_KEY")) ||
+          (await getData("google_maps_api_key")) ||
+          fullcompany?.default_company?.project_google_maps_api_key ||
+          "";
+        if (mapsKey) setGOOGLE_API_KEY(String(mapsKey));
+      } catch {}
+
       if (!languageReady && !languageCode) {
         navigation.replace("Select");
         return;

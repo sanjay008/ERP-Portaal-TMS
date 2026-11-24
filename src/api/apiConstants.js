@@ -39,6 +39,8 @@ const paths = {
     getMultipleOrderData: 'tms-driver/get-multiple-orders-data-by-ids',
     get_order_data_by_id: 'tms-driver/get-order-data-by-id',
     get_location_by_region_date: 'tms-driver/get-location-by-region-date',
+    get_driver_assigned_regions: 'tms-driver/get-driver-assigned-regions',
+    get_driver_route_map: 'tms-driver/get-driver-route-map',
     store_customer_signature: 'tms-driver/store-customer-signature',
     get_tms_orders_flat_by_region: 'tms-driver/get-tms-orders-flat-by-region',
     store_tms_comment: 'tms-driver/store-tms-comment',

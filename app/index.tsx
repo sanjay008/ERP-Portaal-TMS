@@ -16,6 +16,8 @@ import DriverCompanyScreen from "@/src/screens/DriverCompany/DriverCompanyScreen
 import DriverProfileScreen from "@/src/screens/DriverProfile/DriverProfileScreen";
 import FilterScreen from "@/src/screens/FilterDataScreen/FilterScreen";
 import HomeScreens from "@/src/screens/Home/HomeScreens";
+import DriverRouteMapPickerScreen from "@/src/screens/RouteMap/DriverRouteMapPickerScreen";
+import DriverRouteMapScreen from "@/src/screens/RouteMap/DriverRouteMapScreen";
 import LanguageScreens from "@/src/screens/Language/LanguageScreens";
 import LoadedScreens from "@/src/screens/Loaded/LoadedScreens";
 import MapsScreens from "@/src/screens/Maps/MapsScreens";
@@ -128,6 +130,10 @@ const ContactUsWithHeader = withLayoutHeader(ContactUsScreen);
 const HomeWithHeader = withLayoutHeader(HomeScreens);
 const FilterScreenWithHeader = withLayoutHeader(FilterScreen);
 const CameraWithHeader = withLayoutHeader(CustomCamera);
+const DriverRouteMapPickerWithHeader = withLayoutHeader(
+  DriverRouteMapPickerScreen,
+);
+const DriverRouteMapWithHeader = withLayoutHeader(DriverRouteMapScreen);
 
 export default function index() {
   const [isConnected, setIsConnected] = useState<boolean>(true);
@@ -316,6 +322,14 @@ export default function index() {
                 <Stack.Screen
                   name="FilterScreen"
                   component={FilterScreenWithHeader}
+                />
+                <Stack.Screen
+                  name="DriverRouteMapPicker"
+                  component={DriverRouteMapPickerWithHeader}
+                />
+                <Stack.Screen
+                  name="DriverRouteMap"
+                  component={DriverRouteMapWithHeader}
                 />
                 <Stack.Screen
                   name="Camera"

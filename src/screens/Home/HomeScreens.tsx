@@ -403,6 +403,8 @@ export default function HomeScreens({ navigation, route }: any) {
           navigation.navigate("ScanDetails", { Type: slideItem?.type });
         } else if (slideItem?.type == "warehouse_change") {
           navigation.navigate("ScanManager", { item: slideItem });
+        } else if (slideItem?.type == "driver_route_map") {
+          navigation.navigate("DriverRouteMapPicker", { item: slideItem });
         } else {
           navigation.navigate("FilterScreen", { item: slideItem });
         }
