@@ -68,7 +68,13 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styles } from "./styles";
 export default function DetailsScreens({ navigation, route }: any) {
-  const { item, order_id, type } = route?.params || {};
+  const {
+    item,
+    order_id,
+    type,
+    region_id: routeRegionId,
+    date: routeDate,
+  } = route?.params || {};
   const { ErrorHandle } = useErrorHandle();
   const {
     UserData,
@@ -104,7 +110,7 @@ export default function DetailsScreens({ navigation, route }: any) {
   const [AllSelectImage, setAllSelectImage] = useState<any[]>([]);
   const [LableLoading, setLableLoading] = useState<boolean>(false);
   const [IsLoading, setIsLoading] = useState<boolean>(false);
-  const [BackButtonAvailble, setBackButtonAvailble] = useState(false);
+  const [BackButtonAvailble] = useState(true);
   const { t } = useTranslation();
 
   const [NoParcelOpenmodalType, setNoParcelOpenmodalType] = useState(type);
@@ -411,10 +417,67 @@ export default function DetailsScreens({ navigation, route }: any) {
     });
   };
 
+  const ensureDeliveryLabels = useCallback(
+    async (regionId?: string | number | null, dateValue?: string | null) => {
+      const resolvedRegionId = regionId ?? selectRegionData?.id ?? SelectActiveRegionData?.id;
+      const resolvedDate =
+        ApiFormatDate(dateValue || SelectActiveDate || SelectCurrentDate) ||
+        null;
+      if (!resolvedRegionId || !resolvedDate) return;
+
+      try {
+        const response = await ApiService(
+          apiConstants.get_tms_orders_flat_by_region,
+          {
+            customData: {
+              token: UserData?.user?.verify_token,
+              role: UserData?.user?.role,
+              relaties_id: UserData?.relaties?.id,
+              user_id: UserData?.user?.id,
+              date: resolvedDate,
+              type: type ?? GloblyTypeSlide ?? "pickup_dropoff",
+              region_id: resolvedRegionId,
+            },
+          },
+        );
+        if (response?.status) {
+          const labels = response?.delivery_label_title_map || [];
+          if (Array.isArray(labels) && labels.length > 0) {
+            setAllDeliveyLabel(labels);
+          }
+        }
+      } catch {
+        // Labels are best-effort — Details actions still work without them.
+      }
+    },
+    [
+      GloblyTypeSlide,
+      SelectActiveDate,
+      SelectActiveRegionData?.id,
+      SelectCurrentDate,
+      UserData?.relaties?.id,
+      UserData?.user?.id,
+      UserData?.user?.role,
+      UserData?.user?.verify_token,
+      selectRegionData?.id,
+      setAllDeliveyLabel,
+      type,
+    ],
+  );
+
   const GetIdByOrderFun = async () => {
-    const hasPreviewData = Boolean(
-      item?.id || ItemsData?.id || ItemsData?.order_data?.id,
-    );
+    const resolvedOrderId =
+      order_id ??
+      ItemsData?.id ??
+      ItemsData?.order_data?.id ??
+      item?.id;
+    const resolvedRegionId =
+      routeRegionId ?? selectRegionData?.id ?? SelectActiveRegionData?.id;
+    const resolvedDate =
+      ApiFormatDate(routeDate || SelectActiveDate || SelectCurrentDate) ||
+      null;
+
+    const hasPreviewData = Boolean(resolvedOrderId);
 
     if (!hasPreviewData) {
       setDataLoading(true);
@@ -427,10 +490,10 @@ export default function DetailsScreens({ navigation, route }: any) {
           role: UserData?.user?.role,
           relaties_id: UserData?.relaties?.id,
           user_id: UserData?.user?.id,
-          order_id: ItemsData?.id || ItemsData?.order_data?.id,
-          type: type,
-          region_id: selectRegionData?.id,
-          date: ApiFormatDate(SelectActiveDate),
+          order_id: resolvedOrderId,
+          type: type ?? GloblyTypeSlide,
+          region_id: resolvedRegionId,
+          date: resolvedDate,
         },
       });
 
@@ -438,14 +501,25 @@ export default function DetailsScreens({ navigation, route }: any) {
         setItemsData(res?.data);
         setPermissionData(res?.permissions_data);
 
-        const labelsForModal = res.data.items
+        const labelsFromOrder =
+          res?.delivery_label_title_map ||
+          res?.data?.delivery_label_title_map ||
+          res?.permissions_data?.delivery_label_title_map;
+        if (Array.isArray(labelsFromOrder) && labelsFromOrder.length > 0) {
+          setAllDeliveyLabel(labelsFromOrder);
+        } else if (!AllDeliveyLabel?.length) {
+          await ensureDeliveryLabels(resolvedRegionId, resolvedDate);
+        }
+
+        const orderItems = Array.isArray(res?.data?.items) ? res.data.items : [];
+        const labelsForModal = orderItems
           .filter(
-            (item: any) =>
-              Number(item.scan_qty) === 0 && item?.tmslabel == null
+            (row: any) =>
+              Number(row.scan_qty) === 0 && row?.tmslabel == null
           )
-          .map((item: any) => ({
-            id: item.id,
-            label: item.tms_product_name || `Item ${item.id}`,
+          .map((row: any) => ({
+            id: row.id,
+            label: row.tms_product_name || `Item ${row.id}`,
           }));
 
         setNoParcelOptions(labelsForModal);
@@ -505,7 +579,16 @@ export default function DetailsScreens({ navigation, route }: any) {
       formData.append("relaties_id", UserData?.relaties?.id);
       formData.append("user_id", UserData?.user?.id);
       formData.append("order_comment", comment?.trim());
-      formData.append("order_id", item?.id);
+      formData.append(
+        "order_id",
+        String(
+          order_id ??
+            ItemsData?.id ??
+            ItemsData?.order_data?.id ??
+            item?.id ??
+            "",
+        ),
+      );
       await appendDeviceMetaToFormData(formData);
 
       const imagesToSend = data && data.length > 0 ? data : AllSelectImage;
@@ -1057,7 +1140,7 @@ export default function DetailsScreens({ navigation, route }: any) {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor="white" />
-      <DetailsHeader title={t("Details")} Backbutton={BackButtonAvailble} />
+      <DetailsHeader title={t("Details")} Backbutton={true} />
       {showInitialLoader ? (
         <View style={styles.LoaderContainer}>
           <Loader />
@@ -1108,7 +1191,10 @@ export default function DetailsScreens({ navigation, route }: any) {
             external_order_id={ItemsData?.external_order_id}
             contact={true}
             showScannerButton={
-              PermissionData?.can_scan_order && isPickupOrder(ItemsData)
+              (PermissionData?.can_scan_order ||
+                type === "pickup_dropoff" ||
+                GloblyTypeSlide === "pickup_dropoff") &&
+              isPickupOrder(ItemsData)
             }
             onParcelManualVerify={handleParcelManualVerify}
           />
@@ -1127,7 +1213,15 @@ export default function DetailsScreens({ navigation, route }: any) {
             msg={LocationDataMessage ?? t("Destination location is unavailable")}
           />
 
-          {PermissionData?.can_scan_order && !isDeliveryOrder(ItemsData) ? (
+          {(
+            PermissionData?.can_scan_order ||
+            type === "pickup_dropoff" ||
+            GloblyTypeSlide === "pickup_dropoff"
+          ) &&
+          !isDeliveryOrder(ItemsData) &&
+          (isPickupOrder(ItemsData) ||
+            type === "pickup_dropoff" ||
+            GloblyTypeSlide === "pickup_dropoff") ? (
             <View>
               <TwoTypeButton
                 Icon={Images.Scan}
@@ -1137,9 +1231,9 @@ export default function DetailsScreens({ navigation, route }: any) {
                 onPress={() =>
                   navigation.navigate("Scanner", {
                     fun: GetIdByOrderFun,
-                    type: type,
+                    type: type ?? GloblyTypeSlide,
                     restrictedOrderId:
-                      ItemsData?.id || ItemsData?.order_data?.id,
+                      ItemsData?.id || ItemsData?.order_data?.id || order_id,
                   })
                 }
                 IconStyle={{ width: 22, height: 22 }}
@@ -1165,7 +1259,8 @@ export default function DetailsScreens({ navigation, route }: any) {
               {
                 (
                   GloblyTypeSlide === "pickup_dropoff" ||
-                  GloblyTypeSlide === "additional_address"
+                  GloblyTypeSlide === "additional_address" ||
+                  type === "pickup_dropoff"
                 ) &&
                 ItemsData?.tms_order_type === Stop_PickupType &&
                 <TwoTypeButton
@@ -1224,9 +1319,11 @@ export default function DetailsScreens({ navigation, route }: any) {
                         setActiveVerifyDeliveryLabel(item);
                         navigation.navigate("Scanner", {
                           fun: GetIdByOrderFun,
-                          type: type,
+                          type: type ?? GloblyTypeSlide,
                           restrictedOrderId:
-                            ItemsData?.id || ItemsData?.order_data?.id,
+                            ItemsData?.id ||
+                            ItemsData?.order_data?.id ||
+                            order_id,
                         });
                       }
                     }

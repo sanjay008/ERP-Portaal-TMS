@@ -62,6 +62,9 @@ const ADMIN_TAP_BLOCKED_ROUTES = new Set([
   "DriverPhotosScanner",
   "Camera",
   "ScanManager",
+  // Change button is top-right — same zone as admin 6-tap.
+  "DriverRouteMap",
+  "DriverRouteMapPicker",
 ]);
 
 /** Left 6-tap only on tab roots (no back btn). Other screens keep back first. */
@@ -149,7 +152,8 @@ export default function index() {
 
   const navigationBackground = async () => {
     try {
-      const response = await changeNavigationBarColor(Colors.white);
+      // light=true → dark system nav buttons (visible on white bar)
+      const response = await changeNavigationBarColor(Colors.white, true);
       console.log(response);
     } catch (e) {
       console.log(e); 

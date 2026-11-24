@@ -9,6 +9,7 @@ import {
   ensureLanguageReady,
   hasCompletedLanguageSelection,
 } from "@/src/utils/languagePreference";
+import { resolveGoogleMapsApiKey } from "@/src/utils/googleMapsApiKey";
 import { getData } from "@/src/utils/storeData";
 import * as Font from "expo-font";
 import React, { useContext, useEffect } from "react";
@@ -95,10 +96,8 @@ export default function SplashScreens({ navigation }: any) {
       if (logo) setCompanyLogo(logo);
 
       // Hydrate Maps key: google_maps_api_key (company login) → context.
+      // Static import — avoid loadBundleFromServer races after logout/remount.
       try {
-        const { resolveGoogleMapsApiKey } = await import(
-          "@/src/utils/googleMapsApiKey"
-        );
         const resolved = await resolveGoogleMapsApiKey();
         const fallback =
           fullcompany?.default_company?.project_google_maps_api_key || "";

@@ -1,6 +1,9 @@
 import { Images } from "@/src/assets/images";
-import CalenderDate from "@/src/components/CalenderDate";
-import { toApiDateString } from "@/src/components/DateFormate";
+import {
+  formatDate,
+  parseSafeDate,
+  toApiDateString,
+} from "@/src/components/DateFormate";
 import DropDownBox from "@/src/components/DropDownBox";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
 import { GlobalContextData } from "@/src/context/GlobalContext";
@@ -35,6 +38,10 @@ import {
 } from "@/src/utils/shiftSession";
 import { FONTS } from "@/src/utils/storeData";
 import { Ionicons } from "@expo/vector-icons";
+import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
+import DateTimePicker, {
+  type DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import React, {
   useCallback,
@@ -49,27 +56,41 @@ import {
   ActivityIndicator,
   Image,
   Linking,
+  Modal,
+  Platform,
   Pressable,
-  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
-import Animated, {
-  Extrapolation,
-  interpolate,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-} from "react-native-reanimated";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import changeNavigationBarColor from "react-native-navigation-bar-color";
 import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 
-const SHEET_HIDDEN_Y = 340;
-const SPRING = { damping: 22, stiffness: 220, mass: 0.85 };
+/** 3 snap points: peek (small) → mid → full. Index -1 = fully hidden. */
+const SHEET_SNAP = {
+  HIDDEN: -1,
+  PEEK: 0,
+  MID: 1,
+  FULL: 2,
+} as const;
+
+function ymdToDate(ymd: string): Date {
+  const parsed = parseSafeDate(ymd);
+  return parsed || new Date();
+}
+
+function dateToYmd(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
 
 type SheetMode = "filter" | "stops";
 
@@ -105,6 +126,7 @@ export default function DriverRouteMapScreen() {
     SelectActiveDate,
     TimeZone,
     activeShift,
+    SelectLanguage,
     setSelectActiveDate,
     setSelectRegionData,
     setSelectActiveRegionData,
@@ -151,33 +173,54 @@ export default function DriverRouteMapScreen() {
 
   const [selectDate, setSelectDate] = useState<string>(preferredDate || today);
   const [regions, setRegions] = useState<DriverAssignedRegion[]>([]);
+  const initialRegion = useMemo<DriverAssignedRegion | null>(() => {
+    if (route?.params?.region_id != null) {
+      return {
+        region_id: route.params.region_id,
+        region_name: route.params.region_name,
+        region_color: route.params.region_color,
+      };
+    }
+    if (tripOn && activeShift?.region_id != null) {
+      return {
+        region_id: activeShift.region_id,
+        region_name: activeShift.region_name,
+      };
+    }
+    return null;
+  }, [
+    activeShift?.region_id,
+    activeShift?.region_name,
+    route?.params?.region_color,
+    route?.params?.region_id,
+    route?.params?.region_name,
+    tripOn,
+  ]);
+
   const [selectedRegion, setSelectedRegion] =
-    useState<DriverAssignedRegion | null>(
-      route?.params?.region_id
-        ? {
-            region_id: route.params.region_id,
-            region_name: route.params.region_name,
-            region_color: route.params.region_color,
-          }
-        : tripOn && activeShift?.region_id
-          ? {
-              region_id: activeShift.region_id,
-              region_name: activeShift.region_name,
-            }
-          : null,
-    );
+    useState<DriverAssignedRegion | null>(initialRegion);
   const [regionsLoading, setRegionsLoading] = useState(false);
   const [mapData, setMapData] = useState<DriverRouteMapData | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
-  const [sheetMode, setSheetMode] = useState<SheetMode>("stops");
-  const [sheetExpanded, setSheetExpanded] = useState(true);
+  /** No region yet → keep Change (date/region) sheet open. */
+  const [sheetMode, setSheetMode] = useState<SheetMode>(
+    initialRegion ? "stops" : "filter",
+  );
+  const [sheetIndex, setSheetIndex] = useState<number>(
+    initialRegion ? SHEET_SNAP.PEEK : SHEET_SNAP.MID,
+  );
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [iosDateDraft, setIosDateDraft] = useState(() =>
+    ymdToDate(preferredDate || today),
+  );
   const [resolvedApiKey, setResolvedApiKey] = useState(
     String(GOOGLE_API_KEY || "").trim(),
   );
   const [mapsKeySource, setMapsKeySource] = useState("context");
 
-  const sheetProgress = useSharedValue(1);
+  const snapPoints = useMemo(() => ["22%", "48%", "78%"], []);
+  const bottomSheetRef = useRef<BottomSheet>(null);
 
   const mountedRef = useRef(true);
   const regionsReqRef = useRef(0);
@@ -211,24 +254,6 @@ export default function DriverRouteMapScreen() {
     setGloblyTypeSlide,
   ]);
 
-  useEffect(() => {
-    sheetProgress.value = withSpring(sheetExpanded ? 1 : 0, SPRING);
-  }, [sheetExpanded, sheetProgress]);
-
-  // Keep sheet always usable — no floating reopen chip button.
-  // Collapse only peeks it; drag-handle / header options brings it back.
-  const sheetStyle = useAnimatedStyle(() => {
-    const translateY = interpolate(
-      sheetProgress.value,
-      [0, 1],
-      [SHEET_HIDDEN_Y * 0.72, 0],
-      Extrapolation.CLAMP,
-    );
-    return {
-      transform: [{ translateY }],
-    };
-  });
-
   // Regions for picker — only when date changes (no callback-dep loop).
   useEffect(() => {
     const date = toApiDateString(selectDate) || selectDate;
@@ -245,6 +270,7 @@ export default function DriverRouteMapScreen() {
         setRegions(nextRegions);
         setSelectedRegion((prev) => {
           if (!nextRegions.length) return null;
+          // 1) Active trip / route params region
           const preferId = preferredRegionIdRef.current;
           if (preferId) {
             const tripRegion = nextRegions.find(
@@ -252,13 +278,14 @@ export default function DriverRouteMapScreen() {
             );
             if (tripRegion) return tripRegion;
           }
+          // 2) Keep current selection if still in list
           if (prev) {
             const still = nextRegions.find(
               (r) => String(r.region_id) === String(prev.region_id),
             );
             if (still) return still;
           }
-          // Default: first region for the date.
+          // 3) Default: first region in dropdown [0]
           return nextRegions[0];
         });
       } catch (error: any) {
@@ -278,6 +305,20 @@ export default function DriverRouteMapScreen() {
       }
     })();
   }, [selectDate]);
+
+  const snapSheetTo = useCallback((index: number) => {
+    const next = Math.max(SHEET_SNAP.HIDDEN, Math.min(SHEET_SNAP.FULL, index));
+    setSheetIndex(next);
+  }, []);
+
+  // Keep region/date Change sheet open until a region is chosen.
+  useEffect(() => {
+    if (regionsLoading) return;
+    if (selectedRegion?.region_id == null) {
+      setSheetMode("filter");
+      snapSheetTo(SHEET_SNAP.MID);
+    }
+  }, [regionsLoading, selectedRegion?.region_id, snapSheetTo]);
 
   useEffect(() => {
     let cancelled = false;
@@ -309,12 +350,16 @@ export default function DriverRouteMapScreen() {
       const region_id = opts?.region_id ?? selectedRegion?.region_id;
       const date = toApiDateString(opts?.date || selectDate) || selectDate;
       if (!region_id || !date) {
-        setToastRef.current({
-          top: 45,
-          text: t("Please select a region"),
-          type: "error",
-          visible: true,
-        });
+        setSheetMode("filter");
+        snapSheetTo(SHEET_SNAP.MID);
+        if (!opts?.silent) {
+          setToastRef.current({
+            top: 45,
+            text: t("Please select a region"),
+            type: "error",
+            visible: true,
+          });
+        }
         return;
       }
 
@@ -330,22 +375,39 @@ export default function DriverRouteMapScreen() {
 
         const parsed = parseRouteMapData(res);
         if (!parsed) {
-          setMapData(null);
-          setToastRef.current({
-            top: 45,
-            text: res?.message || t("Unable to load route map"),
-            type: "error",
-            visible: true,
-          });
+          // Silent refresh: keep current map/stops — don't wipe the sheet list.
+          if (!opts?.silent) {
+            setMapData(null);
+            setSelectedKeys([]);
+            setToastRef.current({
+              top: 45,
+              text: res?.message || t("Unable to load route map"),
+              type: "error",
+              visible: true,
+            });
+          }
           return;
         }
 
-        setMapData(parsed);
-        setSelectedKeys([]);
-        // Don't kick user out of Change sheet while they are editing filters.
-        if (sheetModeRef.current !== "filter") {
+        const nextStops = Array.isArray(parsed.stops) ? parsed.stops : [];
+        setMapData({ ...parsed, stops: nextStops });
+
+        // Soft refresh: keep selection, drop done/missing keys only.
+        // Hard load: reset selection.
+        setSelectedKeys((prev) => {
+          if (!opts?.silent) return [];
+          const valid = new Set(
+            nextStops
+              .filter((s) => s && !s.is_done && s.stop_key != null)
+              .map((s) => String(s.stop_key)),
+          );
+          return prev.filter((k) => valid.has(String(k)));
+        });
+
+        // Don't kick user out of Change sheet / don't collapse stop sheet on silent refresh.
+        if (!opts?.silent && sheetModeRef.current !== "filter") {
           setSheetMode("stops");
-          setSheetExpanded(true);
+          snapSheetTo(SHEET_SNAP.PEEK);
         }
         setSelectActiveDate(date);
         setSelectRegionData({
@@ -355,12 +417,14 @@ export default function DriverRouteMapScreen() {
         });
       } catch (error: any) {
         if (!mountedRef.current || requestId !== routeReqRef.current) return;
-        setToastRef.current({
-          top: 45,
-          text: errorHandleRef.current(error).message,
-          type: "error",
-          visible: true,
-        });
+        if (!opts?.silent) {
+          setToastRef.current({
+            top: 45,
+            text: errorHandleRef.current(error).message,
+            type: "error",
+            visible: true,
+          });
+        }
       } finally {
         if (mountedRef.current && requestId === routeReqRef.current) {
           setRouteLoading(false);
@@ -374,6 +438,7 @@ export default function DriverRouteMapScreen() {
       selectedRegion?.region_name,
       setSelectActiveDate,
       setSelectRegionData,
+      snapSheetTo,
       t,
     ],
   );
@@ -381,7 +446,7 @@ export default function DriverRouteMapScreen() {
   const loadRouteRef = useRef(loadRoute);
   loadRouteRef.current = loadRoute;
 
-  // Auto-show route when date + region are ready (trip region or first region).
+  // Auto-show route only after a region is selected (trip/params or user pick).
   useEffect(() => {
     const date = toApiDateString(selectDate) || selectDate;
     const regionId = selectedRegion?.region_id;
@@ -401,20 +466,90 @@ export default function DriverRouteMapScreen() {
   useFocusEffect(
     useCallback(() => {
       mountedRef.current = true;
-      // Soft refresh after returning from Details so done stops leave the list.
+
+      // Android 3-button / gesture bar: black bg + light icons (visible).
+      // light=false → light-colored system buttons (needed on dark bar).
+      if (Platform.OS === "android") {
+        try {
+          changeNavigationBarColor("#000000", false);
+        } catch {}
+      }
+
+      // Soft refresh after returning from Maps / Details — keep sheet list stable.
       if (mapDataRef.current) {
         loadRouteRef.current({ silent: true });
       }
+
       return () => {
         mountedRef.current = false;
+        if (Platform.OS === "android") {
+          try {
+            // Restore app default: white bar + dark buttons.
+            changeNavigationBarColor(Colors.white, true);
+          } catch {}
+        }
       };
     }, []),
   );
 
-  const openChangeSheet = useCallback(() => {
-    setSheetMode("filter");
-    setSheetExpanded(true);
+  const openSheet = useCallback(
+    (mode: SheetMode = "stops", index: number = SHEET_SNAP.MID) => {
+      setSheetMode(mode);
+      snapSheetTo(index);
+    },
+    [snapSheetTo],
+  );
+
+  const onSheetChange = useCallback((index: number) => {
+    setSheetIndex(index);
   }, []);
+
+  /** Cycle handle: full → mid → peek → hide (classic 3-step sheet). */
+  const onSheetHandlePress = useCallback(() => {
+    if (sheetIndex >= SHEET_SNAP.FULL) {
+      snapSheetTo(SHEET_SNAP.MID);
+      return;
+    }
+    if (sheetIndex === SHEET_SNAP.MID) {
+      snapSheetTo(SHEET_SNAP.PEEK);
+      return;
+    }
+    // Peek → hide (only when a region is already selected)
+    if (selectedRegion?.region_id != null) {
+      snapSheetTo(SHEET_SNAP.HIDDEN);
+      return;
+    }
+    snapSheetTo(SHEET_SNAP.MID);
+  }, [selectedRegion?.region_id, sheetIndex, snapSheetTo]);
+
+  /** Strong header Change — always opens date/region sheet properly. */
+  const openChangeSheet = useCallback(() => {
+    setDatePickerOpen(false);
+    openSheet("filter", SHEET_SNAP.MID);
+  }, [openSheet]);
+
+  const onNativeDateChange = useCallback(
+    (event: DateTimePickerEvent, selected?: Date) => {
+      if (Platform.OS === "android") {
+        setDatePickerOpen(false);
+        if (event.type === "dismissed" || !selected) return;
+        setSelectDate(dateToYmd(selected));
+        return;
+      }
+      if (selected) setIosDateDraft(selected);
+    },
+    [],
+  );
+
+  const openNativeDatePicker = useCallback(() => {
+    setIosDateDraft(ymdToDate(selectDate));
+    setDatePickerOpen(true);
+  }, [selectDate]);
+
+  const dateLabel = useMemo(
+    () => formatDate(selectDate, SelectLanguage || "en") || selectDate,
+    [SelectLanguage, selectDate],
+  );
 
   const stopByKey = useMemo(() => {
     const map = new Map<string, RouteMapStop>();
@@ -424,27 +559,29 @@ export default function DriverRouteMapScreen() {
     return map;
   }, [mapData?.stops]);
 
-  const selectedStops = useMemo(
-    () =>
-      selectedKeys
-        .map((key) => stopByKey.get(key))
-        .filter((stop): stop is RouteMapStop => Boolean(stop) && !stop.is_done),
-    [selectedKeys, stopByKey],
-  );
+  const selectedStops = useMemo(() => {
+    const out: RouteMapStop[] = [];
+    for (const key of selectedKeys) {
+      const stop = stopByKey.get(String(key));
+      if (!stop || stop.is_done || stop.stop_key == null) continue;
+      out.push(stop);
+    }
+    return out;
+  }, [selectedKeys, stopByKey]);
 
   const onStopPress = useCallback(
     (stopKey: string) => {
       const key = String(stopKey);
       const stop = stopByKey.get(key);
       if (stop?.is_done) return;
-      setSheetMode("stops");
-      setSheetExpanded(true);
+      // Stop selected → expand sheet toward full (3-point bottom sheet).
+      openSheet("stops", SHEET_SNAP.FULL);
       setSelectedKeys((prev) => {
         if (prev.includes(key)) return [key, ...prev.filter((k) => k !== key)];
         return [...prev, key];
       });
     },
-    [stopByKey],
+    [openSheet, stopByKey],
   );
 
   const openAddressInMaps = useCallback(
@@ -517,17 +654,19 @@ export default function DriverRouteMapScreen() {
     (stop: RouteMapStop) => {
       if (stop.order_id == null || String(stop.order_id).trim() === "") return;
       const current = mapDataRef.current;
+      const planningDate = String(
+        current?.planning_date || toApiDateString(selectDate) || selectDate,
+      );
       const regionPayload = {
         id: current?.region_id ?? selectedRegion?.region_id,
         name: current?.region_name ?? selectedRegion?.region_name,
         region_color: current?.region_color ?? selectedRegion?.region_color,
       };
-      setSelectActiveDate(
-        String(current?.planning_date || toApiDateString(selectDate) || selectDate),
-      );
+      setSelectActiveDate(planningDate);
       setSelectRegionData(regionPayload);
       setSelectActiveRegionData(regionPayload);
       setGloblyTypeSlide("pickup_dropoff");
+      // Same Details screen as pickup/drop — pass region+date so actions/labels load.
       navigation.navigate("Details", {
         item: {
           id: stop.order_id,
@@ -536,6 +675,8 @@ export default function DriverRouteMapScreen() {
         },
         order_id: stop.order_id,
         type: "pickup_dropoff",
+        region_id: regionPayload.id,
+        date: planningDate,
       });
     },
     [
@@ -561,19 +702,31 @@ export default function DriverRouteMapScreen() {
 
   const apiKey = resolvedApiKey;
 
+  const sheetHidden = sheetIndex < 0;
+  const canCloseSheet = selectedRegion?.region_id != null;
+  const handleHint =
+    sheetIndex >= SHEET_SNAP.FULL
+      ? t("Half")
+      : sheetIndex === SHEET_SNAP.MID
+        ? t("Peek")
+        : canCloseSheet
+          ? t("Hide")
+          : t("Expand");
+
   return (
-    <View style={styles.root}>
+    <GestureHandlerRootView style={styles.root}>
       <StatusBar barStyle="dark-content" backgroundColor={Colors.white} />
-      <SafeAreaView style={styles.safeTop} edges={["top", "left", "right"]}>
-        <View style={styles.header}>
-          <Pressable
+      <SafeAreaView style={styles.safeRoot} edges={["top", "left", "right", "bottom"]}>
+        <View style={styles.header} pointerEvents="box-none">
+          <TouchableOpacity
             onPress={() => navigation.goBack()}
-            hitSlop={10}
+            activeOpacity={0.7}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             style={styles.backBtn}
           >
             <Image source={Images.back} style={styles.backIcon} />
-          </Pressable>
-          <View style={styles.headerTextWrap}>
+          </TouchableOpacity>
+          <View style={styles.headerTextWrap} pointerEvents="none">
             <Text style={styles.headerTitle} numberOfLines={1}>
               {headerTitle}
             </Text>
@@ -585,22 +738,24 @@ export default function DriverRouteMapScreen() {
           </View>
           <Pressable
             onPress={openChangeSheet}
-            style={styles.changeRouteBtn}
-            hitSlop={8}
+            hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+            android_ripple={{ color: "transparent" }}
+            style={({ pressed }) => [
+              styles.changeRouteBtn,
+              pressed && styles.changeRouteBtnPressed,
+            ]}
           >
             <Ionicons
               name="swap-horizontal"
-              size={16}
+              size={18}
               color={Colors.primary}
             />
             <Text style={styles.changeRouteText}>{t("Change")}</Text>
           </Pressable>
         </View>
-      </SafeAreaView>
 
-      <View style={styles.body}>
+        <View style={styles.body}>
         <View style={styles.mapPane}>
-          {/* Map boots immediately; route pins inject when API data arrives. */}
           {apiKey ? (
             <RouteMapView
               apiKey={apiKey}
@@ -627,110 +782,211 @@ export default function DriverRouteMapScreen() {
               <Text style={styles.routeLoadingText}>{t("Loading route...")}</Text>
             </View>
           ) : null}
+
+          {sheetHidden ? (
+            <TouchableOpacity
+              activeOpacity={0.85}
+              delayPressIn={0}
+              onPress={() =>
+                openSheet(
+                  sheetMode === "filter" ? "filter" : "stops",
+                  sheetMode === "filter" ? SHEET_SNAP.MID : SHEET_SNAP.PEEK,
+                )
+              }
+              style={[
+                styles.showSheetBtn,
+                { bottom: Math.max(insets.bottom, 12) + 16 },
+              ]}
+            >
+              <Ionicons name="chevron-up" size={18} color={Colors.white} />
+              <Text style={styles.showSheetBtnText}>
+                {sheetMode === "filter" ? t("Change") : t("Stop details")}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
 
-        {/* Always mounted sheet — spring translateY (no LoadingModal). */}
-        <Animated.View
-          pointerEvents="auto"
-          style={[
-            styles.sheet,
-            sheetStyle,
-            { paddingBottom: Math.max(insets.bottom, 14) },
-          ]}
+        <BottomSheet
+          ref={bottomSheetRef}
+          index={sheetIndex}
+          snapPoints={snapPoints}
+          enablePanDownToClose={canCloseSheet}
+          enableDynamicSizing={false}
+          animateOnMount
+          onChange={onSheetChange}
+          onClose={() => setSheetIndex(SHEET_SNAP.HIDDEN)}
+          handleComponent={() => (
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={onSheetHandlePress}
+              style={styles.sheetHandleHit}
+            >
+              <View style={styles.sheetHandle} />
+              <Text style={styles.sheetHandleHint}>{handleHint}</Text>
+            </TouchableOpacity>
+          )}
+          backgroundStyle={styles.sheetBackground}
+          style={styles.sheet}
+        >
+          <BottomSheetScrollView
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={[
+              styles.sheetContent,
+              { paddingBottom: Math.max(insets.bottom, 18) },
+            ]}
+          >
+            {sheetMode === "filter" ? (
+              <>
+                <Text style={styles.sheetEyebrow}>{t("Route")}</Text>
+                <Text style={styles.sheetTitle}>{t("Change")}</Text>
+                <Text style={styles.sheetHint}>
+                  {t("Choose date and region — route updates automatically")}
+                </Text>
+
+                <Text style={styles.fieldLabel}>{t("Select date")}</Text>
+                <TouchableOpacity
+                  activeOpacity={0.75}
+                  onPress={openNativeDatePicker}
+                  style={styles.dateField}
+                >
+                  <Ionicons
+                    name="calendar-outline"
+                    size={20}
+                    color={Colors.primary}
+                  />
+                  <Text style={styles.dateFieldText}>{dateLabel}</Text>
+                  <Ionicons
+                    name="chevron-down"
+                    size={18}
+                    color={Colors.darkText}
+                  />
+                </TouchableOpacity>
+
+                <Text style={[styles.fieldLabel, { marginTop: 14 }]}>
+                  {t("Select region")}
+                </Text>
+                <DropDownBox
+                  data={regions}
+                  value={selectedRegion}
+                  setValue={setSelectedRegion as any}
+                  labelFieldKey="region_name"
+                  valueFieldKey="region_id"
+                  placeholder="Select Region"
+                  dropdownPosition="top"
+                />
+
+                {regionsLoading || routeLoading ? (
+                  <View style={styles.inlineLoading}>
+                    <ActivityIndicator color={Colors.primary} />
+                  </View>
+                ) : regions.length === 0 ? (
+                  <Text style={styles.emptyText}>
+                    {t("No regions assigned for this date")}
+                  </Text>
+                ) : (
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    style={[
+                      styles.doneFilterBtn,
+                      !selectedRegion?.region_id && { opacity: 0.45 },
+                    ]}
+                    disabled={!selectedRegion?.region_id}
+                    onPress={() => {
+                      if (!selectedRegion?.region_id) return;
+                      openSheet("stops", SHEET_SNAP.PEEK);
+                    }}
+                  >
+                    <Text style={styles.doneFilterText}>{t("Done")}</Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            ) : (
+              <>
+                <View style={styles.stopsHeader}>
+                  <View>
+                    <Text style={styles.sheetEyebrow}>{t("Selected stops")}</Text>
+                    <Text style={styles.sheetTitle}>{t("Stop details")}</Text>
+                  </View>
+                </View>
+
+                {routeLoading ? (
+                  <View style={styles.inlineLoading}>
+                    <ActivityIndicator color={Colors.primary} />
+                  </View>
+                ) : selectedStops.length === 0 ? (
+                  <Text style={styles.emptyHint}>
+                    {t("Tap a stop on the map to see details")}
+                  </Text>
+                ) : (
+                  selectedStops.map((stop, index) => (
+                    <StopDetailCard
+                      key={String(stop.stop_key ?? `stop-${index}`)}
+                      stop={stop}
+                      indexLabel={stop.stop_number ?? index + 1}
+                      onAddressPress={openAddressInMaps}
+                      onOrderPress={openOrderDetails}
+                    />
+                  ))
+                )}
+              </>
+            )}
+          </BottomSheetScrollView>
+        </BottomSheet>
+        </View>
+      </SafeAreaView>
+
+      {/* Native date picker */}
+      {datePickerOpen && Platform.OS === "android" ? (
+        <DateTimePicker
+          value={ymdToDate(selectDate)}
+          mode="date"
+          display="default"
+          onChange={onNativeDateChange}
+        />
+      ) : null}
+
+      {Platform.OS === "ios" ? (
+        <Modal
+          visible={datePickerOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setDatePickerOpen(false)}
         >
           <Pressable
-            style={styles.sheetHandleHit}
-            onPress={() => setSheetExpanded((prev) => !prev)}
+            style={styles.datePickerBackdrop}
+            onPress={() => setDatePickerOpen(false)}
           >
-            <View style={styles.sheetHandle} />
-          </Pressable>
-
-          {sheetMode === "filter" ? (
-            <ScrollView
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.sheetContent}
-              bounces={false}
+            <Pressable
+              style={styles.datePickerSheet}
+              onPress={(e) => e.stopPropagation()}
             >
-              <Text style={styles.sheetEyebrow}>{t("Route")}</Text>
-              <Text style={styles.sheetTitle}>{t("Change")}</Text>
-              <Text style={styles.sheetHint}>
-                {t("Choose date and region — route updates automatically")}
-              </Text>
-
-              <Text style={styles.fieldLabel}>{t("Select date")}</Text>
-              <CalenderDate date={selectDate} setDate={setSelectDate} />
-
-              <Text style={[styles.fieldLabel, { marginTop: 14 }]}>
-                {t("Select region")}
-              </Text>
-              <DropDownBox
-                data={regions}
-                value={selectedRegion}
-                setValue={setSelectedRegion as any}
-                labelFieldKey="region_name"
-                valueFieldKey="region_id"
-                placeholder="Select Region"
-                dropdownPosition="top"
-              />
-
-              {regionsLoading || routeLoading ? (
-                <View style={styles.inlineLoading}>
-                  <ActivityIndicator color={Colors.primary} />
-                </View>
-              ) : regions.length === 0 ? (
-                <Text style={styles.emptyText}>
-                  {t("No regions assigned for this date")}
-                </Text>
-              ) : (
-                <Pressable
-                  style={styles.doneFilterBtn}
+              <View style={styles.datePickerHeader}>
+                <TouchableOpacity onPress={() => setDatePickerOpen(false)}>
+                  <Text style={styles.datePickerAction}>{t("Cancel")}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
                   onPress={() => {
-                    setSheetMode("stops");
-                    setSheetExpanded(true);
+                    setSelectDate(dateToYmd(iosDateDraft));
+                    setDatePickerOpen(false);
                   }}
                 >
-                  <Text style={styles.doneFilterText}>{t("Done")}</Text>
-                </Pressable>
-              )}
-            </ScrollView>
-          ) : (
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.sheetContent}
-              bounces={false}
-            >
-              <View style={styles.stopsHeader}>
-                <View>
-                  <Text style={styles.sheetEyebrow}>{t("Selected stops")}</Text>
-                  <Text style={styles.sheetTitle}>{t("Stop details")}</Text>
-                </View>
+                  <Text style={[styles.datePickerAction, styles.datePickerDone]}>
+                    {t("Done")}
+                  </Text>
+                </TouchableOpacity>
               </View>
-
-              {routeLoading ? (
-                <View style={styles.inlineLoading}>
-                  <ActivityIndicator color={Colors.primary} />
-                </View>
-              ) : selectedStops.length === 0 ? (
-                <Text style={styles.emptyHint}>
-                  {t("Tap a stop on the map to see details")}
-                </Text>
-              ) : (
-                selectedStops.map((stop, index) => (
-                  <StopDetailCard
-                    key={String(stop.stop_key)}
-                    stop={stop}
-                    indexLabel={stop.stop_number ?? index + 1}
-                    onAddressPress={openAddressInMaps}
-                    onOrderPress={openOrderDetails}
-                  />
-                ))
-              )}
-            </ScrollView>
-          )}
-        </Animated.View>
-      </View>
-    </View>
+              <DateTimePicker
+                value={iosDateDraft}
+                mode="date"
+                display="spinner"
+                onChange={onNativeDateChange}
+              />
+            </Pressable>
+          </Pressable>
+        </Modal>
+      ) : null}
+    </GestureHandlerRootView>
   );
 }
 
@@ -739,7 +995,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.white,
   },
-  safeTop: {
+  safeRoot: {
+    flex: 1,
     backgroundColor: Colors.white,
   },
   header: {
@@ -749,6 +1006,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+    zIndex: 51,
+    elevation: 0,
   },
   backBtn: {
     width: 40,
@@ -827,12 +1086,33 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.black,
   },
-  sheet: {
+  showSheetBtn: {
     position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    maxHeight: "58%",
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 24,
+    zIndex: 40,
+    elevation: 12,
+    shadowColor: Colors.primary,
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  showSheetBtnText: {
+    color: Colors.white,
+    fontFamily: FONTS.SemiBold,
+    fontSize: 14,
+  },
+  sheet: {
+    zIndex: 30,
+    elevation: 20,
+  },
+  sheetBackground: {
     backgroundColor: Colors.white,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
@@ -840,12 +1120,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: -6 },
-    elevation: 18,
   },
   sheetHandleHit: {
     alignItems: "center",
-    paddingTop: 12,
-    paddingBottom: 6,
+    paddingTop: 10,
+    paddingBottom: 8,
+    gap: 4,
   },
   sheetHandle: {
     width: 44,
@@ -853,9 +1133,59 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: Colors.Boxgray,
   },
+  sheetHandleHint: {
+    fontFamily: FONTS.Medium,
+    fontSize: 11,
+    color: Colors.darkText,
+  },
   sheetContent: {
     paddingHorizontal: 18,
     paddingBottom: 10,
+  },
+  dateField: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: Colors.litegray1,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.Boxgray,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  dateFieldText: {
+    flex: 1,
+    fontFamily: FONTS.Medium,
+    fontSize: 15,
+    color: Colors.black,
+  },
+  datePickerBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
+  },
+  datePickerSheet: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 20,
+  },
+  datePickerHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.Boxgray,
+  },
+  datePickerAction: {
+    fontFamily: FONTS.Medium,
+    fontSize: 15,
+    color: Colors.darkText,
+  },
+  datePickerDone: {
+    color: Colors.primary,
+    fontFamily: FONTS.SemiBold,
   },
   sheetEyebrow: {
     fontFamily: FONTS.Medium,
@@ -911,15 +1241,24 @@ const styles = StyleSheet.create({
   changeRouteBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 14,
-    backgroundColor: Colors.primarylite,
+    gap: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    minHeight: 48,
+    backgroundColor: "transparent",
+    borderWidth: 0,
+    elevation: 0,
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    shadowOffset: { width: 0, height: 0 },
+    zIndex: 60,
+  },
+  changeRouteBtnPressed: {
+    opacity: 0.55,
   },
   changeRouteText: {
-    fontFamily: FONTS.Medium,
-    fontSize: 12,
+    fontFamily: FONTS.SemiBold,
+    fontSize: 14,
     color: Colors.primary,
   },
   doneFilterBtn: {

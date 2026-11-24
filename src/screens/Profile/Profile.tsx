@@ -7,7 +7,9 @@ import { GlobalContextData } from "@/src/context/GlobalContext";
 import { resetChauffeurLocationSession } from "@/src/hooks/useChauffeurLocation";
 import { getOtaVersionLine } from "@/src/utils/appVersionMeta";
 import { Colors } from "@/src/utils/colors";
+import { LIVE_LOCATION_REASON } from "@/src/utils/driverLocationApi";
 import { clearUserSessionStorage } from "@/src/utils/logoutSession";
+import { closeActiveShiftSilent } from "@/src/utils/shiftLocationGuard";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import React, { useCallback, useContext, useEffect, useState } from "react";
@@ -135,6 +137,7 @@ export default function Profile({ navigation }: any) {
     activeShift,
     setActiveShift,
     setIsGpsTracking,
+    setGOOGLE_API_KEY,
   } = useContext(GlobalContextData);
   const [CurrentVersion, setCurrentVersion] = useState<string>("1");
   const [logoutLoading, setLogoutLoading] = useState(false);
@@ -177,23 +180,46 @@ export default function Profile({ navigation }: any) {
   const finishLogout = useCallback(async () => {
     setLogoutLoading(true);
     try {
-      const { closeActiveShiftSilent } = await import(
-        '@/src/utils/shiftLocationGuard'
-      );
-      const { LIVE_LOCATION_REASON } = await import(
-        '@/src/utils/driverLocationApi'
-      );
-      await closeActiveShiftSilent(
-        UserData,
-        activeShift,
-        LIVE_LOCATION_REASON.LOGOUT,
-      );
-      resetChauffeurLocationSession();
+      // Static imports above — dynamic import() was causing
+      // Uncaught loadBundleFromServer on logout / Metro remount.
+      try {
+        await closeActiveShiftSilent(
+          UserData,
+          activeShift,
+          LIVE_LOCATION_REASON.LOGOUT,
+        );
+      } catch (shiftErr) {
+        console.log("[Logout] closeActiveShiftSilent failed", shiftErr);
+      }
+
+      try {
+        resetChauffeurLocationSession();
+      } catch (locErr) {
+        console.log("[Logout] resetChauffeurLocationSession failed", locErr);
+      }
+
       setActiveShift(null);
       setIsGpsTracking(false);
       setUserData(null);
       setPermission([]);
-      await clearUserSessionStorage();
+      setGOOGLE_API_KEY("");
+
+      try {
+        await clearUserSessionStorage();
+      } catch (storageErr) {
+        console.log("[Logout] clearUserSessionStorage failed", storageErr);
+      }
+
+      navigation?.replace("OnBoarding");
+    } catch (error) {
+      console.log("[Logout] finishLogout failed", error);
+      // Still leave the session even if something unexpected throws.
+      try {
+        setUserData(null);
+        setPermission([]);
+        setGOOGLE_API_KEY("");
+        await clearUserSessionStorage();
+      } catch {}
       navigation?.replace("OnBoarding");
     } finally {
       setLogoutLoading(false);
@@ -203,6 +229,7 @@ export default function Profile({ navigation }: any) {
     activeShift,
     navigation,
     setActiveShift,
+    setGOOGLE_API_KEY,
     setIsGpsTracking,
     setPermission,
     setUserData,
