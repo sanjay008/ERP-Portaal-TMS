@@ -1,6 +1,8 @@
 import type {
   DriverRouteMapData,
+  RouteMapBaseLocation,
   RouteMapStop,
+  RoutePathPoint,
 } from "@/src/screens/RouteMap/types";
 import { hasValidCoordinates, toFiniteNumber } from "@/src/screens/RouteMap/types";
 
@@ -13,21 +15,30 @@ function escapeHtml(value: unknown): string {
     .replace(/'/g, "&#39;");
 }
 
-function serializeStopsForMap(stops: RouteMapStop[]) {
+export type RouteMapInjectPayload = {
+  stops: ReturnType<typeof serializeStopsForMap>;
+  /** Road path from API — polyline uses this only (never stop-to-stop). */
+  routePath: { lat: number; lng: number }[];
+  baseLocation: { lat: number; lng: number; name: string } | null;
+  lineColor: string;
+  selectedKey: string;
+};
+
+export function serializeStopsForMap(stops: RouteMapStop[]) {
   return stops
     .filter(hasValidCoordinates)
     .map((stop) => {
       const marker = stop.marker || {};
       return {
         stop_key: String(stop.stop_key),
-        lat: toFiniteNumber(stop.latitude),
-        lng: toFiniteNumber(stop.longitude),
-        label: String(
-          marker.label ?? stop.stop_number ?? "",
-        ),
+        lat: toFiniteNumber(stop.latitude) as number,
+        lng: toFiniteNumber(stop.longitude) as number,
+        label: String(marker.label ?? stop.stop_number ?? ""),
         shape: String(marker.shape || "circle"),
         fill_color: String(marker.fill_color || "#198754"),
-        border_color: String(marker.border_color || marker.fill_color || "#198754"),
+        border_color: String(
+          marker.border_color || marker.fill_color || "#198754",
+        ),
         text_color: String(marker.text_color || "#000000"),
         badge_fill: String(marker.badge_fill || "#ffffff"),
         overlay: String(marker.overlay || "none"),
@@ -39,42 +50,54 @@ function serializeStopsForMap(stops: RouteMapStop[]) {
     });
 }
 
-/**
- * Builds an offline-friendly Google Maps HTML page that renders API marker
- * styles (shape/overlay/colors/label) — no planning rules invented in RN.
- */
-export function buildRouteMapHtml(params: {
-  apiKey: string;
-  mapData: DriverRouteMapData;
-  selectedStopKey?: string | null;
-  regionColor?: string | null;
-}): string {
-  const stops = serializeStopsForMap(params.mapData.stops || []);
-  const base = params.mapData.base_location;
+function serializeBase(
+  base?: RouteMapBaseLocation | null,
+): RouteMapInjectPayload["baseLocation"] {
   const baseLat = toFiniteNumber(base?.latitude);
   const baseLng = toFiniteNumber(base?.longitude);
-  const baseLocation =
-    baseLat != null && baseLng != null
-      ? {
-          lat: baseLat,
-          lng: baseLng,
-          name: String(base?.name || "Depot"),
-        }
-      : null;
+  if (baseLat == null || baseLng == null) return null;
+  return {
+    lat: baseLat,
+    lng: baseLng,
+    name: String(base?.name || "Depot"),
+  };
+}
 
-  const lineColor = String(
-    params.regionColor || params.mapData.region_color || "#198754",
-  );
-  const selectedKey = params.selectedStopKey
-    ? String(params.selectedStopKey)
-    : "";
+/** Normalize API route_path → valid lat/lng points for the road polyline. */
+export function serializeRoutePath(
+  routePath?: RoutePathPoint[] | null,
+): { lat: number; lng: number }[] {
+  if (!Array.isArray(routePath) || routePath.length === 0) return [];
+  const points: { lat: number; lng: number }[] = [];
+  for (const point of routePath) {
+    const lat = toFiniteNumber(point?.lat);
+    const lng = toFiniteNumber(point?.lng);
+    if (lat == null || lng == null) continue;
+    points.push({ lat, lng });
+  }
+  return points;
+}
 
-  const payload = JSON.stringify({
-    stops,
-    baseLocation,
-    lineColor,
-    selectedKey,
-  });
+/** Payload pushed into the already-loaded map via injectJavaScript. */
+export function buildRouteMapPayload(
+  mapData?: DriverRouteMapData | null,
+  regionColor?: string | null,
+): RouteMapInjectPayload {
+  return {
+    stops: serializeStopsForMap(mapData?.stops || []),
+    routePath: serializeRoutePath(mapData?.route_path),
+    baseLocation: serializeBase(mapData?.base_location),
+    lineColor: String(regionColor || mapData?.region_color || "#4E83E7"),
+    selectedKey: "",
+  };
+}
+
+/**
+ * Stable Google Maps shell — loads once. Route pins arrive later via
+ * window.__updateRouteMap(payload) without remounting the WebView.
+ */
+export function buildRouteMapHtml(apiKey: string): string {
+  const initial = JSON.stringify(buildRouteMapPayload(null));
 
   return `<!DOCTYPE html>
 <html>
@@ -82,7 +105,7 @@ export function buildRouteMapHtml(params: {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <style>
-    html, body, #map { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #e8eef5; }
+    html, body, #map { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #eef2f6; }
     .pin {
       position: relative;
       width: 34px;
@@ -129,10 +152,7 @@ export function buildRouteMapHtml(params: {
       width: 20px;
       text-align: center;
     }
-    .pin.hold {
-      border-radius: 50%;
-      border-style: dashed;
-    }
+    .pin.hold { border-radius: 50%; border-style: dashed; }
     .pin .overlay {
       position: absolute;
       right: -4px;
@@ -149,15 +169,10 @@ export function buildRouteMapHtml(params: {
       border: 1px solid rgba(0,0,0,0.25);
       font-weight: 800;
     }
-    .pin.selected {
-      outline: 3px solid #111;
-      outline-offset: 2px;
-      z-index: 5;
-    }
     .depot {
       width: 28px;
       height: 28px;
-      border-radius: 6px;
+      border-radius: 8px;
       background: #212529;
       color: #fff;
       display: flex;
@@ -171,19 +186,36 @@ export function buildRouteMapHtml(params: {
 <body>
   <div id="map"></div>
   <script>
-    const PAYLOAD = ${payload};
+    var map = null;
+    var polyline = null;
+    var layerOverlays = [];
+    var pendingPayload = ${initial};
+    var mapReady = false;
+
     function post(type, data) {
       try {
-        window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type, data }));
+        window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type, data: data || {} }));
       } catch (e) {}
     }
-    function buildPinHtml(stop, selected) {
+
+    function clearLayers() {
+      for (var i = 0; i < layerOverlays.length; i++) {
+        try { layerOverlays[i].setMap(null); } catch (e) {}
+      }
+      layerOverlays = [];
+      if (polyline) {
+        try { polyline.setMap(null); } catch (e) {}
+        polyline = null;
+      }
+    }
+
+    function buildPinHtml(stop) {
       var shape = stop.shape || 'circle';
       var fill = stop.fill_color || '#198754';
       var border = stop.border_color || fill;
       var text = stop.text_color || '#000';
       var badge = stop.badge_fill || '#fff';
-      var cls = 'pin ' + shape + (selected ? ' selected' : '');
+      var cls = 'pin ' + shape;
       var overlay = '';
       if (stop.overlay === 'check') overlay = '<span class="overlay" style="background:' + badge + '">✓</span>';
       else if (stop.overlay === 'x') overlay = '<span class="overlay" style="background:' + badge + '">✕</span>';
@@ -196,94 +228,132 @@ export function buildRouteMapHtml(params: {
       return '<div class="' + cls + '" style="background:' + fill + ';border-color:' + border + ';color:' + text + '">' +
         '<span>' + String(stop.label || '') + '</span>' + overlay + '</div>';
     }
+
+    function addHtmlOverlay(lat, lng, html, onClick, anchorX, anchorY) {
+      var el = document.createElement('div');
+      el.innerHTML = html;
+      el.style.cursor = onClick ? 'pointer' : 'default';
+      if (onClick) {
+        el.onclick = function(ev) {
+          ev.stopPropagation();
+          onClick();
+        };
+      }
+      var overlay = new google.maps.OverlayView();
+      overlay.onAdd = function() {
+        this.getPanes().overlayMouseTarget.appendChild(el);
+      };
+      overlay.draw = function() {
+        var proj = this.getProjection();
+        if (!proj) return;
+        var point = proj.fromLatLngToDivPixel(new google.maps.LatLng(lat, lng));
+        if (!point) return;
+        el.style.position = 'absolute';
+        el.style.left = (point.x - anchorX) + 'px';
+        el.style.top = (point.y - anchorY) + 'px';
+      };
+      overlay.onRemove = function() { el.remove(); };
+      overlay.setMap(map);
+      layerOverlays.push(overlay);
+    }
+
+    function renderPayload(payload) {
+      if (!map || !payload) return;
+      clearLayers();
+      var bounds = new google.maps.LatLngBounds();
+      var hasPoint = false;
+
+      if (payload.baseLocation) {
+        addHtmlOverlay(
+          payload.baseLocation.lat,
+          payload.baseLocation.lng,
+          '<div class="depot">⌂</div>',
+          null,
+          14,
+          14
+        );
+        bounds.extend(payload.baseLocation);
+        hasPoint = true;
+      }
+
+      // Markers from stops[] only — never used to build the road line.
+      (payload.stops || []).forEach(function(stop) {
+        if (stop.lat == null || stop.lng == null) return;
+        bounds.extend({ lat: stop.lat, lng: stop.lng });
+        hasPoint = true;
+        addHtmlOverlay(
+          stop.lat,
+          stop.lng,
+          buildPinHtml(stop),
+          function() { post('marker_press', { stop_key: stop.stop_key }); },
+          17,
+          17
+        );
+      });
+
+      // Road polyline from API route_path only (same as web planning).
+      // No Google Directions in-app; no stop-to-stop straight default.
+      var routePath = payload.routePath || [];
+      if (routePath.length >= 2) {
+        for (var i = 0; i < routePath.length; i++) {
+          bounds.extend(routePath[i]);
+          hasPoint = true;
+        }
+        polyline = new google.maps.Polyline({
+          path: routePath,
+          geodesic: false,
+          strokeColor: payload.lineColor || '#4E83E7',
+          strokeOpacity: 0.95,
+          strokeWeight: 5,
+          map: map,
+        });
+      }
+
+      if (hasPoint) {
+        map.fitBounds(bounds, 56);
+      }
+      post('route_rendered', {
+        stops: (payload.stops || []).length,
+        routePath: routePath.length,
+      });
+    }
+
     function initMap() {
-      var map = new google.maps.Map(document.getElementById('map'), {
-        zoom: 11,
+      map = new google.maps.Map(document.getElementById('map'), {
+        zoom: 7,
         center: { lat: 52.1326, lng: 5.2913 },
         mapTypeControl: false,
         streetViewControl: false,
         fullscreenControl: false,
         clickableIcons: false,
+        gestureHandling: 'greedy',
       });
-      var bounds = new google.maps.LatLngBounds();
-      var path = [];
-      var overlays = [];
-
-      if (PAYLOAD.baseLocation) {
-        var depotDiv = document.createElement('div');
-        depotDiv.className = 'depot';
-        depotDiv.textContent = '⌂';
-        var depotOverlay = new google.maps.OverlayView();
-        depotOverlay.onAdd = function() {
-          this.getPanes().overlayMouseTarget.appendChild(depotDiv);
-        };
-        depotOverlay.draw = function() {
-          var proj = this.getProjection();
-          if (!proj) return;
-          var point = proj.fromLatLngToDivPixel(new google.maps.LatLng(PAYLOAD.baseLocation.lat, PAYLOAD.baseLocation.lng));
-          if (!point) return;
-          depotDiv.style.position = 'absolute';
-          depotDiv.style.left = (point.x - 14) + 'px';
-          depotDiv.style.top = (point.y - 14) + 'px';
-        };
-        depotOverlay.onRemove = function() { depotDiv.remove(); };
-        depotOverlay.setMap(map);
-        bounds.extend(PAYLOAD.baseLocation);
+      mapReady = true;
+      post('map_ready', { count: 0 });
+      if (pendingPayload) {
+        renderPayload(pendingPayload);
       }
-
-      (PAYLOAD.stops || []).forEach(function(stop) {
-        if (stop.lat == null || stop.lng == null) return;
-        var pos = { lat: stop.lat, lng: stop.lng };
-        path.push(pos);
-        bounds.extend(pos);
-        var el = document.createElement('div');
-        el.innerHTML = buildPinHtml(stop, stop.stop_key === PAYLOAD.selectedKey);
-        el.style.cursor = 'pointer';
-        el.onclick = function(ev) {
-          ev.stopPropagation();
-          post('marker_press', { stop_key: stop.stop_key });
-        };
-        var overlay = new google.maps.OverlayView();
-        overlay.onAdd = function() {
-          this.getPanes().overlayMouseTarget.appendChild(el);
-        };
-        overlay.draw = function() {
-          var proj = this.getProjection();
-          if (!proj) return;
-          var point = proj.fromLatLngToDivPixel(new google.maps.LatLng(stop.lat, stop.lng));
-          if (!point) return;
-          el.style.position = 'absolute';
-          el.style.left = (point.x - 17) + 'px';
-          el.style.top = (point.y - 17) + 'px';
-        };
-        overlay.onRemove = function() { el.remove(); };
-        overlay.setMap(map);
-        overlays.push(overlay);
-      });
-
-      if (path.length > 1) {
-        new google.maps.Polyline({
-          path: path,
-          geodesic: true,
-          strokeColor: PAYLOAD.lineColor || '#198754',
-          strokeOpacity: 0.85,
-          strokeWeight: 4,
-          map: map,
-        });
-      }
-
-      if (!bounds.isEmpty()) {
-        map.fitBounds(bounds, 48);
-      }
-      post('map_ready', { count: (PAYLOAD.stops || []).length });
     }
+
+    window.__updateRouteMap = function(payload) {
+      pendingPayload = payload || {
+        stops: [],
+        routePath: [],
+        baseLocation: null,
+        lineColor: '#4E83E7',
+        selectedKey: '',
+      };
+      if (!mapReady) return;
+      renderPayload(pendingPayload);
+    };
+
     window.initMap = initMap;
     window.gm_authFailure = function() {
       post('maps_auth_failure', { message: 'Google Maps authentication failed (invalid/restricted API key or billing).' });
     };
     window.onerror = function(msg) { post('map_error', { message: String(msg) }); };
   </script>
-  <script async defer src="https://maps.googleapis.com/maps/api/js?key=${escapeHtml(params.apiKey)}&callback=initMap"></script>
+  <script async defer src="https://maps.googleapis.com/maps/api/js?key=${escapeHtml(apiKey)}&callback=initMap"></script>
 </body>
 </html>`;
 }

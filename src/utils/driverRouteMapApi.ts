@@ -77,5 +77,6 @@ export function parseRouteMapData(res: any): DriverRouteMapData | null {
   return {
     ...data,
     stops: Array.isArray(data.stops) ? data.stops : [],
+    route_path: Array.isArray(data.route_path) ? data.route_path : [],
   };
 }

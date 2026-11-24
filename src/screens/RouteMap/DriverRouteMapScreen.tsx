@@ -1,10 +1,8 @@
-import ButtonComponent from "@/src/components/buttonComponent";
+import { Images } from "@/src/assets/images";
 import CalenderDate from "@/src/components/CalenderDate";
 import { toApiDateString } from "@/src/components/DateFormate";
 import DropDownBox from "@/src/components/DropDownBox";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
-import LoadingModal from "@/src/components/LoadingModal";
-import { Images } from "@/src/assets/images";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import {
   checkLocationPermission,
@@ -31,6 +29,10 @@ import {
   logGoogleMapsIssue,
   resolveGoogleMapsApiKey,
 } from "@/src/utils/googleMapsApiKey";
+import {
+  doesShiftBelongToUser,
+  isShiftActive,
+} from "@/src/utils/shiftSession";
 import { FONTS } from "@/src/utils/storeData";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
@@ -55,15 +57,19 @@ import {
   View,
 } from "react-native";
 import Animated, {
-  Easing,
+  Extrapolation,
+  interpolate,
   useAnimatedStyle,
   useSharedValue,
-  withTiming,
+  withSpring,
 } from "react-native-reanimated";
 import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
+
+const SHEET_HIDDEN_Y = 340;
+const SPRING = { damping: 22, stiffness: 220, mass: 0.85 };
 
 type SheetMode = "filter" | "stops";
 
@@ -98,6 +104,7 @@ export default function DriverRouteMapScreen() {
     setGOOGLE_API_KEY,
     SelectActiveDate,
     TimeZone,
+    activeShift,
     setSelectActiveDate,
     setSelectRegionData,
     setSelectActiveRegionData,
@@ -110,9 +117,39 @@ export default function DriverRouteMapScreen() {
     return getDateByTimezone(tz);
   }, [TimeZone]);
 
-  const [selectDate, setSelectDate] = useState<string>(
-    toApiDateString(route?.params?.date || SelectActiveDate) || today,
+  const tripOn = useMemo(
+    () =>
+      isShiftActive(activeShift) &&
+      doesShiftBelongToUser(activeShift, UserData),
+    [activeShift, UserData],
   );
+
+  /** Active pickup_dropoff trip region+date, else today / first region. */
+  const preferredDate = useMemo(() => {
+    if (route?.params?.date) {
+      return toApiDateString(route.params.date) || String(route.params.date);
+    }
+    if (tripOn && activeShift?.planning_date) {
+      return toApiDateString(activeShift.planning_date) || activeShift.planning_date;
+    }
+    return toApiDateString(SelectActiveDate) || today;
+  }, [
+    SelectActiveDate,
+    activeShift?.planning_date,
+    route?.params?.date,
+    today,
+    tripOn,
+  ]);
+
+  const preferredRegionId = useMemo(() => {
+    if (route?.params?.region_id != null) return String(route.params.region_id);
+    if (tripOn && activeShift?.region_id != null) {
+      return String(activeShift.region_id);
+    }
+    return null;
+  }, [activeShift?.region_id, route?.params?.region_id, tripOn]);
+
+  const [selectDate, setSelectDate] = useState<string>(preferredDate || today);
   const [regions, setRegions] = useState<DriverAssignedRegion[]>([]);
   const [selectedRegion, setSelectedRegion] =
     useState<DriverAssignedRegion | null>(
@@ -122,13 +159,18 @@ export default function DriverRouteMapScreen() {
             region_name: route.params.region_name,
             region_color: route.params.region_color,
           }
-        : null,
+        : tripOn && activeShift?.region_id
+          ? {
+              region_id: activeShift.region_id,
+              region_name: activeShift.region_name,
+            }
+          : null,
     );
   const [regionsLoading, setRegionsLoading] = useState(false);
   const [mapData, setMapData] = useState<DriverRouteMapData | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
-  const [sheetMode, setSheetMode] = useState<SheetMode>("filter");
+  const [sheetMode, setSheetMode] = useState<SheetMode>("stops");
   const [sheetExpanded, setSheetExpanded] = useState(true);
   const [resolvedApiKey, setResolvedApiKey] = useState(
     String(GOOGLE_API_KEY || "").trim(),
@@ -144,12 +186,16 @@ export default function DriverRouteMapScreen() {
   const errorHandleRef = useRef(ErrorHandle);
   const setToastRef = useRef(setToast);
   const mapDataRef = useRef<DriverRouteMapData | null>(null);
-  const autoShowDoneRef = useRef(false);
+  const preferredRegionIdRef = useRef(preferredRegionId);
+  const lastAutoKeyRef = useRef<string>("");
+  const sheetModeRef = useRef<SheetMode>(sheetMode);
 
   userDataRef.current = UserData;
   errorHandleRef.current = ErrorHandle;
   setToastRef.current = setToast;
   mapDataRef.current = mapData;
+  preferredRegionIdRef.current = preferredRegionId;
+  sheetModeRef.current = sheetMode;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -166,15 +212,22 @@ export default function DriverRouteMapScreen() {
   ]);
 
   useEffect(() => {
-    sheetProgress.value = withTiming(sheetExpanded ? 1 : 0, {
-      duration: 260,
-      easing: Easing.out(Easing.cubic),
-    });
+    sheetProgress.value = withSpring(sheetExpanded ? 1 : 0, SPRING);
   }, [sheetExpanded, sheetProgress]);
 
-  const sheetStyle = useAnimatedStyle(() => ({
-    maxHeight: 120 + sheetProgress.value * 280,
-  }));
+  // Keep sheet always usable — no floating reopen chip button.
+  // Collapse only peeks it; drag-handle / header options brings it back.
+  const sheetStyle = useAnimatedStyle(() => {
+    const translateY = interpolate(
+      sheetProgress.value,
+      [0, 1],
+      [SHEET_HIDDEN_Y * 0.72, 0],
+      Extrapolation.CLAMP,
+    );
+    return {
+      transform: [{ translateY }],
+    };
+  });
 
   // Regions for picker — only when date changes (no callback-dep loop).
   useEffect(() => {
@@ -192,11 +245,21 @@ export default function DriverRouteMapScreen() {
         setRegions(nextRegions);
         setSelectedRegion((prev) => {
           if (!nextRegions.length) return null;
-          if (!prev) return nextRegions[0];
-          const still = nextRegions.find(
-            (r) => String(r.region_id) === String(prev.region_id),
-          );
-          return still || nextRegions[0];
+          const preferId = preferredRegionIdRef.current;
+          if (preferId) {
+            const tripRegion = nextRegions.find(
+              (r) => String(r.region_id) === preferId,
+            );
+            if (tripRegion) return tripRegion;
+          }
+          if (prev) {
+            const still = nextRegions.find(
+              (r) => String(r.region_id) === String(prev.region_id),
+            );
+            if (still) return still;
+          }
+          // Default: first region for the date.
+          return nextRegions[0];
         });
       } catch (error: any) {
         if (!mountedRef.current || requestId !== regionsReqRef.current) return;
@@ -279,8 +342,11 @@ export default function DriverRouteMapScreen() {
 
         setMapData(parsed);
         setSelectedKeys([]);
-        setSheetMode("stops");
-        setSheetExpanded(true);
+        // Don't kick user out of Change sheet while they are editing filters.
+        if (sheetModeRef.current !== "filter") {
+          setSheetMode("stops");
+          setSheetExpanded(true);
+        }
         setSelectActiveDate(date);
         setSelectRegionData({
           id: parsed.region_id ?? region_id,
@@ -312,20 +378,25 @@ export default function DriverRouteMapScreen() {
     ],
   );
 
-  // If navigated with region+date already (legacy picker), auto show once.
-  useEffect(() => {
-    if (autoShowDoneRef.current) return;
-    if (route?.params?.region_id && route?.params?.date) {
-      autoShowDoneRef.current = true;
-      loadRoute({
-        region_id: route.params.region_id,
-        date: route.params.date,
-      });
-    }
-  }, [loadRoute, route?.params?.date, route?.params?.region_id]);
-
   const loadRouteRef = useRef(loadRoute);
   loadRouteRef.current = loadRoute;
+
+  // Auto-show route when date + region are ready (trip region or first region).
+  useEffect(() => {
+    const date = toApiDateString(selectDate) || selectDate;
+    const regionId = selectedRegion?.region_id;
+    if (!date || regionId == null || regionsLoading) return;
+
+    const key = `${date}|${regionId}`;
+    if (lastAutoKeyRef.current === key) return;
+    lastAutoKeyRef.current = key;
+
+    loadRouteRef.current({
+      region_id: regionId,
+      date,
+      silent: Boolean(mapDataRef.current),
+    });
+  }, [selectDate, selectedRegion?.region_id, regionsLoading]);
 
   useFocusEffect(
     useCallback(() => {
@@ -339,6 +410,11 @@ export default function DriverRouteMapScreen() {
       };
     }, []),
   );
+
+  const openChangeSheet = useCallback(() => {
+    setSheetMode("filter");
+    setSheetExpanded(true);
+  }, []);
 
   const stopByKey = useMemo(() => {
     const map = new Map<string, RouteMapStop>();
@@ -484,11 +560,6 @@ export default function DriverRouteMapScreen() {
     : "";
 
   const apiKey = resolvedApiKey;
-  const emptyMapMessage = !apiKey
-    ? t("Google Maps key is missing")
-    : routeLoading
-      ? t("Loading...")
-      : t("Select date & region, then tap Show route");
 
   return (
     <View style={styles.root}>
@@ -513,21 +584,24 @@ export default function DriverRouteMapScreen() {
             )}
           </View>
           <Pressable
-            onPress={() => {
-              setSheetMode("filter");
-              setSheetExpanded(true);
-            }}
-            style={styles.headerAction}
+            onPress={openChangeSheet}
+            style={styles.changeRouteBtn}
             hitSlop={8}
           >
-            <Ionicons name="options-outline" size={22} color={Colors.black} />
+            <Ionicons
+              name="swap-horizontal"
+              size={16}
+              color={Colors.primary}
+            />
+            <Text style={styles.changeRouteText}>{t("Change")}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
 
       <View style={styles.body}>
         <View style={styles.mapPane}>
-          {apiKey && mapData ? (
+          {/* Map boots immediately; route pins inject when API data arrives. */}
+          {apiKey ? (
             <RouteMapView
               apiKey={apiKey}
               mapData={mapData}
@@ -538,130 +612,124 @@ export default function DriverRouteMapScreen() {
             />
           ) : (
             <View style={styles.mapPlaceholder}>
-              {routeLoading ? (
-                <ActivityIndicator color={Colors.primary} />
-              ) : (
-                <Ionicons
-                  name="map-outline"
-                  size={42}
-                  color={Colors.primary}
-                  style={{ marginBottom: 12 }}
-                />
-              )}
-              <Text style={styles.placeholderText}>{emptyMapMessage}</Text>
+              <View style={styles.mapEmptyIcon}>
+                <Ionicons name="key-outline" size={26} color={Colors.primary} />
+              </View>
+              <Text style={styles.placeholderText}>
+                {t("Google Maps key is missing")}
+              </Text>
             </View>
           )}
 
-          {/* Floating reopen chip when sheet collapsed */}
-          {!sheetExpanded ? (
-            <Pressable
-              style={[styles.reopenChip, { bottom: Math.max(insets.bottom, 12) + 12 }]}
-              onPress={() => setSheetExpanded(true)}
-            >
-              <Ionicons name="chevron-up" size={18} color={Colors.white} />
-              <Text style={styles.reopenChipText}>
-                {sheetMode === "filter" ? t("Show route") : t("Stop details")}
-              </Text>
-            </Pressable>
+          {routeLoading ? (
+            <View style={styles.routeLoadingBadge} pointerEvents="none">
+              <ActivityIndicator color={Colors.primary} size="small" />
+              <Text style={styles.routeLoadingText}>{t("Loading route...")}</Text>
+            </View>
           ) : null}
         </View>
 
-        {/* Google Maps–style bottom popup */}
-        {sheetExpanded ? (
-          <Animated.View
-            style={[
-              styles.sheet,
-              sheetStyle,
-              { paddingBottom: Math.max(insets.bottom, 12) },
-            ]}
+        {/* Always mounted sheet — spring translateY (no LoadingModal). */}
+        <Animated.View
+          pointerEvents="auto"
+          style={[
+            styles.sheet,
+            sheetStyle,
+            { paddingBottom: Math.max(insets.bottom, 14) },
+          ]}
+        >
+          <Pressable
+            style={styles.sheetHandleHit}
+            onPress={() => setSheetExpanded((prev) => !prev)}
           >
-            <Pressable
-              style={styles.sheetHandleHit}
-              onPress={() => setSheetExpanded(false)}
+            <View style={styles.sheetHandle} />
+          </Pressable>
+
+          {sheetMode === "filter" ? (
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.sheetContent}
+              bounces={false}
             >
-              <View style={styles.sheetHandle} />
-            </Pressable>
+              <Text style={styles.sheetEyebrow}>{t("Route")}</Text>
+              <Text style={styles.sheetTitle}>{t("Change")}</Text>
+              <Text style={styles.sheetHint}>
+                {t("Choose date and region — route updates automatically")}
+              </Text>
 
-            {sheetMode === "filter" ? (
-              <ScrollView
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.sheetContent}
-              >
-                <Text style={styles.sheetTitle}>{t("Show route")}</Text>
-                <Text style={styles.sheetHint}>
-                  {t("Choose date and region to open the route map")}
-                </Text>
+              <Text style={styles.fieldLabel}>{t("Select date")}</Text>
+              <CalenderDate date={selectDate} setDate={setSelectDate} />
 
-                <Text style={styles.fieldLabel}>{t("Select date")}</Text>
-                <CalenderDate date={selectDate} setDate={setSelectDate} />
+              <Text style={[styles.fieldLabel, { marginTop: 14 }]}>
+                {t("Select region")}
+              </Text>
+              <DropDownBox
+                data={regions}
+                value={selectedRegion}
+                setValue={setSelectedRegion as any}
+                labelFieldKey="region_name"
+                valueFieldKey="region_id"
+                placeholder="Select Region"
+                dropdownPosition="top"
+              />
 
-                <Text style={[styles.fieldLabel, { marginTop: 14 }]}>
-                  {t("Select region")}
-                </Text>
-                <DropDownBox
-                  data={regions}
-                  value={selectedRegion}
-                  setValue={setSelectedRegion as any}
-                  labelFieldKey="region_name"
-                  valueFieldKey="region_id"
-                  placeholder="Select Region"
-                  dropdownPosition="top"
-                />
-
-                {!regionsLoading && regions.length === 0 ? (
-                  <Text style={styles.emptyText}>
-                    {t("No regions assigned for this date")}
-                  </Text>
-                ) : null}
-
-                <ButtonComponent
-                  title={t("Show route")}
-                  marginTop={18}
-                  onPress={() => loadRoute()}
-                  disabled={!selectedRegion?.region_id || routeLoading}
-                  loading={routeLoading}
-                />
-              </ScrollView>
-            ) : (
-              <ScrollView
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.sheetContent}
-              >
-                <View style={styles.stopsHeader}>
-                  <Text style={styles.sheetTitle}>{t("Stop details")}</Text>
-                  <Pressable
-                    onPress={() => setSheetMode("filter")}
-                    hitSlop={8}
-                    style={styles.changeRouteBtn}
-                  >
-                    <Ionicons name="swap-horizontal" size={16} color={Colors.primary} />
-                    <Text style={styles.changeRouteText}>{t("Change")}</Text>
-                  </Pressable>
+              {regionsLoading || routeLoading ? (
+                <View style={styles.inlineLoading}>
+                  <ActivityIndicator color={Colors.primary} />
                 </View>
+              ) : regions.length === 0 ? (
+                <Text style={styles.emptyText}>
+                  {t("No regions assigned for this date")}
+                </Text>
+              ) : (
+                <Pressable
+                  style={styles.doneFilterBtn}
+                  onPress={() => {
+                    setSheetMode("stops");
+                    setSheetExpanded(true);
+                  }}
+                >
+                  <Text style={styles.doneFilterText}>{t("Done")}</Text>
+                </Pressable>
+              )}
+            </ScrollView>
+          ) : (
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.sheetContent}
+              bounces={false}
+            >
+              <View style={styles.stopsHeader}>
+                <View>
+                  <Text style={styles.sheetEyebrow}>{t("Selected stops")}</Text>
+                  <Text style={styles.sheetTitle}>{t("Stop details")}</Text>
+                </View>
+              </View>
 
-                {selectedStops.length === 0 ? (
-                  <Text style={styles.emptyHint}>
-                    {t("Tap a stop on the map to see details")}
-                  </Text>
-                ) : (
-                  selectedStops.map((stop, index) => (
-                    <StopDetailCard
-                      key={String(stop.stop_key)}
-                      stop={stop}
-                      indexLabel={stop.stop_number ?? index + 1}
-                      onAddressPress={openAddressInMaps}
-                      onOrderPress={openOrderDetails}
-                    />
-                  ))
-                )}
-              </ScrollView>
-            )}
-          </Animated.View>
-        ) : null}
+              {routeLoading ? (
+                <View style={styles.inlineLoading}>
+                  <ActivityIndicator color={Colors.primary} />
+                </View>
+              ) : selectedStops.length === 0 ? (
+                <Text style={styles.emptyHint}>
+                  {t("Tap a stop on the map to see details")}
+                </Text>
+              ) : (
+                selectedStops.map((stop, index) => (
+                  <StopDetailCard
+                    key={String(stop.stop_key)}
+                    stop={stop}
+                    indexLabel={stop.stop_number ?? index + 1}
+                    onAddressPress={openAddressInMaps}
+                    onOrderPress={openOrderDetails}
+                  />
+                ))
+              )}
+            </ScrollView>
+          )}
+        </Animated.View>
       </View>
-
-      <LoadingModal visible={regionsLoading && regions.length === 0 && !mapData} />
     </View>
   );
 }
@@ -676,13 +744,11 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: Colors.white,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.Boxgray,
+    gap: 8,
   },
   backBtn: {
     width: 40,
@@ -691,30 +757,23 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   backIcon: {
-    width: 34,
-    height: 34,
+    width: 32,
+    height: 32,
   },
   headerTextWrap: {
     flex: 1,
   },
   headerTitle: {
     fontFamily: FONTS.SemiBold,
-    fontSize: 16,
+    fontSize: 17,
     color: Colors.black,
+    letterSpacing: -0.2,
   },
   headerSub: {
-    marginTop: 2,
+    marginTop: 1,
     fontFamily: FONTS.Regular,
     fontSize: 12,
     color: Colors.darkText,
-  },
-  headerAction: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.litegray1,
-    alignItems: "center",
-    justifyContent: "center",
   },
   body: {
     flex: 1,
@@ -722,13 +781,22 @@ const styles = StyleSheet.create({
   },
   mapPane: {
     flex: 1,
-    backgroundColor: "#e8eef5",
+    backgroundColor: Colors.background,
   },
   mapPlaceholder: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 28,
+    gap: 12,
+  },
+  mapEmptyIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: Colors.primarylite,
+    alignItems: "center",
+    justifyContent: "center",
   },
   placeholderText: {
     fontFamily: FONTS.Medium,
@@ -737,68 +805,77 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 20,
   },
-  reopenChip: {
+  routeLoadingBadge: {
     position: "absolute",
+    top: 14,
     alignSelf: "center",
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    backgroundColor: Colors.black,
-    paddingHorizontal: 16,
+    gap: 8,
+    backgroundColor: Colors.white,
+    paddingHorizontal: 14,
     paddingVertical: 10,
-    borderRadius: 22,
+    borderRadius: 20,
     shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 },
     elevation: 5,
   },
-  reopenChipText: {
-    color: Colors.white,
-    fontFamily: FONTS.SemiBold,
+  routeLoadingText: {
+    fontFamily: FONTS.Medium,
     fontSize: 13,
+    color: Colors.black,
   },
   sheet: {
     position: "absolute",
     left: 0,
     right: 0,
     bottom: 0,
+    maxHeight: "58%",
     backgroundColor: Colors.white,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     shadowColor: "#000",
-    shadowOpacity: 0.18,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: -4 },
-    elevation: 16,
-    overflow: "hidden",
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: -6 },
+    elevation: 18,
   },
   sheetHandleHit: {
     alignItems: "center",
-    paddingTop: 10,
-    paddingBottom: 4,
+    paddingTop: 12,
+    paddingBottom: 6,
   },
   sheetHandle: {
-    width: 42,
-    height: 4,
-    borderRadius: 2,
+    width: 44,
+    height: 5,
+    borderRadius: 3,
     backgroundColor: Colors.Boxgray,
   },
   sheetContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingHorizontal: 18,
+    paddingBottom: 10,
+  },
+  sheetEyebrow: {
+    fontFamily: FONTS.Medium,
+    fontSize: 12,
+    color: Colors.darkText,
+    marginBottom: 2,
   },
   sheetTitle: {
     fontFamily: FONTS.SemiBold,
-    fontSize: 17,
+    fontSize: 22,
     color: Colors.black,
+    letterSpacing: -0.4,
   },
   sheetHint: {
     marginTop: 4,
-    marginBottom: 12,
+    marginBottom: 14,
     fontFamily: FONTS.Regular,
     fontSize: 13,
     color: Colors.darkText,
+    lineHeight: 18,
   },
   fieldLabel: {
     fontFamily: FONTS.Medium,
@@ -806,15 +883,20 @@ const styles = StyleSheet.create({
     color: Colors.orderdark,
     marginBottom: 6,
   },
+  inlineLoading: {
+    marginTop: 16,
+    alignItems: "center",
+    paddingVertical: 8,
+  },
   emptyText: {
-    marginTop: 10,
+    marginTop: 12,
     fontFamily: FONTS.Regular,
     fontSize: 13,
     color: Colors.darkText,
   },
   emptyHint: {
-    marginTop: 16,
-    marginBottom: 8,
+    marginTop: 20,
+    marginBottom: 10,
     fontFamily: FONTS.Regular,
     fontSize: 13,
     color: Colors.darkText,
@@ -822,22 +904,34 @@ const styles = StyleSheet.create({
   },
   stopsHeader: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
-    marginBottom: 10,
+    marginBottom: 12,
   },
   changeRouteBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 14,
     backgroundColor: Colors.primarylite,
   },
   changeRouteText: {
     fontFamily: FONTS.Medium,
     fontSize: 12,
     color: Colors.primary,
+  },
+  doneFilterBtn: {
+    marginTop: 18,
+    backgroundColor: Colors.primary,
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  doneFilterText: {
+    fontFamily: FONTS.SemiBold,
+    fontSize: 15,
+    color: Colors.white,
   },
 });

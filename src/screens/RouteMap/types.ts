@@ -66,6 +66,12 @@ export type DriverAssignedRegionsData = {
   regions?: DriverAssignedRegion[];
 };
 
+/** Road-following path from server (GraphHopper / Google) — same as web planning. */
+export type RoutePathPoint = {
+  lat?: number | string | null;
+  lng?: number | string | null;
+};
+
 export type DriverRouteMapData = {
   region_id?: number | string;
   region_name?: string | null;
@@ -78,6 +84,8 @@ export type DriverRouteMapData = {
   stops_done?: number;
   stops_todo?: number;
   stops?: RouteMapStop[];
+  /** Polyline must use this only — not stop-to-stop straight lines. */
+  route_path?: RoutePathPoint[] | null;
 };
 
 export function toFiniteNumber(value: unknown): number | null {

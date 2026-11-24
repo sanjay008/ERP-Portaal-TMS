@@ -1,14 +1,18 @@
 import type { DriverRouteMapData } from "@/src/screens/RouteMap/types";
-import { buildRouteMapHtml } from "@/src/screens/RouteMap/routeMapHtml";
-import React, { useMemo, useRef } from "react";
+import {
+  buildRouteMapHtml,
+  buildRouteMapPayload,
+} from "@/src/screens/RouteMap/routeMapHtml";
+import React, { useEffect, useMemo, useRef } from "react";
 import { StyleSheet, View } from "react-native";
 import { WebView } from "react-native-webview";
 
 type Props = {
   apiKey: string;
-  mapData: DriverRouteMapData;
+  mapData?: DriverRouteMapData | null;
   onStopPress: (stopKey: string) => void;
   onMapsIssue?: (reason: string, extra?: Record<string, unknown>) => void;
+  onMapReady?: () => void;
 };
 
 export default function RouteMapView({
@@ -16,21 +20,45 @@ export default function RouteMapView({
   mapData,
   onStopPress,
   onMapsIssue,
+  onMapReady,
 }: Props) {
   const webRef = useRef<WebView>(null);
   const issueRef = useRef(onMapsIssue);
-  issueRef.current = onMapsIssue;
+  const onStopPressRef = useRef(onStopPress);
+  const onMapReadyRef = useRef(onMapReady);
+  const mapReadyRef = useRef(false);
+  const latestPayloadRef = useRef(buildRouteMapPayload(mapData));
 
-  // Do not tie selection into HTML — remounting the WebView resets zoom/pan.
-  const html = useMemo(
-    () =>
-      buildRouteMapHtml({
-        apiKey,
-        mapData,
-        regionColor: mapData.region_color,
-      }),
-    [apiKey, mapData],
+  issueRef.current = onMapsIssue;
+  onStopPressRef.current = onStopPress;
+  onMapReadyRef.current = onMapReady;
+  latestPayloadRef.current = buildRouteMapPayload(
+    mapData,
+    mapData?.region_color,
   );
+
+  // HTML shell depends only on apiKey — map stays loaded while route data updates.
+  const html = useMemo(() => buildRouteMapHtml(apiKey), [apiKey]);
+
+  const pushRouteToMap = () => {
+    if (!mapReadyRef.current || !webRef.current) return;
+    const payload = latestPayloadRef.current;
+    const js = `
+      (function(){
+        try {
+          if (typeof window.__updateRouteMap === 'function') {
+            window.__updateRouteMap(${JSON.stringify(payload)});
+          }
+        } catch (e) {}
+        true;
+      })();
+    `;
+    webRef.current.injectJavaScript(js);
+  };
+
+  useEffect(() => {
+    pushRouteToMap();
+  }, [mapData]);
 
   return (
     <View style={styles.wrap}>
@@ -43,11 +71,7 @@ export default function RouteMapView({
         domStorageEnabled
         mixedContentMode="always"
         setSupportMultipleWindows={false}
-        onLoadEnd={() => {
-          console.log("[GoogleMapsKey] RouteMapView WebView load end", {
-            stops: mapData?.stops?.length ?? 0,
-          });
-        }}
+        cacheEnabled
         onError={(event) => {
           const desc = event?.nativeEvent?.description;
           console.log("[GoogleMapsKey] RouteMapView WebView onError", desc);
@@ -62,11 +86,18 @@ export default function RouteMapView({
           try {
             const msg = JSON.parse(event.nativeEvent.data);
             if (msg?.type === "marker_press" && msg?.data?.stop_key) {
-              onStopPress(String(msg.data.stop_key));
+              onStopPressRef.current(String(msg.data.stop_key));
               return;
             }
             if (msg?.type === "map_ready") {
-              console.log("[GoogleMapsKey] map_ready", msg?.data);
+              console.log("[GoogleMapsKey] map_ready");
+              mapReadyRef.current = true;
+              onMapReadyRef.current?.();
+              // Push latest route (may have arrived while map was booting).
+              pushRouteToMap();
+              return;
+            }
+            if (msg?.type === "route_rendered") {
               return;
             }
             if (msg?.type === "map_error") {
@@ -97,6 +128,6 @@ const styles = StyleSheet.create({
   },
   web: {
     flex: 1,
-    backgroundColor: "#e8eef5",
+    backgroundColor: "#eef2f6",
   },
 });
