@@ -104,6 +104,12 @@ const Register = ({ navigation, route }) => {
         setCompanyLogo(logoUrl);
         await storeData("google_maps_api_key", googleKey);
         storeData("GOOGLE_API_KEY", googleKey);
+        if (googleKey) {
+          setGOOGLE_API_KEY(String(googleKey));
+          console.log("[GoogleMapsKey] company login saved google_maps_api_key");
+        } else {
+          console.log("[GoogleMapsKey] company login — project_google_maps_api_key empty");
+        }
         setcompanylogo(logoUrl);
         setLogo(logoUrl);
         setComplate(true);

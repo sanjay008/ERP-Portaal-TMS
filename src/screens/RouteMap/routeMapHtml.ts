@@ -278,6 +278,9 @@ export function buildRouteMapHtml(params: {
       post('map_ready', { count: (PAYLOAD.stops || []).length });
     }
     window.initMap = initMap;
+    window.gm_authFailure = function() {
+      post('maps_auth_failure', { message: 'Google Maps authentication failed (invalid/restricted API key or billing).' });
+    };
     window.onerror = function(msg) { post('map_error', { message: String(msg) }); };
   </script>
   <script async defer src="https://maps.googleapis.com/maps/api/js?key=${escapeHtml(params.apiKey)}&callback=initMap"></script>

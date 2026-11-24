@@ -87,8 +87,8 @@ export default function StopDetailCard({
 const styles = StyleSheet.create({
   card: {
     flexDirection: "row",
-    backgroundColor: Colors.white,
-    borderRadius: 12,
+    backgroundColor: Colors.litegray1,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: Colors.Boxgray,
     padding: 12,
@@ -98,7 +98,7 @@ const styles = StyleSheet.create({
   numberBadge: {
     width: 42,
     height: 42,
-    borderRadius: 10,
+    borderRadius: 12,
     backgroundColor: Colors.black,
     alignItems: "center",
     justifyContent: "center",

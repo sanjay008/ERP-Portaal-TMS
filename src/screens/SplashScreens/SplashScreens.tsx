@@ -94,15 +94,27 @@ export default function SplashScreens({ navigation }: any) {
 
       if (logo) setCompanyLogo(logo);
 
-      // Hydrate Maps key saved at company login (used by Route map WebView).
+      // Hydrate Maps key: google_maps_api_key (company login) → context.
       try {
-        const mapsKey =
-          (await getData("GOOGLE_API_KEY")) ||
-          (await getData("google_maps_api_key")) ||
-          fullcompany?.default_company?.project_google_maps_api_key ||
-          "";
-        if (mapsKey) setGOOGLE_API_KEY(String(mapsKey));
-      } catch {}
+        const { resolveGoogleMapsApiKey } = await import(
+          "@/src/utils/googleMapsApiKey"
+        );
+        const resolved = await resolveGoogleMapsApiKey();
+        const fallback =
+          fullcompany?.default_company?.project_google_maps_api_key || "";
+        const mapsKey = resolved.key || String(fallback || "").trim();
+        if (mapsKey) {
+          setGOOGLE_API_KEY(mapsKey);
+          console.log(
+            "[GoogleMapsKey] splash hydrated from",
+            resolved.key ? resolved.source : "COMPANYDATA_fallback",
+          );
+        } else {
+          console.log("[GoogleMapsKey] splash — no maps key found");
+        }
+      } catch (error) {
+        console.log("[GoogleMapsKey] splash hydrate failed", error);
+      }
 
       if (!languageReady && !languageCode) {
         navigation.replace("Select");
