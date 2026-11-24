@@ -34,11 +34,21 @@ export type RouteMapBaseLocation = {
   address?: string | null;
 };
 
+export type RouteMapOrderType =
+  | "pickup"
+  | "delivery"
+  | "additional_address"
+  | string;
+
 export type RouteMapStop = {
   stop_key: string;
   stop_number?: number | string | null;
   sort_order?: number | null;
+  /** Prefer for card title; falls back to name. */
+  customer_name?: string | null;
   name?: string | null;
+  order_type?: RouteMapOrderType | null;
+  order_type_label?: string | null;
   eta?: string | null;
   address?: string | null;
   ordernr?: string | number | null;
@@ -101,4 +111,12 @@ export function hasValidCoordinates(stop: {
   const lat = toFiniteNumber(stop.latitude);
   const lng = toFiniteNumber(stop.longitude);
   return lat != null && lng != null;
+}
+
+/** Todo stops in API planning order (sort_order / stop_number). */
+export function getTodoStopsInRouteOrder(
+  stops?: RouteMapStop[] | null,
+): RouteMapStop[] {
+  if (!Array.isArray(stops) || stops.length === 0) return [];
+  return stops.filter((stop) => Boolean(stop) && stop.is_done !== true);
 }

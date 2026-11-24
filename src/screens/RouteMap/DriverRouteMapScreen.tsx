@@ -18,7 +18,10 @@ import type {
   DriverRouteMapData,
   RouteMapStop,
 } from "@/src/screens/RouteMap/types";
-import { toFiniteNumber } from "@/src/screens/RouteMap/types";
+import {
+  getTodoStopsInRouteOrder,
+  toFiniteNumber,
+} from "@/src/screens/RouteMap/types";
 import { getDateByTimezone, resolveAppTimeZone } from "@/src/utils/appDateTime";
 import { getChauffeurLocation } from "@/src/utils/chauffeurLocationCache";
 import { Colors } from "@/src/utils/colors";
@@ -202,7 +205,8 @@ export default function DriverRouteMapScreen() {
   const [regionsLoading, setRegionsLoading] = useState(false);
   const [mapData, setMapData] = useState<DriverRouteMapData | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
-  const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+  /** Map-marker highlight only — list always shows all todo stops. */
+  const [highlightedKey, setHighlightedKey] = useState<string | null>(null);
   /** No region yet → keep Change (date/region) sheet open. */
   const [sheetMode, setSheetMode] = useState<SheetMode>(
     initialRegion ? "stops" : "filter",
@@ -221,6 +225,8 @@ export default function DriverRouteMapScreen() {
 
   const snapPoints = useMemo(() => ["22%", "48%", "78%"], []);
   const bottomSheetRef = useRef<BottomSheet>(null);
+  const listScrollRef = useRef<any>(null);
+  const stopOffsetsRef = useRef<Record<string, number>>({});
 
   const mountedRef = useRef(true);
   const regionsReqRef = useRef(0);
@@ -378,7 +384,7 @@ export default function DriverRouteMapScreen() {
           // Silent refresh: keep current map/stops — don't wipe the sheet list.
           if (!opts?.silent) {
             setMapData(null);
-            setSelectedKeys([]);
+            setHighlightedKey(null);
             setToastRef.current({
               top: 45,
               text: res?.message || t("Unable to load route map"),
@@ -392,22 +398,23 @@ export default function DriverRouteMapScreen() {
         const nextStops = Array.isArray(parsed.stops) ? parsed.stops : [];
         setMapData({ ...parsed, stops: nextStops });
 
-        // Soft refresh: keep selection, drop done/missing keys only.
-        // Hard load: reset selection.
-        setSelectedKeys((prev) => {
-          if (!opts?.silent) return [];
-          const valid = new Set(
-            nextStops
-              .filter((s) => s && !s.is_done && s.stop_key != null)
-              .map((s) => String(s.stop_key)),
+        // Drop highlight if that stop is gone / done.
+        setHighlightedKey((prev) => {
+          if (!prev) return null;
+          const still = nextStops.find(
+            (s) =>
+              s &&
+              s.is_done !== true &&
+              String(s.stop_key) === String(prev),
           );
-          return prev.filter((k) => valid.has(String(k)));
+          return still ? prev : null;
         });
 
         // Don't kick user out of Change sheet / don't collapse stop sheet on silent refresh.
         if (!opts?.silent && sheetModeRef.current !== "filter") {
           setSheetMode("stops");
-          snapSheetTo(SHEET_SNAP.PEEK);
+          // Show full todo list under the map by default.
+          snapSheetTo(SHEET_SNAP.MID);
         }
         setSelectActiveDate(date);
         setSelectRegionData({
@@ -559,30 +566,39 @@ export default function DriverRouteMapScreen() {
     return map;
   }, [mapData?.stops]);
 
-  const selectedStops = useMemo(() => {
-    const out: RouteMapStop[] = [];
-    for (const key of selectedKeys) {
-      const stop = stopByKey.get(String(key));
-      if (!stop || stop.is_done || stop.stop_key == null) continue;
-      out.push(stop);
-    }
-    return out;
-  }, [selectedKeys, stopByKey]);
+  /** Full under-map list: all todo stops in API planning order. */
+  const listStops = useMemo(
+    () => getTodoStopsInRouteOrder(mapData?.stops),
+    [mapData?.stops],
+  );
+
+  const scrollToStopCard = useCallback((stopKey: string) => {
+    const y = stopOffsetsRef.current[String(stopKey)];
+    if (y == null || !listScrollRef.current?.scrollTo) return;
+    listScrollRef.current.scrollTo({
+      y: Math.max(0, y - 8),
+      animated: true,
+    });
+  }, []);
 
   const onStopPress = useCallback(
     (stopKey: string) => {
       const key = String(stopKey);
       const stop = stopByKey.get(key);
       if (stop?.is_done) return;
-      // Stop selected → expand sheet toward full (3-point bottom sheet).
+      // Highlight + scroll to card — list stays full (not selected-only).
+      setHighlightedKey(key);
       openSheet("stops", SHEET_SNAP.FULL);
-      setSelectedKeys((prev) => {
-        if (prev.includes(key)) return [key, ...prev.filter((k) => k !== key)];
-        return [...prev, key];
+      requestAnimationFrame(() => {
+        setTimeout(() => scrollToStopCard(key), 80);
       });
     },
-    [openSheet, stopByKey],
+    [openSheet, scrollToStopCard, stopByKey],
   );
+
+  const onStopCardLayoutY = useCallback((stopKey: string, y: number) => {
+    stopOffsetsRef.current[String(stopKey)] = y;
+  }, []);
 
   const openAddressInMaps = useCallback(
     async (stop: RouteMapStop) => {
@@ -829,6 +845,7 @@ export default function DriverRouteMapScreen() {
           style={styles.sheet}
         >
           <BottomSheetScrollView
+            ref={listScrollRef}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             contentContainerStyle={[
@@ -905,29 +922,42 @@ export default function DriverRouteMapScreen() {
               <>
                 <View style={styles.stopsHeader}>
                   <View>
-                    <Text style={styles.sheetEyebrow}>{t("Selected stops")}</Text>
+                    <Text style={styles.sheetEyebrow}>{t("Route stops")}</Text>
                     <Text style={styles.sheetTitle}>{t("Stop details")}</Text>
                   </View>
+                  {listStops.length > 0 ? (
+                    <Text style={styles.stopsCount}>
+                      {listStops.length}
+                    </Text>
+                  ) : null}
                 </View>
 
-                {routeLoading ? (
+                {routeLoading && listStops.length === 0 ? (
                   <View style={styles.inlineLoading}>
                     <ActivityIndicator color={Colors.primary} />
                   </View>
-                ) : selectedStops.length === 0 ? (
+                ) : listStops.length === 0 ? (
                   <Text style={styles.emptyHint}>
-                    {t("Tap a stop on the map to see details")}
+                    {t("No stops for this route")}
                   </Text>
                 ) : (
-                  selectedStops.map((stop, index) => (
-                    <StopDetailCard
-                      key={String(stop.stop_key ?? `stop-${index}`)}
-                      stop={stop}
-                      indexLabel={stop.stop_number ?? index + 1}
-                      onAddressPress={openAddressInMaps}
-                      onOrderPress={openOrderDetails}
-                    />
-                  ))
+                  listStops.map((stop, index) => {
+                    const key = String(stop.stop_key ?? `stop-${index}`);
+                    return (
+                      <StopDetailCard
+                        key={key}
+                        stop={stop}
+                        indexLabel={stop.stop_number ?? index + 1}
+                        highlighted={
+                          highlightedKey != null &&
+                          String(highlightedKey) === key
+                        }
+                        onLayoutY={onStopCardLayoutY}
+                        onAddressPress={openAddressInMaps}
+                        onOrderPress={openOrderDetails}
+                      />
+                    );
+                  })
                 )}
               </>
             )}
@@ -1237,6 +1267,20 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     justifyContent: "space-between",
     marginBottom: 12,
+  },
+  stopsCount: {
+    minWidth: 28,
+    height: 28,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    backgroundColor: Colors.primarylite,
+    overflow: "hidden",
+    textAlign: "center",
+    textAlignVertical: "center",
+    fontFamily: FONTS.SemiBold,
+    fontSize: 13,
+    color: Colors.primary,
+    lineHeight: 28,
   },
   changeRouteBtn: {
     flexDirection: "row",

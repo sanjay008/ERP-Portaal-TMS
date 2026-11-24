@@ -9,18 +9,70 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 type Props = {
   stop: RouteMapStop;
   indexLabel?: number | string;
+  highlighted?: boolean;
   onAddressPress: (stop: RouteMapStop) => void;
   onOrderPress: (stop: RouteMapStop) => void;
+  onLayoutY?: (stopKey: string, y: number) => void;
 };
+
+function resolveTypeBadge(stop: RouteMapStop, t: (k: string) => string) {
+  const rawType = String(stop.order_type || "")
+    .trim()
+    .toLowerCase();
+  const labelFromApi =
+    stop.order_type_label != null && String(stop.order_type_label).trim() !== ""
+      ? String(stop.order_type_label)
+      : null;
+
+  if (rawType === "pickup") {
+    return {
+      label: labelFromApi || t("Pickup"),
+      bg: Colors.litegreen,
+      fg: Colors.ReadyText,
+    };
+  }
+  if (rawType === "delivery") {
+    return {
+      label: labelFromApi || t("Delivery"),
+      bg: Colors.primarylite,
+      fg: Colors.primary,
+    };
+  }
+  if (rawType === "additional_address") {
+    return {
+      label: labelFromApi || t("Additional stop"),
+      bg: Colors.litegray1,
+      fg: Colors.orderdark,
+    };
+  }
+  if (labelFromApi) {
+    return {
+      label: labelFromApi,
+      bg: Colors.primarylite,
+      fg: Colors.primary,
+    };
+  }
+  return null;
+}
 
 function StopDetailCard({
   stop,
   indexLabel,
+  highlighted = false,
   onAddressPress,
   onOrderPress,
+  onLayoutY,
 }: Props) {
   const { t } = useTranslation();
   const numberLabel = indexLabel ?? stop.stop_number ?? "";
+  const customerName =
+    (stop.customer_name != null && String(stop.customer_name).trim() !== ""
+      ? String(stop.customer_name)
+      : null) ||
+    (stop.name != null && String(stop.name).trim() !== ""
+      ? String(stop.name)
+      : null);
+  const typeBadge = resolveTypeBadge(stop, t);
   const hasOrder =
     stop.order_id != null &&
     String(stop.order_id).trim() !== "" &&
@@ -31,9 +83,16 @@ function StopDetailCard({
       : hasOrder
         ? String(stop.order_id)
         : null;
+  const stopKey = stop.stop_key != null ? String(stop.stop_key) : "";
 
   return (
-    <View style={styles.card}>
+    <View
+      style={[styles.card, highlighted && styles.cardHighlighted]}
+      onLayout={(e) => {
+        if (!stopKey || !onLayoutY) return;
+        onLayoutY(stopKey, e.nativeEvent.layout.y);
+      }}
+    >
       <View style={styles.topRow}>
         <View style={styles.topLeft}>
           <Text style={styles.label}>{t("Ordernr")}</Text>
@@ -52,7 +111,22 @@ function StopDetailCard({
         </View>
       </View>
 
-      {!!stop.name && <Text style={styles.name}>{stop.name}</Text>}
+      {(customerName || typeBadge) && (
+        <View style={styles.nameRow}>
+          {!!customerName && (
+            <Text style={styles.name} numberOfLines={2}>
+              {customerName}
+            </Text>
+          )}
+          {typeBadge ? (
+            <View style={[styles.typeBadge, { backgroundColor: typeBadge.bg }]}>
+              <Text style={[styles.typeBadgeText, { color: typeBadge.fg }]}>
+                {typeBadge.label}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      )}
 
       <View style={styles.timeline}>
         <View style={styles.timelineRail}>
@@ -125,6 +199,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.litegray,
   },
+  cardHighlighted: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primarylite,
+  },
   topRow: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -161,11 +239,29 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: Colors.primary,
   },
-  name: {
-    fontFamily: FONTS.Medium,
-    fontSize: 14,
-    color: Colors.orderdark,
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 10,
     marginBottom: 12,
+  },
+  name: {
+    flex: 1,
+    fontFamily: FONTS.Medium,
+    fontSize: 15,
+    color: Colors.black,
+    lineHeight: 20,
+  },
+  typeBadge: {
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    alignSelf: "flex-start",
+  },
+  typeBadgeText: {
+    fontFamily: FONTS.SemiBold,
+    fontSize: 12,
   },
   timeline: {
     flexDirection: "row",
