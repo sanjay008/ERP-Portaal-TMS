@@ -160,13 +160,13 @@ export default function DriverRouteMapScreen() {
     [activeShift, UserData],
   );
 
-  /** Active pickup_dropoff trip region+date, else today / first region. */
+  /** On trip wins over the screen the user was browsing. */
   const preferredDate = useMemo(() => {
-    if (route?.params?.date) {
-      return toApiDateString(route.params.date) || String(route.params.date);
-    }
     if (tripOn && activeShift?.planning_date) {
       return toApiDateString(activeShift.planning_date) || activeShift.planning_date;
+    }
+    if (route?.params?.date) {
+      return toApiDateString(route.params.date) || String(route.params.date);
     }
     return toApiDateString(SelectActiveDate) || today;
   }, [
@@ -178,23 +178,15 @@ export default function DriverRouteMapScreen() {
   ]);
 
   const preferredRegionId = useMemo(() => {
-    if (route?.params?.region_id != null) return String(route.params.region_id);
     if (tripOn && activeShift?.region_id != null) {
       return String(activeShift.region_id);
     }
     return null;
-  }, [activeShift?.region_id, route?.params?.region_id, tripOn]);
+  }, [activeShift?.region_id, tripOn]);
 
   const [selectDate, setSelectDate] = useState<string>(preferredDate || today);
   const [regions, setRegions] = useState<DriverAssignedRegion[]>([]);
   const initialRegion = useMemo<DriverAssignedRegion | null>(() => {
-    if (route?.params?.region_id != null) {
-      return {
-        region_id: route.params.region_id,
-        region_name: route.params.region_name,
-        region_color: route.params.region_color,
-      };
-    }
     if (tripOn && activeShift?.region_id != null) {
       return {
         region_id: activeShift.region_id,
@@ -202,14 +194,7 @@ export default function DriverRouteMapScreen() {
       };
     }
     return null;
-  }, [
-    activeShift?.region_id,
-    activeShift?.region_name,
-    route?.params?.region_color,
-    route?.params?.region_id,
-    route?.params?.region_name,
-    tripOn,
-  ]);
+  }, [activeShift?.region_id, activeShift?.region_name, tripOn]);
 
   const [selectedRegion, setSelectedRegion] =
     useState<DriverAssignedRegion | null>(initialRegion);
@@ -255,6 +240,8 @@ export default function DriverRouteMapScreen() {
   const mapDataRef = useRef<DriverRouteMapData | null>(null);
   const preferredRegionIdRef = useRef(preferredRegionId);
   const lastAutoKeyRef = useRef<string>("");
+  const userConfirmedRef = useRef(false);
+  const pickedRegionRef = useRef(false);
   const sheetModeRef = useRef<SheetMode>(sheetMode);
 
   userDataRef.current = UserData;
@@ -264,34 +251,33 @@ export default function DriverRouteMapScreen() {
   preferredRegionIdRef.current = preferredRegionId;
   sheetModeRef.current = sheetMode;
 
-  // Quick jump from pickup/dropoff: apply that screen's date + region.
+  // Trip on: that region + date, and that route's stop list.
+  // Otherwise quick jump from pickup/dropoff uses the screen's date + region.
   useEffect(() => {
+    if (tripOn && activeShift?.region_id != null && activeShift?.planning_date) {
+      const tripDate =
+        toApiDateString(activeShift.planning_date) ||
+        String(activeShift.planning_date);
+      if (tripDate && tripDate !== selectDate) {
+        preferredRegionIdRef.current = String(activeShift.region_id);
+        lastAutoKeyRef.current = "";
+        setSelectDate(tripDate);
+      }
+      return;
+    }
+
     const incomingDate = route?.params?.date
       ? toApiDateString(route.params.date) || String(route.params.date)
       : "";
-    const incomingRegionId = route?.params?.region_id;
     if (incomingDate && incomingDate !== selectDate) {
       setSelectDate(incomingDate);
     }
-    if (
-      incomingRegionId != null &&
-      String(selectedRegion?.region_id ?? "") !== String(incomingRegionId)
-    ) {
-      preferredRegionIdRef.current = String(incomingRegionId);
-      lastAutoKeyRef.current = "";
-      setSelectedRegion({
-        region_id: incomingRegionId,
-        region_name: route?.params?.region_name,
-        region_color: route?.params?.region_color,
-      });
-    }
   }, [
+    activeShift?.planning_date,
+    activeShift?.region_id,
     route?.params?.date,
-    route?.params?.region_color,
-    route?.params?.region_id,
-    route?.params?.region_name,
     selectDate,
-    selectedRegion?.region_id,
+    tripOn,
   ]);
 
   useEffect(() => {
@@ -321,26 +307,26 @@ export default function DriverRouteMapScreen() {
         if (!mountedRef.current || requestId !== regionsReqRef.current) return;
         const parsed = parseAssignedRegionsData(res);
         const nextRegions = parsed?.regions || [];
-        setRegions(nextRegions);
+        if (!tripOn || activeShift?.region_id == null) {
+          setRegions([]);
+          setSelectedRegion(null);
+          setMapData(null);
+          return;
+        }
+        const tripRegionId = String(activeShift.region_id);
+        const tripRegion =
+          nextRegions.find((region) => String(region.region_id) === tripRegionId) || {
+            region_id: activeShift.region_id,
+            region_name: activeShift.region_name,
+          };
+        preferredRegionIdRef.current = tripRegionId;
+        setRegions([tripRegion]);
         setSelectedRegion((prev) => {
-          if (!nextRegions.length) return null;
-          // 1) Active trip / route params region
-          const preferId = preferredRegionIdRef.current;
-          if (preferId) {
-            const tripRegion = nextRegions.find(
-              (r) => String(r.region_id) === preferId,
-            );
-            if (tripRegion) return tripRegion;
+          if (String(prev?.region_id ?? "") !== tripRegionId) {
+            lastAutoKeyRef.current = "";
+            setMapData(null);
           }
-          // 2) Keep current selection if still in list
-          if (prev) {
-            const still = nextRegions.find(
-              (r) => String(r.region_id) === String(prev.region_id),
-            );
-            if (still) return still;
-          }
-          // 3) Default: first region in dropdown [0]
-          return nextRegions[0];
+          return tripRegion;
         });
       } catch (error: any) {
         if (!mountedRef.current || requestId !== regionsReqRef.current) return;
@@ -358,21 +344,85 @@ export default function DriverRouteMapScreen() {
         }
       }
     })();
-  }, [selectDate]);
+  }, [activeShift?.region_id, activeShift?.region_name, selectDate, tripOn]);
 
   const snapSheetTo = useCallback((index: number) => {
     const next = Math.max(SHEET_SNAP.HIDDEN, Math.min(SHEET_SNAP.FULL, index));
     setSheetIndex(next);
   }, []);
 
+  // No trip: do not keep a region or its stop list on screen.
+  useEffect(() => {
+    if (tripOn) return;
+    userConfirmedRef.current = false;
+    pickedRegionRef.current = false;
+    lastAutoKeyRef.current = "";
+    setSelectedRegion(null);
+    setMapData(null);
+    setHighlightedKey(null);
+    setSheetMode("filter");
+    snapSheetTo(SHEET_SNAP.MID);
+  }, [snapSheetTo, tripOn]);
+
+  // Trip on: dropdown and stop list stay on that one region. Other regions are not shown.
+  useEffect(() => {
+    if (!tripOn || activeShift?.region_id == null || regionsLoading) return;
+    const tripId = String(activeShift.region_id);
+    const match =
+      regions.find((region) => String(region.region_id) === tripId) || {
+        region_id: activeShift.region_id,
+        region_name: activeShift.region_name,
+      };
+    const onlyThisTrip = regions.length === 1 && String(regions[0]?.region_id) === tripId;
+    if (!onlyThisTrip) {
+      setRegions([match]);
+    }
+    if (String(selectedRegion?.region_id ?? "") !== tripId) {
+      lastAutoKeyRef.current = "";
+      setMapData(null);
+      setSelectedRegion(match);
+    } else if (
+      mapDataRef.current?.region_id != null &&
+      String(mapDataRef.current.region_id) !== tripId
+    ) {
+      lastAutoKeyRef.current = "";
+      setMapData(null);
+    }
+    setSheetMode("stops");
+    snapSheetTo(SHEET_SNAP.MID);
+  }, [
+    activeShift?.region_id,
+    activeShift?.region_name,
+    regions,
+    regionsLoading,
+    selectedRegion?.region_id,
+    snapSheetTo,
+    tripOn,
+  ]);
+
   // Keep region/date Change sheet open until a region is chosen.
   useEffect(() => {
     if (regionsLoading) return;
+    const hasTripRegion = regions.some(
+      (region) =>
+        (region?.trip_started_at && !region?.trip_ended_at) ||
+        (tripOn &&
+          activeShift?.region_id != null &&
+          String(region.region_id) === String(activeShift.region_id)),
+    );
+    if (hasTripRegion) return;
     if (selectedRegion?.region_id == null) {
       setSheetMode("filter");
       snapSheetTo(SHEET_SNAP.MID);
     }
-  }, [regionsLoading, selectedRegion?.region_id, snapSheetTo]);
+  }, [
+    activeShift?.region_id,
+    regions,
+    regionsLoading,
+    selectedRegion?.region_id,
+    snapSheetTo,
+    tripOn,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -501,8 +551,9 @@ export default function DriverRouteMapScreen() {
   const loadRouteRef = useRef(loadRoute);
   loadRouteRef.current = loadRoute;
 
-  // Auto-show route only after a region is selected (trip/params or user pick).
+  // Route list loads for the on trip, or after the user confirms a region.
   useEffect(() => {
+    if (!tripOn && !userConfirmedRef.current) return;
     const date = toApiDateString(selectDate) || selectDate;
     const regionId = selectedRegion?.region_id;
     if (!date || regionId == null || regionsLoading) return;
@@ -516,7 +567,7 @@ export default function DriverRouteMapScreen() {
       date,
       silent: Boolean(mapDataRef.current),
     });
-  }, [selectDate, selectedRegion?.region_id, regionsLoading]);
+  }, [regionsLoading, selectDate, selectedRegion?.region_id, tripOn]);
 
   useFocusEffect(
     useCallback(() => {
@@ -1126,7 +1177,10 @@ export default function DriverRouteMapScreen() {
                   <DropDownBox
                     data={regions}
                     value={selectedRegion}
-                    setValue={setSelectedRegion as any}
+                    setValue={(region) => {
+                      pickedRegionRef.current = true;
+                      setSelectedRegion(region);
+                    }}
                     labelFieldKey="region_name"
                     valueFieldKey="region_id"
                     placeholder="Select Region"
@@ -1139,11 +1193,11 @@ export default function DriverRouteMapScreen() {
                   <View style={styles.inlineLoading}>
                     <ActivityIndicator color={Colors.primary} />
                   </View>
-                ) : regions.length === 0 ? (
+                ) : tripOn && regions.length === 0 ? (
                   <Text style={styles.emptyText}>
                     {t("No regions assigned for this date")}
                   </Text>
-                ) : (
+                ) : tripOn ? (
                   <TouchableOpacity
                     activeOpacity={0.8}
                     style={[
@@ -1153,12 +1207,20 @@ export default function DriverRouteMapScreen() {
                     disabled={!selectedRegion?.region_id}
                     onPress={() => {
                       if (!selectedRegion?.region_id) return;
-                      openSheet("stops", SHEET_SNAP.PEEK);
+                      if (!tripOn) {
+                        userConfirmedRef.current = true;
+                        lastAutoKeyRef.current = "";
+                      }
+                      loadRouteRef.current({
+                        region_id: selectedRegion.region_id,
+                        date: toApiDateString(selectDate) || selectDate,
+                      });
+                      openSheet("stops", SHEET_SNAP.MID);
                     }}
                   >
                     <Text style={styles.doneFilterText}>{t("Done")}</Text>
                   </TouchableOpacity>
-                )}
+                ) : null}
               </>
             ) : (
               <>

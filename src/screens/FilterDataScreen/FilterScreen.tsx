@@ -42,6 +42,8 @@ import {
   tripOn,
 } from "@/src/utils/regionTripApi";
 import {
+  doesShiftBelongToUser,
+  isShiftActive,
   isShiftActiveForRegion,
   saveActiveShift,
   saveShiftToRegistry,
@@ -137,6 +139,10 @@ export default function FilterScreen({ navigation, route }: any) {
     [GloblyTypeSlide, SlideType, UserData?.user?.role],
   );
 
+  // Scan/open guard depends on slide type only (not role).
+  const isPickupDropoffGuard =
+    GloblyTypeSlide === 'pickup_dropoff' || SlideType === 'pickup_dropoff';
+
   const isPickupDropoffScreen =
     GloblyTypeSlide === "pickup_dropoff" ||
     SlideType === "pickup_dropoff" ||
@@ -144,20 +150,39 @@ export default function FilterScreen({ navigation, route }: any) {
     Type === "pickup_dropoff";
 
   const goToRouteMap = useCallback(() => {
-    const date = toApiDateString(SelectDate) || SelectDate;
+    const tripIsOn =
+      isShiftActive(activeShift) && doesShiftBelongToUser(activeShift, UserData);
+    const date = tripIsOn
+      ? toApiDateString(activeShift?.planning_date) ||
+        activeShift?.planning_date ||
+        toApiDateString(SelectDate) ||
+        SelectDate
+      : toApiDateString(SelectDate) || SelectDate;
+    const regionId = tripIsOn
+      ? activeShift?.region_id
+      : selectRegionData?.id;
+    const regionName = tripIsOn
+      ? activeShift?.region_name
+      : selectRegionData?.name;
     if (date) setSelectActiveDate(date);
-    if (selectRegionData?.id != null) {
-      setSelectActiveRegionData(selectRegionData);
+    if (regionId != null) {
+      setSelectActiveRegionData({
+        id: regionId,
+        name: regionName,
+        region_color: tripIsOn ? undefined : selectRegionData?.region_color,
+      });
     }
     navigation.navigate("DriverRouteMap", {
       item: { type: "driver_route_map", item_title: "Route" },
       date,
-      region_id: selectRegionData?.id,
-      region_name: selectRegionData?.name,
-      region_color: selectRegionData?.region_color,
+      region_id: regionId,
+      region_name: regionName,
+      region_color: tripIsOn ? undefined : selectRegionData?.region_color,
     });
   }, [
     SelectDate,
+    UserData,
+    activeShift,
     navigation,
     selectRegionData,
     setSelectActiveDate,
@@ -838,7 +863,7 @@ export default function FilterScreen({ navigation, route }: any) {
       item_id: number | string;
       item?: any;
     }) => {
-      if (isPickupDropoffChauffeur && !isRouteReady) {
+      if (isPickupDropoffGuard && !isRouteReady) {
         if (!isDeviceLocationReady) {
           handleLocationIconPress();
           return;
@@ -850,7 +875,7 @@ export default function FilterScreen({ navigation, route }: any) {
       parcelVerifyFlow.startVerify({ order_id, item_id, item });
     },
     [
-      isPickupDropoffChauffeur,
+      isPickupDropoffGuard,
       isRouteReady,
       isDeviceLocationReady,
       handleLocationIconPress,
@@ -1211,7 +1236,7 @@ export default function FilterScreen({ navigation, route }: any) {
               tintColor={Colors.black}
               style={{ width: 46, height: 46, backgroundColor: Colors.yellow }}
               onPress={async () => {
-                if (isPickupDropoffChauffeur && !isRouteReady) {
+                if (isPickupDropoffGuard && !isRouteReady) {
                   if (!isDeviceLocationReady) {
                     await handleLocationIconPress();
                     return;
@@ -1352,9 +1377,9 @@ export default function FilterScreen({ navigation, route }: any) {
                       }
                       if (
                         ScanBTNAvailble ||
-                        (isPickupDropoffChauffeur && !isRouteReady)
+                        (isPickupDropoffGuard && !isRouteReady)
                       ) {
-                        if (isPickupDropoffChauffeur && !isRouteReady) {
+                        if (isPickupDropoffGuard && !isRouteReady) {
                           if (!isDeviceLocationReady) {
                             handleLocationIconPress();
                             return;

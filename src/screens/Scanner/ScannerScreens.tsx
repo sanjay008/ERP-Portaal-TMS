@@ -93,6 +93,11 @@ import {
   SCAN_MAX_AGE_MS,
   setScanLocationRole,
 } from "@/src/utils/scanFreshLocation";
+import {
+  getPickupDropoffBlockText,
+  getPickupDropoffScanBlock,
+  isPickupDropoffType,
+} from "@/src/utils/pickupDropoffScanGuard";
 import { isBlankSignatureData } from "@/src/utils/signatureValidation";
 import { FONTS, height, ScanPlatFormId, width } from "@/src/utils/storeData";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -338,7 +343,8 @@ export default function ScannerScreens({ navigation, route }: any) {
     AllDamageListReason, setAllDamageListReason,
     selectDamageData, setselectDamageData,
     CommentId, setCommentId,
-    selectRegionData
+    selectRegionData,
+    activeShift,
   } = useContext(GlobalContextData);
 
   const selectCurrentDeliveryLabelRef = useRef<any>(null);
@@ -559,6 +565,37 @@ export default function ScannerScreens({ navigation, route }: any) {
   );
 
   const Focused = useIsFocused();
+
+  // pickup_dropoff: scanner stays closed unless trip is on AND location is on.
+  useEffect(() => {
+    if (!Focused || !isPickupDropoffType(GloblyTypeSlide)) return;
+    let cancelled = false;
+    (async () => {
+      const block = await getPickupDropoffScanBlock(
+        activeShift,
+        UserData,
+        route?.params?.region_id ?? selectRegionData?.id,
+      );
+      if (cancelled || !block) return;
+      setToast({
+        top: 45,
+        text: getPickupDropoffBlockText(block, t),
+        type: "error",
+        visible: true,
+      });
+      navigation.goBack();
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    Focused,
+    GloblyTypeSlide,
+    activeShift,
+    UserData,
+    route?.params?.region_id,
+    selectRegionData?.id,
+  ]);
 
   const isAnyScannerModalOpen =
     ConformationModalOpen?.visible ||

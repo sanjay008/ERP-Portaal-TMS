@@ -53,10 +53,7 @@ function shortEndpoint(endpoint) {
   }
 }
 
-// Metro/Cursor terminal is plain text — click / arrow expand does NOT work.
-// false = short Response summary | true = full Response JSON in the box
 const SHOW_FULL_API_RESPONSE = false;
-
 const apiLogHistory = [];
 const API_LOG_HISTORY_MAX = 20;
 

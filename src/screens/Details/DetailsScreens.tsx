@@ -27,6 +27,11 @@ import { useParcelVerifyFlow } from "@/src/hooks/useParcelVerifyFlow";
 import ApiService from "@/src/utils/Apiservice";
 import { Colors } from "@/src/utils/colors";
 import { appendToLocalUploadQueue } from "@/src/utils/localUploadQueue";
+import {
+  getPickupDropoffBlockText,
+  getPickupDropoffScanBlock,
+  isPickupDropoffType,
+} from "@/src/utils/pickupDropoffScanGuard";
 import { isDeliveryOrder, isPickupOrder } from "@/src/utils/orderStatus";
 import {
   appendDeviceMetaToFormData,
@@ -92,7 +97,8 @@ export default function DetailsScreens({ navigation, route }: any) {
     NoParcelDetailsScreenEvent, setNoParcelDetailsScreenEvent,
     AllDeliveyLabel, setAllDeliveyLabel,
     SelectCurrentDeliveryLabel, setSelectCurrentDeliveryLabel,
-    selectRegionData, setSelectRegionData
+    selectRegionData, setSelectRegionData,
+    activeShift,
 
   } = useContext(GlobalContextData);
   const { setAccessToken,
@@ -112,6 +118,42 @@ export default function DetailsScreens({ navigation, route }: any) {
   const [IsLoading, setIsLoading] = useState<boolean>(false);
   const [BackButtonAvailble] = useState(true);
   const { t } = useTranslation();
+
+  // pickup_dropoff: scanner only when trip is on AND location is on.
+  const openScannerGuarded = useCallback(
+    async (params: any) => {
+      const orderRegionId =
+        routeRegionId ?? selectRegionData?.id ?? SelectActiveRegionData?.id;
+      if (isPickupDropoffType(GloblyTypeSlide)) {
+        const block = await getPickupDropoffScanBlock(
+          activeShift,
+          UserData,
+          orderRegionId,
+        );
+        if (block) {
+          setToast({
+            top: 45,
+            text: getPickupDropoffBlockText(block, t),
+            type: "error",
+            visible: true,
+          });
+          return;
+        }
+      }
+      navigation.navigate("Scanner", { ...params, region_id: orderRegionId });
+    },
+    [
+      GloblyTypeSlide,
+      activeShift,
+      UserData,
+      navigation,
+      setToast,
+      t,
+      routeRegionId,
+      selectRegionData?.id,
+      SelectActiveRegionData?.id,
+    ],
+  );
 
   const [NoParcelOpenmodalType, setNoParcelOpenmodalType] = useState(type);
   const [DataLoading, setDataLoading] = useState<boolean>(false);
@@ -960,7 +1002,7 @@ export default function DetailsScreens({ navigation, route }: any) {
                   onPress: () => {
                     setSecondModal((p: any) => ({ ...p, visible: false }));
 
-                    navigation.navigate("Scanner", {
+                    openScannerGuarded({
                       type: GloblyTypeSlide,
                       restrictedOrderId:
                         ItemsData?.id || ItemsData?.order_data?.id,
@@ -1229,7 +1271,7 @@ export default function DetailsScreens({ navigation, route }: any) {
                 style={styles.OpenCameraButton}
 
                 onPress={() =>
-                  navigation.navigate("Scanner", {
+                  openScannerGuarded({
                     fun: GetIdByOrderFun,
                     type: type ?? GloblyTypeSlide,
                     restrictedOrderId:
@@ -1317,7 +1359,7 @@ export default function DetailsScreens({ navigation, route }: any) {
                       } else {
                         setSelectCurrentDeliveryLabel(item);
                         setActiveVerifyDeliveryLabel(item);
-                        navigation.navigate("Scanner", {
+                        openScannerGuarded({
                           fun: GetIdByOrderFun,
                           type: type ?? GloblyTypeSlide,
                           restrictedOrderId:
