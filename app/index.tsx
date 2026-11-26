@@ -62,9 +62,10 @@ const ADMIN_TAP_BLOCKED_ROUTES = new Set([
   "DriverPhotosScanner",
   "Camera",
   "ScanManager",
-  // Change button is top-right — same zone as admin 6-tap.
+  // Header actions sit in the same top-right zone as the admin 6-tap.
   "DriverRouteMap",
   "DriverRouteMapPicker",
+  "FilterScreen",
 ]);
 
 /** Left 6-tap only on tab roots (no back btn). Other screens keep back first. */

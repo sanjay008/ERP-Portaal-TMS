@@ -1,5 +1,5 @@
 import { useNavigation } from "@react-navigation/native";
-import React from "react";
+import React, { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Images } from "../assets/images";
@@ -13,33 +13,40 @@ export default function DetailsHeader({
   buttonText = "",
   onPress,
   Scan = false,
+  right,
 }: {
   title: string;
   Backbutton?: boolean;
   buttonText?: string;
   onPress?: () => void;
   Scan?: boolean;
+  right?: ReactNode;
 }) {
   const { goBack, navigate } = useNavigation<any>();
   const { t } = useTranslation();
   return (
     <View style={styles.container}>
-      <View style={SimpleFlex.Flex}>
+      <View style={[SimpleFlex.Flex, styles.titleRow]}>
         {Backbutton && (
           <TouchableOpacity onPress={goBack}>
             <Image source={Images.back} style={styles.BackIcon} />
           </TouchableOpacity>
         )}
-        <Text style={styles.Title}>{title}</Text>
+        <Text style={styles.Title} numberOfLines={1}>
+          {title}
+        </Text>
       </View>
-      {Scan && (
-        <TwoTypeButton
-          onlyIcon={true}
-          Icon={Images.Scan}
-          style={{ width: 46, height: 46 }}
-          onPress={() => navigate("Scanner")}
-        />
-      )}
+      <View style={styles.rightRow}>
+        {right}
+        {Scan && (
+          <TwoTypeButton
+            onlyIcon={true}
+            Icon={Images.Scan}
+            style={{ width: 46, height: 46 }}
+            onPress={() => navigate("Scanner")}
+          />
+        )}
+      </View>
     </View>
   );
 }
@@ -66,7 +73,17 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
   },
+  titleRow: {
+    flex: 1,
+    minWidth: 0,
+  },
+  rightRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
   Title: {
+    flexShrink: 1,
     fontSize: 15,
     fontFamily: FONTS.SemiBold,
     color: Colors.black,

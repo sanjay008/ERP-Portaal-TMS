@@ -4,6 +4,7 @@ import AddCommentModal from "@/src/components/AddCommentModal";
 import AdditionalStopBox from "@/src/components/AdditionalStopBox";
 import AnimatedTooltip from "@/src/components/AnimatedTooltip";
 import CalenderDate from "@/src/components/CalenderDate";
+import { toApiDateString } from "@/src/components/DateFormate";
 import DetailsHeader from "@/src/components/DetailsHeader";
 import DropDownBox from "@/src/components/DropDownBox";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
@@ -57,6 +58,7 @@ import {
   FlatList,
   Image,
   RefreshControl,
+  Pressable,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -81,6 +83,7 @@ export default function FilterScreen({ navigation, route }: any) {
     setAllRegion,
     SelectCurrentDate,
     GloblyTypeSlide,
+    setGloblyTypeSlide,
     setSelectCurrentDate,
     AllDeliveyLabel, setAllDeliveyLabel,
     setSelectCurrentDeliveryLabel,
@@ -91,6 +94,7 @@ export default function FilterScreen({ navigation, route }: any) {
     isGpsTracking, setIsGpsTracking,
     activeShift, setActiveShift,
     SelectActiveDate, setSelectActiveDate,
+    setSelectActiveRegionData,
     GloblySlideTitle,
     setGloblySlideTitle,
 
@@ -122,6 +126,9 @@ export default function FilterScreen({ navigation, route }: any) {
   const [deviceLocationStatus, setDeviceLocationStatus] =
     useState<LocationAccessStatus>('denied');
   const pendingShiftStartRef = useRef(false);
+  const jumpRegionIdRef = useRef<string | null>(
+    route?.params?.region_id != null ? String(route.params.region_id) : null,
+  );
 
   const isPickupDropoffChauffeur = useMemo(
     () =>
@@ -129,6 +136,33 @@ export default function FilterScreen({ navigation, route }: any) {
       UserData?.user?.role === 'chauffeur',
     [GloblyTypeSlide, SlideType, UserData?.user?.role],
   );
+
+  const isPickupDropoffScreen =
+    GloblyTypeSlide === "pickup_dropoff" ||
+    SlideType === "pickup_dropoff" ||
+    item?.type === "pickup_dropoff" ||
+    Type === "pickup_dropoff";
+
+  const goToRouteMap = useCallback(() => {
+    const date = toApiDateString(SelectDate) || SelectDate;
+    if (date) setSelectActiveDate(date);
+    if (selectRegionData?.id != null) {
+      setSelectActiveRegionData(selectRegionData);
+    }
+    navigation.navigate("DriverRouteMap", {
+      item: { type: "driver_route_map", item_title: "Route" },
+      date,
+      region_id: selectRegionData?.id,
+      region_name: selectRegionData?.name,
+      region_color: selectRegionData?.region_color,
+    });
+  }, [
+    SelectDate,
+    navigation,
+    selectRegionData,
+    setSelectActiveDate,
+    setSelectActiveRegionData,
+  ]);
 
   const isDeviceLocationReady = deviceLocationStatus === 'granted';
 
@@ -518,6 +552,55 @@ export default function FilterScreen({ navigation, route }: any) {
     }
   }, [SelectActiveDate, SelectDate]);
 
+  // Quick jump from Route map: apply that screen's date + region.
+  useEffect(() => {
+    const incomingDate = route?.params?.date;
+    const incomingRegionId = route?.params?.region_id;
+    if (!incomingDate && incomingRegionId == null) return;
+
+    if (incomingDate) {
+      const nextDate = toApiDateString(incomingDate) || String(incomingDate);
+      setSelectDate((prev) => (prev === nextDate ? prev : nextDate));
+      setSelectActiveDate(nextDate);
+    }
+    if (incomingRegionId != null) {
+      jumpRegionIdRef.current = String(incomingRegionId);
+      const regionPayload = {
+        id: incomingRegionId,
+        name: route?.params?.region_name || "",
+        region_color: route?.params?.region_color,
+      };
+      setSelectRegionData((prev: any) => {
+        if (
+          prev &&
+          String(prev.id) === String(incomingRegionId) &&
+          prev.name
+        ) {
+          return prev;
+        }
+        return { ...(prev || {}), ...regionPayload, name: regionPayload.name || prev?.name || "" };
+      });
+      setSelectActiveRegionData(regionPayload);
+    }
+    if (
+      route?.params?.Type === "pickup_dropoff" ||
+      route?.params?.item?.type === "pickup_dropoff"
+    ) {
+      setGloblyTypeSlide("pickup_dropoff");
+    }
+  }, [
+    route?.params?.date,
+    route?.params?.region_id,
+    route?.params?.region_name,
+    route?.params?.region_color,
+    route?.params?.Type,
+    route?.params?.item?.type,
+    setGloblyTypeSlide,
+    setSelectActiveDate,
+    setSelectActiveRegionData,
+    setSelectRegionData,
+  ]);
+
   useEffect(() => {
     if (
       !isPickupDropoffChauffeur ||
@@ -639,8 +722,19 @@ export default function FilterScreen({ navigation, route }: any) {
 
         let selectedRegion: any = null;
 
+        const jumpId = jumpRegionIdRef.current;
+        if (jumpId) {
+          const jumpedRegion = newData.find(
+            (region: any) => String(region?.id) === jumpId,
+          );
+          if (jumpedRegion) {
+            selectedRegion = jumpedRegion;
+            jumpRegionIdRef.current = null;
+          }
+        }
+
         // Prefer active shift region when Filter opens / refreshes
-        if (activeShift?.shiftActive && activeShift.region_id != null) {
+        if (!selectedRegion && activeShift?.shiftActive && activeShift.region_id != null) {
           const shiftRegion = newData.find(
             (region: any) =>
               String(region?.id) === String(activeShift.region_id),
@@ -785,6 +879,7 @@ export default function FilterScreen({ navigation, route }: any) {
     }
     const currentType = Type || item?.type;
     setSlideType(currentType);
+    if (currentType) setGloblyTypeSlide(currentType);
     if (item?.item_title) {
       setGloblySlideTitle(item.item_title);
     }
@@ -796,6 +891,7 @@ export default function FilterScreen({ navigation, route }: any) {
     Focused,
     Type,
     item,
+    setGloblyTypeSlide,
     parcelVerifyFlow.comment,
     parcelVerifyFlow.showSig,
     parcelVerifyFlow.evetyTimeShowDeliveryLabelList,
@@ -1053,6 +1149,18 @@ export default function FilterScreen({ navigation, route }: any) {
         <View style={styles.Header}>
           <DetailsHeader
             title={t(item?.item_title || GloblySlideTitle || "")}
+            right={
+              isPickupDropoffScreen ? (
+                <Pressable
+                  onPress={goToRouteMap}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  accessibilityLabel={t("Route")}
+                  style={({ pressed }) => [{ padding: 6, opacity: pressed ? 0.5 : 1 }]}
+                >
+                  <Ionicons name="map-outline" size={24} color={Colors.primary} />
+                </Pressable>
+              ) : null
+            }
           />
         </View>
         <ScrollView

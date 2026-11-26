@@ -191,6 +191,9 @@ export function buildRouteMapHtml(apiKey: string): string {
     var layerOverlays = [];
     var pendingPayload = ${initial};
     var mapReady = false;
+    var meMarker = null;
+    var meCircle = null;
+    var pendingMe = null;
 
     function post(type, data) {
       try {
@@ -312,11 +315,59 @@ export function buildRouteMapHtml(apiKey: string): string {
       if (hasPoint) {
         map.fitBounds(bounds, 56);
       }
+      if (pendingMe) applyMyLocation(pendingMe, false);
       post('route_rendered', {
         stops: (payload.stops || []).length,
         routePath: routePath.length,
       });
     }
+
+    function applyMyLocation(pos, pan) {
+      if (!map || !pos) return;
+      var latLng = { lat: Number(pos.lat), lng: Number(pos.lng) };
+      if (!isFinite(latLng.lat) || !isFinite(latLng.lng)) return;
+      pendingMe = latLng;
+      if (!meMarker) {
+        meMarker = new google.maps.Marker({
+          position: latLng,
+          map: map,
+          zIndex: 1000,
+          clickable: false,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 9,
+            fillColor: '#1A73E8',
+            fillOpacity: 1,
+            strokeColor: '#ffffff',
+            strokeWeight: 3,
+          },
+        });
+        meCircle = new google.maps.Circle({
+          map: map,
+          center: latLng,
+          radius: 70,
+          fillColor: '#1A73E8',
+          fillOpacity: 0.18,
+          strokeColor: '#1A73E8',
+          strokeOpacity: 0.35,
+          strokeWeight: 1,
+          clickable: false,
+        });
+      } else {
+        meMarker.setPosition(latLng);
+        if (meCircle) meCircle.setCenter(latLng);
+      }
+      if (pan) {
+        map.panTo(latLng);
+        if ((map.getZoom() || 0) < 14) map.setZoom(15);
+      }
+    }
+
+    window.__focusMyLocation = function(lat, lng) {
+      pendingMe = { lat: lat, lng: lng };
+      if (!mapReady) return;
+      applyMyLocation(pendingMe, true);
+    };
 
     function initMap() {
       map = new google.maps.Map(document.getElementById('map'), {
@@ -333,6 +384,7 @@ export function buildRouteMapHtml(apiKey: string): string {
       if (pendingPayload) {
         renderPayload(pendingPayload);
       }
+      if (pendingMe) applyMyLocation(pendingMe, true);
     }
 
     window.__updateRouteMap = function(payload) {

@@ -1,3 +1,4 @@
+import apiConstants from "@/src/api/apiConstants";
 import { Images } from "@/src/assets/images";
 import {
   formatDate,
@@ -6,12 +7,20 @@ import {
 } from "@/src/components/DateFormate";
 import DropDownBox from "@/src/components/DropDownBox";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
+import GpsPermissionSheet from "@/src/components/GpsPermissionSheet";
 import { GlobalContextData } from "@/src/context/GlobalContext";
 import {
   checkLocationPermission,
   getSafeCurrentPosition,
+  openAppSettings,
+  recheckLocationAccess,
+  resolveLocationAccess,
+  retryLocationPermission,
+  type LocationAccessStatus,
 } from "@/src/hooks/useUserGPS";
-import RouteMapView from "@/src/screens/RouteMap/RouteMapView";
+import RouteMapView, {
+  type RouteMapViewHandle,
+} from "@/src/screens/RouteMap/RouteMapView";
 import StopDetailCard from "@/src/screens/RouteMap/StopDetailCard";
 import type {
   DriverAssignedRegion,
@@ -22,6 +31,7 @@ import {
   getTodoStopsInRouteOrder,
   toFiniteNumber,
 } from "@/src/screens/RouteMap/types";
+import ApiService from "@/src/utils/Apiservice";
 import { getDateByTimezone, resolveAppTimeZone } from "@/src/utils/appDateTime";
 import { getChauffeurLocation } from "@/src/utils/chauffeurLocationCache";
 import { Colors } from "@/src/utils/colors";
@@ -57,6 +67,7 @@ import React, {
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
+  AppState,
   Image,
   Linking,
   Modal,
@@ -222,9 +233,16 @@ export default function DriverRouteMapScreen() {
     String(GOOGLE_API_KEY || "").trim(),
   );
   const [mapsKeySource, setMapsKeySource] = useState("context");
+  const [locating, setLocating] = useState(false);
+  const [gpsSheet, setGpsSheet] = useState<{
+    visible: boolean;
+    reason: LocationAccessStatus | null;
+  }>({ visible: false, reason: null });
 
   const snapPoints = useMemo(() => ["22%", "48%", "78%"], []);
   const bottomSheetRef = useRef<BottomSheet>(null);
+  const mapViewRef = useRef<RouteMapViewHandle>(null);
+  const pickupSlideRef = useRef<any>(null);
   const listScrollRef = useRef<any>(null);
   const stopOffsetsRef = useRef<Record<string, number>>({});
 
@@ -245,6 +263,36 @@ export default function DriverRouteMapScreen() {
   mapDataRef.current = mapData;
   preferredRegionIdRef.current = preferredRegionId;
   sheetModeRef.current = sheetMode;
+
+  // Quick jump from pickup/dropoff: apply that screen's date + region.
+  useEffect(() => {
+    const incomingDate = route?.params?.date
+      ? toApiDateString(route.params.date) || String(route.params.date)
+      : "";
+    const incomingRegionId = route?.params?.region_id;
+    if (incomingDate && incomingDate !== selectDate) {
+      setSelectDate(incomingDate);
+    }
+    if (
+      incomingRegionId != null &&
+      String(selectedRegion?.region_id ?? "") !== String(incomingRegionId)
+    ) {
+      preferredRegionIdRef.current = String(incomingRegionId);
+      lastAutoKeyRef.current = "";
+      setSelectedRegion({
+        region_id: incomingRegionId,
+        region_name: route?.params?.region_name,
+        region_color: route?.params?.region_color,
+      });
+    }
+  }, [
+    route?.params?.date,
+    route?.params?.region_color,
+    route?.params?.region_id,
+    route?.params?.region_name,
+    selectDate,
+    selectedRegion?.region_id,
+  ]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -535,6 +583,164 @@ export default function DriverRouteMapScreen() {
     openSheet("filter", SHEET_SNAP.MID);
   }, [openSheet]);
 
+  const showMyLocationOnMap = useCallback(async () => {
+    setLocating(true);
+    try {
+      const position = await getSafeCurrentPosition();
+      const lat = position?.coords?.latitude;
+      const lng = position?.coords?.longitude;
+      if (lat == null || lng == null || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+        setToast({
+          top: 45,
+          text: t("Destination location is unavailable"),
+          type: "error",
+          visible: true,
+        });
+        return;
+      }
+      mapViewRef.current?.focusMyLocation(lat, lng);
+    } finally {
+      setLocating(false);
+    }
+  }, [setToast, t]);
+
+  /** Lazy GPS: only when the button is pressed. Same permission flow as other screens. */
+  const onMyLocationPress = useCallback(async () => {
+    if (locating) return;
+    setLocating(true);
+    try {
+      const status = await resolveLocationAccess();
+      if (status !== "granted") {
+        setLocating(false);
+        setGpsSheet({ visible: true, reason: status });
+        return;
+      }
+      setGpsSheet({ visible: false, reason: null });
+      await showMyLocationOnMap();
+    } catch {
+      setLocating(false);
+      setGpsSheet({ visible: true, reason: "denied" });
+    }
+  }, [locating, showMyLocationOnMap]);
+
+  const onGpsSheetPrimary = useCallback(async () => {
+    const reason = gpsSheet.reason;
+    if (!reason || reason === "granted") return;
+    setLocating(true);
+    try {
+      if (reason === "denied" || reason === "services_disabled") {
+        const status = await retryLocationPermission();
+        if (status === "granted") {
+          setGpsSheet({ visible: false, reason: null });
+          await showMyLocationOnMap();
+          return;
+        }
+        setGpsSheet({ visible: true, reason: status });
+        return;
+      }
+      await openAppSettings();
+    } finally {
+      setLocating(false);
+    }
+  }, [gpsSheet.reason, showMyLocationOnMap]);
+
+  useEffect(() => {
+    if (!gpsSheet.visible) return;
+    const sub = AppState.addEventListener("change", async (next) => {
+      if (next !== "active") return;
+      const status = await recheckLocationAccess();
+      if (status === "granted") {
+        setGpsSheet({ visible: false, reason: null });
+        await showMyLocationOnMap();
+      }
+    });
+    return () => sub.remove();
+  }, [gpsSheet.visible, showMyLocationOnMap]);
+
+  /** Same home slide the pickup/dropoff filter uses (title + type). */
+  const resolvePickupSlide = useCallback(async () => {
+    if (pickupSlideRef.current?.type === "pickup_dropoff" && pickupSlideRef.current?.item_title) {
+      return pickupSlideRef.current;
+    }
+    try {
+      const res = await ApiService(apiConstants.get_AllSlideDataApi, {
+        customData: {
+          token: UserData?.user?.verify_token,
+          role: UserData?.user?.role,
+          relaties_id: UserData?.relaties?.id,
+          user_id: UserData?.user?.id,
+        },
+      });
+      const list = Array.isArray(res?.data) ? res.data : [];
+      const slide = list.find((row: any) => row?.type === "pickup_dropoff");
+      if (slide) {
+        pickupSlideRef.current = slide;
+        return slide;
+      }
+    } catch {
+      // Keep the jump working even if the slider call fails.
+    }
+    return { type: "pickup_dropoff", item_title: pickupSlideRef.current?.item_title };
+  }, [UserData?.relaties?.id, UserData?.user?.id, UserData?.user?.role, UserData?.user?.verify_token]);
+
+  /** Quick jump to pickup/dropoff list with this screen's date + region. */
+  const goToPickupDropoff = useCallback(async () => {
+    const date = toApiDateString(selectDate) || selectDate;
+    const regionId = selectedRegion?.region_id ?? mapData?.region_id;
+    const regionPayload =
+      regionId != null
+        ? {
+            id: regionId,
+            name:
+              selectedRegion?.region_name ??
+              mapData?.region_name ??
+              "",
+            region_color:
+              selectedRegion?.region_color ?? mapData?.region_color,
+          }
+        : null;
+    if (date) setSelectActiveDate(String(date));
+    if (regionPayload) {
+      setSelectRegionData(regionPayload);
+      setSelectActiveRegionData(regionPayload);
+    }
+    const pickupSlide = await resolvePickupSlide();
+    const pickupTitle = pickupSlide?.item_title ? String(pickupSlide.item_title) : "";
+    setGloblyTypeSlide("pickup_dropoff");
+    if (pickupTitle) setGloblySlideTitle(pickupTitle);
+    navigation.navigate("FilterScreen", {
+      item: {
+        ...(pickupSlide || {}),
+        type: "pickup_dropoff",
+        ...(pickupTitle ? { item_title: pickupTitle } : {}),
+      },
+      Type: "pickup_dropoff",
+      date,
+      region_id: regionPayload?.id,
+      region_name: regionPayload?.name,
+      region_color: regionPayload?.region_color,
+    });
+  }, [
+    mapData?.region_color,
+    mapData?.region_id,
+    mapData?.region_name,
+    navigation,
+    selectDate,
+    selectedRegion?.region_color,
+    selectedRegion?.region_id,
+    selectedRegion?.region_name,
+    resolvePickupSlide,
+    setGloblySlideTitle,
+    setGloblyTypeSlide,
+    setSelectActiveDate,
+    setSelectActiveRegionData,
+    setSelectRegionData,
+  ]);
+
+  useEffect(() => {
+    void resolvePickupSlide();
+  }, [resolvePickupSlide]);
+
   const onNativeDateChange = useCallback(
     (event: DateTimePickerEvent, selected?: Date) => {
       if (Platform.OS === "android") {
@@ -753,6 +959,17 @@ export default function DriverRouteMapScreen() {
             )}
           </View>
           <Pressable
+            onPress={goToPickupDropoff}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            accessibilityLabel={t("Orders")}
+            style={({ pressed }) => [
+              styles.quickJumpBtn,
+              pressed && styles.changeRouteBtnPressed,
+            ]}
+          >
+            <Ionicons name="list-outline" size={22} color={Colors.primary} />
+          </Pressable>
+          <Pressable
             onPress={openChangeSheet}
             hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
             android_ripple={{ color: "transparent" }}
@@ -774,6 +991,7 @@ export default function DriverRouteMapScreen() {
         <View style={styles.mapPane}>
           {apiKey ? (
             <RouteMapView
+              ref={mapViewRef}
               apiKey={apiKey}
               mapData={mapData}
               onStopPress={onStopPress}
@@ -791,6 +1009,22 @@ export default function DriverRouteMapScreen() {
               </Text>
             </View>
           )}
+
+          <Pressable
+            onPress={onMyLocationPress}
+            disabled={locating}
+            accessibilityLabel={t("Current location")}
+            style={({ pressed }) => [
+              styles.myLocationBtn,
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            {locating ? (
+              <ActivityIndicator color={Colors.primary} size="small" />
+            ) : (
+              <Ionicons name="locate" size={22} color={Colors.primary} />
+            )}
+          </Pressable>
 
           {routeLoading ? (
             <View style={styles.routeLoadingBadge} pointerEvents="none">
@@ -842,6 +1076,7 @@ export default function DriverRouteMapScreen() {
             </TouchableOpacity>
           )}
           backgroundStyle={styles.sheetBackground}
+          handleIndicatorStyle={styles.sheetHandle}
           style={styles.sheet}
         >
           <BottomSheetScrollView
@@ -857,41 +1092,48 @@ export default function DriverRouteMapScreen() {
               <>
                 <Text style={styles.sheetEyebrow}>{t("Route")}</Text>
                 <Text style={styles.sheetTitle}>{t("Change")}</Text>
-                <Text style={styles.sheetHint}>
-                  {t("Choose date and region — route updates automatically")}
-                </Text>
 
-                <Text style={styles.fieldLabel}>{t("Select date")}</Text>
-                <TouchableOpacity
-                  activeOpacity={0.75}
-                  onPress={openNativeDatePicker}
-                  style={styles.dateField}
-                >
-                  <Ionicons
-                    name="calendar-outline"
-                    size={20}
-                    color={Colors.primary}
-                  />
-                  <Text style={styles.dateFieldText}>{dateLabel}</Text>
-                  <Ionicons
-                    name="chevron-down"
-                    size={18}
-                    color={Colors.darkText}
-                  />
-                </TouchableOpacity>
+                <View style={styles.filterBlock}>
+                  <Text style={styles.fieldLabel}>{t("Select date")}</Text>
+                  <TouchableOpacity
+                    activeOpacity={0.75}
+                    onPress={openNativeDatePicker}
+                    style={styles.dateField}
+                  >
+                    <View style={styles.fieldIcon}>
+                      <Ionicons
+                        name="calendar-outline"
+                        size={18}
+                        color={Colors.primary}
+                      />
+                    </View>
+                    <View style={styles.fieldTextWrap}>
+                      <Text style={styles.fieldCaption}>{t("Date")}</Text>
+                      <Text style={styles.dateFieldText} numberOfLines={1}>
+                        {dateLabel}
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name="chevron-down"
+                      size={18}
+                      color={Colors.primary}
+                    />
+                  </TouchableOpacity>
 
-                <Text style={[styles.fieldLabel, { marginTop: 14 }]}>
-                  {t("Select region")}
-                </Text>
-                <DropDownBox
-                  data={regions}
-                  value={selectedRegion}
-                  setValue={setSelectedRegion as any}
-                  labelFieldKey="region_name"
-                  valueFieldKey="region_id"
-                  placeholder="Select Region"
-                  dropdownPosition="top"
-                />
+                  <Text style={[styles.fieldLabel, styles.fieldLabelSpaced]}>
+                    {t("Select region")}
+                  </Text>
+                  <DropDownBox
+                    data={regions}
+                    value={selectedRegion}
+                    setValue={setSelectedRegion as any}
+                    labelFieldKey="region_name"
+                    valueFieldKey="region_id"
+                    placeholder="Select Region"
+                    dropdownPosition="top"
+                    ContainerStyle={styles.regionDropdown}
+                  />
+                </View>
 
                 {regionsLoading || routeLoading ? (
                   <View style={styles.inlineLoading}>
@@ -1016,6 +1258,14 @@ export default function DriverRouteMapScreen() {
           </Pressable>
         </Modal>
       ) : null}
+
+      <GpsPermissionSheet
+        visible={gpsSheet.visible}
+        reason={gpsSheet.reason}
+        loading={locating}
+        onClose={() => setGpsSheet({ visible: false, reason: null })}
+        onPrimaryAction={onGpsSheetPrimary}
+      />
     </GestureHandlerRootView>
   );
 }
@@ -1094,6 +1344,23 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 20,
   },
+  myLocationBtn: {
+    position: "absolute",
+    top: 14,
+    right: 14,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.white,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 20,
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOpacity: 0.16,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+  },
   routeLoadingBadge: {
     position: "absolute",
     top: 14,
@@ -1141,15 +1408,17 @@ const styles = StyleSheet.create({
   sheet: {
     zIndex: 30,
     elevation: 20,
+    borderRadius: 0,
   },
   sheetBackground: {
     backgroundColor: Colors.white,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    borderRadius: 0,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
     shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: -4 },
   },
   sheetHandleHit: {
     alignItems: "center",
@@ -1172,22 +1441,47 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingBottom: 10,
   },
+  filterBlock: {
+    marginTop: 16,
+  },
   dateField: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    backgroundColor: Colors.litegray1,
-    borderRadius: 14,
+    gap: 12,
+    backgroundColor: Colors.white,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: Colors.Boxgray,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
+    borderColor: Colors.primary,
+    paddingHorizontal: 12,
+    height: 56,
+  },
+  fieldIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    backgroundColor: Colors.primarylite,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fieldTextWrap: {
+    flex: 1,
+  },
+  fieldCaption: {
+    fontFamily: FONTS.Medium,
+    fontSize: 11,
+    color: Colors.darkText,
+    marginBottom: 1,
   },
   dateFieldText: {
-    flex: 1,
-    fontFamily: FONTS.Medium,
+    fontFamily: FONTS.SemiBold,
     fontSize: 15,
     color: Colors.black,
+  },
+  regionDropdown: {
+    marginVertical: 0,
+  },
+  fieldLabelSpaced: {
+    marginTop: 16,
   },
   datePickerBackdrop: {
     flex: 1,
@@ -1229,19 +1523,12 @@ const styles = StyleSheet.create({
     color: Colors.black,
     letterSpacing: -0.4,
   },
-  sheetHint: {
-    marginTop: 4,
-    marginBottom: 14,
-    fontFamily: FONTS.Regular,
-    fontSize: 13,
-    color: Colors.darkText,
-    lineHeight: 18,
-  },
   fieldLabel: {
-    fontFamily: FONTS.Medium,
-    fontSize: 13,
+    fontFamily: FONTS.SemiBold,
+    fontSize: 12,
+    letterSpacing: 0.3,
     color: Colors.orderdark,
-    marginBottom: 6,
+    marginBottom: 8,
   },
   inlineLoading: {
     marginTop: 16,
@@ -1282,6 +1569,13 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     lineHeight: 28,
   },
+  quickJumpBtn: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "transparent",
+  },
   changeRouteBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -1308,7 +1602,7 @@ const styles = StyleSheet.create({
   doneFilterBtn: {
     marginTop: 18,
     backgroundColor: Colors.primary,
-    borderRadius: 14,
+    borderRadius: 8,
     paddingVertical: 14,
     alignItems: "center",
   },

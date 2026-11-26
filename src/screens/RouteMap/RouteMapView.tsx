@@ -3,7 +3,7 @@ import {
   buildRouteMapHtml,
   buildRouteMapPayload,
 } from "@/src/screens/RouteMap/routeMapHtml";
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 import { StyleSheet, View } from "react-native";
 import { WebView } from "react-native-webview";
 
@@ -15,13 +15,17 @@ type Props = {
   onMapReady?: () => void;
 };
 
-export default function RouteMapView({
+export type RouteMapViewHandle = {
+  focusMyLocation: (lat: number, lng: number) => void;
+};
+
+const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function RouteMapView({
   apiKey,
   mapData,
   onStopPress,
   onMapsIssue,
   onMapReady,
-}: Props) {
+}, ref) {
   const webRef = useRef<WebView>(null);
   const issueRef = useRef(onMapsIssue);
   const onStopPressRef = useRef(onStopPress);
@@ -59,6 +63,22 @@ export default function RouteMapView({
   useEffect(() => {
     pushRouteToMap();
   }, [mapData]);
+
+  useImperativeHandle(ref, () => ({
+    focusMyLocation(lat: number, lng: number) {
+      if (!webRef.current || !Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      webRef.current.injectJavaScript(`
+        (function(){
+          try {
+            if (typeof window.__focusMyLocation === 'function') {
+              window.__focusMyLocation(${lat}, ${lng});
+            }
+          } catch (e) {}
+          true;
+        })();
+      `);
+    },
+  }));
 
   return (
     <View style={styles.wrap}>
@@ -119,7 +139,9 @@ export default function RouteMapView({
       />
     </View>
   );
-}
+});
+
+export default RouteMapView;
 
 const styles = StyleSheet.create({
   wrap: {

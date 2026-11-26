@@ -1,27 +1,44 @@
-import { Images } from "@/src/assets/images";
 import DetailsHeader from "@/src/components/DetailsHeader";
 import { useErrorHandle } from "@/src/components/ErrorHandle";
 import LoadingModal from "@/src/components/LoadingModal";
 import { GlobalContextData } from "@/src/context/GlobalContext";
+import { Colors } from "@/src/utils/colors";
+import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import React, { useCallback, useContext, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  Image,
+  Pressable,
   ScrollView,
   Text,
-  TouchableOpacity,
   View,
 } from "react-native";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import DocumentPreviewModal from "./DocumentPreviewModal";
 import { styles } from "./styles";
 import {
-  buildTypeSubtitle,
   resolveDocumentFileType,
   type QuickUploadType,
   type RelatieDocument,
 } from "./types";
+
+function typeIconName(item: QuickUploadType): keyof typeof Ionicons.glyphMap {
+  const key = `${item.slug || ""} ${item.type || ""}`.toLowerCase();
+  if (key.includes("licen") || key.includes("rijbewijs")) return "card-outline";
+  if (key.includes("passport") || key.includes("paspoort")) return "book-outline";
+  if (key.includes("niwo")) return "briefcase-outline";
+  if (key.includes("insurance") || key.includes("verzek")) return "shield-checkmark-outline";
+  if (key.includes("id") || key.includes("ident")) return "person-outline";
+  return "document-text-outline";
+}
+
+function fileIconName(doc: RelatieDocument): keyof typeof Ionicons.glyphMap {
+  const kind = resolveDocumentFileType(doc);
+  if (kind === "image") return "image-outline";
+  if (kind === "pdf") return "document-outline";
+  return "folder-outline";
+}
 import {
   extractDocumentApiError,
   fetchDocumentDetails,
@@ -193,90 +210,126 @@ export default function UploadDocumentsScreen() {
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.introCard}>
-            <Text style={styles.introTitle}>{t("Upload your documents")}</Text>
-            <Text style={styles.introText}>
-              {t(
-                "Select a document type and upload clear photos. Driving licence requires front, back and expiry date.",
-              )}
-            </Text>
-          </View>
-
           {errorText && !types.length ? (
             <View style={styles.sectionCard}>
               <Text style={styles.emptyText}>{errorText}</Text>
-              <TouchableOpacity style={styles.retryBtn} onPress={load}>
+              <Pressable style={styles.retryBtn} onPress={load}>
                 <Text style={styles.retryBtnText}>{t("Retry")}</Text>
-              </TouchableOpacity>
+              </Pressable>
             </View>
           ) : null}
 
-          {types.map((item) => (
-            <TouchableOpacity
-              key={item.slug || item.type}
-              style={styles.typeCard}
-              activeOpacity={0.85}
-              onPress={() =>
-                navigation.navigate("DocumentUpload", {
-                  documentType: item,
-                })
-              }
-            >
-              <View style={styles.typeCardLeft}>
-                <View style={styles.typeIconBox}>
-                  <Image
-                    source={Images.documentlogo}
-                    style={styles.typeIcon}
-                  />
-                </View>
-                <View style={styles.typeTexts}>
-                  <Text style={styles.typeTitle}>{t(item.type)}</Text>
-                  <Text style={styles.typeSubtitle}>
-                    {t(buildTypeSubtitle(item))}
-                  </Text>
-                </View>
-              </View>
-              <Image source={Images.RightIcon} style={styles.rightIcon} />
-            </TouchableOpacity>
-          ))}
+          {types.length > 0 ? (
+            <View style={styles.listBlock}>
+              {types.map((item, index) => (
+                <Animated.View
+                  key={item.slug || item.type}
+                  entering={FadeInDown.duration(280).delay(index * 40)}
+                >
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.typeCard,
+                      pressed && styles.cardPressed,
+                    ]}
+                    onPress={() =>
+                      navigation.navigate("DocumentUpload", {
+                        documentType: item,
+                      })
+                    }
+                  >
+                    <View style={styles.typeIconBox}>
+                      <Ionicons
+                        name={typeIconName(item)}
+                        size={22}
+                        color={Colors.primary}
+                      />
+                    </View>
+                    <Text style={styles.typeTitle} numberOfLines={2}>
+                      {t(item.type)}
+                    </Text>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={18}
+                      color={Colors.primary}
+                    />
+                  </Pressable>
+                </Animated.View>
+              ))}
+            </View>
+          ) : null}
 
-          <View style={styles.sectionCard}>
+          <View style={styles.docsHeader}>
             <Text style={styles.sectionTitle}>{t("Uploaded Documents")}</Text>
-            {documents.length === 0 ? (
+            {documents.length > 0 ? (
+              <Text style={styles.sectionMeta}>{documents.length}</Text>
+            ) : null}
+          </View>
+
+          {documents.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Ionicons
+                name="cloud-upload-outline"
+                size={28}
+                color={Colors.primary}
+              />
               <Text style={styles.emptyText}>
                 {t("No documents uploaded yet.")}
               </Text>
-            ) : (
-              documents.map((doc) => (
-                <TouchableOpacity
-                  key={String(doc.id)}
-                  style={styles.docCard}
-                  activeOpacity={0.85}
+            </View>
+          ) : (
+            documents.map((doc, index) => (
+              <Animated.View
+                key={String(doc.id)}
+                entering={FadeInDown.duration(280).delay(index * 35)}
+              >
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.docCard,
+                    pressed && styles.cardPressed,
+                  ]}
                   onPress={() => openDocument(doc)}
                 >
-                  <View style={styles.docCardRow}>
-                    <View style={styles.docCardTexts}>
-                      <Text style={styles.docTitle}>
-                        {doc.filename || doc.type || t("Document")}
-                      </Text>
+                  <View style={styles.docIconBox}>
+                    <Ionicons
+                      name={fileIconName(doc)}
+                      size={20}
+                      color={Colors.primary}
+                    />
+                  </View>
+                  <View style={styles.docCardTexts}>
+                    <Text style={styles.docTitle} numberOfLines={1}>
+                      {doc.filename || doc.type || t("Document")}
+                    </Text>
+                    <View style={styles.docMetaRow}>
                       {doc.type ? (
-                        <Text style={styles.docMeta}>{t(doc.type)}</Text>
-                      ) : null}
-                      {doc.expire_date ? (
-                        <Text style={styles.docMeta}>
-                          {`${t("Expiry Date")}: ${doc.expire_date}`}
+                        <Text style={styles.docMeta} numberOfLines={1}>
+                          {t(doc.type)}
                         </Text>
                       ) : null}
-                      {doc.status_name ? (
-                        <Text style={styles.docMeta}>{doc.status_name}</Text>
+                      {doc.expire_date ? (
+                        <Text style={styles.docMeta} numberOfLines={1}>
+                          {doc.expire_date}
+                        </Text>
                       ) : null}
                     </View>
-                    <Image source={Images.RightIcon} style={styles.rightIcon} />
                   </View>
-                </TouchableOpacity>
-              ))
-            )}
-          </View>
+                  {doc.status_name ? (
+                    <View style={styles.statusPill}>
+                      <Text style={styles.statusPillText} numberOfLines={1}>
+                        {doc.status_name}
+                      </Text>
+                    </View>
+                  ) : (
+                    <Ionicons
+                      name="chevron-forward"
+                      size={16}
+                      color={Colors.darkText}
+                    />
+                  )}
+                </Pressable>
+              </Animated.View>
+            ))
+          )}
         </ScrollView>
       </View>
 
